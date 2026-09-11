@@ -1,0 +1,799 @@
+import db from './database.js';
+import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
+import { User, Trainer, GymClass, Exercise, MembershipPlan, Booking, AttendanceLog, Workout, WorkoutSet } from '../types/index.js';
+
+export function seedDatabase() {
+  console.log('🌱 Seeding PulseFit Gym Gurugram database with rich initial data...');
+
+  db.reset();
+
+  const passwordHash = bcrypt.hashSync('pulse123', 10);
+
+  // 1. Users
+  const users: User[] = [
+    {
+      id: 'usr_member_1',
+      email: 'member@pulsefit.com',
+      password_hash: passwordHash,
+      name: 'Aarav Sharma',
+      role: 'member',
+      avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+      phone: '+91 98111 23456',
+      membership_tier: 'pro',
+      membership_status: 'active',
+      membership_expiry: '2027-12-31',
+      qr_code_token: 'PULSE-MEM-AARAV-8821',
+      created_at: '2026-01-15T08:00:00.000Z',
+      streak_days: 14
+    },
+    {
+      id: 'usr_admin_1',
+      email: 'admin@pulsefit.com',
+      password_hash: passwordHash,
+      name: 'Priya Verma',
+      role: 'admin',
+      avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&auto=format&fit=crop&q=80',
+      phone: '+91 98110 98765',
+      membership_tier: 'vip',
+      membership_status: 'active',
+      membership_expiry: '2030-01-01',
+      qr_code_token: 'PULSE-ADM-PRIYA-001',
+      created_at: '2025-06-01T08:00:00.000Z',
+      streak_days: 28
+    },
+    {
+      id: 'usr_trainer_1',
+      email: 'trainer@pulsefit.com',
+      password_hash: passwordHash,
+      name: 'Coach Vikram Rathore',
+      role: 'trainer',
+      avatar_url: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&auto=format&fit=crop&q=80',
+      phone: '+91 98112 45678',
+      membership_tier: 'vip',
+      membership_status: 'active',
+      membership_expiry: '2030-01-01',
+      qr_code_token: 'PULSE-TRN-VIKRAM-002',
+      created_at: '2025-08-10T08:00:00.000Z',
+      streak_days: 45
+    },
+    {
+      id: 'usr_member_2',
+      email: 'vip@pulsefit.com',
+      password_hash: passwordHash,
+      name: 'Ananya Gupta',
+      role: 'member',
+      avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
+      phone: '+91 98113 67890',
+      membership_tier: 'vip',
+      membership_status: 'active',
+      membership_expiry: '2027-08-15',
+      qr_code_token: 'PULSE-MEM-ANANYA-7734',
+      created_at: '2026-02-01T08:00:00.000Z',
+      streak_days: 9
+    },
+    {
+      id: 'usr_member_3',
+      email: 'rohan.mehra@example.com',
+      password_hash: passwordHash,
+      name: 'Rohan Mehra',
+      role: 'member',
+      avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80',
+      phone: '+91 98114 32199',
+      membership_tier: 'basic',
+      membership_status: 'active',
+      membership_expiry: '2026-11-20',
+      qr_code_token: 'PULSE-MEM-ROHAN-4412',
+      created_at: '2026-04-10T08:00:00.000Z',
+      streak_days: 5
+    },
+    {
+      id: 'usr_member_4',
+      email: 'maya.patel@example.com',
+      password_hash: passwordHash,
+      name: 'Maya Patel',
+      role: 'member',
+      avatar_url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=300&auto=format&fit=crop&q=80',
+      phone: '+91 98115 88823',
+      membership_tier: 'pro',
+      membership_status: 'active',
+      membership_expiry: '2027-03-10',
+      qr_code_token: 'PULSE-MEM-MAYA-9012',
+      created_at: '2026-03-18T08:00:00.000Z',
+      streak_days: 21
+    },
+    {
+      id: 'usr_member_5',
+      email: 'dev.kapoor@example.com',
+      password_hash: passwordHash,
+      name: 'Dev Kapoor',
+      role: 'member',
+      avatar_url: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=300&auto=format&fit=crop&q=80',
+      phone: '+91 98116 55501',
+      membership_tier: 'basic',
+      membership_status: 'expired',
+      membership_expiry: '2026-08-01',
+      qr_code_token: 'PULSE-MEM-DEV-1100',
+      created_at: '2025-10-01T08:00:00.000Z',
+      streak_days: 0
+    }
+  ];
+
+  db.users = users;
+
+  // 2. Trainers
+  const trainers: Trainer[] = [
+    {
+      id: 'trn_vikram',
+      user_id: 'usr_trainer_1',
+      name: 'Coach Vikram Rathore',
+      email: 'vikram@pulsefit.com',
+      phone: '+91 98112 45678',
+      specialties: ['Strength & Hypertrophy', 'Olympic Weightlifting', 'Desi Strength & Conditioning'],
+      bio: 'National-level powerlifting champion and CSCS-certified coach specializing in progressive overload, biomechanics, and explosive power.',
+      experience_years: 10,
+      rating: 4.96,
+      reviews_count: 142,
+      avatar_url: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=400&auto=format&fit=crop&q=80',
+      instagram: '@coach.vikramrathore'
+    },
+    {
+      id: 'trn_kavya',
+      name: 'Kavya Sen',
+      email: 'kavya@pulsefit.com',
+      phone: '+91 98117 67843',
+      specialties: ['HIIT Conditioning', 'Functional CrossFit', 'Metabolic Burn'],
+      bio: 'High-energy master trainer focused on athletic conditioning, anaerobic threshold conditioning, and building lean, resilient endurance.',
+      experience_years: 7,
+      rating: 4.92,
+      reviews_count: 98,
+      avatar_url: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=400&auto=format&fit=crop&q=80',
+      instagram: '@kavya.pulsefit'
+    },
+    {
+      id: 'trn_rohan',
+      name: 'Rohan Mehta',
+      email: 'rohan@pulsefit.com',
+      phone: '+91 98118 78998',
+      specialties: ['Power & Hatha Yoga', 'Athletic Mobility & Recovery', 'Mindful Breathwork'],
+      bio: '500-hour RYT instructor integrating deep fascial release, athletic hip & spine mobility drills, and restorative breathwork.',
+      experience_years: 8,
+      rating: 4.98,
+      reviews_count: 164,
+      avatar_url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
+      instagram: '@rohan.mobility'
+    },
+    {
+      id: 'trn_simran',
+      name: 'Simran Kaur',
+      email: 'simran@pulsefit.com',
+      phone: '+91 98119 32145',
+      specialties: ['Boxing & Kickboxing', 'Speed & Agility', 'Cricket Athletic Conditioning'],
+      bio: 'State boxing champion and conditioning specialist turning explosive bag drills and multi-directional footwork into supreme cardio power.',
+      experience_years: 6,
+      rating: 4.89,
+      reviews_count: 85,
+      avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+      instagram: '@simran_boxing'
+    },
+    {
+      id: 'trn_arjun',
+      name: 'Arjun Kapoor',
+      email: 'arjun@pulsefit.com',
+      phone: '+91 98120 23490',
+      specialties: ['Rhythm Cycling', 'Endurance Racing', 'VO2 Max Training'],
+      bio: 'Competitive velodrome cyclist leading immersive spin sessions synchronized with pulse-pounding beats and wattage tracking.',
+      experience_years: 5,
+      rating: 4.94,
+      reviews_count: 110,
+      avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
+      instagram: '@arjun.cycling'
+    },
+    {
+      id: 'trn_maya',
+      name: 'Maya Patel',
+      email: 'maya.coach@pulsefit.com',
+      phone: '+91 98121 90123',
+      specialties: ['Classical Pilates', 'Reformer Control', 'Postural Alignment'],
+      bio: 'Certified Pilates master helping members build deep core stability, correct posture, and move with effortless grace.',
+      experience_years: 9,
+      rating: 4.97,
+      reviews_count: 130,
+      avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80',
+      instagram: '@maya.pilates'
+    }
+  ];
+
+  db.trainers = trainers;
+
+  // 3. Classes
+  const classes: GymClass[] = [
+    {
+      id: 'cls_hiit_mon',
+      title: 'Ignite HIIT & Kettlebells',
+      category: 'HIIT',
+      trainer_id: 'trn_kavya',
+      trainer_name: 'Kavya Sen',
+      trainer_avatar: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=400&auto=format&fit=crop&q=80',
+      day_of_week: 1, // Mon
+      start_time: '06:30',
+      duration_minutes: 45,
+      room: 'Studio Alpha',
+      capacity: 20,
+      booked_count: 16,
+      intensity: 'High',
+      calories_burn_est: 550,
+      description: 'High-octane interval circuits blending battle ropes, kettlebell swings, and assault bike sprints.',
+      image_url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'cls_str_mon',
+      title: 'Barbell Heavy Compound',
+      category: 'Strength',
+      trainer_id: 'trn_vikram',
+      trainer_name: 'Coach Vikram Rathore',
+      trainer_avatar: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=400&auto=format&fit=crop&q=80',
+      day_of_week: 1, // Mon
+      start_time: '18:00',
+      duration_minutes: 60,
+      room: 'Iron Arena',
+      capacity: 15,
+      booked_count: 12,
+      intensity: 'Extreme',
+      calories_burn_est: 480,
+      description: 'Progressive strength coaching focused on squat, bench press, deadlift mechanics, and maximum muscle recruitment.',
+      image_url: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'cls_box_tue',
+      title: 'Power Strike Boxing & Agility',
+      category: 'Boxing',
+      trainer_id: 'trn_simran',
+      trainer_name: 'Simran Kaur',
+      trainer_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+      day_of_week: 2, // Tue
+      start_time: '07:00',
+      duration_minutes: 50,
+      room: 'Ring Room',
+      capacity: 18,
+      booked_count: 14,
+      intensity: 'High',
+      calories_burn_est: 620,
+      description: 'Heavy bag rounds, slipping drill combos, plyometrics, and explosive athletic core conditioning.',
+      image_url: 'https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?w=600&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'cls_cyc_tue',
+      title: 'Pulse RPM Speed Spin',
+      category: 'Cycling',
+      trainer_id: 'trn_arjun',
+      trainer_name: 'Arjun Kapoor',
+      trainer_avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
+      day_of_week: 2, // Tue
+      start_time: '17:30',
+      duration_minutes: 45,
+      room: 'Cycling Vault',
+      capacity: 25,
+      booked_count: 22,
+      intensity: 'Extreme',
+      calories_burn_est: 580,
+      description: 'Immersive rhythm cycling featuring sprint surges, hill climbs, and heart-rate zone training with LED lighting.',
+      image_url: 'https://images.unsplash.com/photo-1534258936925-c58bed479fcb?w=600&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'cls_yoga_wed',
+      title: 'Athletic Flow & Power Yoga',
+      category: 'Yoga',
+      trainer_id: 'trn_rohan',
+      trainer_name: 'Rohan Mehta',
+      trainer_avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
+      day_of_week: 3, // Wed
+      start_time: '07:30',
+      duration_minutes: 60,
+      room: 'Zen Sanctuary',
+      capacity: 22,
+      booked_count: 18,
+      intensity: 'Medium',
+      calories_burn_est: 280,
+      description: 'Dynamic vinyasa transitions coupled with active hip/shoulder openers to accelerate athletic recovery.',
+      image_url: 'https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=600&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'cls_cross_wed',
+      title: 'Hero WOD & Desi Conditioning',
+      category: 'CrossFit',
+      trainer_id: 'trn_vikram',
+      trainer_name: 'Coach Vikram Rathore',
+      trainer_avatar: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=400&auto=format&fit=crop&q=80',
+      day_of_week: 3, // Wed
+      start_time: '18:30',
+      duration_minutes: 55,
+      room: 'The Rig Zone',
+      capacity: 16,
+      booked_count: 15,
+      intensity: 'Extreme',
+      calories_burn_est: 680,
+      description: 'Olympic lifting primer followed by a grueling metabolic EMOM / AMRAP workout of the day.',
+      image_url: 'https://images.unsplash.com/photo-1517963879433-6ad2b056d712?w=600&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'cls_pil_thu',
+      title: 'Core Fusion Pilates',
+      category: 'Pilates',
+      trainer_id: 'trn_maya',
+      trainer_name: 'Maya Patel',
+      trainer_avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80',
+      day_of_week: 4, // Thu
+      start_time: '08:00',
+      duration_minutes: 50,
+      room: 'Zen Sanctuary',
+      capacity: 18,
+      booked_count: 11,
+      intensity: 'Medium',
+      calories_burn_est: 340,
+      description: 'Mat pilates with resistance bands and pilates rings for deep transverse abdominis and posture alignment.',
+      image_url: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=600&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'cls_str_thu',
+      title: 'Hypertrophy Upper Body Push/Pull',
+      category: 'Strength',
+      trainer_id: 'trn_vikram',
+      trainer_name: 'Coach Vikram Rathore',
+      trainer_avatar: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=400&auto=format&fit=crop&q=80',
+      day_of_week: 4, // Thu
+      start_time: '18:00',
+      duration_minutes: 60,
+      room: 'Iron Arena',
+      capacity: 16,
+      booked_count: 14,
+      intensity: 'High',
+      calories_burn_est: 450,
+      description: 'Targeted supersets and mechanical drop sets designed for maximum upper-body muscular hypertrophy.',
+      image_url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'cls_hiit_fri',
+      title: 'Friday MetCon Assault',
+      category: 'HIIT',
+      trainer_id: 'trn_kavya',
+      trainer_name: 'Kavya Sen',
+      trainer_avatar: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=400&auto=format&fit=crop&q=80',
+      day_of_week: 5, // Fri
+      start_time: '17:00',
+      duration_minutes: 45,
+      room: 'Studio Alpha',
+      capacity: 24,
+      booked_count: 20,
+      intensity: 'Extreme',
+      calories_burn_est: 600,
+      description: 'Team relay conditioning featuring sled pushes, ski ergs, dumbbell thrusters, and core finishers.',
+      image_url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'cls_box_sat',
+      title: 'Weekend Knockout Spar & Bag',
+      category: 'Boxing',
+      trainer_id: 'trn_simran',
+      trainer_name: 'Simran Kaur',
+      trainer_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+      day_of_week: 6, // Sat
+      start_time: '09:00',
+      duration_minutes: 60,
+      room: 'Ring Room',
+      capacity: 20,
+      booked_count: 19,
+      intensity: 'Extreme',
+      calories_burn_est: 700,
+      description: 'Fast-paced combination rounds, punch resistance drills, jump rope pacing, and core challenge.',
+      image_url: 'https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?w=600&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'cls_yoga_sat',
+      title: 'Restorative Sound Bath & Mobility',
+      category: 'Yoga',
+      trainer_id: 'trn_rohan',
+      trainer_name: 'Rohan Mehta',
+      trainer_avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
+      day_of_week: 6, // Sat
+      start_time: '11:00',
+      duration_minutes: 75,
+      room: 'Zen Sanctuary',
+      capacity: 25,
+      booked_count: 23,
+      intensity: 'Low',
+      calories_burn_est: 200,
+      description: 'Deep restorative poses held for 3-5 minutes accompanied by Tibetan singing bowls for nervous system decompression.',
+      image_url: 'https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=600&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'cls_cross_sun',
+      title: 'Sunday Super Grinder WOD',
+      category: 'CrossFit',
+      trainer_id: 'trn_kavya',
+      trainer_name: 'Kavya Sen',
+      trainer_avatar: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=400&auto=format&fit=crop&q=80',
+      day_of_week: 0, // Sun
+      start_time: '10:00',
+      duration_minutes: 60,
+      room: 'The Rig Zone',
+      capacity: 18,
+      booked_count: 12,
+      intensity: 'Extreme',
+      calories_burn_est: 650,
+      description: 'End-of-week endurance test: rowing intervals, wall balls, box jumps, and kettlebell clean & jerks.',
+      image_url: 'https://images.unsplash.com/photo-1517963879433-6ad2b056d712?w=600&auto=format&fit=crop&q=80'
+    }
+  ];
+
+  db.classes = classes;
+
+  // 4. Exercises
+  const exercises: Exercise[] = [
+    {
+      id: 'ex_bench_press',
+      name: 'Barbell Flat Bench Press',
+      category: 'Chest',
+      equipment: 'Barbell',
+      difficulty: 'Intermediate',
+      instructions: [
+        'Lie flat on the bench with eyes directly under the racked bar.',
+        'Grip bar slightly wider than shoulder-width, plant feet firmly into floor.',
+        'Unrack bar, lower controlled to mid-chest while tucking elbows at 45 degrees.',
+        'Drive through feet and press forcefully back to lockout without bouncing.'
+      ],
+      target_muscles: ['Pectoralis Major', 'Anterior Deltoid', 'Triceps Brachii'],
+      thumbnail_url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=300&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'ex_incline_db_press',
+      name: 'Incline Dumbbell Press',
+      category: 'Chest',
+      equipment: 'Dumbbell',
+      difficulty: 'Intermediate',
+      instructions: [
+        'Set bench to 30-45 degree angle.',
+        'Kick dumbbells to shoulder level and maintain a slight chest arch.',
+        'Press dumbbells upward in a slight converging arc, squeezing upper pecs at the peak.',
+        'Lower slowly until thumbs reach outer chest level.'
+      ],
+      target_muscles: ['Clavicular Pectoral (Upper Chest)', 'Anterior Deltoid', 'Triceps'],
+      thumbnail_url: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=300&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'ex_deadlift',
+      name: 'Conventional Barbell Deadlift',
+      category: 'Back',
+      equipment: 'Barbell',
+      difficulty: 'Advanced',
+      instructions: [
+        'Stand with feet hip-width apart, bar over mid-foot.',
+        'Hinge hips back, grip bar just outside knees, and pull chest up to lock lats.',
+        'Drive legs into floor, maintaining neutral spine until hips and knees extend together.',
+        'Return weight with control by hinging hips back before bending knees.'
+      ],
+      target_muscles: ['Erector Spinae', 'Gluteus Maximus', 'Hamstrings', 'Latissimus Dorsi', 'Traps'],
+      thumbnail_url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=300&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'ex_barbell_squat',
+      name: 'Barbell Back Squat',
+      category: 'Legs',
+      equipment: 'Barbell',
+      difficulty: 'Intermediate',
+      instructions: [
+        'Rest bar across upper traps/rear delts, feet shoulder-width, toes slightly flared.',
+        'Brace core deeply with 360-degree intra-abdominal pressure.',
+        'Descend by breaking at hips and knees simultaneously until thighs pass parallel.',
+        'Drive out of the hole spreading the floor with feet.'
+      ],
+      target_muscles: ['Quadriceps', 'Gluteus Maximus', 'Adductors', 'Core'],
+      thumbnail_url: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=300&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'ex_pullup',
+      name: 'Weighted / Bodyweight Pull-Up',
+      category: 'Back',
+      equipment: 'Bodyweight',
+      difficulty: 'Intermediate',
+      instructions: [
+        'Grab overhead bar with overhand grip slightly wider than shoulder width.',
+        'Initiate pull by retracting scapulae downward.',
+        'Pull chest towards bar until chin clears bar comfortably.',
+        'Lower with full control to a dead hang to ensure full lat stretch.'
+      ],
+      target_muscles: ['Latissimus Dorsi', 'Biceps Brachii', 'Rhomboids', 'Teres Major'],
+      thumbnail_url: 'https://images.unsplash.com/photo-1598971639058-fab3c3109a00?w=300&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'ex_overhead_press',
+      name: 'Barbell Overhead Military Press',
+      category: 'Shoulders',
+      equipment: 'Barbell',
+      difficulty: 'Intermediate',
+      instructions: [
+        'Rack bar at clavicle height, grip just outside shoulders.',
+        'Squeeze glutes and abs tight for a rock-solid base.',
+        'Press vertically, pulling head back slightly to clear the bar path, then locking out overhead.',
+        'Lower under strict control back to front rack.'
+      ],
+      target_muscles: ['Anterior Deltoids', 'Lateral Deltoids', 'Triceps', 'Upper Trapezius'],
+      thumbnail_url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=300&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'ex_romanian_deadlift',
+      name: 'Romanian Deadlift (RDL)',
+      category: 'Legs',
+      equipment: 'Barbell',
+      difficulty: 'Intermediate',
+      instructions: [
+        'Hold bar at hip level, soft bend in knees.',
+        'Push hips backward as far as possible while keeping bar glued to legs.',
+        'Stop once hamstrings reach maximum tension (usually just below knees).',
+        'Drive hips forward and squeeze glutes to stand.'
+      ],
+      target_muscles: ['Hamstrings', 'Gluteus Maximus', 'Lower Back'],
+      thumbnail_url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=300&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'ex_cable_lateral_raise',
+      name: 'Cable Lateral Raise',
+      category: 'Shoulders',
+      equipment: 'Cable',
+      difficulty: 'Beginner',
+      instructions: [
+        'Set pulley to lowest setting or wrist height.',
+        'Raise arm out to the side in the scapular plane (slight 15-degree forward angle).',
+        'Pause at shoulder height, then lower slowly through constant cable tension.'
+      ],
+      target_muscles: ['Lateral Deltoid (Side Delt)'],
+      thumbnail_url: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=300&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'ex_barbell_curl',
+      name: 'EZ-Bar Bicep Curl',
+      category: 'Arms',
+      equipment: 'Barbell',
+      difficulty: 'Beginner',
+      instructions: [
+        'Hold EZ-bar with underhand grip at shoulder width.',
+        'Pin elbows to ribcage and curl bar upward towards upper chest.',
+        'Squeeze biceps hard at peak contraction and resist the descent for 3 seconds.'
+      ],
+      target_muscles: ['Biceps Brachii', 'Brachialis'],
+      thumbnail_url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=300&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'ex_tricep_rope_pushdown',
+      name: 'Tricep Rope Pushdown',
+      category: 'Arms',
+      equipment: 'Cable',
+      difficulty: 'Beginner',
+      instructions: [
+        'Attach rope to high pulley, tuck elbows close to torso.',
+        'Push down extending elbows and spread rope apart at the bottom lockout.',
+        'Allow forearms to rise back to 90 degrees under control.'
+      ],
+      target_muscles: ['Triceps Lateral & Long Head'],
+      thumbnail_url: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=300&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'ex_hanging_leg_raise',
+      name: 'Hanging Leg / Knee Raise',
+      category: 'Core',
+      equipment: 'Bodyweight',
+      difficulty: 'Intermediate',
+      instructions: [
+        'Hang from pull-up bar with active shoulders.',
+        'Curl pelvis upward and lift toes or knees to chest height without swinging.',
+        'Lower with steady control to maintain continuous abdominal engagement.'
+      ],
+      target_muscles: ['Rectus Abdominis', 'Hip Flexors', 'Obliques'],
+      thumbnail_url: 'https://images.unsplash.com/photo-1598971639058-fab3c3109a00?w=300&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'ex_bulgarian_split_squat',
+      name: 'Bulgarian Split Squat',
+      category: 'Legs',
+      equipment: 'Dumbbell',
+      difficulty: 'Intermediate',
+      instructions: [
+        'Place rear foot elevated on bench behind you.',
+        'Lower front hip until front thigh is parallel to floor.',
+        'Drive through front heel to return to top position.'
+      ],
+      target_muscles: ['Quadriceps', 'Gluteus Medius & Maximus'],
+      thumbnail_url: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=300&auto=format&fit=crop&q=80'
+    }
+  ];
+
+  db.exercises = exercises;
+
+  // 5. Plans (INR Pricing)
+  const plans: MembershipPlan[] = [
+    {
+      id: 'plan_basic',
+      name: 'Standard Pass',
+      tier: 'basic',
+      price_monthly: 1499,
+      price_annual: 14388, // ₹1,199/month
+      description: 'Ideal for solo gym-goers who want unrestricted gym floor, free weights & cardio vault access.',
+      features: [
+        'Full 24/7 Gym Floor & Free Weights Access',
+        'Cardio & Functional Training Zone',
+        'Locker Room & High-Pressure Showers',
+        'Pulse Mobile App & Digital QR Pass',
+        'Standard Workout Tracking'
+      ],
+      is_popular: false
+    },
+    {
+      id: 'plan_pro',
+      name: 'Performance Pro',
+      tier: 'pro',
+      price_monthly: 2499,
+      price_annual: 23988, // ₹1,999/month
+      description: 'Our most popular membership: unlimited group fitness classes, spa recovery & analytics.',
+      features: [
+        'Everything in Standard Pass',
+        'Unlimited Group Fitness Classes (HIIT, Boxing, Yoga, Spin)',
+        'Infrared Sauna & Steam Recovery Suite',
+        '1 Monthly 1-on-1 Coach Assessment',
+        'Advanced Analytics & 1RM Progression Tracker',
+        'Priority Class Booking (7 days in advance)'
+      ],
+      is_popular: true,
+      badge: 'MOST POPULAR'
+    },
+    {
+      id: 'plan_vip',
+      name: 'Elite All-Access VIP',
+      tier: 'vip',
+      price_monthly: 3999,
+      price_annual: 38388, // ₹3,199/month
+      description: 'The ultimate VIP fitness lifestyle: personal training credits, cold plunge, and private lounge.',
+      features: [
+        'Everything in Performance Pro',
+        'Cold Plunge & Contrast Hydrotherapy Suite',
+        '2 Free Personal Training Sessions per Month',
+        'Guest Passes (2 per month)',
+        'Complimentary Towel Service & Juice Bar Discounts',
+        'Unlimited InBody Biometric Body Composition Scans',
+        'VIP Locker & Reserved Parking'
+      ],
+      is_popular: false,
+      badge: 'VIP ACCESS'
+    }
+  ];
+
+  db.membership_plans = plans;
+
+  // 6. Bookings for Aarav
+  const bookings: Booking[] = [
+    {
+      id: 'bk_aarav_1',
+      class_id: 'cls_hiit_mon',
+      user_id: 'usr_member_1',
+      booking_date: '2026-09-14',
+      status: 'confirmed',
+      created_at: '2026-09-08T10:00:00.000Z',
+      class_title: 'Ignite HIIT & Kettlebells',
+      category: 'HIIT',
+      start_time: '06:30',
+      room: 'Studio Alpha',
+      trainer_name: 'Kavya Sen'
+    },
+    {
+      id: 'bk_aarav_2',
+      class_id: 'cls_str_mon',
+      user_id: 'usr_member_1',
+      booking_date: '2026-09-14',
+      status: 'confirmed',
+      created_at: '2026-09-08T10:05:00.000Z',
+      class_title: 'Barbell Heavy Compound',
+      category: 'Strength',
+      start_time: '18:00',
+      room: 'Iron Arena',
+      trainer_name: 'Coach Vikram Rathore'
+    },
+    {
+      id: 'bk_aarav_3',
+      class_id: 'cls_box_tue',
+      user_id: 'usr_member_1',
+      booking_date: '2026-09-15',
+      status: 'confirmed',
+      created_at: '2026-09-08T10:10:00.000Z',
+      class_title: 'Power Strike Boxing & Agility',
+      category: 'Boxing',
+      start_time: '07:00',
+      room: 'Ring Room',
+      trainer_name: 'Simran Kaur'
+    }
+  ];
+
+  db.bookings = bookings;
+
+  // 7. Attendance Logs
+  const attendanceLogs: AttendanceLog[] = [
+    { id: 'att_1', user_id: 'usr_member_1', user_name: 'Aarav Sharma', user_email: 'member@pulsefit.com', user_tier: 'pro', check_in_time: '2026-09-08T07:14:22.000Z', check_in_method: 'qr' },
+    { id: 'att_2', user_id: 'usr_member_1', user_name: 'Aarav Sharma', user_email: 'member@pulsefit.com', user_tier: 'pro', check_in_time: '2026-09-07T18:22:10.000Z', check_in_method: 'qr' },
+    { id: 'att_3', user_id: 'usr_member_2', user_name: 'Ananya Gupta', user_email: 'vip@pulsefit.com', user_tier: 'vip', check_in_time: '2026-09-07T19:05:00.000Z', check_in_method: 'qr' },
+    { id: 'att_4', user_id: 'usr_member_1', user_name: 'Aarav Sharma', user_email: 'member@pulsefit.com', user_tier: 'pro', check_in_time: '2026-09-06T08:05:43.000Z', check_in_method: 'qr' },
+    { id: 'att_5', user_id: 'usr_member_3', user_name: 'Rohan Mehra', user_email: 'rohan.mehra@example.com', user_tier: 'basic', check_in_time: '2026-09-06T09:12:00.000Z', check_in_method: 'manual' },
+    { id: 'att_6', user_id: 'usr_member_1', user_name: 'Aarav Sharma', user_email: 'member@pulsefit.com', user_tier: 'pro', check_in_time: '2026-09-05T10:12:30.000Z', check_in_method: 'qr' },
+    { id: 'att_7', user_id: 'usr_member_4', user_name: 'Maya Patel', user_email: 'maya.patel@example.com', user_tier: 'pro', check_in_time: '2026-09-05T17:30:00.000Z', check_in_method: 'qr' },
+    { id: 'att_8', user_id: 'usr_member_1', user_name: 'Aarav Sharma', user_email: 'member@pulsefit.com', user_tier: 'pro', check_in_time: '2026-09-04T17:45:11.000Z', check_in_method: 'qr' },
+    { id: 'att_9', user_id: 'usr_member_1', user_name: 'Aarav Sharma', user_email: 'member@pulsefit.com', user_tier: 'pro', check_in_time: '2026-09-03T06:55:04.000Z', check_in_method: 'qr' },
+    { id: 'att_10', user_id: 'usr_member_1', user_name: 'Aarav Sharma', user_email: 'member@pulsefit.com', user_tier: 'pro', check_in_time: '2026-09-02T18:30:19.000Z', check_in_method: 'qr' },
+    { id: 'att_11', user_id: 'usr_member_2', user_name: 'Ananya Gupta', user_email: 'vip@pulsefit.com', user_tier: 'vip', check_in_time: '2026-09-02T19:15:00.000Z', check_in_method: 'qr' }
+  ];
+
+  db.attendance_logs = attendanceLogs;
+
+  // 8. Workouts & Sets for Aarav
+  const workouts: Workout[] = [
+    {
+      id: 'wk_aarav_1',
+      user_id: 'usr_member_1',
+      title: 'Heavy Chest & Triceps Push',
+      date: '2026-09-08',
+      duration_minutes: 55,
+      notes: 'Felt strong on barbell bench press. Reached 100kg for 6 reps smoothly.',
+      total_volume_kg: 8420,
+      created_at: '2026-09-08T08:15:00.000Z',
+      sets: [
+        { id: uuidv4(), workout_id: 'wk_aarav_1', exercise_id: 'ex_bench_press', exercise_name: 'Barbell Flat Bench Press', set_number: 1, weight_kg: 60, reps: 10, rpe: 6, is_warmup: true },
+        { id: uuidv4(), workout_id: 'wk_aarav_1', exercise_id: 'ex_bench_press', exercise_name: 'Barbell Flat Bench Press', set_number: 2, weight_kg: 80, reps: 8, rpe: 7.5, is_warmup: false },
+        { id: uuidv4(), workout_id: 'wk_aarav_1', exercise_id: 'ex_bench_press', exercise_name: 'Barbell Flat Bench Press', set_number: 3, weight_kg: 95, reps: 6, rpe: 8.5, is_warmup: false },
+        { id: uuidv4(), workout_id: 'wk_aarav_1', exercise_id: 'ex_bench_press', exercise_name: 'Barbell Flat Bench Press', set_number: 4, weight_kg: 100, reps: 6, rpe: 9, is_warmup: false },
+        { id: uuidv4(), workout_id: 'wk_aarav_1', exercise_id: 'ex_incline_db_press', exercise_name: 'Incline Dumbbell Press', set_number: 1, weight_kg: 32, reps: 10, rpe: 8, is_warmup: false },
+        { id: uuidv4(), workout_id: 'wk_aarav_1', exercise_id: 'ex_incline_db_press', exercise_name: 'Incline Dumbbell Press', set_number: 2, weight_kg: 34, reps: 8, rpe: 8.5, is_warmup: false },
+        { id: uuidv4(), workout_id: 'wk_aarav_1', exercise_id: 'ex_tricep_rope_pushdown', exercise_name: 'Tricep Rope Pushdown', set_number: 1, weight_kg: 25, reps: 15, rpe: 7, is_warmup: false },
+        { id: uuidv4(), workout_id: 'wk_aarav_1', exercise_id: 'ex_tricep_rope_pushdown', exercise_name: 'Tricep Rope Pushdown', set_number: 2, weight_kg: 30, reps: 12, rpe: 8.5, is_warmup: false }
+      ]
+    },
+    {
+      id: 'wk_aarav_2',
+      user_id: 'usr_member_1',
+      title: 'Back & Biceps Power Pull',
+      date: '2026-09-06',
+      duration_minutes: 60,
+      notes: 'Conventional deadlifts with full lockout. Excellent lat pump.',
+      total_volume_kg: 9650,
+      created_at: '2026-09-06T09:30:00.000Z',
+      sets: [
+        { id: uuidv4(), workout_id: 'wk_aarav_2', exercise_id: 'ex_deadlift', exercise_name: 'Conventional Barbell Deadlift', set_number: 1, weight_kg: 100, reps: 8, rpe: 6, is_warmup: true },
+        { id: uuidv4(), workout_id: 'wk_aarav_2', exercise_id: 'ex_deadlift', exercise_name: 'Conventional Barbell Deadlift', set_number: 2, weight_kg: 140, reps: 5, rpe: 7.5, is_warmup: false },
+        { id: uuidv4(), workout_id: 'wk_aarav_2', exercise_id: 'ex_deadlift', exercise_name: 'Conventional Barbell Deadlift', set_number: 3, weight_kg: 160, reps: 4, rpe: 8.5, is_warmup: false },
+        { id: uuidv4(), workout_id: 'wk_aarav_2', exercise_id: 'ex_pullup', exercise_name: 'Weighted / Bodyweight Pull-Up', set_number: 1, weight_kg: 0, reps: 12, rpe: 8, is_warmup: false },
+        { id: uuidv4(), workout_id: 'wk_aarav_2', exercise_id: 'ex_pullup', exercise_name: 'Weighted / Bodyweight Pull-Up', set_number: 2, weight_kg: 10, reps: 8, rpe: 9, is_warmup: false },
+        { id: uuidv4(), workout_id: 'wk_aarav_2', exercise_id: 'ex_barbell_curl', exercise_name: 'EZ-Bar Bicep Curl', set_number: 1, weight_kg: 35, reps: 10, rpe: 8, is_warmup: false }
+      ]
+    },
+    {
+      id: 'wk_aarav_3',
+      user_id: 'usr_member_1',
+      title: 'Quad & Hamstring Dominance',
+      date: '2026-09-04',
+      duration_minutes: 65,
+      notes: 'Heavy back squats down to parallel depth. Bulgarian split squats burned.',
+      total_volume_kg: 11200,
+      created_at: '2026-09-04T19:00:00.000Z',
+      sets: [
+        { id: uuidv4(), workout_id: 'wk_aarav_3', exercise_id: 'ex_barbell_squat', exercise_name: 'Barbell Back Squat', set_number: 1, weight_kg: 80, reps: 10, rpe: 6, is_warmup: true },
+        { id: uuidv4(), workout_id: 'wk_aarav_3', exercise_id: 'ex_barbell_squat', exercise_name: 'Barbell Back Squat', set_number: 2, weight_kg: 110, reps: 8, rpe: 7.5, is_warmup: false },
+        { id: uuidv4(), workout_id: 'wk_aarav_3', exercise_id: 'ex_barbell_squat', exercise_name: 'Barbell Back Squat', set_number: 3, weight_kg: 130, reps: 5, rpe: 9, is_warmup: false },
+        { id: uuidv4(), workout_id: 'wk_aarav_3', exercise_id: 'ex_romanian_deadlift', exercise_name: 'Romanian Deadlift (RDL)', set_number: 1, weight_kg: 90, reps: 10, rpe: 8, is_warmup: false },
+        { id: uuidv4(), workout_id: 'wk_aarav_3', exercise_id: 'ex_bulgarian_split_squat', exercise_name: 'Bulgarian Split Squat', set_number: 1, weight_kg: 20, reps: 12, rpe: 8.5, is_warmup: false }
+      ]
+    }
+  ];
+
+  db.workouts = workouts;
+  db.saveSync();
+
+  console.log('✅ PulseFit Gurugram database seeded and saved to disk with INR plans and Indian personas!');
+}
+
+// Auto-run if executed directly
+seedDatabase();
