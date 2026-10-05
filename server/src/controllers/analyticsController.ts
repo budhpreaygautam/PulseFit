@@ -8,7 +8,7 @@ export const getDashboardKPIs = async (req: Request, res: Response) => {
     const activeMembers = members.filter(u => u.membership_status === 'active');
 
     // Calculate MRR
-    const tierPrices: Record<string, number> = { basic: 39, pro: 69, vip: 119 };
+    const tierPrices: Record<string, number> = { basic: 1199, pro: 1499, vip: 1999 };
     const mrr = activeMembers.reduce((sum, m) => sum + (tierPrices[m.membership_tier] || 0), 0);
 
     // Today's check-ins
@@ -71,9 +71,9 @@ export const getDashboardKPIs = async (req: Request, res: Response) => {
     };
 
     const tierDistribution = [
-      { name: 'Standard Pass', tier: 'Basic', count: tierCounts.Basic || 1, revenue: (tierCounts.Basic || 1) * 39, color: '#38bdf8' },
-      { name: 'Performance Pro', tier: 'Pro', count: tierCounts.Pro || 1, revenue: (tierCounts.Pro || 1) * 69, color: '#84cc16' },
-      { name: 'Elite VIP', tier: 'VIP', count: tierCounts.VIP || 1, revenue: (tierCounts.VIP || 1) * 119, color: '#f59e0b' }
+      { name: 'Strength Pass', tier: 'Basic', count: tierCounts.Basic || 1, revenue: (tierCounts.Basic || 1) * 1199, color: '#38bdf8' },
+      { name: 'Zumba Pass', tier: 'Pro', count: tierCounts.Pro || 1, revenue: (tierCounts.Pro || 1) * 1499, color: '#84cc16' },
+      { name: 'Dual All-Access', tier: 'VIP', count: tierCounts.VIP || 1, revenue: (tierCounts.VIP || 1) * 1999, color: '#f59e0b' }
     ];
 
     // Top Classes Leaderboard

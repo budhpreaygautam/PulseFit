@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, XCircle, Sparkles, ChevronDown, ChevronUp, Lock, Loader2, AlertCircle } from 'lucide-react';
+import { CheckCircle2, XCircle, Sparkles, ChevronDown, ChevronUp, Lock, Loader2, AlertCircle, Dumbbell, Music2, Zap } from 'lucide-react';
 import { Badge } from '../../components/common/Badge.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useToast } from '../../context/ToastContext.js';
@@ -50,63 +50,61 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   const plans = [
     {
       id: 'basic',
-      name: 'Standard Pass',
+      name: 'Workout & Strength Pass',
       badge: null,
-      priceMonthly: 1499,
-      priceAnnual: 1199,
-      description: 'Full 24/7 access to our gym floor, Olympic lifting platforms, and cardio zone.',
+      icon: Dumbbell,
+      priceMonthly: 1199,
+      priceAnnual: 999,
+      description: 'Complete access to the gym floor, free weights & strength workout sessions.',
       features: [
-        '24/7 Gym Floor & Free Weights Access',
-        'Olympic Lifting Platforms & Sprint Turf Lane',
-        'Locker Room, Steam & High-Pressure Showers',
-        'Pulse Mobile App & Digital QR Pass',
-        'Daily Workout Set Logger',
-        'Keyless Smart Locker & RO Water Access'
+        'Full Gym Floor & Free Weights Access',
+        'Olympic Barbells, Racks & Dumbbells (up to 40kg)',
+        'Daily Workout & Strength Training Sessions',
+        'Daily Workout Set Logger & Time Tracker',
+        'Locker Room & High-Pressure Showers',
+        'Pulse Mobile App & Digital QR Turnstile Pass'
       ],
       excluded: [
-        'Coach-Led Group Classes (HIIT, Boxing, Yoga, CrossFit)',
-        'Infrared Sauna & Contrast Cold Plunge Suite',
-        'Personal Training Assessment Credits',
-        'Complimentary Medical-Grade InBody Scans'
+        'Zumba & Dance Cardio Group Sessions',
+        'Personal Trainer Form & Progress Assessment'
       ]
     },
     {
       id: 'pro',
-      name: 'Performance Pro',
-      badge: 'MOST POPULAR',
-      priceMonthly: 2499,
-      priceAnnual: 1999,
-      description: 'Unlimited coach-led group fitness classes, sauna recovery, and progression tracking.',
+      name: 'Zumba & Cardio Pass',
+      badge: null,
+      icon: Music2,
+      priceMonthly: 1499,
+      priceAnnual: 1199,
+      description: 'Unlimited high-energy Zumba dance and cardio conditioning classes.',
       features: [
-        'Everything in Standard Pass',
-        'Unlimited Group Fitness (HIIT, Boxing, Power Yoga, CrossFit)',
-        'Infrared Sauna & Steam Recovery Suites',
-        'Priority 7-Day Advance Class Reservations',
-        '1 Monthly 1-on-1 Trainer Assessment',
-        'Advanced 1RM Progression & Volume Analytics',
-        '10% Discount at Pulse Recovery Chai & Juice Bar'
+        'Unlimited Zumba & Dance Cardio Sessions',
+        'Acoustic Dance Studio & Aerobic Floor',
+        'Calorie Burn Tracking & Class Reservations',
+        'Locker Room & High-Pressure Showers',
+        'Pulse Mobile App & Digital QR Turnstile Pass'
       ],
       excluded: [
-        'Contrast Cold Plunge Hydrotherapy Pool',
-        'Free Monthly VIP Guest Passes'
+        'Gym Floor & Heavy Free Weights Zone',
+        'Personal Trainer Form & Progress Assessment'
       ]
     },
     {
       id: 'vip',
-      name: 'Elite All-Access VIP',
-      badge: 'VIP ACCESS',
-      priceMonthly: 3999,
-      priceAnnual: 3199,
-      description: 'The pinnacle of high-performance athletics with recovery plunge and personal training.',
+      name: 'Dual All-Access Pass',
+      badge: 'BEST VALUE',
+      icon: Zap,
+      priceMonthly: 1999,
+      priceAnnual: 1599,
+      description: 'The complete package: unlimited access to BOTH Strength Training & Zumba Cardio sessions.',
       features: [
-        'Everything in Performance Pro',
-        'Contrast Cold Plunge Hydrotherapy (10°C)',
-        '2 Free Personal Training Sessions per Month',
-        '2 Free VIP Guest Passes per Month',
-        'Unlimited Medical-Grade InBody Biometric Scans',
-        'Complimentary Towel Service & Reserved Parking',
-        'Private VIP Athlete Lounge',
-        '20% Off All Merchandise & Protein Bar'
+        'Unlimited Workout & Strength Training Floor',
+        'Unlimited Zumba & Cardio Dance Classes',
+        'Full Free Weights, Racks & Machine Access',
+        '1 Monthly Trainer Form & Fitness Assessment',
+        'Priority Class Spot Advance Booking',
+        'Pulse Mobile App & Digital QR Turnstile Pass',
+        'Locker Room & High-Pressure Showers'
       ],
       excluded: []
     }
@@ -119,15 +117,15 @@ export const PricingPage: React.FC<PricingPageProps> = ({
     },
     {
       q: 'How does the digital QR Pass turnstile work at Cyber Hub?',
-      a: 'Once you sign up, your mobile app generates a dynamic encrypted QR token. Simply hold your phone screen up to our optical entrance turnstiles for frictionless 24/7 access.'
+      a: 'Once you sign up, your mobile app generates a dynamic encrypted QR token. Simply hold your phone screen up to our optical entrance turnstiles for frictionless access.'
     },
     {
       q: 'Can I test the gym and classes before committing?',
-      a: 'Yes! You can claim our 1-Day VIP Free Trial pass right now, which grants complete access to all classes, gym floor, sauna, and recovery suites at no cost.'
+      a: 'Yes! You can claim our 1-Day Free Trial pass right now, which grants complete access to strength workouts and Zumba sessions at no cost.'
     },
     {
-      q: 'How does priority class reservation work?',
-      a: 'Performance Pro and VIP members can reserve class spots up to 7 days in advance. If a class fills up, you are automatically placed on the waitlist and notified as spots open.'
+      q: 'Can I switch between Strength Pass and Zumba Pass later?',
+      a: 'Yes, you can upgrade or switch plans anytime from your member dashboard. The Dual All-Access plan at ₹1,999/mo gives you access to both simultaneously.'
     },
     {
       q: 'Can I freeze my membership if I travel?',
@@ -141,20 +139,20 @@ export const PricingPage: React.FC<PricingPageProps> = ({
       <div className="text-center max-w-3xl mx-auto space-y-3 sm:space-y-4">
         <Badge variant="lime">MEMBERSHIP TIERS</Badge>
         <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-white tracking-tight font-['Outfit']">
-          INVEST IN YOUR PEAK PERFORMANCE
+          AFFORDABLE FITNESS IN GURUGRAM
         </h1>
-        <p className="text-xs sm:text-sm md:text-base text-slate-400">
-          Transparent pricing in INR. Zero hidden fees. Choose the tier that matches your athletic ambition.
+        <p className="text-xs sm:text-sm md:text-base text-slate-400 font-medium">
+          High-end equipment and energetic Zumba classes at honest, pocket-friendly INR pricing.
         </p>
 
-        {/* Monthly vs Annual Toggle */}
-        <div className="inline-flex items-center gap-2 sm:gap-3 p-1.5 rounded-2xl bg-gym-900 border border-slate-800 mt-3">
+        {/* Neumorphic Inset Monthly vs Annual Toggle */}
+        <div className="inline-flex items-center gap-2 p-1.5 rounded-2xl neu-pressed-sm mt-3">
           <button
             onClick={() => setBillingCycle('monthly')}
             className={`px-4 sm:px-5 py-2 rounded-xl text-xs font-bold transition-all ${
               billingCycle === 'monthly'
-                ? 'bg-lime-500 text-black shadow-glow-lime'
-                : 'text-slate-400 hover:text-white'
+                ? 'neu-btn-lime shadow-glow-lime'
+                : 'text-slate-800 dark:text-slate-200 hover:text-black dark:hover:text-white'
             }`}
           >
             Monthly Billing
@@ -163,46 +161,54 @@ export const PricingPage: React.FC<PricingPageProps> = ({
             onClick={() => setBillingCycle('annual')}
             className={`px-4 sm:px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
               billingCycle === 'annual'
-                ? 'bg-lime-500 text-black shadow-glow-lime'
-                : 'text-slate-400 hover:text-white'
+                ? 'neu-btn-lime shadow-glow-lime'
+                : 'text-slate-800 dark:text-slate-200 hover:text-black dark:hover:text-white'
             }`}
           >
             Annual Billing
-            <span className="bg-amber-400/20 text-amber-300 text-[10px] px-1.5 py-0.5 rounded font-extrabold">
-              SAVE 20%
+            <span className="bg-amber-400/20 text-amber-300 text-[10px] px-1.5 py-0.5 rounded font-black">
+              SAVE 15%
             </span>
           </button>
         </div>
       </div>
 
-      {/* Pricing Cards Grid */}
+      {/* Neumorphic Pricing Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 items-stretch">
         {plans.map(plan => {
-          const isPro = plan.id === 'pro';
+          const isVip = plan.id === 'vip';
           const price = billingCycle === 'annual' ? plan.priceAnnual : plan.priceMonthly;
+          const PlanIcon = plan.icon;
 
           return (
             <div
               key={plan.id}
               className={`rounded-3xl p-6 sm:p-8 flex flex-col justify-between relative transition-all ${
-                isPro
-                  ? 'border-2 border-lime-500 bg-gradient-to-b from-lime-500/10 via-gym-900 to-gym-950 shadow-glow-lime transform lg:-translate-y-3'
-                  : 'glass-panel border border-slate-800 bg-gym-900/80'
+                isVip
+                  ? 'neu-flat border-2 border-lime-500/70 shadow-glow-lime transform lg:-translate-y-3'
+                  : 'neu-flat'
               }`}
             >
               {plan.badge && (
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-lime-500 text-black text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-md">
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 neu-btn-lime text-[10px] font-black uppercase tracking-widest px-3.5 py-1 rounded-full shadow-md">
                   {plan.badge}
                 </div>
               )}
 
               <div className="space-y-5 sm:space-y-6">
-                <div>
-                  <h3 className="text-xl font-black text-white">{plan.name}</h3>
-                  <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{plan.description}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h3 className="text-xl font-black text-white font-['Outfit']">{plan.name}</h3>
+                    <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{plan.description}</p>
+                  </div>
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 neu-pressed-sm ${
+                    isVip ? 'text-lime-400 border border-lime-500/30' : plan.id === 'pro' ? 'text-pink-400 border border-pink-500/30' : 'text-cyan-400 border border-cyan-500/30'
+                  }`}>
+                    <PlanIcon className="w-5 h-5" />
+                  </div>
                 </div>
 
-                <div className="flex items-baseline gap-1.5 py-2 border-y border-slate-800/80">
+                <div className="flex items-baseline gap-1.5 py-3 border-y border-slate-800/80">
                   <span className="text-4xl sm:text-5xl font-black text-white font-['Outfit']">
                     ₹{price.toLocaleString('en-IN')}
                   </span>
@@ -213,7 +219,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
 
                 {/* Features List */}
                 <div className="space-y-3">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono">
                     Included Amenities:
                   </div>
                   <ul className="space-y-2.5 text-xs text-slate-200">
@@ -234,14 +240,14 @@ export const PricingPage: React.FC<PricingPageProps> = ({
               </div>
 
               {/* Action Button */}
-              <div className="mt-8 pt-6 border-t border-slate-800">
+              <div className="mt-8 pt-6 border-t border-slate-800/80">
                 <button
                   onClick={() => handleChoosePlan(plan)}
                   disabled={isProcessing}
-                  className={`w-full py-3.5 sm:py-4 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 ${
-                    isPro
-                      ? 'bg-gradient-to-r from-lime-500 to-lime-400 hover:from-lime-400 text-black shadow-glow-lime active:scale-[0.98]'
-                      : 'bg-slate-800 hover:bg-slate-700 text-white active:scale-[0.98]'
+                  className={`w-full py-3.5 sm:py-4 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-2 ${
+                    isVip
+                      ? 'neu-btn-lime shadow-glow-lime'
+                      : 'neu-btn text-white hover:text-lime-400'
                   } ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   {isProcessing ? (
@@ -266,31 +272,31 @@ export const PricingPage: React.FC<PricingPageProps> = ({
 
       {/* Payment Error Message */}
       {error && (
-        <div className="max-w-3xl mx-auto flex items-start gap-3 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-200">
+        <div className="max-w-3xl mx-auto flex items-start gap-3 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-200 neu-pressed-sm">
           <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-          <div className="text-sm leading-snug">{error}</div>
+          <div className="text-sm leading-snug font-medium">{error}</div>
         </div>
       )}
 
-      {/* Free Pass Banner */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-gym-900 border border-slate-800 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6">
+      {/* Neumorphic Free Pass Banner */}
+      <div className="p-6 sm:p-8 rounded-3xl neu-flat text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6 border border-lime-500/20">
         <div className="space-y-1">
-          <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 justify-center sm:justify-start">
-            <Sparkles className="w-5 h-5 text-amber-400" /> Want to try PulseFit Gurugram first?
+          <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 justify-center sm:justify-start font-['Outfit']">
+            <Sparkles className="w-5 h-5 text-lime-400" /> Want to try PulseFit Gurugram first?
           </h3>
-          <p className="text-xs text-slate-400">
-            Get a 1-day complimentary all-access pass to our facility, classes, and recovery suites.
+          <p className="text-xs text-slate-400 font-medium">
+            Get a 1-day complimentary all-access pass to our Strength floor and Zumba sessions.
           </p>
         </div>
         <button
           onClick={onOpenFreeTrialModal}
-          className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs rounded-xl shadow-glow-amber transition-all shrink-0"
+          className="px-6 py-3.5 neu-btn-lime text-black font-black text-xs rounded-xl shadow-glow-lime transition-all shrink-0"
         >
-          Claim 1-Day VIP Free Pass
+          Claim 1-Day Free Pass
         </button>
       </div>
 
-      {/* FAQ Accordion */}
+      {/* Neumorphic FAQ Accordion */}
       <div className="max-w-3xl mx-auto space-y-6 pt-4">
         <div className="text-center space-y-2">
           <Badge variant="cyan">FREQUENTLY ASKED QUESTIONS</Badge>
@@ -303,7 +309,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
           {faqs.map((faq, idx) => (
             <div
               key={idx}
-              className="rounded-2xl border border-slate-800 bg-gym-900/60 overflow-hidden transition-all"
+              className="rounded-2xl neu-flat p-1 overflow-hidden transition-all"
             >
               <button
                 onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
@@ -318,7 +324,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
               </button>
 
               {openFaq === idx && (
-                <div className="px-4 sm:px-5 pb-4 sm:pb-5 text-xs text-slate-400 leading-relaxed border-t border-slate-800/60 pt-3 animate-in fade-in">
+                <div className="px-4 sm:px-5 pb-4 sm:pb-5 text-xs text-slate-400 leading-relaxed border-t border-slate-800/60 pt-3 animate-in fade-in neu-pressed-sm m-2 rounded-xl">
                   {faq.a}
                 </div>
               )}

@@ -40,7 +40,7 @@ export const DigitalQrPassModal: React.FC<DigitalQrPassModalProps> = ({
       <div className="flex flex-col items-center text-center">
         {/* Pass Header Card */}
         <div
-          className={`w-full p-6 rounded-2xl border bg-gradient-to-b ${tierColors[user.membership_tier]} shadow-2xl relative overflow-hidden`}
+          className={`w-full p-6 rounded-3xl border neu-flat ${tierColors[user.membership_tier]} shadow-2xl relative overflow-hidden`}
         >
           {/* Subtle Background Badge Pattern */}
           <div className="absolute -right-8 -bottom-8 opacity-10 pointer-events-none">
@@ -49,14 +49,14 @@ export const DigitalQrPassModal: React.FC<DigitalQrPassModalProps> = ({
 
           <div className="flex items-center justify-between pb-4 border-b border-slate-700/50">
             <div className="flex items-center gap-2 text-left">
-              <div className="w-8 h-8 rounded-lg bg-lime-500 flex items-center justify-center font-black text-black text-sm">
+              <div className="w-8 h-8 rounded-xl bg-lime-500 flex items-center justify-center font-black text-black text-sm shadow-glow-lime">
                 P
               </div>
               <div>
-                <div className="font-extrabold tracking-wider text-xs uppercase text-slate-100">
+                <div className="font-extrabold tracking-wider text-xs uppercase text-slate-100 font-['Outfit']">
                   PULSEFIT ATHLETICS
                 </div>
-                <div className="text-[10px] text-slate-400">DIGITAL ACCESS PASS</div>
+                <div className="text-[10px] text-slate-400 font-medium">DIGITAL ACCESS PASS</div>
               </div>
             </div>
 
@@ -73,14 +73,14 @@ export const DigitalQrPassModal: React.FC<DigitalQrPassModalProps> = ({
             <img
               src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`}
               alt={user.name}
-              className="w-16 h-16 rounded-2xl border-2 border-slate-700 object-cover bg-slate-800 shrink-0"
+              className="w-16 h-16 rounded-2xl border-2 border-slate-700 object-cover bg-slate-800 shrink-0 shadow-md"
             />
             <div>
-              <h4 className="text-xl font-black text-slate-100">{user.name}</h4>
-              <p className="text-xs text-slate-400">{user.email}</p>
+              <h4 className="text-xl font-black text-slate-100 font-['Outfit']">{user.name}</h4>
+              <p className="text-xs text-slate-400 font-medium">{user.email}</p>
               <div className="flex items-center gap-2 mt-1">
                 <span className="inline-block w-2 h-2 rounded-full bg-lime-400 animate-pulse-dot" />
-                <span className="text-[11px] font-medium text-lime-400 capitalize">
+                <span className="text-[11px] font-bold text-lime-400 capitalize">
                   {user.membership_status} • Streak: {user.streak_days || 0}d
                 </span>
               </div>
@@ -88,7 +88,7 @@ export const DigitalQrPassModal: React.FC<DigitalQrPassModalProps> = ({
           </div>
 
           {/* QR Code Container with High Contrast */}
-          <div className="bg-white p-4 rounded-2xl shadow-inner inline-flex flex-col items-center justify-center mx-auto my-2">
+          <div className="bg-white p-4 rounded-2xl shadow-inner inline-flex flex-col items-center justify-center mx-auto my-2 border border-slate-200">
             {/* SVG QR Code Simulation with accurate visual patterns */}
             <svg
               viewBox="0 0 100 100"
@@ -145,20 +145,20 @@ export const DigitalQrPassModal: React.FC<DigitalQrPassModalProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-4 pt-3 border-t border-slate-700/50">
-            <span>Valid Thru: <strong className="text-slate-200">{user.membership_expiry}</strong></span>
-            <span>Turnstile Pass ID: <strong className="text-slate-200">#{user.id.slice(-6).toUpperCase()}</strong></span>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-4 pt-3 border-t border-slate-700/50 font-medium">
+            <span>Valid Thru: <strong className="text-slate-200 font-mono">{user.membership_expiry}</strong></span>
+            <span>Turnstile Pass ID: <strong className="text-slate-200 font-mono">#{user.id.slice(-6).toUpperCase()}</strong></span>
           </div>
         </div>
 
         {/* Copy / Actions Bar */}
-        <div className="w-full mt-4 flex items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-xs">
-          <div className="text-left font-mono text-slate-300 truncate">
+        <div className="w-full mt-4 flex items-center justify-between gap-3 neu-pressed-sm p-3 rounded-2xl text-xs">
+          <div className="text-left font-mono text-slate-200 font-bold truncate">
             {user.qr_code_token}
           </div>
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors shrink-0"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 neu-btn text-slate-200 rounded-xl transition-all shrink-0 font-bold text-xs"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-lime-400" /> : <Copy className="w-3.5 h-3.5" />}
             {copied ? 'Copied' : 'Copy'}
@@ -166,10 +166,10 @@ export const DigitalQrPassModal: React.FC<DigitalQrPassModalProps> = ({
         </div>
 
         {/* Tip for Kiosk Screen Brightness */}
-        <div className="flex items-center gap-2 text-xs text-slate-400 mt-4 bg-lime-500/5 p-3 rounded-xl border border-lime-500/20 w-full text-left">
+        <div className="flex items-center gap-2 text-xs text-slate-400 mt-4 neu-pressed-sm p-3.5 rounded-2xl w-full text-left">
           <SunMedium className="w-4 h-4 text-lime-400 shrink-0" />
-          <span>
-            <strong>Tip:</strong> Hold your screen 4–6 inches from the optical turnstile scanner at front desk check-in.
+          <span className="font-medium">
+            <strong className="text-slate-200">Tip:</strong> Hold your screen 4–6 inches from the optical turnstile scanner at front desk check-in.
           </span>
         </div>
       </div>

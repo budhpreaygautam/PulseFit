@@ -58,10 +58,10 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
     { label: 'Thursday', short: 'Thu', value: 4 },
     { label: 'Friday', short: 'Fri', value: 5 },
     { label: 'Saturday', short: 'Sat', value: 6 },
-    { label: 'Sunday', short: 'Sun', value: 0 }
+    { label: 'Sunday (Rest)', short: 'Sun', value: 0 }
   ];
 
-  const categories = ['All', 'HIIT', 'Strength', 'Yoga', 'CrossFit', 'Boxing', 'Cycling', 'Pilates'];
+  const categories = ['All', 'Workout & Strength', 'Zumba & Cardio'];
   const intensities = ['All', 'Low', 'Medium', 'High', 'Extreme'];
 
   const filteredClasses = classes.filter(c => {
@@ -123,26 +123,26 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
           <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight mt-2 font-['Outfit']">
             INTERACTIVE CLASS SCHEDULE
           </h1>
-          <p className="text-sm text-slate-400 mt-1 max-w-xl">
+          <p className="text-sm text-slate-400 mt-1 max-w-xl font-medium">
             Filter by workout discipline, target intensity, and coach. Real-time spot allocation and instant reservation.
           </p>
         </div>
 
         {/* Search */}
         <div className="relative w-full md:w-72">
-          <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
+          <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search classes or coaches..."
-            className="w-full pl-10 pr-4 py-2.5 bg-gym-900 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-lime-500"
+            className="w-full pl-10 pr-4 py-2.5 neu-pressed-sm rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-lime-500 font-medium"
           />
         </div>
       </div>
 
       {/* Day Selector Bar */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+      <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
         {days.map(d => {
           const count = classes.filter(c => c.day_of_week === d.value).length;
           const isSelected = selectedDay === d.value;
@@ -150,14 +150,14 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
             <button
               key={d.value}
               onClick={() => setSelectedDay(d.value)}
-              className={`flex-1 min-w-[120px] p-3.5 rounded-2xl border text-center transition-all ${
+              className={`flex-1 min-w-[120px] p-3.5 rounded-2xl text-center transition-all ${
                 isSelected
-                  ? 'bg-lime-500/10 border-lime-500 text-lime-400 shadow-glow-lime'
-                  : 'bg-gym-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
+                  ? 'neu-pressed-sm border border-lime-500/50 text-lime-400 shadow-glow-lime'
+                  : 'neu-flat text-slate-400 hover:text-slate-200 border border-slate-800/80 hover:border-slate-700'
               }`}
             >
               <div className="text-xs font-bold uppercase tracking-wider">{d.short}</div>
-              <div className="text-base font-extrabold text-white mt-0.5">{d.label}</div>
+              <div className="text-base font-extrabold text-white mt-0.5 font-['Outfit']">{d.label}</div>
               <div className="text-[10px] mt-1 opacity-75 font-medium">{count} Classes</div>
             </button>
           );
@@ -165,20 +165,20 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
       </div>
 
       {/* Category & Intensity Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-gym-900/60 p-4 rounded-2xl border border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-4 neu-flat p-4 rounded-2xl border border-slate-800/80">
         {/* Category Pills */}
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs font-bold text-slate-400 mr-2 flex items-center gap-1">
-            <Filter className="w-3.5 h-3.5" /> Category:
+            <Filter className="w-3.5 h-3.5 text-lime-400" /> Category:
           </span>
           {categories.map(cat => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs transition-all ${
                 selectedCategory === cat
-                  ? 'bg-lime-500 text-black font-bold'
-                  : 'bg-slate-800/60 text-slate-400 hover:text-slate-200'
+                  ? 'neu-btn-lime text-black font-extrabold shadow-glow-lime'
+                  : 'neu-btn text-slate-400 hover:text-slate-200 font-semibold'
               }`}
             >
               {cat}
@@ -192,10 +192,10 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
           <select
             value={selectedIntensity}
             onChange={e => setSelectedIntensity(e.target.value)}
-            className="bg-gym-950 border border-slate-700 text-xs text-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-lime-500"
+            className="neu-pressed-sm text-xs text-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-lime-500 font-medium cursor-pointer"
           >
             {intensities.map(lvl => (
-              <option key={lvl} value={lvl}>
+              <option key={lvl} value={lvl} className="bg-slate-900 text-slate-200">
                 {lvl}
               </option>
             ))}
@@ -205,7 +205,33 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
 
       {/* Classes List Grid */}
       {isLoading ? (
-        <div className="text-center py-20 text-slate-400 text-sm">Loading pulse schedule...</div>
+        <div className="text-center py-20 text-slate-400 text-sm font-medium">Loading pulse schedule...</div>
+      ) : selectedDay === 0 ? (
+        <div className="neu-flat p-12 sm:p-16 rounded-3xl text-center border border-slate-800/80 space-y-4 max-w-3xl mx-auto">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30">
+            <Clock className="w-8 h-8" />
+          </div>
+          <Badge variant="amber">SUNDAY FACILITY SCHEDULE</Badge>
+          <h3 className="text-2xl sm:text-3xl font-black text-white font-['Outfit']">
+            SUNDAY: REST & RECOVERY (GYM CLOSED)
+          </h3>
+          <p className="text-sm text-slate-300 max-w-lg mx-auto leading-relaxed font-medium">
+            Our Cyber Hub facility is dedicated to deep equipment sanitation, weight calibration, and athletic muscular recovery on Sundays.
+          </p>
+          <div className="p-4 rounded-2xl neu-pressed-sm text-xs text-slate-300 max-w-md mx-auto space-y-1">
+            <div className="font-bold text-lime-400">Regular Operating Hours:</div>
+            <div>Monday – Saturday: <span className="font-mono text-white font-bold">6:00 AM – 10:00 PM</span></div>
+            <div className="text-slate-400 font-medium">Sunday: <span className="text-rose-400 font-bold">Closed / Rest Day</span></div>
+          </div>
+          <div className="pt-2">
+            <button
+              onClick={() => setSelectedDay(1)}
+              className="px-6 py-3 neu-btn-lime text-black font-extrabold text-xs rounded-xl shadow-glow-lime"
+            >
+              View Monday Classes
+            </button>
+          </div>
+        </div>
       ) : filteredClasses.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredClasses.map(cls => {
@@ -215,17 +241,17 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
             return (
               <div
                 key={cls.id}
-                className="glass-panel glass-panel-hover rounded-2xl border border-slate-800 overflow-hidden flex flex-col justify-between group"
+                className="neu-flat rounded-3xl border border-slate-800/80 overflow-hidden flex flex-col justify-between group hover:border-lime-500/50 transition-all"
               >
                 <div>
                   {/* Top Image Banner */}
-                  <div className="relative h-44 overflow-hidden">
+                  <div className="relative h-44 overflow-hidden bg-slate-900">
                     <img
                       src={cls.image_url}
                       alt={cls.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 brightness-85"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-gym-950 via-transparent to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-gym-950 via-transparent to-transparent opacity-90" />
 
                     <div className="absolute top-3 left-3 flex items-center gap-1.5">
                       <Badge
@@ -258,10 +284,10 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
                   {/* Body Content */}
                   <div className="p-5 space-y-4">
                     <div>
-                      <h3 className="text-lg font-black text-white group-hover:text-lime-400 transition-colors">
+                      <h3 className="text-lg font-black text-white group-hover:text-lime-400 transition-colors font-['Outfit']">
                         {cls.title}
                       </h3>
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                      <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed font-medium">
                         {cls.description}
                       </p>
                     </div>
@@ -276,16 +302,16 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
                         />
                         <div>
                           <div className="font-bold text-slate-200">{cls.trainer_name}</div>
-                          <div className="text-[10px] text-slate-500">{cls.room}</div>
+                          <div className="text-[10px] text-slate-400 font-medium">{cls.room}</div>
                         </div>
                       </div>
 
                       <button
                         onClick={() => setActiveClassDetail(cls)}
-                        className="text-slate-400 hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-800 text-xs flex items-center gap-1 transition-colors"
+                        className="text-slate-400 hover:text-slate-200 p-1.5 rounded-lg neu-btn text-xs flex items-center gap-1 transition-all"
                         title="View Class Info"
                       >
-                        <Info className="w-4 h-4" /> Details
+                        <Info className="w-3.5 h-3.5" /> Details
                       </button>
                     </div>
                   </div>
@@ -296,14 +322,14 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
                   {/* Capacity Bar */}
                   <div className="mb-3 space-y-1">
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400">
-                        Occupancy: <strong className="text-slate-200">{cls.booked_count}/{cls.capacity}</strong>
+                      <span className="text-slate-400 font-medium">
+                        Occupancy: <strong className="text-slate-200 font-mono">{cls.booked_count}/{cls.capacity}</strong>
                       </span>
                       <span className={`font-bold ${spotsLeft <= 3 ? 'text-rose-400' : 'text-lime-400'}`}>
                         {spotsLeft > 0 ? `${spotsLeft} spots left` : 'Class Full'}
                       </span>
                     </div>
-                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="w-full h-1.5 neu-pressed-sm rounded-full overflow-hidden p-0">
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${
                           occupancyPct >= 90 ? 'bg-rose-500' : occupancyPct >= 60 ? 'bg-amber-400' : 'bg-lime-400'
@@ -318,8 +344,8 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
                     disabled={spotsLeft <= 0}
                     className={`w-full py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
                       spotsLeft > 0
-                        ? 'bg-gradient-to-r from-lime-500 to-lime-400 hover:from-lime-400 text-black shadow-glow-lime active:scale-[0.98]'
-                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                        ? 'neu-btn-lime text-black shadow-glow-lime active:scale-[0.98]'
+                        : 'neu-pressed-sm text-slate-500 cursor-not-allowed font-bold'
                     }`}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
@@ -331,10 +357,10 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
           })}
         </div>
       ) : (
-        <div className="glass-panel p-16 rounded-3xl text-center border border-slate-800 space-y-3">
+        <div className="neu-flat p-16 rounded-3xl text-center border border-slate-800/80 space-y-3">
           <Dumbbell className="w-10 h-10 text-slate-600 mx-auto" />
-          <h4 className="text-lg font-bold text-slate-200">No matching classes found</h4>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+          <h4 className="text-lg font-bold text-slate-200 font-['Outfit']">No matching classes found</h4>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto font-medium">
             Try resetting your category/intensity filters or choose another day of the week.
           </p>
           <button
@@ -343,7 +369,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
               setSelectedIntensity('All');
               setSearchQuery('');
             }}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 rounded-xl"
+            className="px-4 py-2 neu-btn text-xs font-bold text-slate-200 rounded-xl"
           >
             Clear Filters
           </button>
@@ -363,30 +389,30 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
             <img
               src={activeClassDetail.image_url}
               alt={activeClassDetail.title}
-              className="w-full h-48 object-cover rounded-2xl border border-slate-800"
+              className="w-full h-48 object-cover rounded-2xl border border-slate-800/80 shadow-md"
             />
 
             <div className="space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Class Overview</h4>
-              <p className="text-sm text-slate-300 leading-relaxed">{activeClassDetail.description}</p>
+              <p className="text-sm text-slate-300 leading-relaxed font-medium">{activeClassDetail.description}</p>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 p-4 rounded-xl bg-gym-950 border border-slate-800 text-center">
+            <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl neu-pressed-sm text-center">
               <div>
                 <div className="text-[10px] text-slate-400 uppercase font-bold">Intensity</div>
-                <div className="text-sm font-extrabold text-lime-400 mt-1">{activeClassDetail.intensity}</div>
+                <div className="text-sm font-extrabold text-lime-400 mt-1 font-['Outfit']">{activeClassDetail.intensity}</div>
               </div>
               <div>
                 <div className="text-[10px] text-slate-400 uppercase font-bold">Est. Calories</div>
-                <div className="text-sm font-extrabold text-rose-400 mt-1">~{activeClassDetail.calories_burn_est} kcal</div>
+                <div className="text-sm font-extrabold text-rose-400 mt-1 font-['Outfit']">~{activeClassDetail.calories_burn_est} kcal</div>
               </div>
               <div>
                 <div className="text-[10px] text-slate-400 uppercase font-bold">Room Arena</div>
-                <div className="text-sm font-extrabold text-slate-200 mt-1">{activeClassDetail.room}</div>
+                <div className="text-sm font-extrabold text-slate-200 mt-1 font-['Outfit']">{activeClassDetail.room}</div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+            <div className="flex items-center justify-between pt-4 border-t border-slate-800/80">
               <div className="flex items-center gap-3">
                 <img
                   src={activeClassDetail.trainer_avatar || 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=200'}
@@ -394,8 +420,8 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
                   className="w-10 h-10 rounded-full object-cover border border-slate-700"
                 />
                 <div>
-                  <div className="text-xs font-bold text-white">Coach {activeClassDetail.trainer_name}</div>
-                  <div className="text-[10px] text-lime-400">Head Instructor</div>
+                  <div className="text-xs font-bold text-white font-['Outfit']">Coach {activeClassDetail.trainer_name}</div>
+                  <div className="text-[10px] text-lime-400 font-semibold">Head Instructor</div>
                 </div>
               </div>
 
@@ -404,7 +430,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
                   handleBookClass(activeClassDetail);
                   setActiveClassDetail(null);
                 }}
-                className="px-6 py-2.5 bg-lime-500 hover:bg-lime-400 text-black font-extrabold text-xs rounded-xl shadow-glow-lime"
+                className="px-6 py-2.5 neu-btn-lime text-black font-extrabold text-xs rounded-xl shadow-glow-lime"
               >
                 Confirm Booking
               </button>
@@ -415,3 +441,4 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
     </div>
   );
 };
+

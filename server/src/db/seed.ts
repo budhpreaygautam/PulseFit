@@ -1,10 +1,10 @@
 import db from './database.js';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-import { User, Trainer, GymClass, Exercise, MembershipPlan, Booking, AttendanceLog, Workout, WorkoutSet } from '../types/index.js';
+import { User, Trainer, GymClass, Exercise, MembershipPlan, Booking, AttendanceLog, Workout, WorkoutSet, TimeSession } from '../types/index.js';
 
 export function seedDatabase() {
-  console.log('🌱 Seeding PulseFit Gym Gurugram database with rich initial data...');
+  console.log('🌱 Seeding PulseFit Gym Gurugram database with Mon-Sat Schedule, 1000-2000 INR Pricing & Time Tracking...');
 
   db.reset();
 
@@ -121,7 +121,7 @@ export function seedDatabase() {
 
   db.users = users;
 
-  // 2. Trainers
+  // 2. Trainers (Specialized in Workout/Strength and Zumba/Cardio)
   const trainers: Trainer[] = [
     {
       id: 'trn_vikram',
@@ -129,8 +129,8 @@ export function seedDatabase() {
       name: 'Coach Vikram Rathore',
       email: 'vikram@pulsefit.com',
       phone: '+91 98112 45678',
-      specialties: ['Strength & Hypertrophy', 'Olympic Weightlifting', 'Desi Strength & Conditioning'],
-      bio: 'National-level powerlifting champion and CSCS-certified coach specializing in progressive overload, biomechanics, and explosive power.',
+      specialties: ['Workout & Strength Training', 'Barbell Compound Movements', 'Progressive Muscle Building'],
+      bio: 'Certified Strength & Conditioning specialist with 10+ years experience mentoring gym-goers in compound lifting, hypertrophy, and proper lifting form.',
       experience_years: 10,
       rating: 4.96,
       reviews_count: 142,
@@ -142,293 +142,267 @@ export function seedDatabase() {
       name: 'Kavya Sen',
       email: 'kavya@pulsefit.com',
       phone: '+91 98117 67843',
-      specialties: ['HIIT Conditioning', 'Functional CrossFit', 'Metabolic Burn'],
-      bio: 'High-energy master trainer focused on athletic conditioning, anaerobic threshold conditioning, and building lean, resilient endurance.',
+      specialties: ['Zumba & Cardio Dance', 'Aerobic Fat Burn', 'High-Energy Cardio Sessions'],
+      bio: 'Licensed Zumba instructor & cardio dance coach bringing infectious rhythm, energetic choreography, and intense calorie burn to every session.',
       experience_years: 7,
-      rating: 4.92,
-      reviews_count: 98,
+      rating: 4.95,
+      reviews_count: 128,
       avatar_url: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=400&auto=format&fit=crop&q=80',
-      instagram: '@kavya.pulsefit'
+      instagram: '@kavya.zumbafit'
     },
     {
       id: 'trn_rohan',
       name: 'Rohan Mehta',
       email: 'rohan@pulsefit.com',
       phone: '+91 98118 78998',
-      specialties: ['Power & Hatha Yoga', 'Athletic Mobility & Recovery', 'Mindful Breathwork'],
-      bio: '500-hour RYT instructor integrating deep fascial release, athletic hip & spine mobility drills, and restorative breathwork.',
+      specialties: ['Functional Strength Training', 'Core Strengthening', 'Free Weight Workouts'],
+      bio: 'Dedicated strength coach focusing on foundational weight training, functional lifting, dumbbell routines, and injury prevention.',
       experience_years: 8,
-      rating: 4.98,
-      reviews_count: 164,
+      rating: 4.91,
+      reviews_count: 96,
       avatar_url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
-      instagram: '@rohan.mobility'
+      instagram: '@rohan.strength'
     },
     {
       id: 'trn_simran',
       name: 'Simran Kaur',
       email: 'simran@pulsefit.com',
       phone: '+91 98119 32145',
-      specialties: ['Boxing & Kickboxing', 'Speed & Agility', 'Cricket Athletic Conditioning'],
-      bio: 'State boxing champion and conditioning specialist turning explosive bag drills and multi-directional footwork into supreme cardio power.',
+      specialties: ['Zumba Party Sessions', 'Cardio Blast', 'Endurance & Stamina'],
+      bio: 'High-octane fitness coach certified in Zumba and cardio conditioning, turning intense workout routines into enjoyable, beat-driven dance workouts.',
       experience_years: 6,
-      rating: 4.89,
-      reviews_count: 85,
-      avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-      instagram: '@simran_boxing'
-    },
-    {
-      id: 'trn_arjun',
-      name: 'Arjun Kapoor',
-      email: 'arjun@pulsefit.com',
-      phone: '+91 98120 23490',
-      specialties: ['Rhythm Cycling', 'Endurance Racing', 'VO2 Max Training'],
-      bio: 'Competitive velodrome cyclist leading immersive spin sessions synchronized with pulse-pounding beats and wattage tracking.',
-      experience_years: 5,
-      rating: 4.94,
+      rating: 4.93,
       reviews_count: 110,
-      avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
-      instagram: '@arjun.cycling'
-    },
-    {
-      id: 'trn_maya',
-      name: 'Maya Patel',
-      email: 'maya.coach@pulsefit.com',
-      phone: '+91 98121 90123',
-      specialties: ['Classical Pilates', 'Reformer Control', 'Postural Alignment'],
-      bio: 'Certified Pilates master helping members build deep core stability, correct posture, and move with effortless grace.',
-      experience_years: 9,
-      rating: 4.97,
-      reviews_count: 130,
-      avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80',
-      instagram: '@maya.pilates'
+      avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+      instagram: '@simran_cardiozumba'
     }
   ];
 
   db.trainers = trainers;
 
-  // 3. Classes
+  // 3. Classes - Only 2 Disciplines: "Workout & Strength" and "Zumba & Cardio"
   const classes: GymClass[] = [
     {
-      id: 'cls_hiit_mon',
-      title: 'Ignite HIIT & Kettlebells',
-      category: 'HIIT',
+      id: 'cls_zumba_mon',
+      title: 'Sunrise Zumba Dance & Cardio',
+      category: 'Zumba & Cardio',
       trainer_id: 'trn_kavya',
       trainer_name: 'Kavya Sen',
       trainer_avatar: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=400&auto=format&fit=crop&q=80',
       day_of_week: 1, // Mon
       start_time: '06:30',
       duration_minutes: 45,
-      room: 'Studio Alpha',
-      capacity: 20,
-      booked_count: 16,
+      room: 'Zumba Studio',
+      capacity: 25,
+      booked_count: 18,
       intensity: 'High',
       calories_burn_est: 550,
-      description: 'High-octane interval circuits blending battle ropes, kettlebell swings, and assault bike sprints.',
-      image_url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80'
+      description: 'Start your week energized with upbeat Latin & Bollywood dance cardio choreography that torches calories and boosts endurance.',
+      image_url: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=600&auto=format&fit=crop&q=80'
     },
     {
       id: 'cls_str_mon',
-      title: 'Barbell Heavy Compound',
-      category: 'Strength',
+      title: 'Barbell Strength & Hypertrophy',
+      category: 'Workout & Strength',
       trainer_id: 'trn_vikram',
       trainer_name: 'Coach Vikram Rathore',
       trainer_avatar: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=400&auto=format&fit=crop&q=80',
       day_of_week: 1, // Mon
       start_time: '18:00',
       duration_minutes: 60,
-      room: 'Iron Arena',
-      capacity: 15,
-      booked_count: 12,
+      room: 'Strength Arena',
+      capacity: 20,
+      booked_count: 16,
       intensity: 'Extreme',
       calories_burn_est: 480,
-      description: 'Progressive strength coaching focused on squat, bench press, deadlift mechanics, and maximum muscle recruitment.',
+      description: 'Structured workout session focusing on major compound lifts—squats, bench press, and barbell rows with personalized form corrections.',
       image_url: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&auto=format&fit=crop&q=80'
     },
     {
-      id: 'cls_box_tue',
-      title: 'Power Strike Boxing & Agility',
-      category: 'Boxing',
+      id: 'cls_str_tue',
+      title: 'Functional Full-Body Strength',
+      category: 'Workout & Strength',
+      trainer_id: 'trn_rohan',
+      trainer_name: 'Rohan Mehta',
+      trainer_avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
+      day_of_week: 2, // Tue
+      start_time: '07:00',
+      duration_minutes: 50,
+      room: 'Strength Arena',
+      capacity: 20,
+      booked_count: 14,
+      intensity: 'High',
+      calories_burn_est: 450,
+      description: 'Dumbbell and kettlebell workout targeting all major muscle groups for balanced muscle tone, core stability, and stamina.',
+      image_url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'cls_zumba_tue',
+      title: 'High-Energy Zumba Beats',
+      category: 'Zumba & Cardio',
       trainer_id: 'trn_simran',
       trainer_name: 'Simran Kaur',
       trainer_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
       day_of_week: 2, // Tue
-      start_time: '07:00',
-      duration_minutes: 50,
-      room: 'Ring Room',
-      capacity: 18,
-      booked_count: 14,
-      intensity: 'High',
-      calories_burn_est: 620,
-      description: 'Heavy bag rounds, slipping drill combos, plyometrics, and explosive athletic core conditioning.',
-      image_url: 'https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?w=600&auto=format&fit=crop&q=80'
-    },
-    {
-      id: 'cls_cyc_tue',
-      title: 'Pulse RPM Speed Spin',
-      category: 'Cycling',
-      trainer_id: 'trn_arjun',
-      trainer_name: 'Arjun Kapoor',
-      trainer_avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
-      day_of_week: 2, // Tue
       start_time: '17:30',
       duration_minutes: 45,
-      room: 'Cycling Vault',
+      room: 'Zumba Studio',
       capacity: 25,
-      booked_count: 22,
-      intensity: 'Extreme',
-      calories_burn_est: 580,
-      description: 'Immersive rhythm cycling featuring sprint surges, hill climbs, and heart-rate zone training with LED lighting.',
-      image_url: 'https://images.unsplash.com/photo-1534258936925-c58bed479fcb?w=600&auto=format&fit=crop&q=80'
+      booked_count: 21,
+      intensity: 'High',
+      calories_burn_est: 520,
+      description: 'Dynamic cardio dance workout set to pulsing rhythms. Great for cardiovascular health, agility, and burning stubborn fat.',
+      image_url: 'https://images.unsplash.com/photo-1524594152303-9fd13543fe6e?w=600&auto=format&fit=crop&q=80'
     },
     {
-      id: 'cls_yoga_wed',
-      title: 'Athletic Flow & Power Yoga',
-      category: 'Yoga',
-      trainer_id: 'trn_rohan',
-      trainer_name: 'Rohan Mehta',
-      trainer_avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
+      id: 'cls_zumba_wed',
+      title: 'Cardio Dance Party Zumba',
+      category: 'Zumba & Cardio',
+      trainer_id: 'trn_kavya',
+      trainer_name: 'Kavya Sen',
+      trainer_avatar: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=400&auto=format&fit=crop&q=80',
       day_of_week: 3, // Wed
       start_time: '07:30',
-      duration_minutes: 60,
-      room: 'Zen Sanctuary',
-      capacity: 22,
-      booked_count: 18,
+      duration_minutes: 45,
+      room: 'Zumba Studio',
+      capacity: 25,
+      booked_count: 19,
       intensity: 'Medium',
-      calories_burn_est: 280,
-      description: 'Dynamic vinyasa transitions coupled with active hip/shoulder openers to accelerate athletic recovery.',
-      image_url: 'https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=600&auto=format&fit=crop&q=80'
+      calories_burn_est: 480,
+      description: 'Fun-filled cardio choreography suitable for all fitness levels. Sweat it out, improve rhythm, and elevate your mood.',
+      image_url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80'
     },
     {
-      id: 'cls_cross_wed',
-      title: 'Hero WOD & Desi Conditioning',
-      category: 'CrossFit',
+      id: 'cls_str_wed',
+      title: 'Upper Body Push & Pull Strength',
+      category: 'Workout & Strength',
       trainer_id: 'trn_vikram',
       trainer_name: 'Coach Vikram Rathore',
       trainer_avatar: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=400&auto=format&fit=crop&q=80',
       day_of_week: 3, // Wed
       start_time: '18:30',
       duration_minutes: 55,
-      room: 'The Rig Zone',
-      capacity: 16,
+      room: 'Strength Arena',
+      capacity: 18,
       booked_count: 15,
       intensity: 'Extreme',
-      calories_burn_est: 680,
-      description: 'Olympic lifting primer followed by a grueling metabolic EMOM / AMRAP workout of the day.',
-      image_url: 'https://images.unsplash.com/photo-1517963879433-6ad2b056d712?w=600&auto=format&fit=crop&q=80'
+      calories_burn_est: 500,
+      description: 'Focused workout on chest press, lat pulldowns, shoulder presses, and arm conditioning with guided rep tempos.',
+      image_url: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&auto=format&fit=crop&q=80'
     },
     {
-      id: 'cls_pil_thu',
-      title: 'Core Fusion Pilates',
-      category: 'Pilates',
-      trainer_id: 'trn_maya',
-      trainer_name: 'Maya Patel',
-      trainer_avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80',
+      id: 'cls_zumba_thu',
+      title: 'Core & Cardio Burn Session',
+      category: 'Zumba & Cardio',
+      trainer_id: 'trn_simran',
+      trainer_name: 'Simran Kaur',
+      trainer_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
       day_of_week: 4, // Thu
       start_time: '08:00',
-      duration_minutes: 50,
-      room: 'Zen Sanctuary',
-      capacity: 18,
-      booked_count: 11,
-      intensity: 'Medium',
-      calories_burn_est: 340,
-      description: 'Mat pilates with resistance bands and pilates rings for deep transverse abdominis and posture alignment.',
-      image_url: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=600&auto=format&fit=crop&q=80'
+      duration_minutes: 45,
+      room: 'Zumba Studio',
+      capacity: 22,
+      booked_count: 17,
+      intensity: 'High',
+      calories_burn_est: 490,
+      description: 'A blend of rhythmic dance cardio followed by standing and mat-based core conditioning intervals.',
+      image_url: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=600&auto=format&fit=crop&q=80'
     },
     {
       id: 'cls_str_thu',
-      title: 'Hypertrophy Upper Body Push/Pull',
-      category: 'Strength',
-      trainer_id: 'trn_vikram',
-      trainer_name: 'Coach Vikram Rathore',
-      trainer_avatar: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=400&auto=format&fit=crop&q=80',
+      title: 'Lower Body & Squat Mechanics',
+      category: 'Workout & Strength',
+      trainer_id: 'trn_rohan',
+      trainer_name: 'Rohan Mehta',
+      trainer_avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
       day_of_week: 4, // Thu
       start_time: '18:00',
       duration_minutes: 60,
-      room: 'Iron Arena',
-      capacity: 16,
-      booked_count: 14,
+      room: 'Strength Arena',
+      capacity: 18,
+      booked_count: 16,
       intensity: 'High',
-      calories_burn_est: 450,
-      description: 'Targeted supersets and mechanical drop sets designed for maximum upper-body muscular hypertrophy.',
-      image_url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&auto=format&fit=crop&q=80'
+      calories_burn_est: 520,
+      description: 'Strengthen quads, hamstrings, and glutes with guided barbell back squats, lunges, and Romanian deadlifts.',
+      image_url: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=600&auto=format&fit=crop&q=80'
     },
     {
-      id: 'cls_hiit_fri',
-      title: 'Friday MetCon Assault',
-      category: 'HIIT',
+      id: 'cls_str_fri',
+      title: 'Power Workout & Strength Circuit',
+      category: 'Workout & Strength',
+      trainer_id: 'trn_vikram',
+      trainer_name: 'Coach Vikram Rathore',
+      trainer_avatar: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=400&auto=format&fit=crop&q=80',
+      day_of_week: 5, // Fri
+      start_time: '07:00',
+      duration_minutes: 50,
+      room: 'Strength Arena',
+      capacity: 20,
+      booked_count: 17,
+      intensity: 'Extreme',
+      calories_burn_est: 530,
+      description: 'Full-body strength training circuit alternating between free weights and resistance machines for maximum muscle tone.',
+      image_url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'cls_zumba_fri',
+      title: 'Friday Night Zumba Party',
+      category: 'Zumba & Cardio',
       trainer_id: 'trn_kavya',
       trainer_name: 'Kavya Sen',
       trainer_avatar: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=400&auto=format&fit=crop&q=80',
       day_of_week: 5, // Fri
-      start_time: '17:00',
-      duration_minutes: 45,
-      room: 'Studio Alpha',
-      capacity: 24,
-      booked_count: 20,
-      intensity: 'Extreme',
+      start_time: '17:30',
+      duration_minutes: 50,
+      room: 'Zumba Studio',
+      capacity: 28,
+      booked_count: 24,
+      intensity: 'High',
       calories_burn_est: 600,
-      description: 'Team relay conditioning featuring sled pushes, ski ergs, dumbbell thrusters, and core finishers.',
-      image_url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80'
+      description: 'Celebrate the weekend with our flagship dance cardio party! Non-stop music, infectious energy, and maximum sweat.',
+      image_url: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=600&auto=format&fit=crop&q=80'
     },
     {
-      id: 'cls_box_sat',
-      title: 'Weekend Knockout Spar & Bag',
-      category: 'Boxing',
+      id: 'cls_zumba_sat',
+      title: 'Weekend Ultimate Zumba Fiesta',
+      category: 'Zumba & Cardio',
       trainer_id: 'trn_simran',
       trainer_name: 'Simran Kaur',
       trainer_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
       day_of_week: 6, // Sat
       start_time: '09:00',
       duration_minutes: 60,
-      room: 'Ring Room',
-      capacity: 20,
-      booked_count: 19,
-      intensity: 'Extreme',
-      calories_burn_est: 700,
-      description: 'Fast-paced combination rounds, punch resistance drills, jump rope pacing, and core challenge.',
-      image_url: 'https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?w=600&auto=format&fit=crop&q=80'
+      room: 'Zumba Studio',
+      capacity: 30,
+      booked_count: 26,
+      intensity: 'High',
+      calories_burn_est: 620,
+      description: 'Extended Saturday Zumba masterclass blending salsa, merengue, hip-hop, and energetic aerobic fitness.',
+      image_url: 'https://images.unsplash.com/photo-1524594152303-9fd13543fe6e?w=600&auto=format&fit=crop&q=80'
     },
     {
-      id: 'cls_yoga_sat',
-      title: 'Restorative Sound Bath & Mobility',
-      category: 'Yoga',
-      trainer_id: 'trn_rohan',
-      trainer_name: 'Rohan Mehta',
-      trainer_avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
+      id: 'cls_str_sat',
+      title: 'Deadlift & Heavy Compound Strength',
+      category: 'Workout & Strength',
+      trainer_id: 'trn_vikram',
+      trainer_name: 'Coach Vikram Rathore',
+      trainer_avatar: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=400&auto=format&fit=crop&q=80',
       day_of_week: 6, // Sat
       start_time: '11:00',
-      duration_minutes: 75,
-      room: 'Zen Sanctuary',
-      capacity: 25,
-      booked_count: 23,
-      intensity: 'Low',
-      calories_burn_est: 200,
-      description: 'Deep restorative poses held for 3-5 minutes accompanied by Tibetan singing bowls for nervous system decompression.',
-      image_url: 'https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=600&auto=format&fit=crop&q=80'
-    },
-    {
-      id: 'cls_cross_sun',
-      title: 'Sunday Super Grinder WOD',
-      category: 'CrossFit',
-      trainer_id: 'trn_kavya',
-      trainer_name: 'Kavya Sen',
-      trainer_avatar: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=400&auto=format&fit=crop&q=80',
-      day_of_week: 0, // Sun
-      start_time: '10:00',
       duration_minutes: 60,
-      room: 'The Rig Zone',
+      room: 'Strength Arena',
       capacity: 18,
-      booked_count: 12,
+      booked_count: 15,
       intensity: 'Extreme',
-      calories_burn_est: 650,
-      description: 'End-of-week endurance test: rowing intervals, wall balls, box jumps, and kettlebell clean & jerks.',
-      image_url: 'https://images.unsplash.com/photo-1517963879433-6ad2b056d712?w=600&auto=format&fit=crop&q=80'
+      calories_burn_est: 510,
+      description: 'Master the king of lifts: conventional deadlifts, Romanian deadlifts, and back accessory training with expert coaching.',
+      image_url: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&auto=format&fit=crop&q=80'
     }
   ];
 
   db.classes = classes;
 
-  // 4. Exercises
+  // 4. Exercises for Workout Logger
   const exercises: Exercise[] = [
     {
       id: 'ex_bench_press',
@@ -609,60 +583,57 @@ export function seedDatabase() {
 
   db.exercises = exercises;
 
-  // 5. Plans (INR Pricing)
+  // 5. Plans (₹1,000 - ₹2,000 INR Pricing)
   const plans: MembershipPlan[] = [
     {
       id: 'plan_basic',
-      name: 'Standard Pass',
+      name: 'Workout & Strength Pass',
       tier: 'basic',
-      price_monthly: 1499,
-      price_annual: 14388, // ₹1,199/month
-      description: 'Ideal for solo gym-goers who want unrestricted gym floor, free weights & cardio vault access.',
+      price_monthly: 1199,
+      price_annual: 11988, // ₹999/month billed annually (₹11,988/yr)
+      description: 'Complete access to the gym floor, free weights & strength workout sessions.',
       features: [
-        'Full 24/7 Gym Floor & Free Weights Access',
-        'Cardio & Functional Training Zone',
+        'Full Gym Floor & Free Weights Access',
+        'Workout & Strength Training Sessions',
         'Locker Room & High-Pressure Showers',
         'Pulse Mobile App & Digital QR Pass',
-        'Standard Workout Tracking'
+        'Daily Workout Set Logger & Time Tracker'
       ],
       is_popular: false
     },
     {
       id: 'plan_pro',
-      name: 'Performance Pro',
+      name: 'Zumba & Cardio Pass',
       tier: 'pro',
-      price_monthly: 2499,
-      price_annual: 23988, // ₹1,999/month
-      description: 'Our most popular membership: unlimited group fitness classes, spa recovery & analytics.',
+      price_monthly: 1499,
+      price_annual: 14388, // ₹1,199/month billed annually (₹14,388/yr)
+      description: 'Unlimited high-energy Zumba dance and cardio conditioning classes.',
       features: [
-        'Everything in Standard Pass',
-        'Unlimited Group Fitness Classes (HIIT, Boxing, Yoga, Spin)',
-        'Infrared Sauna & Steam Recovery Suite',
-        '1 Monthly 1-on-1 Coach Assessment',
-        'Advanced Analytics & 1RM Progression Tracker',
-        'Priority Class Booking (7 days in advance)'
+        'Unlimited Zumba & Cardio Sessions',
+        'Daily Dance Cardio Classes & Aerobic Floor',
+        'Locker Room & Shower Access',
+        'Pulse Mobile App & Digital QR Pass',
+        'Calorie Burn Tracking & Class Reservations'
       ],
-      is_popular: true,
-      badge: 'MOST POPULAR'
+      is_popular: false
     },
     {
       id: 'plan_vip',
-      name: 'Elite All-Access VIP',
+      name: 'Dual All-Access Pass (Strength + Zumba)',
       tier: 'vip',
-      price_monthly: 3999,
-      price_annual: 38388, // ₹3,199/month
-      description: 'The ultimate VIP fitness lifestyle: personal training credits, cold plunge, and private lounge.',
+      price_monthly: 1999,
+      price_annual: 19188, // ₹1,599/month billed annually (₹19,188/yr)
+      description: 'The best value: unlimited access to BOTH Strength Training & Zumba Cardio sessions.',
       features: [
-        'Everything in Performance Pro',
-        'Cold Plunge & Contrast Hydrotherapy Suite',
-        '2 Free Personal Training Sessions per Month',
-        'Guest Passes (2 per month)',
-        'Complimentary Towel Service & Juice Bar Discounts',
-        'Unlimited InBody Biometric Body Composition Scans',
-        'VIP Locker & Reserved Parking'
+        'Unlimited Workout & Strength Training Sessions',
+        'Unlimited Zumba & Cardio Dance Classes',
+        'Full Gym Floor & Free Weights Access',
+        '1 Monthly Trainer Form & Progress Assessment',
+        'Priority Class Spot Reservation',
+        'Pulse Mobile App & Digital QR Turnstile Pass'
       ],
-      is_popular: false,
-      badge: 'VIP ACCESS'
+      is_popular: true,
+      badge: 'BEST VALUE'
     }
   ];
 
@@ -672,15 +643,15 @@ export function seedDatabase() {
   const bookings: Booking[] = [
     {
       id: 'bk_aarav_1',
-      class_id: 'cls_hiit_mon',
+      class_id: 'cls_zumba_mon',
       user_id: 'usr_member_1',
       booking_date: '2026-09-14',
       status: 'confirmed',
       created_at: '2026-09-08T10:00:00.000Z',
-      class_title: 'Ignite HIIT & Kettlebells',
-      category: 'HIIT',
+      class_title: 'Sunrise Zumba Dance & Cardio',
+      category: 'Zumba & Cardio',
       start_time: '06:30',
-      room: 'Studio Alpha',
+      room: 'Zumba Studio',
       trainer_name: 'Kavya Sen'
     },
     {
@@ -690,23 +661,23 @@ export function seedDatabase() {
       booking_date: '2026-09-14',
       status: 'confirmed',
       created_at: '2026-09-08T10:05:00.000Z',
-      class_title: 'Barbell Heavy Compound',
-      category: 'Strength',
+      class_title: 'Barbell Strength & Hypertrophy',
+      category: 'Workout & Strength',
       start_time: '18:00',
-      room: 'Iron Arena',
+      room: 'Strength Arena',
       trainer_name: 'Coach Vikram Rathore'
     },
     {
       id: 'bk_aarav_3',
-      class_id: 'cls_box_tue',
+      class_id: 'cls_zumba_tue',
       user_id: 'usr_member_1',
       booking_date: '2026-09-15',
       status: 'confirmed',
       created_at: '2026-09-08T10:10:00.000Z',
-      class_title: 'Power Strike Boxing & Agility',
-      category: 'Boxing',
-      start_time: '07:00',
-      room: 'Ring Room',
+      class_title: 'High-Energy Zumba Beats',
+      category: 'Zumba & Cardio',
+      start_time: '17:30',
+      room: 'Zumba Studio',
       trainer_name: 'Simran Kaur'
     }
   ];
@@ -790,9 +761,145 @@ export function seedDatabase() {
   ];
 
   db.workouts = workouts;
+
+  // 9. Time Tracking Sessions (Active floor and past logs)
+  const now = new Date();
+  const timeSessions: TimeSession[] = [
+    // Currently Active Sessions on Gym Floor
+    {
+      id: 'ses_active_1',
+      user_id: 'usr_member_1',
+      user_name: 'Aarav Sharma',
+      user_email: 'member@pulsefit.com',
+      user_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+      user_tier: 'pro',
+      category: 'Workout & Strength',
+      clock_in_time: new Date(now.getTime() - 42 * 60 * 1000).toISOString(), // 42 min ago
+      clock_out_time: null,
+      duration_minutes: 42,
+      status: 'active',
+      notes: 'Chest & Tricep hypertrophy session'
+    },
+    {
+      id: 'ses_active_2',
+      user_id: 'usr_member_2',
+      user_name: 'Ananya Gupta',
+      user_email: 'vip@pulsefit.com',
+      user_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
+      user_tier: 'vip',
+      category: 'Zumba & Cardio',
+      clock_in_time: new Date(now.getTime() - 25 * 60 * 1000).toISOString(), // 25 min ago
+      clock_out_time: null,
+      duration_minutes: 25,
+      status: 'active',
+      notes: 'Zumba dance party workout'
+    },
+    {
+      id: 'ses_active_3',
+      user_id: 'usr_member_3',
+      user_name: 'Rohan Mehra',
+      user_email: 'rohan.mehra@example.com',
+      user_avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80',
+      user_tier: 'basic',
+      category: 'Workout & Strength',
+      clock_in_time: new Date(now.getTime() - 55 * 60 * 1000).toISOString(), // 55 min ago
+      clock_out_time: null,
+      duration_minutes: 55,
+      status: 'active',
+      notes: 'Leg day - squat progression'
+    },
+    {
+      id: 'ses_active_4',
+      user_id: 'usr_member_4',
+      user_name: 'Maya Patel',
+      user_email: 'maya.patel@example.com',
+      user_avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=300&auto=format&fit=crop&q=80',
+      user_tier: 'pro',
+      category: 'Zumba & Cardio',
+      clock_in_time: new Date(now.getTime() - 18 * 60 * 1000).toISOString(), // 18 min ago
+      clock_out_time: null,
+      duration_minutes: 18,
+      status: 'active',
+      notes: 'Cardio blast & aerobic dance'
+    },
+    // Past Completed Sessions for Aarav Sharma
+    {
+      id: 'ses_past_1',
+      user_id: 'usr_member_1',
+      user_name: 'Aarav Sharma',
+      user_email: 'member@pulsefit.com',
+      user_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+      user_tier: 'pro',
+      category: 'Workout & Strength',
+      clock_in_time: '2026-09-08T07:15:00.000Z',
+      clock_out_time: '2026-09-08T08:15:00.000Z',
+      duration_minutes: 60,
+      status: 'completed',
+      notes: 'Heavy chest push workout'
+    },
+    {
+      id: 'ses_past_2',
+      user_id: 'usr_member_1',
+      user_name: 'Aarav Sharma',
+      user_email: 'member@pulsefit.com',
+      user_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+      user_tier: 'pro',
+      category: 'Zumba & Cardio',
+      clock_in_time: '2026-09-07T18:00:00.000Z',
+      clock_out_time: '2026-09-07T18:48:00.000Z',
+      duration_minutes: 48,
+      status: 'completed',
+      notes: 'Evening Zumba dance & cardio'
+    },
+    {
+      id: 'ses_past_3',
+      user_id: 'usr_member_1',
+      user_name: 'Aarav Sharma',
+      user_email: 'member@pulsefit.com',
+      user_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+      user_tier: 'pro',
+      category: 'Workout & Strength',
+      clock_in_time: '2026-09-06T08:00:00.000Z',
+      clock_out_time: '2026-09-06T09:05:00.000Z',
+      duration_minutes: 65,
+      status: 'completed',
+      notes: 'Back deadlift pull session'
+    },
+    {
+      id: 'ses_past_4',
+      user_id: 'usr_member_1',
+      user_name: 'Aarav Sharma',
+      user_email: 'member@pulsefit.com',
+      user_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+      user_tier: 'pro',
+      category: 'Workout & Strength',
+      clock_in_time: '2026-09-04T17:45:00.000Z',
+      clock_out_time: '2026-09-04T18:50:00.000Z',
+      duration_minutes: 65,
+      status: 'completed',
+      notes: 'Leg day squat workout'
+    },
+    {
+      id: 'ses_past_5',
+      user_id: 'usr_member_1',
+      user_name: 'Aarav Sharma',
+      user_email: 'member@pulsefit.com',
+      user_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+      user_tier: 'pro',
+      category: 'Zumba & Cardio',
+      clock_in_time: '2026-09-03T06:45:00.000Z',
+      clock_out_time: '2026-09-03T07:35:00.000Z',
+      duration_minutes: 50,
+      status: 'completed',
+      notes: 'Morning dance calorie blast'
+    }
+  ];
+
+  db.time_sessions = timeSessions;
+
   db.saveSync();
 
-  console.log('✅ PulseFit Gurugram database seeded and saved to disk with INR plans and Indian personas!');
+  console.log('✅ PulseFit Gurugram database seeded and saved to disk with Mon-Sat Schedule, 1000-2000 INR Pricing & Time Tracking!');
 }
 
 // Auto-run if executed directly

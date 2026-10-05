@@ -33,10 +33,12 @@ export interface Trainer {
   instagram: string;
 }
 
+export type ClassCategory = 'Workout & Strength' | 'Zumba & Cardio' | 'Strength' | 'Zumba' | 'Cardio' | 'HIIT';
+
 export interface GymClass {
   id: string;
   title: string;
-  category: 'HIIT' | 'Strength' | 'Yoga' | 'CrossFit' | 'Boxing' | 'Cycling' | 'Pilates';
+  category: ClassCategory | string;
   trainer_id: string;
   trainer_name?: string;
   trainer_avatar?: string;
@@ -121,4 +123,37 @@ export interface MembershipPlan {
   features: string[];
   is_popular?: boolean;
   badge?: string;
+}
+
+export type TimeSessionCategory = 'Workout & Strength' | 'Zumba & Cardio';
+
+export interface TimeSession {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  user_avatar?: string;
+  user_tier: string;
+  category: TimeSessionCategory;
+  clock_in_time: string; // ISO timestamp
+  clock_out_time: string | null; // ISO timestamp or null if active
+  duration_minutes: number;
+  status: 'active' | 'completed';
+  notes?: string;
+}
+
+export interface ActiveFloorStatus {
+  totalActive: number;
+  workoutActive: number;
+  zumbaActive: number;
+  workoutUsers: TimeSession[];
+  zumbaUsers: TimeSession[];
+}
+
+export interface UserTimeTrackingStats {
+  activeSession: TimeSession | null;
+  totalTimeMinutesThisWeek: number;
+  totalTimeMinutesThisMonth: number;
+  totalSessionsCompleted: number;
+  recentSessions: TimeSession[];
 }

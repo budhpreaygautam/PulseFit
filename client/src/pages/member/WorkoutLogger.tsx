@@ -184,18 +184,18 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
           <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight mt-2 font-['Outfit']">
             LIVE WORKOUT LOGGER
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
+          <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl font-medium">
             Log set-by-set weights, reps, and RPE. Real-time tonnage calculation and integrated rest interval timer.
           </p>
         </div>
 
         {/* Live Volume Counter Pill */}
-        <div className="bg-gym-900 border border-lime-500/30 p-3.5 sm:p-4 rounded-2xl flex items-center gap-3.5 shadow-glow-lime shrink-0">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-lime-500/20 text-lime-400 flex items-center justify-center font-black shrink-0">
+        <div className="neu-flat p-3.5 sm:p-4 rounded-2xl flex items-center gap-3.5 shadow-glow-lime shrink-0">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl neu-pressed-sm text-lime-400 flex items-center justify-center font-black shrink-0">
             <Trophy className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div>
-            <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Lifted Volume</div>
+            <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Total Lifted Volume</div>
             <div className="text-xl sm:text-2xl font-black text-lime-400 font-mono">
               {totalVolume.toLocaleString()} <span className="text-xs text-slate-300 font-sans">kg</span>
             </div>
@@ -207,29 +207,29 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
         {/* Left Col: Main Workout Form & Sets (8 cols) */}
         <div className="lg:col-span-8 space-y-6">
           {/* Quick Routine Presets Bar */}
-          <div className="glass-panel p-4 rounded-2xl border border-slate-800 space-y-2">
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+          <div className="neu-flat p-4 rounded-2xl space-y-2">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5 font-mono">
               <Layers className="w-4 h-4 text-lime-400" /> Quick Split Templates:
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => applyPreset('push')}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors"
+                className="px-3 py-1.5 neu-btn text-slate-200 text-xs font-bold rounded-xl transition-all"
               >
                 PPL — Push
               </button>
               <button
                 type="button"
                 onClick={() => applyPreset('pull')}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors"
+                className="px-3 py-1.5 neu-btn text-slate-200 text-xs font-bold rounded-xl transition-all"
               >
                 PPL — Pull
               </button>
               <button
                 type="button"
                 onClick={() => applyPreset('legs')}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors"
+                className="px-3 py-1.5 neu-btn text-slate-200 text-xs font-bold rounded-xl transition-all"
               >
                 PPL — Legs
               </button>
@@ -237,10 +237,10 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
           </div>
 
           {/* Session Metadata Inputs */}
-          <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4">
+          <div className="neu-flat p-4 sm:p-6 rounded-2xl space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="sm:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">
                   Workout Session Title
                 </label>
                 <input
@@ -248,26 +248,26 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
                   value={title}
                   onChange={e => setTitle(e.target.value)}
                   placeholder="e.g. Chest & Shoulder Hypertrophy"
-                  className="w-full px-3.5 py-2.5 bg-gym-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-lime-500 font-semibold"
+                  className="w-full px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 font-semibold"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">
                   Date
                 </label>
                 <input
                   type="date"
                   value={date}
                   onChange={e => setDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-gym-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 focus:outline-none focus:border-lime-500"
+                  className="w-full px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 font-mono"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">
                   Duration (Minutes)
                 </label>
                 <input
@@ -276,12 +276,12 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
                   max="300"
                   value={durationMinutes}
                   onChange={e => setDurationMinutes(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 bg-gym-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 focus:outline-none focus:border-lime-500 font-mono"
+                  className="w-full px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 font-mono"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">
                   Session Notes / Cues
                 </label>
                 <input
@@ -289,22 +289,22 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   placeholder="e.g. Focused on slow eccentric tempo."
-                  className="w-full px-3.5 py-2.5 bg-gym-950 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-lime-500"
+                  className="w-full px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500"
                 />
               </div>
             </div>
           </div>
 
           {/* Add Exercise Bar */}
-          <div className="p-4 rounded-2xl bg-gym-900 border border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="p-4 rounded-2xl neu-flat flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div className="flex-1">
-              <label className="block text-[11px] sm:text-xs font-bold text-slate-300 mb-1">
+              <label className="block text-[11px] sm:text-xs font-bold text-slate-300 mb-1 font-mono">
                 Select Exercise:
               </label>
               <select
                 value={selectedExerciseId}
                 onChange={e => setSelectedExerciseId(e.target.value)}
-                className="w-full bg-gym-950 border border-slate-700 text-xs sm:text-sm text-slate-100 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-lime-500"
+                className="w-full text-xs sm:text-sm text-slate-100 px-3.5 py-2.5"
               >
                 {exercises.map(ex => (
                   <option key={ex.id} value={ex.id}>
@@ -322,20 +322,20 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
                   showToast('Set added to workout!', 'info');
                 }
               }}
-              className="px-5 py-2.5 bg-lime-500 hover:bg-lime-400 text-black font-extrabold text-xs rounded-xl shadow-glow-lime flex items-center justify-center gap-1.5 shrink-0"
+              className="px-5 py-2.5 neu-btn-lime text-black font-extrabold text-xs rounded-xl shadow-glow-lime flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
             >
               <Plus className="w-4 h-4" /> Add Set
             </button>
           </div>
 
           {/* Sets Table */}
-          <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4">
+          <div className="neu-flat p-4 sm:p-6 rounded-2xl space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+              <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2 font-['Outfit']">
                 <Dumbbell className="w-4 h-4 sm:w-5 sm:h-5 text-lime-400" />
                 Sets ({sets.length})
               </h3>
-              <span className="text-[10px] sm:text-xs text-slate-400">Warmups excluded from volume</span>
+              <span className="text-[10px] sm:text-xs text-slate-400 font-medium">Warmups excluded from volume</span>
             </div>
 
             {sets.length > 0 ? (
@@ -343,10 +343,10 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
                 {sets.map((set, index) => (
                   <div
                     key={index}
-                    className={`p-3.5 sm:p-4 rounded-xl border flex flex-col gap-3 transition-all ${
+                    className={`p-3.5 sm:p-4 rounded-xl flex flex-col gap-3 transition-all ${
                       set.is_warmup
-                        ? 'bg-slate-900/40 border-slate-800/80 text-slate-400'
-                        : 'bg-gym-950 border-slate-800 hover:border-slate-700'
+                        ? 'neu-pressed-sm text-slate-400 opacity-80'
+                        : 'neu-pressed-sm'
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -382,7 +382,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
                           min="0"
                           value={set.weight_kg}
                           onChange={e => updateSet(index, { weight_kg: Number(e.target.value) })}
-                          className="w-16 sm:w-20 px-2 py-1 bg-slate-900 border border-slate-700 rounded-lg text-xs text-center font-bold text-white focus:outline-none focus:border-lime-500 font-mono"
+                          className="w-16 sm:w-20 px-2 py-1 text-xs text-center font-bold text-white font-mono"
                         />
                         <span className="text-[11px] text-slate-400">kg</span>
                       </div>
@@ -395,7 +395,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
                           max="100"
                           value={set.reps}
                           onChange={e => updateSet(index, { reps: Number(e.target.value) })}
-                          className="w-14 sm:w-16 px-2 py-1 bg-slate-900 border border-slate-700 rounded-lg text-xs text-center font-bold text-white focus:outline-none focus:border-lime-500 font-mono"
+                          className="w-14 sm:w-16 px-2 py-1 text-xs text-center font-bold text-white font-mono"
                         />
                       </div>
 
@@ -404,7 +404,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
                         <select
                           value={set.rpe || 8}
                           onChange={e => updateSet(index, { rpe: Number(e.target.value) })}
-                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none"
+                          className="px-2 py-1 text-xs text-slate-200"
                         >
                           {[6, 7, 7.5, 8, 8.5, 9, 9.5, 10].map(v => (
                             <option key={v} value={v}>
@@ -440,7 +440,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
             type="button"
             onClick={handleSubmitWorkout}
             disabled={isSubmitting || sets.length === 0}
-            className="w-full py-3.5 sm:py-4 bg-gradient-to-r from-lime-500 to-lime-400 hover:from-lime-400 text-black font-black text-xs sm:text-sm rounded-2xl shadow-glow-lime transition-all active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-3.5 sm:py-4 neu-btn-lime text-black font-black text-xs sm:text-sm rounded-2xl shadow-glow-lime transition-all active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <Sparkles className="w-4 h-4" />
             {isSubmitting ? 'Saving Session...' : 'Complete & Save Workout'}
@@ -450,9 +450,9 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
         {/* Right Col: Interactive Rest Timer Widget & Tools (4 cols) */}
         <div className="lg:col-span-4 space-y-6">
           {/* Rest Stopwatch Widget */}
-          <div className="glass-panel p-5 sm:p-6 rounded-3xl border border-slate-800 space-y-5 sm:space-y-6 bg-gradient-to-b from-gym-900 to-gym-950">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-xs sm:text-sm font-extrabold text-white flex items-center gap-2">
+          <div className="neu-flat p-5 sm:p-6 rounded-3xl space-y-5 sm:space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+              <h3 className="text-xs sm:text-sm font-extrabold text-white flex items-center gap-2 font-['Outfit']">
                 <Clock className="w-4 h-4 text-lime-400" />
                 Inter-Set Rest Timer
               </h3>
@@ -466,12 +466,12 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
               <div className="text-5xl sm:text-6xl font-black font-mono text-lime-400 tracking-tight">
                 {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
               </div>
-              <p className="text-xs text-slate-400">Target Rest: {timerDuration}s</p>
+              <p className="text-xs text-slate-400 font-medium">Target Rest: {timerDuration}s</p>
 
               {/* Progress Bar */}
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-3">
+              <div className="w-full h-2 neu-pressed-sm rounded-full overflow-hidden mt-3">
                 <div
-                  className="h-full bg-lime-400 transition-all duration-1000"
+                  className="h-full bg-lime-400 transition-all duration-1000 rounded-full"
                   style={{ width: `${(timeLeft / timerDuration) * 100}%` }}
                 />
               </div>
@@ -484,8 +484,8 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
                 onClick={() => setIsTimerRunning(!isTimerRunning)}
                 className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
                   isTimerRunning
-                    ? 'bg-amber-500 hover:bg-amber-400 text-black shadow-glow-amber'
-                    : 'bg-lime-500 hover:bg-lime-400 text-black shadow-glow-lime'
+                    ? 'neu-btn text-amber-400 shadow-glow-amber'
+                    : 'neu-btn-lime text-black shadow-glow-lime'
                 }`}
               >
                 {isTimerRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -498,7 +498,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
                   setIsTimerRunning(false);
                   setTimeLeft(timerDuration);
                 }}
-                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl transition-colors"
+                className="p-2.5 neu-btn text-slate-200 rounded-xl transition-all"
                 title="Reset Timer"
               >
                 <RotateCcw className="w-4 h-4" />
@@ -506,8 +506,8 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
             </div>
 
             {/* Preset Buttons */}
-            <div className="space-y-2 pt-2 border-t border-slate-800">
-              <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <div className="space-y-2 pt-2 border-t border-slate-800/80">
+              <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">
                 Rest Presets:
               </div>
               <div className="grid grid-cols-4 gap-1.5">
@@ -516,7 +516,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
                     key={s}
                     type="button"
                     onClick={() => startTimer(s)}
-                    className="py-1.5 bg-slate-900 border border-slate-800 hover:border-lime-500/40 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all"
+                    className="py-1.5 neu-btn rounded-lg text-xs font-bold transition-all"
                   >
                     {s}s
                   </button>
@@ -526,23 +526,23 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
           </div>
 
           {/* Muscle Target Breakdown Card */}
-          <div className="glass-panel p-5 sm:p-6 rounded-3xl border border-slate-800 space-y-3">
-            <h3 className="text-xs sm:text-sm font-extrabold text-white flex items-center gap-2">
+          <div className="neu-flat p-5 sm:p-6 rounded-3xl space-y-3">
+            <h3 className="text-xs sm:text-sm font-extrabold text-white flex items-center gap-2 font-['Outfit']">
               <TrendingUp className="w-4 h-4 text-cyan-400" />
               Session Muscle Hits
             </h3>
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between text-slate-300">
                 <span>Working Sets:</span>
-                <strong className="text-white">{sets.filter(s => !s.is_warmup).length} sets</strong>
+                <strong className="text-white font-mono">{sets.filter(s => !s.is_warmup).length} sets</strong>
               </div>
               <div className="flex items-center justify-between text-slate-300">
                 <span>Warmup Sets:</span>
-                <strong className="text-slate-400">{sets.filter(s => s.is_warmup).length} sets</strong>
+                <strong className="text-slate-400 font-mono">{sets.filter(s => s.is_warmup).length} sets</strong>
               </div>
               <div className="flex items-center justify-between text-slate-300">
                 <span>Unique Movements:</span>
-                <strong className="text-lime-400">
+                <strong className="text-lime-400 font-mono">
                   {new Set(sets.map(s => s.exercise_id)).size} exercises
                 </strong>
               </div>

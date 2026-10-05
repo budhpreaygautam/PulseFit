@@ -1,7 +1,7 @@
 {
-  "name": "gym-webapp-server",
+  "name": "pulsefit-server",
   "version": "1.0.0",
-  "description": "Backend REST API for Gym Hub & Management",
+  "description": "Backend REST API for PulseFit Athletics Gurugram",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {

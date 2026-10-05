@@ -10,7 +10,8 @@ import {
   Exercise,
   Workout,
   WorkoutSet,
-  MembershipPlan
+  MembershipPlan,
+  TimeSession
 } from '../types/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -33,6 +34,7 @@ export interface DatabaseSchema {
   workouts: Workout[];
   workout_sets: WorkoutSet[];
   membership_plans: MembershipPlan[];
+  time_sessions: TimeSession[];
 }
 
 const defaultSchema: DatabaseSchema = {
@@ -44,7 +46,8 @@ const defaultSchema: DatabaseSchema = {
   exercises: [],
   workouts: [],
   workout_sets: [],
-  membership_plans: []
+  membership_plans: [],
+  time_sessions: []
 };
 
 class GymDatabase {
@@ -166,6 +169,15 @@ class GymDatabase {
     this.save();
   }
 
+  // Time Sessions (Clock-In / Clock-Out)
+  get time_sessions() {
+    return this.data.time_sessions || [];
+  }
+  set time_sessions(val: TimeSession[]) {
+    this.data.time_sessions = val;
+    this.save();
+  }
+
   public reset(): void {
     this.data = {
       users: [],
@@ -176,7 +188,8 @@ class GymDatabase {
       exercises: [],
       workouts: [],
       workout_sets: [],
-      membership_plans: []
+      membership_plans: [],
+      time_sessions: []
     };
     this.saveSync();
   }
