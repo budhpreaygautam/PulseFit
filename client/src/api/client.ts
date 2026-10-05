@@ -8,7 +8,10 @@ import {
   Workout,
   MembershipPlan,
   AdminDashboardKPIs,
-  WorkoutAnalytics
+  WorkoutAnalytics,
+  TimeSession,
+  ActiveFloorStatus,
+  UserTimeTrackingStats
 } from '../types/index.js';
 
 const API_BASE = '/api';
@@ -236,6 +239,23 @@ export const api = {
     }),
 
   getAttendanceLogs: () => request<AttendanceLog[]>('/attendance/logs'),
+
+  // --- Time Tracking & Floor Occupancy ---
+  clockIn: (category: 'Workout & Strength' | 'Zumba & Cardio', notes?: string) =>
+    request<TimeSession>('/time-tracking/clock-in', {
+      method: 'POST',
+      body: JSON.stringify({ category, notes })
+    }),
+
+  clockOut: (payload?: { sessionId?: string; notes?: string }) =>
+    request<TimeSession>('/time-tracking/clock-out', {
+      method: 'POST',
+      body: JSON.stringify(payload || {})
+    }),
+
+  getActiveFloorStatus: () => request<ActiveFloorStatus>('/time-tracking/active-floor'),
+
+  getMyTimeTrackingStats: () => request<UserTimeTrackingStats>('/time-tracking/my-stats'),
 
   // --- Admin Analytics ---
   getDashboardKPIs: () => request<AdminDashboardKPIs>('/analytics/dashboard')

@@ -69,7 +69,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
           <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight mt-2 font-['Outfit']">
             GYM PERFORMANCE ANALYTICS
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
+          <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl font-medium">
             Real-time revenue metrics, hourly member flow distribution, and class capacity utilization for Cyber Hub Gurugram.
           </p>
         </div>
@@ -77,7 +77,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
         {/* Quick Turnstile Scanner Shortcut */}
         <button
           onClick={() => setCurrentTab('admin-scanner')}
-          className="px-5 py-3 sm:px-6 sm:py-3.5 bg-lime-500 hover:bg-lime-400 text-black font-black text-xs rounded-xl shadow-glow-lime flex items-center gap-2 shrink-0 transition-all active:scale-95"
+          className="px-5 py-3 sm:px-6 sm:py-3.5 neu-btn-lime text-black font-black text-xs rounded-2xl shadow-glow-lime flex items-center gap-2 shrink-0 transition-all active:scale-95"
         >
           <QrCode className="w-4 h-4" /> Open Turnstile Scanner
         </button>
@@ -125,14 +125,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
       {/* Analytics Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Weekly Attendance Bar Chart (8 cols) */}
-        <div className="lg:col-span-8 glass-panel p-6 rounded-3xl border border-slate-800 space-y-4">
+        <div className="lg:col-span-8 neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2 font-['Outfit']">
                 <Activity className="w-4 h-4 text-lime-400" />
                 Weekly Attendance Visits
               </h3>
-              <p className="text-xs text-slate-400">Total member visits distributed Mon–Sun</p>
+              <p className="text-xs text-slate-400 font-medium">Total member visits distributed Mon–Sun</p>
             </div>
             <Badge variant="lime" size="sm">7-DAY TIMELINE</Badge>
           </div>
@@ -145,6 +145,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
                 <YAxis stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 12 }} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#0c1017', borderColor: '#334155', borderRadius: '12px', fontSize: '12px', color: '#fff' }}
+                  itemStyle={{ color: '#ffffff', fontWeight: 600 }}
+                  labelStyle={{ color: '#ffffff', fontWeight: 700 }}
                   cursor={{ fill: 'rgba(132, 204, 22, 0.05)' }}
                 />
                 <Bar dataKey="visits" fill="#84cc16" radius={[6, 6, 0, 0]} barSize={38} />
@@ -154,16 +156,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
         </div>
 
         {/* Revenue by Tier Donut Chart (4 cols) */}
-        <div className="lg:col-span-4 glass-panel p-6 rounded-3xl border border-slate-800 space-y-4 flex flex-col justify-between">
+        <div className="lg:col-span-4 neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-4 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2 font-['Outfit']">
                 <span className="text-amber-400 font-bold font-mono text-base">₹</span>
                 Revenue by Tier
               </h3>
               <Badge variant="amber" size="sm">MRR BREAKDOWN</Badge>
             </div>
-            <p className="text-xs text-slate-400 mt-1">Tier contribution to monthly revenue</p>
+            <p className="text-xs text-slate-400 mt-1 font-medium">Tier contribution to monthly revenue</p>
           </div>
 
           <div className="h-56 w-full flex items-center justify-center">
@@ -184,20 +186,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
                 </Pie>
                 <Tooltip
                   contentStyle={{ backgroundColor: '#0c1017', borderColor: '#334155', borderRadius: '12px', fontSize: '12px', color: '#fff' }}
+                  itemStyle={{ color: '#ffffff', fontWeight: 600 }}
+                  labelStyle={{ color: '#ffffff', fontWeight: 700 }}
                   formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}/mo`, 'Revenue']}
                 />
               </PieChart>
             </ResponsiveContainer>
           </div>
 
-          <div className="space-y-1.5 pt-2 border-t border-slate-800 text-xs">
+          <div className="space-y-2 pt-3 border-t border-slate-800/80 text-xs font-medium">
             {tierDistribution.map((t, i) => (
               <div key={t.tier} className="flex items-center justify-between">
                 <span className="flex items-center gap-2 text-slate-300">
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                   {t.name}
                 </span>
-                <strong className="text-white">₹{t.revenue.toLocaleString('en-IN')}/mo</strong>
+                <strong className="text-white font-mono">₹{t.revenue.toLocaleString('en-IN')}/mo</strong>
               </div>
             ))}
           </div>
@@ -205,14 +209,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
       </div>
 
       {/* Hourly Peak Hours Heatmap Curve */}
-      <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-4">
+      <div className="neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+            <h3 className="text-base font-extrabold text-white flex items-center gap-2 font-['Outfit']">
               <Clock className="w-4 h-4 text-cyan-400" />
               Hourly Facility Traffic Curve (06:00 – 21:00)
             </h3>
-            <p className="text-xs text-slate-400">Identify peak gym floor rush hours and staff accordingly.</p>
+            <p className="text-xs text-slate-400 font-medium">Identify peak gym floor rush hours and staff accordingly.</p>
           </div>
           <Badge variant="cyan" size="sm">HOURLY DISTRIBUTION</Badge>
         </div>
@@ -225,6 +229,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
               <YAxis stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 12 }} />
               <Tooltip
                 contentStyle={{ backgroundColor: '#0c1017', borderColor: '#334155', borderRadius: '12px', fontSize: '12px', color: '#fff' }}
+                itemStyle={{ color: '#ffffff', fontWeight: 600 }}
+                labelStyle={{ color: '#ffffff', fontWeight: 700 }}
               />
               <Line
                 type="monotone"
@@ -240,18 +246,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
       </div>
 
       {/* Popular Classes Leaderboard */}
-      <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-4">
+      <div className="neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+            <h3 className="text-base font-extrabold text-white flex items-center gap-2 font-['Outfit']">
               <Award className="w-4 h-4 text-amber-400" />
               Highest Demand Group Classes
             </h3>
-            <p className="text-xs text-slate-400">Leaderboard by booked capacity percentage.</p>
+            <p className="text-xs text-slate-400 font-medium">Leaderboard by booked capacity percentage.</p>
           </div>
           <button
             onClick={() => setCurrentTab('schedule')}
-            className="text-xs font-bold text-lime-400 hover:underline flex items-center gap-1"
+            className="text-xs font-bold text-lime-400 hover:text-lime-300 flex items-center gap-1"
           >
             Manage Timetable <ArrowRight className="w-3.5 h-3.5" />
           </button>
@@ -259,18 +265,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {topClasses.map((cls, idx) => (
-            <div key={cls.id} className="p-4 rounded-2xl bg-gym-950 border border-slate-800 space-y-2">
+            <div key={cls.id} className="p-4 rounded-2xl neu-pressed-sm space-y-2">
               <div className="flex items-center justify-between">
-                <span className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 font-mono font-bold text-xs flex items-center justify-center">
+                <span className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 font-mono font-bold text-xs flex items-center justify-center border border-amber-500/30">
                   #{idx + 1}
                 </span>
                 <span className="text-xs font-bold text-lime-400 font-mono">{cls.occupancy}% Booked</span>
               </div>
               <div>
-                <h4 className="font-extrabold text-sm text-white truncate">{cls.title}</h4>
-                <p className="text-xs text-slate-400">Coach: {cls.trainer} • {cls.category}</p>
+                <h4 className="font-extrabold text-sm text-white truncate font-['Outfit']">{cls.title}</h4>
+                <p className="text-xs text-slate-400 font-medium">Coach: {cls.trainer} • {cls.category}</p>
               </div>
-              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden mt-2">
+              <div className="w-full h-1.5 neu-pressed-sm rounded-full overflow-hidden mt-2 p-0">
                 <div
                   className="h-full bg-lime-400 rounded-full"
                   style={{ width: `${cls.occupancy}%` }}
@@ -283,3 +289,4 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
     </div>
   );
 };
+

@@ -7,6 +7,9 @@ import { Footer } from './components/layout/Footer.js';
 
 // Pages
 import { LandingPage } from './pages/public/LandingPage.js';
+import { WorkoutPage } from './pages/public/WorkoutPage.js';
+import { ZumbaPage } from './pages/public/ZumbaPage.js';
+import { FitnessGuidePage } from './pages/public/FitnessGuidePage.js';
 import { SchedulePage } from './pages/public/SchedulePage.js';
 import { PricingPage } from './pages/public/PricingPage.js';
 import { TrainersPage } from './pages/public/TrainersPage.js';
@@ -55,6 +58,26 @@ function MainAppContent() {
             onOpenFreeTrialModal={openFreeTrialModal}
             onOpenAuthModal={openAuthModal}
           />
+        )}
+
+        {currentTab === 'workout' && (
+          <WorkoutPage
+            setCurrentTab={setCurrentTab}
+            onOpenAuthModal={openAuthModal}
+            onOpenFreeTrialModal={openFreeTrialModal}
+          />
+        )}
+
+        {currentTab === 'zumba' && (
+          <ZumbaPage
+            setCurrentTab={setCurrentTab}
+            onOpenAuthModal={openAuthModal}
+            onOpenFreeTrialModal={openFreeTrialModal}
+          />
+        )}
+
+        {currentTab === 'guide' && (
+          <FitnessGuidePage setCurrentTab={setCurrentTab} />
         )}
 
         {currentTab === 'schedule' && (

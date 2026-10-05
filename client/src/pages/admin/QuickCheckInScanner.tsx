@@ -105,10 +105,10 @@ export const QuickCheckInScanner: React.FC = () => {
         {/* Left Scanner & Test Panel (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
           {/* Scanner Simulation Card */}
-          <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-6 relative overflow-hidden bg-gradient-to-b from-gym-900 to-gym-950">
+          <div className="neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-6 relative overflow-hidden">
             {/* Visual Scan Beam Line */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <div className="flex items-center gap-2 text-slate-200 font-bold text-sm">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
+              <div className="flex items-center gap-2 text-slate-200 font-bold text-sm font-['Outfit']">
                 <Scan className="w-5 h-5 text-lime-400" />
                 Optical Laser Turnstile Kiosk #1
               </div>
@@ -119,28 +119,28 @@ export const QuickCheckInScanner: React.FC = () => {
 
             {/* Scan Result Feedback Screen */}
             <div
-              className={`p-5 sm:p-6 rounded-2xl border transition-all duration-300 ${
+              className={`p-5 sm:p-6 rounded-2xl transition-all duration-300 ${
                 scanResult.status === 'success'
-                  ? 'bg-lime-500/10 border-lime-500/50 shadow-glow-lime'
+                  ? 'neu-pressed-sm border border-lime-500/50 shadow-glow-lime'
                   : scanResult.status === 'denied'
-                  ? 'bg-rose-500/10 border-rose-500/50 shadow-glow-crimson'
-                  : 'bg-gym-950 border-slate-800'
+                  ? 'neu-pressed-sm border border-rose-500/50 shadow-glow-crimson'
+                  : 'neu-pressed-sm border border-slate-800/80'
               }`}
             >
               <div className="flex items-start gap-4">
                 <div className="mt-1">
                   {scanResult.status === 'success' && (
-                    <div className="w-12 h-12 rounded-2xl bg-lime-500 text-black flex items-center justify-center font-black">
+                    <div className="w-12 h-12 rounded-2xl bg-lime-500 text-black flex items-center justify-center font-black shadow-glow-lime">
                       <CheckCircle2 className="w-7 h-7" />
                     </div>
                   )}
                   {scanResult.status === 'denied' && (
-                    <div className="w-12 h-12 rounded-2xl bg-rose-500 text-white flex items-center justify-center font-black">
+                    <div className="w-12 h-12 rounded-2xl bg-rose-500 text-white flex items-center justify-center font-black shadow-glow-crimson">
                       <XCircle className="w-7 h-7" />
                     </div>
                   )}
                   {scanResult.status === 'idle' && (
-                    <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-400 flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-2xl neu-flat text-slate-400 flex items-center justify-center border border-slate-800/80">
                       <QrCode className="w-6 h-6" />
                     </div>
                   )}
@@ -149,7 +149,7 @@ export const QuickCheckInScanner: React.FC = () => {
                 <div className="space-y-1.5 flex-1">
                   <div className="flex items-center justify-between">
                     <span
-                      className={`text-xs font-black uppercase tracking-wider ${
+                      className={`text-xs font-black uppercase tracking-wider font-['Outfit'] ${
                         scanResult.status === 'success'
                           ? 'text-lime-400'
                           : scanResult.status === 'denied'
@@ -164,17 +164,17 @@ export const QuickCheckInScanner: React.FC = () => {
                         : 'READY FOR SCAN'}
                     </span>
                     {scanResult.timestamp && (
-                      <span className="text-[10px] font-mono text-slate-500">{scanResult.timestamp}</span>
+                      <span className="text-[10px] font-mono text-slate-500 font-bold">{scanResult.timestamp}</span>
                     )}
                   </div>
 
                   <p className="text-sm font-bold text-white leading-relaxed">{scanResult.message}</p>
 
                   {scanResult.user && (
-                    <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center gap-4 text-xs text-slate-300">
-                      <span>Tier: <strong className="text-lime-400 uppercase">{scanResult.user.tier || scanResult.user.membership_tier}</strong></span>
-                      <span>Streak: <strong className="text-amber-400">{scanResult.user.streak_days || 1}d</strong></span>
-                      <span>Valid Thru: <strong className="text-slate-200">{scanResult.user.expiry || scanResult.user.membership_expiry}</strong></span>
+                    <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center gap-4 text-xs text-slate-300 font-medium">
+                      <span>Tier: <strong className="text-lime-400 uppercase font-mono">{scanResult.user.tier || scanResult.user.membership_tier}</strong></span>
+                      <span>Streak: <strong className="text-amber-400 font-mono">{scanResult.user.streak_days || 1}d</strong></span>
+                      <span>Valid Thru: <strong className="text-slate-200 font-mono">{scanResult.user.expiry || scanResult.user.membership_expiry}</strong></span>
                     </div>
                   )}
                 </div>
@@ -188,19 +188,19 @@ export const QuickCheckInScanner: React.FC = () => {
               </label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <QrCode className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
+                  <QrCode className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
                   <input
                     type="text"
                     value={tokenInput}
                     onChange={e => setTokenInput(e.target.value)}
                     placeholder="e.g. PULSE-MEM-AARAV-8821 or member email"
-                    className="w-full pl-10 pr-4 py-2.5 bg-gym-950 border border-slate-700 rounded-xl text-xs font-mono text-slate-100 placeholder-slate-500 focus:outline-none focus:border-lime-500"
+                    className="w-full pl-10 pr-4 py-2.5 neu-pressed-sm rounded-xl text-xs font-mono text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-lime-500 font-medium"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={isProcessing}
-                  className="px-5 py-2.5 bg-lime-500 hover:bg-lime-400 text-black font-extrabold text-xs rounded-xl shadow-glow-lime transition-all shrink-0 disabled:opacity-50"
+                  className="px-5 py-2.5 neu-btn-lime text-black font-extrabold text-xs rounded-xl shadow-glow-lime transition-all shrink-0 disabled:opacity-50"
                 >
                   {isProcessing ? 'Verifying...' : 'Scan / Verify'}
                 </button>
@@ -208,45 +208,45 @@ export const QuickCheckInScanner: React.FC = () => {
             </form>
 
             {/* Quick Test Shortcuts */}
-            <div className="space-y-2 pt-2 border-t border-slate-800">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <div className="space-y-2 pt-2 border-t border-slate-800/80">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 font-medium">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" /> 1-Click Demo Test Scans:
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <button
                   type="button"
                   onClick={() => handleProcessCheckIn('PULSE-MEM-AARAV-8821')}
-                  className="p-2.5 bg-slate-900 border border-slate-800 hover:border-lime-500/50 hover:bg-lime-500/10 rounded-xl text-left transition-all truncate"
+                  className="p-3 neu-btn rounded-xl text-left transition-all truncate"
                 >
-                  <div className="text-xs font-bold text-white truncate">Aarav Sharma</div>
-                  <div className="text-[10px] text-lime-400 truncate">Pro (Active)</div>
+                  <div className="text-xs font-bold text-white truncate font-['Outfit']">Aarav Sharma</div>
+                  <div className="text-[10px] text-lime-400 font-semibold truncate">Pro (Active)</div>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleProcessCheckIn('PULSE-MEM-ANANYA-7734')}
-                  className="p-2.5 bg-slate-900 border border-slate-800 hover:border-amber-500/50 hover:bg-amber-500/10 rounded-xl text-left transition-all truncate"
+                  className="p-3 neu-btn rounded-xl text-left transition-all truncate"
                 >
-                  <div className="text-xs font-bold text-white truncate">Ananya Gupta</div>
-                  <div className="text-[10px] text-amber-400 truncate">VIP (Active)</div>
+                  <div className="text-xs font-bold text-white truncate font-['Outfit']">Ananya Gupta</div>
+                  <div className="text-[10px] text-amber-400 font-semibold truncate">VIP (Active)</div>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleProcessCheckIn('PULSE-MEM-DEV-1100')}
-                  className="p-2.5 bg-slate-900 border border-slate-800 hover:border-rose-500/50 hover:bg-rose-500/10 rounded-xl text-left transition-all truncate"
+                  className="p-3 neu-btn rounded-xl text-left transition-all truncate"
                 >
-                  <div className="text-xs font-bold text-white truncate">Devansh Patel</div>
-                  <div className="text-[10px] text-rose-400 truncate">Expired Pass</div>
+                  <div className="text-xs font-bold text-white truncate font-['Outfit']">Dev Kapoor</div>
+                  <div className="text-[10px] text-rose-400 font-semibold truncate">Expired Pass</div>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleProcessCheckIn('FAKE-INVALID-TOKEN-999')}
-                  className="p-2.5 bg-slate-900 border border-slate-800 hover:border-slate-600 rounded-xl text-left transition-all truncate"
+                  className="p-3 neu-btn rounded-xl text-left transition-all truncate"
                 >
-                  <div className="text-xs font-bold text-slate-300 truncate">Invalid Pass</div>
-                  <div className="text-[10px] text-slate-500 truncate">Unrecognized</div>
+                  <div className="text-xs font-bold text-slate-300 truncate font-['Outfit']">Invalid Pass</div>
+                  <div className="text-[10px] text-slate-400 font-semibold truncate">Unrecognized</div>
                 </button>
               </div>
             </div>
@@ -256,24 +256,24 @@ export const QuickCheckInScanner: React.FC = () => {
         {/* Right Attendance Feed Stream (5 cols) */}
         <div className="lg:col-span-5 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+            <h3 className="text-base font-extrabold text-white flex items-center gap-2 font-['Outfit']">
               <Clock className="w-4 h-4 text-lime-400" />
               Live Turnstile Stream ({recentLogs.length})
             </h3>
-            <span className="text-[10px] font-mono text-slate-500">Auto-Refreshed</span>
+            <span className="text-[10px] font-mono text-slate-500 font-bold">Auto-Refreshed</span>
           </div>
 
-          <div className="glass-panel rounded-2xl border border-slate-800 divide-y divide-slate-800/80 overflow-hidden max-h-[520px] overflow-y-auto">
+          <div className="neu-flat rounded-3xl border border-slate-800/80 divide-y divide-slate-800/80 overflow-hidden max-h-[520px] overflow-y-auto p-1">
             {recentLogs.length > 0 ? (
               recentLogs.map(log => (
                 <div key={log.id} className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-slate-800/20 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-lime-500/10 text-lime-400 flex items-center justify-center font-bold text-xs shrink-0">
+                    <div className="w-8 h-8 rounded-xl neu-pressed-sm text-lime-400 flex items-center justify-center font-black text-xs shrink-0">
                       ✓
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-white">{log.user_name || 'Member'}</div>
-                      <div className="text-[10px] text-slate-400">{log.user_email}</div>
+                      <div className="text-xs font-bold text-white font-['Outfit']">{log.user_name || 'Member'}</div>
+                      <div className="text-[10px] text-slate-400 font-medium">{log.user_email}</div>
                     </div>
                   </div>
 
@@ -281,14 +281,14 @@ export const QuickCheckInScanner: React.FC = () => {
                     <Badge variant={log.user_tier === 'vip' ? 'amber' : 'lime'} size="sm">
                       {log.user_tier || 'PRO'}
                     </Badge>
-                    <div className="text-[10px] font-mono text-slate-500 mt-1">
+                    <div className="text-[10px] font-mono text-slate-500 mt-1 font-semibold">
                       {new Date(log.check_in_time).toLocaleTimeString()}
                     </div>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="p-8 text-center text-slate-500 text-xs">
+              <div className="p-8 text-center text-slate-500 text-xs font-medium">
                 No check-ins recorded yet today.
               </div>
             )}
@@ -298,3 +298,4 @@ export const QuickCheckInScanner: React.FC = () => {
     </div>
   );
 };
+

@@ -7,6 +7,7 @@ import { getMembers, getMemberById, createMember, updateMember, deleteMember, ch
 import { getTrainers, getTrainerById, createTrainer, updateTrainer, deleteTrainer } from '../controllers/trainerController.js';
 import { getDashboardKPIs } from '../controllers/analyticsController.js';
 import { createOrder, verifyPayment } from '../controllers/paymentController.js';
+import { clockIn, clockOut, getActiveFloorStatus, getMyTimeTrackingStats } from '../controllers/timeTrackingController.js';
 import { authenticate, requireRole, optionalAuth } from '../middleware/auth.js';
 
 const router = Router();
@@ -63,6 +64,12 @@ router.put('/members/:id', authenticate, requireRole(['admin']), updateMember);
 router.delete('/members/:id', authenticate, requireRole(['admin']), deleteMember);
 router.post('/attendance/check-in', authenticate, requireRole(['admin']), checkInMember);
 router.get('/attendance/logs', authenticate, requireRole(['admin']), getAttendanceLogs);
+
+// --- Time Tracking & Floor Presence ---
+router.post('/time-tracking/clock-in', authenticate, clockIn);
+router.post('/time-tracking/clock-out', authenticate, clockOut);
+router.get('/time-tracking/active-floor', getActiveFloorStatus);
+router.get('/time-tracking/my-stats', authenticate, getMyTimeTrackingStats);
 
 // --- Admin Analytics ---
 router.get('/analytics/dashboard', authenticate, requireRole(['admin']), getDashboardKPIs);

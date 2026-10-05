@@ -3,76 +3,77 @@
 @tailwind utilities;
 
 /*
- * THEME TOKENS
- * -------------
- * `gym` brand background palette is variable-driven (see tailwind.config.js)
- * so every `bg-gym-*` utility flips automatically with the theme class.
+ * ==================================================================
+ * NEUMORPHIC DESIGN SYSTEM (DARK & LIGHT THEME TOKENS)
+ * ==================================================================
+ * Neumorphism relies on tactile extruded surfaces (dual directional shadows)
+ * and sunken / inset wells (dual inner shadows) matched to background tones.
  */
+
 :root,
-.light {
-  color-scheme: light;
-
-  /* Light-mode brand backgrounds (page + layered cards) */
-  --gym-950: #f8fafc;
-  --gym-900: #ffffff;
-  --gym-850: #f1f5f9;
-  --gym-800: #e2e8f0;
-  --gym-700: #cbd5e1;
-  --gym-600: #94a3b8;
-}
-
 .dark {
   color-scheme: dark;
 
-  /* Dark-mode brand backgrounds (clean deep slate) */
-  --gym-950: #06080d;
-  --gym-900: #0b0f17;
-  --gym-850: #101622;
-  --gym-800: #172030;
-  --gym-700: #222d42;
-  --gym-600: #334155;
+  /* Dark-mode Neumorphic Palette */
+  --gym-950: #0f141d;
+  --gym-900: #141b27;
+  --gym-850: #192231;
+  --gym-800: #202b3d;
+  --gym-700: #2c3b52;
+  --gym-600: #425573;
+
+  /* Neumorphic Shadow Tokens */
+  --neu-shadow-dark: #080b10;
+  --neu-shadow-light: #1e2838;
+  --neu-inset-bg: #0c1017;
+  --neu-border: rgba(255, 255, 255, 0.04);
+  --neu-border-hover: rgba(132, 204, 22, 0.4);
+}
+
+.light {
+  color-scheme: light;
+
+  /* Light-mode Neumorphic Palette */
+  --gym-950: #e6ebf2;
+  --gym-900: #ecf1f8;
+  --gym-850: #f1f6fc;
+  --gym-800: #dce3ee;
+  --gym-700: #c5d0df;
+  --gym-600: #9cb0c8;
+
+  /* Neumorphic Shadow Tokens */
+  --neu-shadow-dark: #b8c3d1;
+  --neu-shadow-light: #ffffff;
+  --neu-inset-bg: #dfe5ee;
+  --neu-border: rgba(255, 255, 255, 0.7);
+  --neu-border-hover: rgba(132, 204, 22, 0.7);
 }
 
 /* ------------------------------------------------------------------ */
-/* Light-mode remapping of the hardcoded `slate` utility classes.      */
-/* These are scoped to `.light` so the dark design is left untouched.  */
+/* Light-Mode Slate Remappings for Pristine Readability               */
 /* ------------------------------------------------------------------ */
 .light body {
   background-color: var(--gym-950);
   color: #0f172a;
 }
 
-/* Surface backgrounds */
 .light [class*="bg-slate-900"] {
-  background-color: #ffffff;
+  background-color: var(--gym-900);
 }
 .light [class*="bg-slate-800"] {
-  background-color: #f1f5f9;
+  background-color: var(--gym-850);
 }
 .light [class*="bg-slate-700"] {
-  background-color: #e2e8f0;
+  background-color: var(--gym-800);
 }
 .light [class*="bg-slate-950"] {
-  background-color: #ffffff;
+  background-color: var(--gym-950);
 }
 
-/* Borders */
 .light [class*="border-slate-800"],
 .light [class*="border-slate-700"],
-.light [class*="border-slate-600"],
-.light [class*="border-slate-500"] {
-  border-color: #e2e8f0;
-}
-
-/* Gradient stops */
-.light [class*="from-slate-700"] {
-  --tw-gradient-from: #e2e8f0;
-}
-.light [class*="via-slate-900"] {
-  --tw-gradient-via: #f1f5f9;
-}
-.light [class*="to-slate-950"] {
-  --tw-gradient-to: #f8fafc;
+.light [class*="border-slate-600"] {
+  border-color: rgba(184, 195, 209, 0.5);
 }
 
 /* Text colors in light mode */
@@ -81,140 +82,269 @@
   color: #0f172a;
 }
 .light .text-slate-300 {
-  color: #334155;
+  color: #1e293b;
 }
 .light .text-slate-400 {
-  color: #64748b;
+  color: #475569;
 }
 .light .text-slate-500 {
-  color: #94a3b8;
-}
-.light .text-slate-600 {
   color: #64748b;
 }
-
-/* Accent text in light mode */
 .light .text-lime-400 {
   color: #4d7c0f;
 }
-
 .light .text-white {
   color: #0f172a;
 }
-
 .light .bg-rose-500.text-white,
 .light .bg-lime-500.text-white,
-.light .bg-black.text-white {
-  color: #ffffff;
+.light .bg-black.text-white,
+.light .neu-btn-pink,
+.light .neu-btn-pink * {
+  color: #ffffff !important;
 }
+.light .neu-btn-lime,
+.light .neu-btn-lime * {
+  color: #090c10 !important;
+}
+
+/* Ensure contrast on buttons and icons on hover in light mode */
+.light .neu-btn:not(.neu-btn-pink):not(.neu-btn-lime) {
+  color: #1e293b;
+}
+.light .neu-btn:not(.neu-btn-pink):not(.neu-btn-lime):hover {
+  color: #0f172a !important;
+}
+.light .neu-icon-btn {
+  color: #334155;
+}
+.light .neu-icon-btn:hover {
+  color: #0f172a !important;
+}
+.light [class*="hover:text-white"]:hover:not(.neu-btn-pink):not([class*="bg-rose"]):not([class*="bg-pink"]):not([class*="bg-black"]) {
+  color: #0f172a !important;
+}
+.light [class*="hover:text-slate-100"]:hover,
+.light [class*="hover:text-slate-200"]:hover,
+.light [class*="hover:text-slate-300"]:hover {
+  color: #0f172a !important;
+}
+
+/* Ensure contrast in dark mode */
+.dark .neu-btn:not(.neu-btn-lime),
+.dark .neu-icon-btn {
+  color: #e2e8f0;
+}
+.dark .neu-btn:not(.neu-btn-lime):hover,
+.dark .neu-icon-btn:hover {
+  color: #ffffff !important;
+}
+
+/* Recharts Tooltip Universal Contrast Fix */
+.recharts-default-tooltip {
+  background-color: #0c1017 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 0.875rem !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6) !important;
+  color: #ffffff !important;
+  padding: 0.75rem 1rem !important;
+}
+.recharts-tooltip-item,
+.recharts-tooltip-item-name,
+.recharts-tooltip-item-value,
+.recharts-tooltip-label,
+.recharts-tooltip-item-list {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+/* ------------------------------------------------------------------ */
+/* NEUMORPHIC CORE UTILITY CLASSES                                    */
+/* ------------------------------------------------------------------ */
 
 @layer base {
   body {
     @apply font-sans antialiased;
+    background-color: var(--gym-950);
+    color: #f1f5f9;
     overflow-x: hidden;
   }
 
-  input, select, textarea {
-    @apply outline-none transition-all;
+  /* Neumorphic Inset Forms by Default */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    background-color: var(--neu-inset-bg) !important;
+    box-shadow: inset 3px 3px 6px var(--neu-shadow-dark), inset -3px -3px 6px var(--neu-shadow-light) !important;
+    border: 1px solid var(--neu-border) !important;
+    border-radius: 0.875rem;
+    transition: all 0.2s ease-in-out;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):focus,
+  select:focus,
+  textarea:focus {
+    box-shadow: inset 3px 3px 6px var(--neu-shadow-dark), inset -3px -3px 6px var(--neu-shadow-light), 0 0 0 2px rgba(132, 204, 22, 0.5) !important;
+    outline: none;
   }
 }
 
 /* ------------------------------------------------------------------ */
-/* Custom scrollbar                                                   */
+/* NEUMORPHIC CORE UTILITY CLASSES                                    */
 /* ------------------------------------------------------------------ */
+
+/* 1. Flat Extruded Surface (Cards, Containers, Sections) */
+.neu-flat,
+.neu-card,
+.glass-panel {
+  background-color: var(--gym-900) !important;
+  box-shadow: 8px 8px 18px var(--neu-shadow-dark), -8px -8px 18px var(--neu-shadow-light);
+  border: 1px solid var(--neu-border);
+  border-radius: 1.5rem;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.neu-flat-sm {
+  background-color: var(--gym-900) !important;
+  box-shadow: 4px 4px 10px var(--neu-shadow-dark), -4px -4px 10px var(--neu-shadow-light);
+  border: 1px solid var(--neu-border);
+  border-radius: 1rem;
+}
+
+.neu-flat-lg {
+  background-color: var(--gym-900) !important;
+  box-shadow: 12px 12px 28px var(--neu-shadow-dark), -12px -12px 28px var(--neu-shadow-light);
+  border: 1px solid var(--neu-border);
+  border-radius: 2rem;
+}
+
+/* 2. Interactive Card Hover Effect */
+.glass-panel-hover,
+.neu-card-hover {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel-hover:hover,
+.neu-card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 12px 12px 24px var(--neu-shadow-dark), -12px -12px 24px var(--neu-shadow-light);
+  border-color: var(--neu-border-hover);
+}
+
+/* 3. Inset / Sunken Surface (Wells, Active Tabs, Sliders, QR codes) */
+.neu-pressed,
+.neu-inset {
+  background-color: var(--neu-inset-bg) !important;
+  box-shadow: inset 4px 4px 8px var(--neu-shadow-dark), inset -4px -4px 8px var(--neu-shadow-light) !important;
+  border: 1px solid var(--neu-border);
+  border-radius: 1rem;
+}
+
+.neu-pressed-sm {
+  background-color: var(--neu-inset-bg) !important;
+  box-shadow: inset 2px 2px 5px var(--neu-shadow-dark), inset -2px -2px 5px var(--neu-shadow-light) !important;
+  border-radius: 0.75rem;
+}
+
+/* 4. Neumorphic Buttons */
+.neu-btn {
+  background-color: var(--gym-900);
+  box-shadow: 5px 5px 12px var(--neu-shadow-dark), -5px -5px 12px var(--neu-shadow-light);
+  border: 1px solid var(--neu-border);
+  border-radius: 0.875rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.neu-btn:hover {
+  box-shadow: 7px 7px 16px var(--neu-shadow-dark), -7px -7px 16px var(--neu-shadow-light);
+  transform: translateY(-1px);
+}
+
+.neu-btn:active {
+  box-shadow: inset 3px 3px 6px var(--neu-shadow-dark), inset -3px -3px 6px var(--neu-shadow-light);
+  transform: translateY(1px);
+}
+
+/* 5. Neumorphic Brand Buttons (Lime, Pink, Amber, Cyan) */
+.neu-btn-lime {
+  background: linear-gradient(135deg, #a3e635 0%, #84cc16 100%) !important;
+  color: #090c10 !important;
+  font-weight: 800;
+  box-shadow: 5px 5px 14px var(--neu-shadow-dark), -5px -5px 14px var(--neu-shadow-light), 0 0 16px rgba(132, 204, 22, 0.35) !important;
+  border-radius: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.neu-btn-lime:hover {
+  background: linear-gradient(135deg, #bef264 0%, #84cc16 100%) !important;
+  box-shadow: 7px 7px 18px var(--neu-shadow-dark), -7px -7px 18px var(--neu-shadow-light), 0 0 24px rgba(132, 204, 22, 0.5) !important;
+  transform: translateY(-1px);
+}
+
+.neu-btn-lime:active {
+  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.6), inset -3px -3px 6px rgba(255, 255, 255, 0.3) !important;
+  transform: translateY(1px);
+}
+
+.neu-btn-pink {
+  background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%) !important;
+  color: #ffffff !important;
+  font-weight: 800;
+  box-shadow: 5px 5px 14px var(--neu-shadow-dark), -5px -5px 14px var(--neu-shadow-light), 0 0 16px rgba(236, 72, 153, 0.35) !important;
+  border-radius: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.neu-btn-pink:hover {
+  box-shadow: 7px 7px 18px var(--neu-shadow-dark), -7px -7px 18px var(--neu-shadow-light), 0 0 24px rgba(236, 72, 153, 0.5) !important;
+  transform: translateY(-1px);
+}
+
+.neu-btn-pink:active {
+  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.6), inset -3px -3px 6px rgba(255, 255, 255, 0.3) !important;
+  transform: translateY(1px);
+}
+
+/* 6. Neumorphic Circular Icon Buttons */
+.neu-icon-btn {
+  background-color: var(--gym-900);
+  box-shadow: 4px 4px 9px var(--neu-shadow-dark), -4px -4px 9px var(--neu-shadow-light);
+  border: 1px solid var(--neu-border);
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.neu-icon-btn:hover {
+  box-shadow: 6px 6px 12px var(--neu-shadow-dark), -6px -6px 12px var(--neu-shadow-light);
+  transform: translateY(-1px);
+}
+
+.neu-icon-btn:active {
+  box-shadow: inset 3px 3px 6px var(--neu-shadow-dark), inset -3px -3px 6px var(--neu-shadow-light);
+  transform: translateY(1px);
+}
+
+/* 7. Custom Neumorphic Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0b0f17;
-}
-
-.light ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--gym-950);
+  box-shadow: inset 2px 2px 4px var(--neu-shadow-dark), inset -2px -2px 4px var(--neu-shadow-light);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: var(--gym-800);
   border-radius: 9999px;
-}
-
-.light ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  box-shadow: 2px 2px 4px var(--neu-shadow-dark), -2px -2px 4px var(--neu-shadow-light);
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #84cc16;
-}
-
-/* ------------------------------------------------------------------ */
-/* Minimal Glassmorphism & Surface Helpers                            */
-/* ------------------------------------------------------------------ */
-.glass-panel {
-  background: rgba(11, 15, 23, 0.82);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.light .glass-panel {
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
-}
-
-.glass-panel-hover {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.glass-panel-hover:hover {
-  background: rgba(16, 22, 34, 0.95);
-  border-color: rgba(132, 204, 22, 0.4);
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.6);
-}
-
-.light .glass-panel-hover:hover {
-  background: #ffffff;
-  border-color: rgba(132, 204, 22, 0.6);
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px -8px rgba(15, 23, 42, 0.12);
-}
-
-/* Gradient text helpers */
-.text-gradient-lime {
-  background: linear-gradient(135deg, #ffffff 20%, #a3e635 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.light .text-gradient-lime {
-  background: linear-gradient(135deg, #0f172a 20%, #4d7c0f 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.text-gradient-amber {
-  background: linear-gradient(135deg, #ffffff 20%, #f59e0b 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.light .text-gradient-amber {
-  background: linear-gradient(135deg, #0f172a 20%, #b45309 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-/* Pulse badge animation */
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.35; transform: scale(1.15); }
-}
-
-.animate-pulse-dot {
-  animation: pulse-dot 2s infinite ease-in-out;
 }

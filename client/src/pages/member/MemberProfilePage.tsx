@@ -61,10 +61,10 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
   if (!user) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 text-center space-y-4">
-        <h3 className="text-2xl font-bold text-white">Please sign in to manage your profile.</h3>
+        <h3 className="text-2xl font-bold text-white font-['Outfit']">Please sign in to manage your profile.</h3>
         <button
           onClick={() => setCurrentTab('home')}
-          className="px-6 py-2.5 bg-lime-500 text-black font-extrabold text-xs rounded-xl"
+          className="px-6 py-2.5 neu-btn-lime text-black font-extrabold text-xs rounded-xl shadow-glow-lime"
         >
           Return Home
         </button>
@@ -201,9 +201,9 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
   };
 
   const getTierPrice = () => {
-    if (user.membership_tier === 'vip') return '₹3,999.00';
-    if (user.membership_tier === 'pro') return '₹2,499.00';
-    return '₹1,499.00';
+    if (user.membership_tier === 'vip') return '₹1,999.00';
+    if (user.membership_tier === 'pro') return '₹1,499.00';
+    return '₹1,199.00';
   };
 
   const mockInvoices = [
@@ -224,7 +224,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
       />
 
       {/* 1. Header Profile Banner */}
-      <div className="relative rounded-3xl overflow-hidden glass-panel border border-slate-800 p-5 sm:p-8 bg-gradient-to-r from-gym-900 via-gym-950 to-slate-950">
+      <div className="relative rounded-3xl overflow-hidden neu-flat border border-slate-800/80 p-6 sm:p-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div className="flex items-center gap-4 sm:gap-5">
             {/* Avatar with Interactive Upload */}
@@ -247,7 +247,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
 
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl sm:text-3xl font-black text-white">{user.name}</h1>
+                <h1 className="text-xl sm:text-3xl font-black text-white font-['Outfit']">{user.name}</h1>
                 <Badge
                   variant={user.membership_tier === 'vip' ? 'amber' : user.membership_tier === 'pro' ? 'lime' : 'cyan'}
                 >
@@ -263,7 +263,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-400 font-medium">
                 {user.email} • Phone: {user.phone || 'Not set'} • Turnstile Pass: <strong className="text-slate-200 font-mono">{user.qr_code_token}</strong>
               </p>
             </div>
@@ -272,7 +272,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-lime-500/40 text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center gap-2"
+              className="px-4 py-2.5 neu-btn text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center gap-2"
             >
               <Upload className="w-3.5 h-3.5 text-lime-400" />
               Upload Photo
@@ -280,9 +280,9 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
 
             <button
               onClick={() => setIsQrModalOpen(true)}
-              className="px-4 py-2 sm:px-5 sm:py-2.5 bg-gym-900 hover:bg-slate-800 border border-slate-700 hover:border-lime-500/40 text-slate-100 font-bold text-xs rounded-xl transition-all flex items-center gap-2 shadow-lg"
+              className="px-5 py-2.5 neu-btn-lime text-black font-extrabold text-xs rounded-xl transition-all flex items-center gap-2 shadow-glow-lime"
             >
-              <QrCode className="w-3.5 h-3.5 text-lime-400" />
+              <QrCode className="w-3.5 h-3.5" />
               Digital Pass
             </button>
           </div>
@@ -290,7 +290,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
       </div>
 
       {/* 2. Profile Management Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-800/80 pb-3 overflow-x-auto">
+      <div className="flex items-center gap-2 p-1.5 rounded-2xl neu-pressed-sm border border-slate-800/80 overflow-x-auto">
         {[
           { id: 'details', label: 'Personal Information & Picture', icon: <User className="w-4 h-4" /> },
           { id: 'membership', label: 'Plan & Subscription', icon: <Award className="w-4 h-4" /> },
@@ -302,8 +302,8 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
             onClick={() => setActiveTab(tab.id as any)}
             className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 whitespace-nowrap transition-all ${
               activeTab === tab.id
-                ? 'bg-lime-500 text-black shadow-glow-lime'
-                : 'bg-gym-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                ? 'neu-btn-lime text-black font-extrabold shadow-glow-lime'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             {tab.icon}
@@ -316,20 +316,20 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
       {/* Tab 1: Personal Details & Picture Upload */}
       {activeTab === 'details' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-8 glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-6">
+          <div className="lg:col-span-8 neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-6">
             <div className="border-b border-slate-800/80 pb-4">
-              <h3 className="text-lg font-black text-white">Personal Profile & Picture</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Upload your own photo or choose from preset avatars.</p>
+              <h3 className="text-lg font-black text-white font-['Outfit']">Personal Profile & Picture</h3>
+              <p className="text-xs text-slate-400 mt-0.5 font-medium">Upload your own photo or choose from preset avatars.</p>
             </div>
 
             <form onSubmit={handleSaveProfile} className="space-y-6">
               {/* Profile Photo Uploader Card */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-gym-950 border border-slate-800 space-y-4">
+              <div className="p-4 sm:p-5 rounded-2xl neu-pressed-sm space-y-4">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
                     <ImageIcon className="w-4 h-4 text-lime-400" /> Profile Picture
                   </label>
-                  <span className="text-[11px] text-slate-500">PNG, JPG, WebP, GIF (Max 5MB)</span>
+                  <span className="text-[11px] text-slate-400 font-medium">PNG, JPG, WebP, GIF (Max 5MB)</span>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
@@ -345,7 +345,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isUploading}
-                        className="px-4 py-2 bg-lime-500 hover:bg-lime-400 text-black font-extrabold text-xs rounded-xl shadow-glow-lime transition-all flex items-center gap-1.5"
+                        className="px-4 py-2 neu-btn-lime text-black font-extrabold text-xs rounded-xl shadow-glow-lime transition-all flex items-center gap-1.5"
                       >
                         <Upload className="w-3.5 h-3.5" />
                         {isUploading ? 'Uploading...' : 'Upload Image'}
@@ -354,7 +354,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
                       <button
                         type="button"
                         onClick={() => setShowUrlInput(!showUrlInput)}
-                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5"
+                        className="px-3.5 py-2 neu-btn text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5"
                       >
                         URL
                       </button>
@@ -362,7 +362,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
                       <button
                         type="button"
                         onClick={handleResetToDicebear}
-                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 font-bold text-xs rounded-xl transition-colors"
+                        className="px-3.5 py-2 neu-btn text-slate-400 hover:text-slate-200 font-bold text-xs rounded-xl transition-all"
                         title="Reset Avatar"
                       >
                         Reset
@@ -376,12 +376,12 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
                           value={customUrlInput}
                           onChange={e => setCustomUrlInput(e.target.value)}
                           placeholder="https://example.com/photo.jpg"
-                          className="flex-1 px-3 py-1.5 bg-gym-900 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-lime-500"
+                          className="flex-1 px-3 py-2 neu-pressed-sm rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-lime-500 font-medium"
                         />
                         <button
                           type="button"
                           onClick={handleApplyCustomUrl}
-                          className="px-3 py-1.5 bg-lime-500 text-black text-xs font-bold rounded-xl shrink-0"
+                          className="px-4 py-2 neu-btn-lime text-black text-xs font-bold rounded-xl shrink-0"
                         >
                           Apply
                         </button>
@@ -404,7 +404,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
                         className={`w-11 h-11 rounded-xl overflow-hidden border-2 transition-all ${
                           avatarUrl === url
                             ? 'border-lime-400 scale-105 shadow-glow-lime'
-                            : 'border-slate-700 opacity-60 hover:opacity-100'
+                            : 'border-slate-700/60 opacity-60 hover:opacity-100'
                         }`}
                       >
                         <img src={url} alt={`Avatar preset ${idx}`} className="w-full h-full object-cover" />
@@ -425,7 +425,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
                     required
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-gym-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-lime-500 font-semibold"
+                    className="w-full px-4 py-2.5 neu-pressed-sm rounded-xl text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-lime-500 font-semibold"
                   />
                 </div>
 
@@ -438,7 +438,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
                     placeholder="+91 98110 12345"
-                    className="w-full px-4 py-2.5 bg-gym-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-lime-500"
+                    className="w-full px-4 py-2.5 neu-pressed-sm rounded-xl text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-lime-500 font-medium"
                   />
                 </div>
               </div>
@@ -451,15 +451,15 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
                   type="email"
                   disabled
                   value={user.email}
-                  className="w-full px-4 py-2.5 bg-slate-900/60 border border-slate-800 rounded-xl text-sm text-slate-400 cursor-not-allowed"
+                  className="w-full px-4 py-2.5 neu-pressed-sm rounded-xl text-sm text-slate-400 cursor-not-allowed opacity-75 font-medium"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">To change your primary email, contact member support.</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">To change your primary email, contact member support.</p>
               </div>
 
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-6 py-3 bg-lime-500 hover:bg-lime-400 text-black font-extrabold text-xs rounded-xl shadow-glow-lime transition-all active:scale-95 disabled:opacity-50"
+                className="px-6 py-3 neu-btn-lime text-black font-extrabold text-xs rounded-xl shadow-glow-lime transition-all active:scale-95 disabled:opacity-50"
               >
                 {isSaving ? 'Saving Changes...' : 'Save Profile Details'}
               </button>
@@ -467,17 +467,17 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
           </div>
 
           {/* Quick Turnstile Pass Card */}
-          <div className="lg:col-span-4 glass-panel p-6 rounded-3xl border border-slate-800 space-y-4">
-            <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+          <div className="lg:col-span-4 neu-flat p-6 rounded-3xl border border-slate-800/80 space-y-4">
+            <h3 className="text-sm font-extrabold text-white font-['Outfit'] flex items-center gap-2">
               <QrCode className="w-4 h-4 text-lime-400" />
               Turnstile Access Token
             </h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
+            <p className="text-xs text-slate-400 leading-relaxed font-medium">
               Your turnstile pass code is encrypted and tied to your active membership.
             </p>
 
-            <div className="p-3 bg-gym-950 border border-slate-800 rounded-xl flex items-center justify-between font-mono text-xs text-slate-200">
-              <span className="truncate">{user.qr_code_token}</span>
+            <div className="p-3.5 neu-pressed-sm rounded-xl flex items-center justify-between font-mono text-xs text-slate-200">
+              <span className="truncate font-bold">{user.qr_code_token}</span>
               <button
                 onClick={handleCopyPass}
                 className="p-1 text-slate-400 hover:text-slate-100 transition-colors ml-2"
@@ -489,7 +489,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
 
             <button
               onClick={() => setIsQrModalOpen(true)}
-              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-colors"
+              className="w-full py-2.5 neu-btn text-slate-200 text-xs font-bold rounded-xl transition-all"
             >
               Open Full Digital Badge
             </button>
@@ -500,11 +500,11 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
       {/* Tab 2: Plan & Subscription Management */}
       {activeTab === 'membership' && (
         <div className="space-y-8">
-          <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-6">
+          <div className="neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
               <div>
-                <h3 className="text-lg font-black text-white">Manage Membership Tier</h3>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <h3 className="text-lg font-black text-white font-['Outfit']">Manage Membership Tier</h3>
+                <p className="text-xs text-slate-400 mt-0.5 font-medium">
                   Upgrade or switch your pass anytime. Changes take effect immediately.
                 </p>
               </div>
@@ -512,10 +512,10 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleToggleFreeze}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     user.membership_status === 'frozen'
-                      ? 'bg-lime-500 text-black border-lime-500 shadow-glow-lime'
-                      : 'bg-gym-950 text-slate-300 border-slate-700 hover:border-amber-500/40'
+                      ? 'neu-btn-lime text-black shadow-glow-lime font-extrabold'
+                      : 'neu-btn'
                   }`}
                 >
                   {user.membership_status === 'frozen' ? 'Reactivate Membership' : 'Freeze Membership (60 Days)'}
@@ -528,39 +528,39 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
               {[
                 {
                   id: 'basic' as MembershipTier,
-                  name: 'Standard Pass',
-                  price: '₹1,499/mo',
-                  desc: '24/7 Gym floor, Olympic weights, and locker rooms.',
-                  features: ['24/7 Gym Floor Access', 'Olympic Lifting Rigs', 'Digital QR Turnstile Pass']
+                  name: 'Workout & Strength Pass',
+                  price: '₹1,199/mo',
+                  desc: 'Full Gym floor, free weights, and strength workout sessions.',
+                  features: ['Full Gym Floor & Strength Training', 'Barbells, Racks & Dumbbells', 'Daily Workout Set Logger & Time Tracker', 'Digital QR Turnstile Pass']
                 },
                 {
                   id: 'pro' as MembershipTier,
-                  name: 'Performance Pro',
-                  price: '₹2,499/mo',
-                  desc: 'Unlimited group fitness classes and sauna recovery.',
-                  features: ['Everything in Standard', 'Unlimited Group Fitness Classes', 'Infrared Sauna & Steam Suite', '1RM & Volume Analytics']
+                  name: 'Zumba & Cardio Pass',
+                  price: '₹1,499/mo',
+                  desc: 'Unlimited high-energy Zumba dance and cardio classes.',
+                  features: ['Unlimited Zumba & Cardio Sessions', 'Dance Studio & Aerobic Floor', 'Locker Room & Showers', 'Digital QR Turnstile Pass']
                 },
                 {
                   id: 'vip' as MembershipTier,
-                  name: 'Elite All-Access VIP',
-                  price: '₹3,999/mo',
-                  desc: 'Complete all-access VIP lifestyle with cold plunge and PT.',
-                  features: ['Everything in Pro', 'Cold Plunge Contrast Therapy', '2 PT Sessions / Month', 'InBody Body DEXA Scans']
+                  name: 'Dual All-Access Pass',
+                  price: '₹1,999/mo',
+                  desc: 'Unlimited Strength Training AND Zumba Cardio sessions.',
+                  features: ['Unlimited Strength & Free Weights Floor', 'Unlimited Zumba & Cardio Dance Classes', '1 Monthly Coach Form Assessment', 'Priority Spot Reservation']
                 }
               ].map(plan => {
                 const isCurrent = user.membership_tier === plan.id;
                 return (
                   <div
                     key={plan.id}
-                    className={`p-6 rounded-2xl border flex flex-col justify-between transition-all ${
+                    className={`p-6 rounded-3xl neu-flat flex flex-col justify-between transition-all ${
                       isCurrent
-                        ? 'bg-gradient-to-b from-lime-500/15 via-gym-900 to-gym-950 border-lime-500 shadow-glow-lime'
-                        : 'bg-gym-950 border-slate-800 hover:border-slate-700'
+                        ? 'border-2 border-lime-500 shadow-glow-lime'
+                        : 'border border-slate-800/80 hover:border-slate-700'
                     }`}
                   >
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-sm text-white">{plan.name}</span>
+                        <span className="font-extrabold text-sm text-white font-['Outfit']">{plan.name}</span>
                         {isCurrent && (
                           <Badge variant="lime" size="sm">
                             ACTIVE PLAN
@@ -569,9 +569,9 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
                       </div>
 
                       <div className="text-3xl font-black text-white font-['Outfit']">{plan.price}</div>
-                      <p className="text-xs text-slate-400 leading-relaxed">{plan.desc}</p>
+                      <p className="text-xs text-slate-400 leading-relaxed font-medium">{plan.desc}</p>
 
-                      <div className="space-y-1.5 pt-3 border-t border-slate-800/80 text-xs text-slate-300">
+                      <div className="space-y-2 pt-3 border-t border-slate-800/80 text-xs text-slate-300 font-medium">
                         {plan.features.map((f, i) => (
                           <div key={i} className="flex items-center gap-2">
                             <CheckCircle2 className="w-3.5 h-3.5 text-lime-400 shrink-0" />
@@ -587,8 +587,8 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
                       disabled={isCurrent}
                       className={`w-full mt-6 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
                         isCurrent
-                          ? 'bg-slate-800 text-slate-400 cursor-default'
-                          : 'bg-lime-500 hover:bg-lime-400 text-black shadow-glow-lime active:scale-95'
+                          ? 'neu-pressed-sm text-slate-500 cursor-default font-bold'
+                          : 'neu-btn-lime text-black shadow-glow-lime active:scale-95'
                       }`}
                     >
                       {isCurrent ? 'Current Selection' : `Switch to ${plan.name}`}
@@ -603,18 +603,18 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
 
       {/* Tab 3: Billing & Invoices */}
       {activeTab === 'billing' && (
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-6">
+        <div className="neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-6">
           <div className="border-b border-slate-800/80 pb-4 flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-black text-white">Payment & Billing History</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Download automated GST tax invoices.</p>
+              <h3 className="text-lg font-black text-white font-['Outfit']">Payment & Billing History</h3>
+              <p className="text-xs text-slate-400 mt-0.5 font-medium">Download automated GST tax invoices.</p>
             </div>
             <Badge variant="lime" size="sm">AUTO-RENEW ON</Badge>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-2xl neu-pressed-sm p-1">
             <table className="w-full text-left text-xs">
-              <thead className="bg-gym-950 border-b border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
+              <thead className="border-b border-slate-800/80 text-slate-400 font-bold uppercase text-[10px]">
                 <tr>
                   <th className="p-4 pl-6">Invoice #</th>
                   <th className="p-4">Billing Date</th>
@@ -635,7 +635,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
                     <td className="p-4 pr-6 text-right">
                       <button
                         onClick={() => showToast(`Receipt ${inv.id} downloaded!`, 'success')}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 neu-btn text-slate-200 rounded-lg text-xs font-semibold transition-all"
                       >
                         <Download className="w-3.5 h-3.5 text-lime-400" />
                         PDF
@@ -651,10 +651,10 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
 
       {/* Tab 4: Security & Password */}
       {activeTab === 'security' && (
-        <div className="max-w-2xl glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-6">
+        <div className="max-w-2xl neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-6">
           <div className="border-b border-slate-800/80 pb-4">
-            <h3 className="text-lg font-black text-white">Account Security</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Update your password to keep your member account secure.</p>
+            <h3 className="text-lg font-black text-white font-['Outfit']">Account Security</h3>
+            <p className="text-xs text-slate-400 mt-0.5 font-medium">Update your password to keep your member account secure.</p>
           </div>
 
           <form onSubmit={handleChangePassword} className="space-y-4">
@@ -668,9 +668,9 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
                 value={currentPassword}
                 onChange={e => setCurrentPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-4 py-2.5 bg-gym-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-lime-500"
+                className="w-full px-4 py-2.5 neu-pressed-sm rounded-xl text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-lime-500 font-medium"
               />
-              <p className="text-[10px] text-slate-500 mt-1">Default demo password is: <strong className="text-slate-300">pulse123</strong></p>
+              <p className="text-[10px] text-slate-500 mt-1 font-medium">Default demo password is: <strong className="text-slate-300 font-mono">pulse123</strong></p>
             </div>
 
             <div>
@@ -683,7 +683,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
                 value={newPassword}
                 onChange={e => setNewPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-4 py-2.5 bg-gym-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-lime-500"
+                className="w-full px-4 py-2.5 neu-pressed-sm rounded-xl text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-lime-500 font-medium"
               />
             </div>
 
@@ -697,14 +697,14 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-4 py-2.5 bg-gym-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-lime-500"
+                className="w-full px-4 py-2.5 neu-pressed-sm rounded-xl text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-lime-500 font-medium"
               />
             </div>
 
             <button
               type="submit"
               disabled={isChangingPassword}
-              className="px-6 py-3 bg-lime-500 hover:bg-lime-400 text-black font-extrabold text-xs rounded-xl shadow-glow-lime transition-all active:scale-95 disabled:opacity-50"
+              className="px-6 py-3 neu-btn-lime text-black font-extrabold text-xs rounded-xl shadow-glow-lime transition-all active:scale-95 disabled:opacity-50"
             >
               {isChangingPassword ? 'Updating Password...' : 'Change Password'}
             </button>

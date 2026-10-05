@@ -53,23 +53,23 @@ export const FreeTrialModal: React.FC<FreeTrialModalProps> = ({
       description={
         claimedPass
           ? 'Show this digital voucher code to the Cyber Hub front desk on your visit.'
-          : 'Experience unlimited gym floor access, group fitness classes, and recovery hydrotherapy suites at PulseFit Gurugram.'
+          : 'Experience unlimited workout & strength floor access and high-energy Zumba cardio classes at PulseFit Gurugram.'
       }
       maxWidth="md"
     >
       {claimedPass ? (
         <div className="space-y-5 text-center">
-          <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-b from-amber-500/20 via-slate-900 to-amber-950/40 border border-amber-500/50 shadow-glow-amber">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-black font-black flex items-center justify-center mx-auto mb-2.5">
-              <Award className="w-7 h-7" />
+          <div className="p-6 rounded-3xl neu-flat border border-amber-500/40 shadow-glow-amber">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-black font-black flex items-center justify-center mx-auto mb-2.5 neu-btn">
+              <Award className="w-7 h-7 text-black" />
             </div>
-            <h4 className="text-base sm:text-lg font-black text-slate-100 uppercase tracking-wide">
+            <h4 className="text-base sm:text-lg font-black text-slate-100 uppercase tracking-wide font-['Outfit']">
               PulseFit 1-Day VIP All-Access
             </h4>
-            <p className="text-xs text-amber-300 mt-1">Issued for: {name || 'VIP Guest'}</p>
+            <p className="text-xs text-amber-400 mt-1 font-semibold">Issued for: {name || 'VIP Guest'}</p>
 
             {/* Voucher Code Box */}
-            <div className="mt-4 p-3.5 rounded-xl bg-black/60 border border-amber-500/40 inline-block font-mono text-xl sm:text-2xl font-black text-amber-400 tracking-widest">
+            <div className="mt-4 p-3.5 rounded-2xl neu-pressed font-mono text-xl sm:text-2xl font-black text-amber-400 tracking-widest border border-amber-500/30">
               {claimedPass}
             </div>
 
@@ -80,22 +80,22 @@ export const FreeTrialModal: React.FC<FreeTrialModalProps> = ({
             </div>
           </div>
 
-          <div className="space-y-2 text-left text-xs text-slate-300 bg-gym-950 p-3.5 sm:p-4 rounded-xl border border-slate-800">
+          <div className="space-y-2 text-left text-xs text-slate-300 neu-pressed-sm p-4 rounded-2xl">
             <div className="flex items-center gap-2 text-lime-400 font-bold">
               <CheckCircle2 className="w-4 h-4" /> Pass Includes:
             </div>
             <ul className="list-disc list-inside space-y-1 text-slate-400 pl-1">
-              <li>24/7 Unlimited Gym Floor & Olympic Platforms</li>
-              <li>All Coach-Led HIIT, Boxing, Power Yoga & CrossFit Sessions</li>
-              <li>Infrared Sauna & Contrast Cold Plunge Suites</li>
-              <li>Complimentary InBody Biometric Body Composition Scan</li>
+              <li>Full Gym Floor & Strength Training Free Weights</li>
+              <li>High-Energy Zumba & Cardio Dance Sessions</li>
+              <li>Locker Room & High-Pressure Showers</li>
+              <li>Digital QR Pass & 1-Day Trial Turnstile Access</li>
             </ul>
           </div>
 
           <div className="flex gap-3">
             <button
               onClick={handleReset}
-              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl transition-colors text-xs sm:text-sm"
+              className="flex-1 py-3 neu-btn text-slate-200 font-bold rounded-xl text-xs sm:text-sm"
             >
               Done
             </button>
@@ -104,14 +104,14 @@ export const FreeTrialModal: React.FC<FreeTrialModalProps> = ({
                 handleReset();
                 onRegisterInstead();
               }}
-              className="flex-1 py-3 bg-gradient-to-r from-lime-500 to-lime-400 hover:from-lime-400 text-black font-extrabold rounded-xl shadow-glow-lime transition-all text-xs sm:text-sm"
+              className="flex-1 py-3 neu-btn-lime text-black font-extrabold rounded-xl text-xs sm:text-sm"
             >
               Create Account
             </button>
           </div>
         </div>
       ) : (
-        <form onSubmit={handleClaim} className="space-y-3.5">
+        <form onSubmit={handleClaim} className="space-y-4">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">
               Full Name
@@ -122,7 +122,7 @@ export const FreeTrialModal: React.FC<FreeTrialModalProps> = ({
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g. Aarav Sharma"
-              className="w-full px-3.5 py-2.5 bg-gym-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-lime-500 focus:ring-1 focus:ring-lime-500"
+              className="w-full px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500"
             />
           </div>
 
@@ -136,7 +136,7 @@ export const FreeTrialModal: React.FC<FreeTrialModalProps> = ({
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="aarav@example.com"
-              className="w-full px-3.5 py-2.5 bg-gym-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-lime-500 focus:ring-1 focus:ring-lime-500"
+              className="w-full px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500"
             />
           </div>
 
@@ -150,18 +150,18 @@ export const FreeTrialModal: React.FC<FreeTrialModalProps> = ({
               value={phone}
               onChange={e => setPhone(e.target.value)}
               placeholder="+91 98110 12345"
-              className="w-full px-3.5 py-2.5 bg-gym-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-lime-500 focus:ring-1 focus:ring-lime-500"
+              className="w-full px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500"
             />
           </div>
 
-          <div className="p-3 bg-lime-500/5 border border-lime-500/20 rounded-xl text-[11px] text-slate-400 leading-relaxed">
-            <span className="font-semibold text-lime-400">Zero payment required.</span> Free pass activates at Cyber Hub turnstile.
+          <div className="p-3.5 neu-pressed-sm rounded-xl text-[11px] text-slate-400 leading-relaxed border border-lime-500/20">
+            <span className="font-bold text-lime-400">Zero payment required.</span> Free pass activates at Cyber Hub turnstile.
           </div>
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full py-3.5 bg-gradient-to-r from-lime-500 to-lime-400 hover:from-lime-400 hover:to-lime-300 text-black font-extrabold rounded-xl shadow-glow-lime transition-all active:scale-[0.98] disabled:opacity-50 text-xs sm:text-sm flex items-center justify-center gap-2"
+            className="w-full py-3.5 neu-btn-lime text-black font-black rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
           >
             <Sparkles className="w-4 h-4" />
             {isSubmitting ? 'Generating Pass...' : 'Get Instant VIP Free Pass'}

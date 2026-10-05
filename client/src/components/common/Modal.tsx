@@ -47,20 +47,20 @@ export const Modal: React.FC<ModalProps> = ({
         onClick={onClose}
       />
 
-      {/* Modal Dialog */}
+      {/* Neumorphic Modal Dialog */}
       <div
-        className={`relative w-full ${maxWidthClasses[maxWidth]} bg-gym-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden z-10 my-8 animate-in zoom-in-95 duration-200`}
+        className={`relative w-full ${maxWidthClasses[maxWidth]} neu-flat-lg rounded-3xl overflow-hidden z-10 my-8 animate-in zoom-in-95 duration-200 border border-slate-800/80`}
       >
         {/* Header */}
         {(title || description) && (
-          <div className="flex items-start justify-between p-6 border-b border-slate-800/80 bg-gym-950/40">
+          <div className="flex items-start justify-between p-6 border-b border-slate-800/80 neu-pressed-sm rounded-t-3xl">
             <div>
-              {title && <h3 className="text-xl font-bold text-slate-100">{title}</h3>}
-              {description && <p className="text-sm text-slate-400 mt-1">{description}</p>}
+              {title && <h3 className="text-xl font-black text-slate-100 font-['Outfit']">{title}</h3>}
+              {description && <p className="text-xs sm:text-sm text-slate-400 mt-1">{description}</p>}
             </div>
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-100 bg-slate-800/50 hover:bg-slate-800 p-2 rounded-xl transition-colors -mr-2 -mt-2"
+              className="neu-btn p-2 rounded-xl text-slate-400 hover:text-rose-400 transition-colors -mr-1 -mt-1"
             >
               <X className="w-5 h-5" />
             </button>
@@ -70,14 +70,14 @@ export const Modal: React.FC<ModalProps> = ({
         {!title && !description && (
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 z-20 text-slate-400 hover:text-slate-100 bg-slate-800/80 hover:bg-slate-800 p-2 rounded-xl transition-colors"
+            className="absolute top-4 right-4 z-20 neu-btn p-2 rounded-xl text-slate-400 hover:text-rose-400 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         )}
 
         {/* Content */}
-        <div className="p-6">{children}</div>
+        <div className="p-6 sm:p-8">{children}</div>
       </div>
     </div>
   );

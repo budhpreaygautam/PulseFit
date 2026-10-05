@@ -104,7 +104,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           type="button"
           onClick={handleGoogleSignIn}
           disabled={isGoogleLoading}
-          className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 text-slate-100 font-bold text-xs flex items-center justify-center gap-3 transition-all active:scale-[0.99] shadow-sm group"
+          className="w-full py-2.5 px-4 rounded-xl neu-btn text-slate-100 font-bold text-xs flex items-center justify-center gap-3 transition-all active:scale-[0.99] group"
         >
           {/* Official Google Color SVG */}
           <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -139,14 +139,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       </div>
 
       {/* 2. Quick Demo Persona Shortcuts */}
-      <div className="mb-4 p-3 rounded-xl bg-gym-950/80 border border-slate-800">
+      <div className="mb-4 p-3 rounded-2xl neu-pressed-sm">
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => handleQuickDemo('member')}
-            className="flex items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800 hover:border-lime-500/50 hover:bg-lime-500/10 text-left transition-all group"
+            className="flex items-center gap-2 p-2 rounded-xl neu-btn text-left group"
           >
-            <div className="w-6 h-6 rounded-md bg-lime-500/20 text-lime-400 flex items-center justify-center shrink-0">
+            <div className="w-6 h-6 rounded-lg bg-lime-500/20 text-lime-400 flex items-center justify-center shrink-0">
               <Flame className="w-3.5 h-3.5" />
             </div>
             <div className="truncate">
@@ -158,9 +158,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <button
             type="button"
             onClick={() => handleQuickDemo('vip')}
-            className="flex items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800 hover:border-amber-500/50 hover:bg-amber-500/10 text-left transition-all group"
+            className="flex items-center gap-2 p-2 rounded-xl neu-btn text-left group"
           >
-            <div className="w-6 h-6 rounded-md bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+            <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
               <Award className="w-3.5 h-3.5" />
             </div>
             <div className="truncate">
@@ -172,9 +172,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <button
             type="button"
             onClick={() => handleQuickDemo('admin')}
-            className="flex items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800 hover:border-cyan-500/50 hover:bg-cyan-500/10 text-left transition-all group"
+            className="flex items-center gap-2 p-2 rounded-xl neu-btn text-left group"
           >
-            <div className="w-6 h-6 rounded-md bg-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+            <div className="w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
               <ShieldCheck className="w-3.5 h-3.5" />
             </div>
             <div className="truncate">
@@ -186,9 +186,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <button
             type="button"
             onClick={() => handleQuickDemo('trainer')}
-            className="flex items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800 hover:border-purple-500/50 hover:bg-purple-500/10 text-left transition-all group"
+            className="flex items-center gap-2 p-2 rounded-xl neu-btn text-left group"
           >
-            <div className="w-6 h-6 rounded-md bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
+            <div className="w-6 h-6 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
               <Dumbbell className="w-3.5 h-3.5" />
             </div>
             <div className="truncate">
@@ -209,7 +209,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       </div>
 
       {/* 3. Form */}
-      <form onSubmit={handleSubmit} className="space-y-3">
+      <form onSubmit={handleSubmit} className="space-y-3.5">
         {mode === 'register' && (
           <>
             <div>
@@ -217,14 +217,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 Full Name
               </label>
               <div className="relative">
-                <User className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-500" />
+                <User className="absolute left-3.5 top-3 w-4 h-4 text-slate-500 z-10" />
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={e => setName(e.target.value)}
                   placeholder="e.g. Aarav Sharma"
-                  className="w-full pl-10 pr-4 py-2 bg-gym-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-lime-500 focus:ring-1 focus:ring-lime-500"
+                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500"
                 />
               </div>
             </div>
@@ -234,13 +234,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 Phone Number
               </label>
               <div className="relative">
-                <Phone className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-500" />
+                <Phone className="absolute left-3.5 top-3 w-4 h-4 text-slate-500 z-10" />
                 <input
                   type="tel"
                   value={phone}
                   onChange={e => setPhone(e.target.value)}
                   placeholder="+91 98110 12345"
-                  className="w-full pl-10 pr-4 py-2 bg-gym-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-lime-500 focus:ring-1 focus:ring-lime-500"
+                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500"
                 />
               </div>
             </div>
@@ -251,18 +251,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { id: 'basic', label: 'Standard', price: '₹1,499' },
-                  { id: 'pro', label: 'Pro', price: '₹2,499' },
-                  { id: 'vip', label: 'Elite VIP', price: '₹3,999' }
+                  { id: 'basic', label: 'Strength', price: '₹1,199' },
+                  { id: 'pro', label: 'Zumba', price: '₹1,499' },
+                  { id: 'vip', label: 'Dual Access', price: '₹1,999' }
                 ].map(p => (
                   <button
                     key={p.id}
                     type="button"
                     onClick={() => setTier(p.id)}
-                    className={`p-2 rounded-xl border text-center transition-all ${
+                    className={`p-2.5 rounded-2xl text-center transition-all ${
                       tier === p.id
-                        ? 'bg-lime-500/10 border-lime-500 text-lime-400 font-bold shadow-glow-lime'
-                        : 'bg-gym-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                        ? 'neu-pressed-sm text-lime-400 font-bold border border-lime-500/40'
+                        : 'neu-btn text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     <div className="text-[11px]">{p.label}</div>
@@ -279,14 +279,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             Email Address
           </label>
           <div className="relative">
-            <Mail className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-500" />
+            <Mail className="absolute left-3.5 top-3 w-4 h-4 text-slate-500 z-10" />
             <input
               type="email"
               required
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="member@pulsefit.com"
-              className="w-full pl-10 pr-4 py-2 bg-gym-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-lime-500 focus:ring-1 focus:ring-lime-500"
+              className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500"
             />
           </div>
         </div>
@@ -301,56 +301,64 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 type="button"
                 onClick={handleForgotPassword}
                 disabled={isResetting}
-                className="text-[11px] text-lime-400 hover:underline"
+                className="text-[11px] text-lime-400 hover:underline font-semibold"
               >
                 {isResetting ? 'Sending link...' : 'Forgot password?'}
               </button>
             )}
           </div>
           <div className="relative">
-            <Lock className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-500" />
+            <Lock className="absolute left-3.5 top-3 w-4 h-4 text-slate-500 z-10" />
             <input
               type="password"
               required
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full pl-10 pr-4 py-2 bg-gym-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-lime-500 focus:ring-1 focus:ring-lime-500"
+              className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500"
             />
           </div>
-          {mode === 'login' && (
-            <p className="text-[11px] text-slate-400 mt-1">
-              Demo accounts default password: <strong className="text-slate-200">pulse123</strong>
-            </p>
-          )}
         </div>
 
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full py-2.5 bg-gradient-to-r from-lime-500 to-lime-400 hover:from-lime-400 hover:to-lime-300 text-black font-extrabold rounded-xl shadow-glow-lime transition-all active:scale-[0.98] disabled:opacity-50 mt-2 text-xs sm:text-sm"
+          className="w-full py-3 px-4 neu-btn-lime text-black font-black text-sm rounded-2xl flex items-center justify-center gap-2 mt-4 active:scale-95"
         >
-          {isSubmitting ? 'Processing...' : mode === 'login' ? 'Sign In' : 'Create Account'}
+          {isSubmitting ? (
+            'Processing...'
+          ) : mode === 'login' ? (
+            <>
+              <KeyRound className="w-4 h-4" /> Sign In to Dashboard
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4" /> Create Account
+            </>
+          )}
         </button>
       </form>
 
+      {/* Switch mode footer */}
       <div className="mt-4 text-center text-xs text-slate-400">
         {mode === 'login' ? (
           <p>
-            Don't have an account yet?{' '}
+            Don't have an account?{' '}
             <button
+              type="button"
               onClick={() => setMode('register')}
-              className="text-lime-400 hover:underline font-bold"
+              className="text-lime-400 font-bold hover:underline"
             >
-              Sign Up Now
+              Sign Up Free
             </button>
           </p>
         ) : (
           <p>
-            Already a member?{' '}
+            Already have an account?{' '}
             <button
+              type="button"
               onClick={() => setMode('login')}
-              className="text-lime-400 hover:underline font-bold"
+              className="text-lime-400 font-bold hover:underline"
             >
               Sign In
             </button>
