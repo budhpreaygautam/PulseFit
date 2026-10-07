@@ -72,6 +72,17 @@ Google accounts are matched by Google subject id, then by verified email (linkin
 users are created like a registration (tier `none`, status `pending`). An existing user's name is never overwritten.
 `POST /auth/firebase-sync` no longer exists.
 
+Additional rules:
+- `POST /auth/google` can also answer 409 `GOOGLE_ACCOUNT_CONFLICT` (the verified email belongs to an account already
+  linked to a different Google account). Linking an existing password account to Google removes its password and
+  revokes older tokens; `data.created` is `false` and the message says so. New and existing users both get 200.
+- `PUT /auth/password`: a missing `currentPassword` on an account that has one is 400 `VALIDATION_ERROR`
+  (`data.issues[0].path = "currentPassword"`); a wrong one is 400 `WRONG_PASSWORD`. Limited to 10 per 15 minutes per account.
+- `POST /auth/forgot-password`: outside production `resetUrl` is returned for any existing account. In production it is
+  returned only when `DEMO_MODE` is on **and** the email is one of the four demo personas; otherwise the message asks the
+  member to get a reset link from the front desk. The message never reveals whether an account exists.
+- `POST /auth/demo-login`: `role` is optional and defaults to `member`.
+
 ---
 
 ## Plans, payments & membership — owner: `payments` (routes/payments.ts, controllers/planController.ts, paymentController.ts, membershipController.ts)
@@ -91,6 +102,17 @@ users are created like a registration (tier `none`, status `pending`). An existi
 The amount is always taken from the plan, never from the client. The tier and cycle are fixed on the server-side
 order record when it is created; verify reads them from that record. A signature can activate an order only once
 (checkout and webhook are idempotent with each other).
+
+Additional rules:
+- `POST /payment/create-order` answers 502 `PAYMENT_PROVIDER_ERROR` when Razorpay cannot be reached.
+- `POST /payment/verify` answers 409 `ORDER_REJECTED` when the webhook already reported a payment for the order with a
+  wrong amount or currency; such an order never activates a membership.
+- `POST /payment/webhook`: 503 `WEBHOOK_DISABLED`, 400 `INVALID_SIGNATURE`, 400 `BAD_PAYLOAD`. Events for unknown orders,
+  repeats and mismatched amounts are acknowledged with 200 so Razorpay stops retrying.
+- `PUT /plans/:id` rejects unknown keys (`id` and `tier` are immutable); limits: name 2–80, description ≤ 500,
+  price_annual 1–1 200 000, ≤ 20 features of ≤ 200 chars, badge ≤ 30 (an empty badge removes it).
+- Invoice numbers come from one global sequence; the year prefix is the gym-local year of the payment.
+- Buying a plan and freezing are open to any signed-in account.
 
 **Activation rules.** `months` = 1 (monthly) or 12 (annual), using calendar months.
 - Same tier, membership active: the new period starts the day after the current expiry.
@@ -140,6 +162,20 @@ status `confirmed` or `attended` for that date. Stored classes carry no counter.
 
 When a booking is marked `attended`, it counts towards the member's streak for that day.
 
+Additional rules:
+- `GET /classes/:id?date=` and the roster answer 400 `DATE_MISMATCH` for a date that is not a session of the class
+  (its current weekday, or a date that still has bookings for it).
+- `POST /bookings` checks `ALREADY_BOOKED` before `CLASS_FULL`, so a retry always gets the same answer.
+- `PUT /classes/:id`: 409 `CAPACITY_BELOW_BOOKINGS` (`data.max_booked`) when the new capacity is below an occurrence's
+  bookings; moving a class to another weekday cancels its upcoming confirmed bookings.
+- `POST/PUT /trainers`: 409 `EMAIL_TAKEN`, 400 `USER_NOT_TRAINER`, 409 `USER_ALREADY_LINKED`; `user_id: null` unlinks the account.
+- Public trainer data (`GET /trainers`, `GET /trainers/:id`, the `trainer` in `GET /classes/:id`) leaves out email, phone
+  and user_id unless the caller is an admin.
+- `PATCH /bookings/:id/attendance` on a cancelled booking: 409 `ALREADY_CANCELLED`. `DELETE /bookings/:id` on an attended
+  or no-show booking: 400 `CLASS_STARTED`.
+- Trainer notes: 404 `NO_TRAINER_PROFILE` for a trainer account not linked to a trainer record; 403 `NOT_YOUR_CLIENT` when
+  the member has never booked one of the trainer's classes (admins are exempt).
+
 ---
 
 ## Members, check-in, attendance & trials — owner: `members` (routes/members.ts, controllers/memberController.ts, attendanceController.ts, trialController.ts)
@@ -157,6 +193,13 @@ When a booking is marked `attended`, it counts towards the member's streak for t
 | `GET /attendance/my` | — | the caller's `AttendanceLog[]`, newest first (≤ 100) | |
 | `POST /trials` (public, 5 per hour per IP) | `{ name, email, phone, interest: ClassCategory, preferred_date }` (today … today + 14, not a Sunday) | 201 `TrialPass` (`code` = `PULSE-TRIAL-XXXXXX`, valid only on `valid_on`, once) | 409 `TRIAL_ALREADY_CLAIMED` (same email or phone), 400 `GYM_CLOSED` |
 | `GET /trials` (admin) | — | `TrialPass[]` newest first | |
+
+Additional rules:
+- `PUT /members/:id` refuses (400 `VALIDATION_ERROR` on `membership_expiry`) a change that would leave a member active
+  without a future expiry date. Moving from `frozen` to `active` gives back the frozen days, like `/membership/unfreeze`.
+- A trial pass scanned again on the day it was redeemed is let through with `already_checked_in: true`.
+- A trial `preferred_date` outside today … today + 14 is 400 `VALIDATION_ERROR`. The CSV export ignores `limit`/`offset`.
+- Request bodies are strict: unknown keys are 400 `VALIDATION_ERROR`. Staff skip membership checks at check-in.
 
 ---
 
@@ -178,6 +221,12 @@ When a booking is marked `attended`, it counts towards the member's streak for t
 
 Sessions still open 4 hours after clock-in are closed automatically at clock-in + 4 h (`auto_closed: true`).
 A completed session counts towards the streak; so does a workout logged for today.
+
+Additional rules:
+- `GET /workouts/analytics` returns `{ totalWorkouts, totalVolumeKg, avgDurationMinutes, volumeTimeline, personalRecords,
+  muscleDistribution }`; `personalRecords` = best estimated 1RM (Epley) per exercise.
+- `POST /workouts` rejects a repeated (`exercise_id`, `set_number`) pair. Floor notes are capped at 500 characters.
+- `POST /time-tracking/clock-out`: a member may pass the `session_id` of their own session; someone else's is 403.
 
 **Dashboard** (`GET /analytics/dashboard`). Every number comes from stored data; nothing is invented:
 ```ts
