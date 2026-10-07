@@ -286,8 +286,11 @@ describe('classes: bookings', () => {
 
     it('records no-shows and can put a booking back to confirmed', async () => {
       vi.setSystemTime(new Date('2026-10-07T14:00:00Z'));
+      const before = userByEmail(personas.basic);
       expect((await mark(personas.trainer, tonight().id, 'no_show')).body.data.status).toBe('no_show');
-      expect(userByEmail(personas.basic).last_active_date ?? null).not.toBe('2026-10-07');
+      // A no-show is not activity: the streak is untouched.
+      const after = userByEmail(personas.basic);
+      expect([after.streak_days, after.last_active_date]).toEqual([before.streak_days, before.last_active_date]);
       expect((await mark(personas.admin, tonight().id, 'confirmed')).body.data.status).toBe('confirmed');
     });
 

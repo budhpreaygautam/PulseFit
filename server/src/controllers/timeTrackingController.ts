@@ -63,7 +63,9 @@ export const clockIn = asyncHandler<AuthenticatedRequest>((req, res: Response) =
     user_id: user.id,
     user_name: user.name,
     user_email: user.email,
-    user_avatar: user.avatar_url,
+    // Uploaded photos are data: URLs of up to 350 kB; copying one into every session would let a
+    // member grow the database without limit. Staff views resolve the current photo instead.
+    user_avatar: user.avatar_url.startsWith('data:') ? '' : user.avatar_url,
     user_tier: user.membership_tier,
     category: body.category,
     clock_in_time: now.toISOString(),

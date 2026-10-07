@@ -90,9 +90,11 @@ export function creditSession(userId: string, date: string): void {
 
 /** What staff may see about a person on the floor: no email, notes or ids. */
 export function toFloorPresence(session: TimeSession, now: Date = new Date()): FloorPresence {
+  const avatar = db.users.find(u => u.id === session.user_id)?.avatar_url ?? session.user_avatar ?? '';
   return {
     user_name: session.user_name,
-    user_avatar: session.user_avatar ?? '',
+    // Remote photo URLs only: an uploaded data: photo would make the floor list megabytes long.
+    user_avatar: avatar.startsWith('data:') ? '' : avatar,
     user_tier: session.user_tier,
     clock_in_time: session.clock_in_time,
     duration_minutes: elapsedMinutes(session, now)

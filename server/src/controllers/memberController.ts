@@ -7,6 +7,7 @@ import { asyncHandler, badRequest, conflict, notFound, ok, parse } from '../lib/
 import { addDays, addMonths, daysBetween, gymDateTime, gymToday, isValidDate } from '../lib/dates.js';
 import { effectiveStatus } from '../lib/membership.js';
 import { defaultAvatar, findUserByEmail, generateQrToken, generateTempPassword, newId, toSafeUser } from '../lib/users.js';
+import { closeOpenSession, releaseMemberBookings, releaseUnentitledBookings } from '../lib/bookingRules.js';
 import { MembershipStatus, MembershipTier, User, UserRole } from '../types/index.js';
 
 const ROLES = ['member', 'trainer', 'admin'] as const satisfies readonly UserRole[];
@@ -196,7 +197,7 @@ export const updateMember = asyncHandler<AuthenticatedRequest>((req, res: Respon
     }
   }
 
-  const touchesMembership = body.membership_status !== undefined || body.membership_expiry !== undefined;
+  const touchesMembership = body.membership_status !== undefined || body.membership_expiry !== undefined || body.membership_tier !== undefined;
   if (touchesMembership && next.membership_status === 'active' && (!next.membership_expiry || next.membership_expiry < today)) {
     const message = 'An active membership needs an expiry date of today or later.';
     throw badRequest(`membership_expiry: ${message}`, 'VALIDATION_ERROR', {
@@ -204,8 +205,23 @@ export const updateMember = asyncHandler<AuthenticatedRequest>((req, res: Respon
     });
   }
 
+  if (touchesMembership && next.membership_status === 'active' && next.membership_tier === 'none') {
+    const message = 'Choose a plan for an active membership.';
+    throw badRequest(`membership_tier: ${message}`, 'VALIDATION_ERROR', { issues: [{ path: 'membership_tier', message }] });
+  }
+
   db.users = db.users.map(u => (u.id === existing.id ? next : u));
-  return ok(res, toSafeUser(next));
+  // Same consequences as a member freezing themselves, and a tier change may drop categories.
+  let released = 0;
+  if (next.membership_status === 'frozen' && existing.membership_status !== 'frozen') {
+    released += releaseMemberBookings(next.id);
+    closeOpenSession(next.id);
+  }
+  if (next.membership_tier !== existing.membership_tier) {
+    released += releaseUnentitledBookings({ tier: next.membership_tier });
+  }
+  const message = released > 0 ? `Member updated. ${released} upcoming booking${released === 1 ? ' was' : 's were'} cancelled.` : undefined;
+  return ok(res, toSafeUser(next), message);
 });
 
 export const deleteMember = asyncHandler<AuthenticatedRequest>((req, res: Response) => {

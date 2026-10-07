@@ -120,7 +120,13 @@ describe('activity seed', () => {
 
   it('does not inflate a seeded streak on the next activity (regression: +1 on a date-less streak)', async () => {
     seedAt('2026-10-07T04:30:00.000Z');
-    const onRun = db.users.find(u => u.last_active_date === '2026-10-06' && (u.streak_days || 0) > 0);
+    // Members already in the gym at seed time have checked in today; pick one whose run ends yesterday.
+    const onRun = db.users.find(u => u.last_active_date === '2026-10-06' && (u.streak_days || 0) > 0)
+      ?? (() => {
+        const member = db.users.find(u => u.role === 'member')!;
+        db.users = db.users.map(u => (u.id === member.id ? { ...u, streak_days: 3, last_active_date: '2026-10-06' } : u));
+        return db.users.find(u => u.id === member.id);
+      })();
     expect(onRun).toBeDefined();
     recordActivity(onRun!.id, '2026-10-07');
     expect(db.users.find(u => u.id === onRun!.id)!.streak_days).toBe(onRun!.streak_days! + 1);

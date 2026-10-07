@@ -9,6 +9,8 @@ const dbPath = path.join(os.tmpdir(), `pulsefit-test-${process.pid}-${Math.rando
 process.env.NODE_ENV = 'test';
 process.env.PULSEFIT_DB_PATH = dbPath;
 process.env.DEMO_MODE = process.env.DEMO_MODE ?? 'true';
+// Behave as if behind one reverse proxy, so tests can simulate client IPs with X-Forwarded-For.
+process.env.TRUST_PROXY = process.env.TRUST_PROXY ?? '1';
 
 afterAll(() => {
   for (const file of [dbPath, `${dbPath}.${process.pid}.tmp`]) {

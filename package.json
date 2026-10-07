@@ -15,7 +15,8 @@
     "build": "npm --prefix server run build && npm --prefix client run build",
     "start": "npm --prefix server start",
     "test:e2e": "playwright test",
-    "test:all": "npm test && npm run test:e2e"
+    "test:all": "npm test && npm run test:e2e",
+    "create-admin": "npm --prefix server run create-admin --"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

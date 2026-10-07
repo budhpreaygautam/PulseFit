@@ -9,7 +9,8 @@ import { User } from '../types/index.js';
 /** Streak to display today: a streak whose last day is before yesterday has lapsed to 0. */
 export function currentStreak(user: Pick<User, 'streak_days' | 'last_active_date'>, today = gymToday()): number {
   const last = user.last_active_date;
-  if (!last) return user.streak_days || 0; // legacy/seeded users without a date keep their number
+  // A number without the day it was earned cannot be trusted (v2.0 data stored bare counters).
+  if (!last) return 0;
   if (last === today || last === addDays(today, -1)) return user.streak_days || 0;
   return 0;
 }
@@ -30,9 +31,6 @@ export function recordActivity(userId: string, date = gymToday()): number {
   if (last && date < last) return streak;
 
   if (last && addDays(last, 1) === date) {
-    streak += 1;
-  } else if (!last && streak > 0 && date === gymToday()) {
-    // Seeded users carry a streak number without a date: treat it as running through yesterday.
     streak += 1;
   } else {
     streak = 1;

@@ -155,9 +155,12 @@ export interface PaymentOrder {
   billing_cycle: BillingCycle;
   amount_inr: number;
   currency: 'INR';
-  status: 'created' | 'paid' | 'failed' | 'rejected'; // rejected: Razorpay reported a payment that does not match the order
+  // rejected: Razorpay reported a payment that does not match the order.
+  // orphaned: money was captured after the member's account was deleted; refund it from Razorpay.
+  status: 'created' | 'paid' | 'failed' | 'rejected' | 'orphaned';
   created_at: string;
   paid_at?: string;
+  razorpay_payment_id?: string;
 }
 
 /** A completed membership payment; the member's invoice history. */

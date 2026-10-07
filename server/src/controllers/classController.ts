@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { z } from 'zod';
 import db from '../db/database.js';
+import { releaseUnentitledBookings } from '../lib/bookingRules.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler, badRequest, conflict, notFound, ok, parse } from '../lib/http.js';
 import { dayOfWeek, gymToday, isValidDate, isValidTime } from '../lib/dates.js';
@@ -147,7 +148,9 @@ export const updateClass = asyncHandler((req, res: Response) => {
     b => b.class_id === existing.id && b.status === 'confirmed' && b.booking_date >= today && !hasStarted(existing.start_time, b.booking_date, now)
   );
 
-  if (updates.capacity !== undefined) {
+  const movesDay = updates.day_of_week !== undefined && updates.day_of_week !== existing.day_of_week;
+  // A weekday move cancels every upcoming booking, so only a same-day change needs the check.
+  if (updates.capacity !== undefined && !movesDay) {
     const dates = [...new Set(upcoming.map(b => b.booking_date))];
     const mostBooked = Math.max(0, ...dates.map(d => bookedCount(existing.id, d)));
     if (updates.capacity < mostBooked) {
@@ -161,7 +164,7 @@ export const updateClass = asyncHandler((req, res: Response) => {
 
   // Moving a class to another weekday removes the dates people booked, so those bookings are cancelled.
   let cancelled = 0;
-  if (updates.day_of_week !== undefined && updates.day_of_week !== existing.day_of_week && upcoming.length > 0) {
+  if (movesDay && upcoming.length > 0) {
     const ids = new Set(upcoming.map(b => b.id));
     const cancelledAt = now.toISOString();
     cancelled = ids.size;
@@ -177,8 +180,15 @@ export const updateClass = asyncHandler((req, res: Response) => {
   };
   db.classes = db.classes.map(c => (c.id === existing.id ? updated : c));
 
-  const message = cancelled > 0
-    ? `Class updated. ${cancelled} upcoming booking${cancelled === 1 ? ' was' : 's were'} cancelled because the day changed.`
+  // A new category may fall outside some bookers' plans.
+  const unentitled = updated.category !== existing.category ? releaseUnentitledBookings({ classId: existing.id }, now) : 0;
+  const reasons = [
+    cancelled > 0 ? `${cancelled} because the day changed` : '',
+    unentitled > 0 ? `${unentitled} because the new category is not in those members' plans` : ''
+  ].filter(Boolean);
+  const total = cancelled + unentitled;
+  const message = total > 0
+    ? `Class updated. ${total} upcoming booking${total === 1 ? ' was' : 's were'} cancelled (${reasons.join('; ')}).`
     : 'Class updated.';
   ok(res, presentClass(updated), message);
 });

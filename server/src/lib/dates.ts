@@ -8,17 +8,29 @@ import config from '../config.js';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+// Building an Intl.DateTimeFormat is expensive; dashboards convert thousands of rows per request.
+function formatterFor(timeZone: string): Intl.DateTimeFormat {
+  let fmt = formatters.get(timeZone);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23'
+    });
+    formatters.set(timeZone, fmt);
+  }
+  return fmt;
+}
+
 function parts(instant: Date, timeZone = config.gymTimezone) {
-  const fmt = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23'
-  });
+  const fmt = formatterFor(timeZone);
   const out: Record<string, string> = {};
   for (const p of fmt.formatToParts(instant)) out[p.type] = p.value;
   return {

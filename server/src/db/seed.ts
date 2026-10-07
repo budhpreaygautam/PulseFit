@@ -4,8 +4,16 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { User, Trainer, GymClass, Exercise, MembershipPlan, Booking, AttendanceLog, Workout, WorkoutSet, TimeSession } from '../types/index.js';
 
-export function seedDatabase() {
-  if (!process.env.VITEST) console.log('🌱 Seeding the PulseFit demo database...');
+/**
+ * Wipe the database and load data.
+ * - demo (default): the full demo gym, including the four demo personas whose password
+ *   (pulse123) is published in the README, members, bookings, payments and activity.
+ * - demo: false: only the catalogue a real gym starts from (plans, exercises, coaches and the
+ *   weekly timetable), with no accounts at all. Create the first admin with `npm run create-admin`.
+ */
+export function seedDatabase(options: { demo?: boolean } = {}) {
+  const demo = options.demo ?? true;
+  if (!process.env.VITEST) console.log(demo ? '🌱 Seeding the PulseFit demo database...' : '🌱 Writing the starting catalogue (plans, exercises, coaches, timetable)...');
 
   db.reset();
 
@@ -904,8 +912,23 @@ export function seedDatabase() {
   // Domain-specific demo data (payments, bookings, trials, ...), see db/seed/.
   runSeedExtensions();
 
+  if (!demo) {
+    db.users = [];
+    db.trainers = db.trainers.map(({ user_id: _unlinked, ...trainer }) => trainer);
+    db.bookings = [];
+    db.attendance_logs = [];
+    db.workouts = [];
+    db.workout_sets = [];
+    db.time_sessions = [];
+    db.payment_orders = [];
+    db.payments = [];
+    db.trial_passes = [];
+    db.trainer_notes = [];
+    db.password_resets = [];
+  }
+
   db.saveSync();
 
-  if (!process.env.VITEST) console.log(`✅ Demo data written to ${db.filePath}`);
+  if (!process.env.VITEST) console.log(`✅ ${demo ? 'Demo data' : 'Catalogue'} written to ${db.filePath}`);
 }
 
