@@ -25,6 +25,8 @@ export const newPasswordSchema = z
   .string({ error: 'Enter a password.' })
   .min(8, 'Use at least 8 characters for your password.')
   .max(72, 'Use at most 72 characters for your password.')
+  // bcrypt ignores everything after 72 bytes, so accented or non-Latin characters must count by byte.
+  .refine(v => Buffer.byteLength(v, 'utf8') <= 72, 'Your password is too long. Use fewer or simpler characters.')
   .regex(/[A-Za-z]/, 'Your password needs at least one letter.')
   .regex(/\d/, 'Your password needs at least one digit.');
 
@@ -70,7 +72,7 @@ const googleSchema = z.object({
   credential: z.string({ error: 'The Google sign-in response is missing.' }).min(1, 'The Google sign-in response is missing.').max(10_000)
 });
 
-const DEMO_PERSONAS = {
+export const DEMO_PERSONAS = {
   member: 'member@pulsefit.com',
   vip: 'vip@pulsefit.com',
   trainer: 'trainer@pulsefit.com',
@@ -118,6 +120,12 @@ function newMember(fields: { name: string; email: string; phone?: string; passwo
     last_active_date: null,
     token_version: 0
   };
+}
+
+/** Retire every open reset link of a user, so a link handed out earlier can no longer be redeemed. */
+export function retireResetLinks(userId: string, at: string = new Date().toISOString()): void {
+  if (!db.password_resets.some(r => r.user_id === userId && !r.used_at)) return;
+  db.password_resets = db.password_resets.map(r => (r.user_id === userId && !r.used_at ? { ...r, used_at: at } : r));
 }
 
 function emailTaken(): ApiError {
@@ -173,10 +181,17 @@ export const googleSignIn = asyncHandler(async (req: Request, res: Response) => 
     if (byEmail.google_sub) {
       throw conflict('This email is already linked to a different Google account.', 'GOOGLE_ACCOUNT_CONFLICT');
     }
-    // Link the account; the member's own name and photo stay as they are.
-    const linked: User = { ...byEmail, google_sub: profile.sub };
+    // Registration never proves that the email belongs to the registrant, so Google's verified email
+    // is the first real proof of ownership. Whoever registered it before loses their way in: the
+    // password goes, older tokens are revoked and open reset links die. Name and photo stay.
+    const { password_hash, ...rest } = byEmail;
+    const linked: User = { ...rest, google_sub: profile.sub, token_version: (byEmail.token_version || 0) + 1 };
     db.users = db.users.map(u => (u.id === linked.id ? linked : u));
-    return ok(res, { ...session(linked), created: false });
+    retireResetLinks(linked.id);
+    const message = password_hash
+      ? 'Your Google account is now linked. For your security the old password was removed and other devices were signed out. You can set a new password in your profile.'
+      : 'Your Google account is now linked.';
+    return ok(res, { ...session(linked), created: false }, message);
   }
 
   const name = (profile.name?.trim() || profile.email.split('@')[0]).slice(0, 60);

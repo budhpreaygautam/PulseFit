@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair, type JWTVerifyGetKey } from 'jose';
 import config from '../src/config.js';
 import { GoogleProfile, InvalidGoogleTokenError, setGoogleVerifierForTests, verifyGoogleIdToken } from '../src/lib/google.js';
@@ -21,10 +21,12 @@ describe('POST /auth/google', () => {
     resetDb();
     config.googleClientId = CLIENT_ID;
     setGoogleVerifierForTests(fakeVerifier);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
   });
   afterEach(() => {
     config.googleClientId = originalClientId;
     setGoogleVerifierForTests(null);
+    vi.restoreAllMocks();
   });
 
   it('answers 503 GOOGLE_SIGNIN_DISABLED when no client id is configured', async () => {
@@ -96,7 +98,33 @@ describe('POST /auth/google', () => {
     expect(res.body.data.created).toBe(false);
     expect(res.body.data.user).toMatchObject({ id: before.id, name: before.name, avatar_url: before.avatar_url, membership_tier: 'pro' });
     expect(userByEmail(personas.member).google_sub).toBe('g-aarav');
-    expect(userByEmail(personas.member).password_hash).toBe(before.password_hash);
+    expect(res.body.message).toMatch(/password was removed/);
+  });
+
+  it('regression: linking ends the access of whoever registered the email first', async () => {
+    // The attacker registers the victim's address before the victim ever signs up.
+    const victim = 'victim@gmail.com';
+    const squatted = await api().post('/api/auth/register').send({ name: 'Attacker', email: victim, password: 'Squat2026' });
+    expect(squatted.status).toBe(201);
+    const attackerHeader = { Authorization: `Bearer ${squatted.body.data.token}` };
+    const reset = await api().post('/api/auth/forgot-password').send({ email: victim });
+    const resetToken = new URL(reset.body.data.resetUrl).searchParams.get('token');
+
+    const res = await api().post('/api/auth/google').send({ credential: cred({ sub: 'g-victim', email: victim, name: 'Victim' }) });
+    expect(res.status).toBe(200);
+    expect(res.body.data.user.id).toBe(squatted.body.data.user.id);
+    expect(userByEmail(victim).password_hash).toBeUndefined();
+
+    expect((await api().post('/api/auth/login').send({ email: victim, password: 'Squat2026' })).status).toBe(401);
+    expect((await api().get('/api/auth/me').set(attackerHeader)).status).toBe(401);
+    expect((await api().put('/api/auth/password').set(attackerHeader).send({ newPassword: 'Again2026x' })).status).toBe(401);
+    const redeem = await api().post('/api/auth/reset-password').send({ token: resetToken, newPassword: 'Again2026x' });
+    expect(redeem.body.code).toBe('INVALID_RESET_TOKEN');
+
+    // The real owner keeps working with the token Google sign-in gave them, and can set a password.
+    const ownerHeader = { Authorization: `Bearer ${res.body.data.token}` };
+    expect((await api().get('/api/auth/me').set(ownerHeader)).status).toBe(200);
+    expect((await api().put('/api/auth/password').set(ownerHeader).send({ newPassword: 'Mine2026ok' })).status).toBe(200);
   });
 
   it('refuses an email already linked to a different Google account', async () => {

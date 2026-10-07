@@ -7,11 +7,14 @@ import db from '../db/database.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { ApiError, asyncHandler, badRequest, ok, parse, unauthorized } from '../lib/http.js';
 import { findUserByEmail, newId } from '../lib/users.js';
-import { BCRYPT_ROUNDS, emailSchema, newPasswordSchema, session } from './authController.js';
+import { BCRYPT_ROUNDS, DEMO_PERSONAS, emailSchema, newPasswordSchema, retireResetLinks, session } from './authController.js';
 import { User } from '../types/index.js';
 
 const RESET_TTL_MS = 30 * 60_000;
 const FORGOT_MESSAGE = 'If an account exists for that email, a password reset link has been created. It is valid for 30 minutes.';
+// Production has no email delivery: the link only reaches the server log, where staff can hand it out.
+const FORGOT_MESSAGE_STAFF =
+  'If an account exists for that email, a password reset link has been created. It is valid for 30 minutes; please ask the front desk for it.';
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().max(1000).optional(),
@@ -37,10 +40,7 @@ async function setPassword(user: User, newPassword: string): Promise<User> {
   const updated: User = { ...fresh, password_hash, token_version: (fresh.token_version || 0) + 1 };
   db.users = db.users.map(u => (u.id === updated.id ? updated : u));
 
-  const now = new Date().toISOString();
-  if (db.password_resets.some(r => r.user_id === user.id && !r.used_at)) {
-    db.password_resets = db.password_resets.map(r => (r.user_id === user.id && !r.used_at ? { ...r, used_at: now } : r));
-  }
+  retireResetLinks(user.id);
   return updated;
 }
 
@@ -71,16 +71,29 @@ function resetOrigin(req: Request): string {
   return config.corsOrigins[0] ?? '';
 }
 
+/**
+ * Whether the response itself may carry the reset link. Outside production it is the developer's
+ * shortcut. A public demo (production + DEMO_MODE) shows it only for the shared demo personas, which
+ * anyone can enter through demo-login anyway; every real account there goes through staff instead.
+ */
+function mayShowResetLink(email: string): boolean {
+  if (!config.isProduction) return true;
+  return config.demoMode && (Object.values(DEMO_PERSONAS) as string[]).includes(email);
+}
+
 export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
   const { email } = parse(forgotPasswordSchema, req.body);
+  // Depends only on the server mode, never on whether the account exists.
+  const message = config.isProduction ? FORGOT_MESSAGE_STAFF : FORGOT_MESSAGE;
   const user = findUserByEmail(email);
-  if (!user) return ok(res, { message: FORGOT_MESSAGE });
+  if (!user) return ok(res, { message });
 
   const token = crypto.randomBytes(32).toString('base64url');
   const now = new Date();
   // Only the newest link works; requesting another one retires the earlier ones.
+  retireResetLinks(user.id, now.toISOString());
   db.password_resets = [
-    ...db.password_resets.map(r => (r.user_id === user.id && !r.used_at ? { ...r, used_at: now.toISOString() } : r)),
+    ...db.password_resets,
     {
       id: newId('pwr'),
       user_id: user.id,
@@ -90,12 +103,11 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
     }
   ];
 
-  // There is no email delivery, so the link is only ever shown where that is safe.
-  if (!(config.demoMode || !config.isProduction)) return ok(res, { message: FORGOT_MESSAGE });
-
   const resetUrl = `${resetOrigin(req)}/reset-password?token=${token}`;
-  if (!config.isTest) console.log(`🔑 Password reset link for ${user.email}: ${resetUrl}`);
-  return ok(res, { message: FORGOT_MESSAGE, resetUrl });
+  // Always logged, in production too: with no email delivery the console is how staff get the link.
+  console.log(`🔑 Password reset link for ${user.email} (valid 30 minutes): ${resetUrl}`);
+
+  return ok(res, mayShowResetLink(user.email) ? { message, resetUrl } : { message });
 });
 
 export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
