@@ -5,6 +5,7 @@ import { useNavigation } from '../../context/NavigationContext.js';
 import { useToast } from '../../context/ToastContext.js';
 import { errorMessage } from '../../api/client.js';
 import { homeTabFor } from '../../routes.js';
+import { passwordError } from '../../components/public/validation.js';
 
 // Landing page for the link from "Forgot password?" (/reset-password?token=...).
 export const ResetPasswordPage: React.FC = () => {
@@ -20,8 +21,9 @@ export const ResetPasswordPage: React.FC = () => {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-      setError('Use at least 8 characters, with at least one letter and one number.');
+    const problem = passwordError(password);
+    if (problem) {
+      setError(problem);
       return;
     }
     if (password !== confirm) {
