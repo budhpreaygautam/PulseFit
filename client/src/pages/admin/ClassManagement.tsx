@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CalendarDays, Edit2, Loader2, Mail, Phone, Plus, Trash2, UserCheck, Users, X } from 'lucide-react';
+import { CalendarDays, Edit2, LayoutDashboard, Loader2, Mail, Phone, Plus, Trash2, UserCheck, Users, X } from 'lucide-react';
 import { ClassOccurrence, Trainer } from '../../types/index.js';
 import { ApiError, api, errorMessage } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
@@ -9,6 +9,9 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/common/St
 import { AdminNav, Avatar, FormError, PageHeader, SectionCard, focusRing, inputClass, labelClass } from '../../components/admin/ui.js';
 import { ClassFormModal, WEEK_ORDER } from '../../components/admin/ClassFormModal.js';
 import { CoachFormModal } from '../../components/admin/CoachFormModal.js';
+import { useAuth } from '../../context/AuthContext.js';
+import { useNavigation } from '../../context/NavigationContext.js';
+import { canAccess, routeForTab } from '../../routes.js';
 import { DAY_NAMES, formatClock, formatDate } from '../../lib/format.js';
 
 type Reassign = { trainer: Trainer; classes: { id: string; title: string }[] };
@@ -19,23 +22,45 @@ function endClock(start: string, minutes: number): string {
   return formatClock(`${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`);
 }
 
-const Notice: React.FC<{ message: string | null; onDismiss: () => void }> = ({ message, onDismiss }) =>
-  message ? (
-    <div className="flex items-start justify-between gap-3 rounded-2xl border border-lime-500/40 bg-lime-500/10 px-4 py-3 text-sm font-semibold text-slate-100" role="status">
-      <span>{message}</span>
+type NoticeMessage = { tone: 'success' | 'error'; text: string };
+
+const Notice: React.FC<{ notice: NoticeMessage | null; onDismiss: () => void }> = ({ notice, onDismiss }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  // The action that produced it is often far down the page (a coach card, a Sunday class).
+  useEffect(() => {
+    if (notice) ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [notice]);
+  if (!notice) return null;
+  return (
+    <div
+      key={`${notice.tone}:${notice.text}`}
+      ref={ref}
+      className={`flex items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold scroll-mt-32 ${
+        notice.tone === 'error' ? 'border-rose-500/40 bg-rose-500/10 text-rose-300 [.light_&]:text-rose-700' : 'border-lime-500/40 bg-lime-500/10 text-slate-100'
+      }`}
+      role={notice.tone === 'error' ? 'alert' : 'status'}
+    >
+      <span>{notice.text}</span>
       <button type="button" onClick={onDismiss} className={`p-1 rounded-lg text-slate-400 hover:text-slate-100 ${focusRing}`} aria-label="Dismiss message">
         <X className="w-4 h-4" aria-hidden="true" />
       </button>
     </div>
-  ) : null;
+  );
+};
 
 export const ClassManagement: React.FC = () => {
+  const { user } = useAuth();
+  const { navigate } = useNavigation();
+  const coachViewRoute = routeForTab('trainer-dashboard');
+  // The coach view needs routes.ts to admit admins to /trainer; the link appears once it does.
+  const canViewCoachDashboard = !!coachViewRoute && canAccess(coachViewRoute, user?.role ?? null);
   const [classes, setClasses] = useState<ClassOccurrence[] | null>(null);
   const [classesError, setClassesError] = useState<string | null>(null);
   const [trainers, setTrainers] = useState<Trainer[] | null>(null);
   const [trainersError, setTrainersError] = useState<string | null>(null);
   const [day, setDay] = useState<number | 'all'>('all');
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<NoticeMessage | null>(null);
+  const success = (text: string) => setNotice({ tone: 'success', text });
 
   const [classTarget, setClassTarget] = useState<ClassOccurrence | 'new' | null>(null);
   const [deletingClass, setDeletingClass] = useState<ClassOccurrence | null>(null);
@@ -79,28 +104,30 @@ export const ClassManagement: React.FC = () => {
     if (!deletingClass) return;
     try {
       const { cancelled_bookings } = await api.deleteClass(deletingClass.id);
-      setNotice(
+      success(
         `${deletingClass.title} was deleted. ${cancelled_bookings === 0 ? 'No upcoming bookings had to be cancelled.' : `${cancelled_bookings} upcoming booking${cancelled_bookings === 1 ? ' was' : 's were'} cancelled.`}`
       );
+      reloadAll();
     } catch (err) {
-      setNotice(null);
-      setClassesError(`Could not delete ${deletingClass.title}. ${errorMessage(err)}`);
+      setNotice({ tone: 'error', text: `Could not delete ${deletingClass.title}. ${errorMessage(err)}` });
+      // Already gone (deleted elsewhere): the timetable is stale.
+      if (err instanceof ApiError && err.status === 404) loadClasses();
     }
-    reloadAll();
   };
 
   const confirmDeleteCoach = async () => {
     if (!deletingCoach) return;
     try {
       await api.deleteTrainer(deletingCoach.id);
-      setNotice(`${deletingCoach.name} was removed.`);
+      success(`${deletingCoach.name} was removed.`);
       reloadAll();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'TRAINER_HAS_CLASSES') {
         const data = err.data as { classes?: { id: string; title: string }[] } | undefined;
         pendingReassign.current = { trainer: deletingCoach, classes: data?.classes ?? [] };
       } else {
-        setTrainersError(`Could not remove ${deletingCoach.name}. ${errorMessage(err)}`);
+        setNotice({ tone: 'error', text: `Could not remove ${deletingCoach.name}. ${errorMessage(err)}` });
+        if (err instanceof ApiError && err.status === 404) loadTrainers();
       }
     }
   };
@@ -117,7 +144,7 @@ export const ClassManagement: React.FC = () => {
     try {
       const { reassigned_classes } = await api.deleteTrainer(reassign.trainer.id, reassignTo);
       const to = trainers?.find(t => t.id === reassignTo)?.name ?? 'the new coach';
-      setNotice(`${reassign.trainer.name} was removed. ${reassigned_classes} class${reassigned_classes === 1 ? '' : 'es'} moved to ${to}.`);
+      success(`${reassign.trainer.name} was removed. ${reassigned_classes} class${reassigned_classes === 1 ? '' : 'es'} moved to ${to}.`);
       setReassign(null);
       reloadAll();
     } catch (err) {
@@ -156,7 +183,7 @@ export const ClassManagement: React.FC = () => {
         }
       />
       <AdminNav />
-      <Notice message={notice} onDismiss={() => setNotice(null)} />
+      <Notice notice={notice} onDismiss={() => setNotice(null)} />
 
       <SectionCard id="timetable-heading" title="Weekly timetable" icon={<CalendarDays className="w-4 h-4 text-lime-400" aria-hidden="true" />}>
         <div role="group" aria-label="Show day" className="flex flex-wrap gap-2">
@@ -263,7 +290,12 @@ export const ClassManagement: React.FC = () => {
                     </a>
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  {canViewCoachDashboard && (
+                    <button type="button" onClick={() => navigate('trainer-dashboard', { trainer: t.id })} className={`px-3 py-2 neu-btn rounded-lg text-xs font-bold flex items-center gap-1.5 ${focusRing}`} aria-label={`View ${t.name}'s dashboard`}>
+                      <LayoutDashboard className="w-3.5 h-3.5" aria-hidden="true" /> Dashboard
+                    </button>
+                  )}
                   <button type="button" onClick={() => setCoachTarget(t)} className={`px-3 py-2 neu-btn rounded-lg text-xs font-bold flex items-center gap-1.5 ${focusRing}`} aria-label={`Edit ${t.name}`}>
                     <Edit2 className="w-3.5 h-3.5" aria-hidden="true" /> Edit
                   </button>
@@ -283,7 +315,7 @@ export const ClassManagement: React.FC = () => {
         onClose={() => setClassTarget(null)}
         onSaved={message => {
           setClassTarget(null);
-          setNotice(message);
+          success(message);
           reloadAll();
         }}
         onTrainersStale={loadTrainers}
@@ -294,7 +326,7 @@ export const ClassManagement: React.FC = () => {
         onClose={() => setCoachTarget(null)}
         onSaved={message => {
           setCoachTarget(null);
-          setNotice(message);
+          success(message);
           reloadAll();
         }}
       />
