@@ -12,6 +12,7 @@ import {
   remainingDays,
   unfreezeMembership
 } from '../src/lib/billing.js';
+import { addDays, daysBetween } from '../src/lib/dates.js';
 
 const plans = [
   { tier: 'basic' as const, price_monthly: 1199 },
@@ -38,7 +39,42 @@ describe('billing: periods', () => {
     expect(periodEnd('2026-10-07', 'annual')).toBe('2027-10-06');
     expect(periodEnd('2026-02-01', 'monthly')).toBe('2026-02-28');
     expect(periodEnd('2028-02-01', 'monthly')).toBe('2028-02-29');
-    expect(periodEnd('2026-01-31', 'monthly')).toBe('2026-02-27');
+    expect(periodEnd('2026-01-28', 'monthly')).toBe('2026-02-27');
+  });
+
+  it('runs a period to the end of a month too short for its start day (review: Jan 28-31 all ended Feb 27)', () => {
+    expect(periodEnd('2026-01-29', 'monthly')).toBe('2026-02-28');
+    expect(periodEnd('2026-01-30', 'monthly')).toBe('2026-02-28');
+    expect(periodEnd('2026-01-31', 'monthly')).toBe('2026-02-28');
+    expect(periodEnd('2028-01-30', 'monthly')).toBe('2028-02-29');
+    expect(periodEnd('2026-03-31', 'monthly')).toBe('2026-04-30');
+    expect(periodEnd('2026-03-30', 'monthly')).toBe('2026-04-29');
+    expect(periodEnd('2026-08-31', 'monthly')).toBe('2026-09-30');
+    expect(periodEnd('2026-12-31', 'monthly')).toBe('2027-01-30');
+    expect(periodEnd('2028-02-29', 'monthly')).toBe('2028-03-28');
+    expect(periodEnd('2028-02-29', 'annual')).toBe('2029-02-28');
+    expect(periodEnd('2027-02-28', 'annual')).toBe('2028-02-27');
+  });
+
+  it('never gives a monthly period fewer days than its calendar month allows, and renewals do not drift', () => {
+    // Back-to-back renewals from Jan 31: every later period is a whole calendar month.
+    const chain: string[][] = [];
+    let start = '2026-01-31';
+    for (let i = 0; i < 4; i++) {
+      const end = periodEnd(start, 'monthly');
+      chain.push([start, end]);
+      start = addDays(end, 1);
+    }
+    expect(chain).toEqual([
+      ['2026-01-31', '2026-02-28'],
+      ['2026-03-01', '2026-03-31'],
+      ['2026-04-01', '2026-04-30'],
+      ['2026-05-01', '2026-05-31']
+    ]);
+    for (let d = 1; d <= 31; d++) {
+      const s = `2026-01-${String(d).padStart(2, '0')}`;
+      expect(daysBetween(s, periodEnd(s, 'monthly')) + 1).toBeGreaterThanOrEqual(28);
+    }
   });
 
   it('counts frozen days from the freeze date to today', () => {
@@ -94,6 +130,15 @@ describe('billing: computeActivation', () => {
     const a = computeActivation(member({}), { tier: 'basic', billing_cycle: 'annual' }, plans, today);
     expect(a.period_start).toBe('2026-11-01');
     expect(a.membership_expiry).toBe('2027-10-31');
+  });
+
+  it('gives a full month to a renewal or purchase that starts on the 29th-31st', () => {
+    const renewal = computeActivation(member({ membership_expiry: '2027-01-30' }), { tier: 'basic', billing_cycle: 'monthly' }, plans, '2027-01-20');
+    expect(renewal).toMatchObject({ period_start: '2027-01-31', period_end: '2027-02-28' });
+    const fresh = computeActivation(member({ membership_status: 'expired', membership_expiry: '2026-12-01' }), { tier: 'pro', billing_cycle: 'monthly' }, plans, '2027-01-31');
+    expect(fresh).toMatchObject({ period_start: '2027-01-31', period_end: '2027-02-28' });
+    const leapAnnual = computeActivation(member({ membership_status: 'expired', membership_expiry: '2027-12-01' }), { tier: 'vip', billing_cycle: 'annual' }, plans, '2028-02-29');
+    expect(leapAnnual.membership_expiry).toBe('2029-02-28');
   });
 
   it('starts today when the same tier has expired, with no credit', () => {

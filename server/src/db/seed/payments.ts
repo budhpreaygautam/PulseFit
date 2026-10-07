@@ -1,6 +1,6 @@
 import db from '../database.js';
 import { CYCLE_MONTHS, PaidTier, periodEnd, planPrice } from '../../lib/billing.js';
-import { addDays, addMonths, gymDateTime, gymToday, toGymDate } from '../../lib/dates.js';
+import { addDays, addMonths, daysBetween, gymDateTime, gymToday, toGymDate } from '../../lib/dates.js';
 import { newId } from '../../lib/users.js';
 import { BillingCycle, MembershipStatus, Payment, PaymentOrder } from '../../types/index.js';
 
@@ -21,7 +21,47 @@ interface History {
   status: MembershipStatus;
 }
 
+interface Span {
+  start: string;
+  end: string;
+}
+
 const monthly = (tier: PaidTier, count: number) => Array.from({ length: count }, () => ({ tier, cycle: 'monthly' as const }));
+
+/** Back-to-back periods from `firstStart`, each billed exactly as computeActivation renews it. */
+function chainFrom(firstStart: string, periods: History['periods']): Span[] {
+  const spans: Span[] = [];
+  let start = firstStart;
+  for (const p of periods) {
+    const end = periodEnd(start, p.cycle);
+    spans.push({ start, end });
+    start = addDays(end, 1);
+  }
+  return spans;
+}
+
+/**
+ * Built forwards, because month-end clamping makes the periods impossible to walk back exactly.
+ * The first start is tried around a guess, and the chain whose last period best hits the
+ * target (its start, or its end for a lapsed member) wins.
+ */
+function historySpans(h: History, today: string): Span[] {
+  const last = h.periods[h.periods.length - 1];
+  const target = h.lastEnd ?? addDays(today, -(h.lastStartDaysAgo ?? 0));
+  const targetLastStart = h.lastEnd ? addMonths(addDays(h.lastEnd, 1), -CYCLE_MONTHS[last.cycle]) : target;
+  const monthsBefore = h.periods.slice(0, -1).reduce((n, p) => n + CYCLE_MONTHS[p.cycle], 0);
+  const guess = addMonths(targetLastStart, -monthsBefore);
+
+  let best: { spans: Span[]; miss: number } | null = null;
+  for (const offset of [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5]) {
+    const spans = chainFrom(addDays(guess, offset), h.periods);
+    const final = spans[spans.length - 1];
+    const miss = Math.abs(daysBetween(h.lastEnd ? final.end : final.start, target));
+    if (!best || miss < best.miss) best = { spans, miss };
+    if (miss === 0) break;
+  }
+  return best!.spans;
+}
 
 export function seedPayments(): void {
   const today = gymToday();
@@ -46,16 +86,8 @@ export function seedPayments(): void {
     const user = db.users.find(u => u.id === h.userId);
     if (!user) continue;
 
-    // Build the periods backwards from the last one so they join up day to day.
     const last = h.periods[h.periods.length - 1];
-    let start = h.lastEnd ? addMonths(addDays(h.lastEnd, 1), -CYCLE_MONTHS[last.cycle]) : addDays(today, -(h.lastStartDaysAgo ?? 0));
-    let end = h.lastEnd ?? periodEnd(start, last.cycle);
-    const spans: { start: string; end: string }[] = [{ start, end }];
-    for (let i = h.periods.length - 2; i >= 0; i--) {
-      end = addDays(start, -1);
-      start = addMonths(start, -CYCLE_MONTHS[h.periods[i].cycle]);
-      spans.unshift({ start, end });
-    }
+    const spans = historySpans(h, today);
 
     h.periods.forEach((p, i) => {
       const plan = db.membership_plans.find(pl => pl.tier === p.tier)!;

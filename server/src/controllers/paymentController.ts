@@ -106,22 +106,23 @@ export const createOrder = asyncHandler<AuthenticatedRequest>(async (req, res) =
   });
 });
 
+type ActivationResult =
+  | { outcome: 'activated'; payment: Payment; user: SafeUser; token: string }
+  | { outcome: 'already_processed' | 'rejected' | 'skipped' };
+
 /**
  * Apply a paid order to its member: extend or change the membership and store the invoice.
- * Returns null when the order (or this payment id) has already been applied.
+ * An order activates at most once, and never after the webhook rejected it for a wrong amount.
  */
-function activateOrder(
-  orderId: string,
-  paymentId: string,
-  source: Payment['source']
-): { payment: Payment; user: SafeUser; token: string } | null {
+function activateOrder(orderId: string, paymentId: string, source: Payment['source']): ActivationResult {
   const order = db.payment_orders.find(o => o.id === orderId);
-  if (!order) return null;
+  if (!order) return { outcome: 'skipped' };
   if (order.status === 'paid' || db.payments.some(p => p.order_id === orderId || p.razorpay_payment_id === paymentId)) {
-    return null;
+    return { outcome: 'already_processed' };
   }
+  if (order.status === 'rejected') return { outcome: 'rejected' };
   const user = db.users.find(u => u.id === order.user_id);
-  if (!user) return null;
+  if (!user) return { outcome: 'skipped' };
 
   const today = gymToday();
   const activation = computeActivation(user, order, db.membership_plans, today);
@@ -160,7 +161,7 @@ function activateOrder(
   db.payment_orders = db.payment_orders.map(o => (o.id === order.id ? { ...o, status: 'paid' as const, paid_at: now } : o));
   db.payments = [...db.payments, payment];
 
-  return { payment, user: toSafeUser(updatedUser), token: generateToken(updatedUser) };
+  return { outcome: 'activated', payment, user: toSafeUser(updatedUser), token: generateToken(updatedUser) };
 }
 
 const verifySchema = z.object({
@@ -184,7 +185,13 @@ export const verifyPayment = asyncHandler<AuthenticatedRequest>(async (req, res)
   if (order.user_id !== req.user!.id) throw forbidden('This order belongs to another account.', 'ORDER_NOT_YOURS');
 
   const result = activateOrder(order.id, razorpay_payment_id, 'checkout');
-  if (!result) {
+  if (result.outcome === 'rejected') {
+    throw conflict(
+      'Razorpay reported a payment that does not match this order, so it was not applied. Please contact the front desk.',
+      'ORDER_REJECTED'
+    );
+  }
+  if (result.outcome !== 'activated') {
     const current = db.users.find(u => u.id === req.user!.id)!;
     throw conflict('This payment has already been applied to your membership.', 'ALREADY_PROCESSED', {
       user: toSafeUser(current)
@@ -217,7 +224,7 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
   try {
     event = JSON.parse(req.body.toString('utf8'));
   } catch {
-    throw badRequest('The webhook body is not valid JSON.', 'BAD_JSON');
+    throw badRequest('The webhook body is not valid JSON.', 'BAD_PAYLOAD');
   }
 
   const payment = event.payload?.payment?.entity;
@@ -227,8 +234,14 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
   // Unknown orders (not membership checkouts) and repeats are acknowledged, so Razorpay stops retrying.
   if (order && payment?.id) {
     if (event.event === 'payment.captured' || event.event === 'order.paid') {
-      if (payment.amount !== undefined && payment.amount !== order.amount_inr * 100) {
-        console.warn(`Webhook ${event.event} for ${order.id}: paid ${payment.amount} paise, expected ${order.amount_inr * 100}; not activated.`);
+      if (payment.amount !== order.amount_inr * 100 || payment.currency !== 'INR') {
+        // Recorded on the order so verify refuses it as well; a paid order is left alone.
+        console.warn(
+          `Webhook ${event.event} for ${order.id}: paid ${payment.amount ?? '?'} ${payment.currency ?? '?'}, expected ${order.amount_inr * 100} INR; order rejected.`
+        );
+        if (order.status !== 'paid') {
+          db.payment_orders = db.payment_orders.map(o => (o.id === order.id ? { ...o, status: 'rejected' as const } : o));
+        }
       } else {
         activateOrder(order.id, payment.id, 'webhook');
       }

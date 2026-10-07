@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import config from '../src/config.js';
 import { setRazorpayClientForTests } from '../src/controllers/paymentController.js';
+import { periodEnd } from '../src/lib/billing.js';
+import { addDays, gymToday } from '../src/lib/dates.js';
 import { api, authHeader, db, personas, resetDb, userByEmail } from './helpers.js';
 
 const KEY_ID = 'rzp_test_pulsefit';
@@ -366,7 +368,7 @@ describe('POST /payment/webhook', () => {
       event: 'order.paid',
       payload: {
         order: { entity: { id: orderId, amount_paid: 149900, status: 'paid' } },
-        payment: { entity: { id: 'pay_op', order_id: orderId, amount: 149900, status: 'captured' } }
+        payment: { entity: { id: 'pay_op', order_id: orderId, amount: 149900, currency: 'INR', status: 'captured' } }
       }
     });
     expect(res.status).toBe(200);
@@ -412,14 +414,47 @@ describe('POST /payment/webhook', () => {
     expect(db.payment_orders.find(o => o.id === orderId)!.status).toBe('paid');
   });
 
-  it('does not activate when the captured amount differs from the order', async () => {
+  it('rejects an order whose captured amount differs, and verify refuses it too (review: check was webhook-only)', async () => {
     const orderId = await createOrder(personas.expired, 'vip', 'annual');
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const res = await webhook(capturedEvent(orderId, 'pay_cheap', 6900));
     spy.mockRestore();
     expect(res.status).toBe(200);
     expect(userByEmail(personas.expired).membership_status).toBe('expired');
-    expect(db.payment_orders.find(o => o.id === orderId)!.status).toBe('created');
+    expect(db.payment_orders.find(o => o.id === orderId)!.status).toBe('rejected');
+
+    const viaCheckout = await verify(personas.expired, orderId, 'pay_cheap');
+    expect(viaCheckout.status).toBe(409);
+    expect(viaCheckout.body.code).toBe('ORDER_REJECTED');
+    // Neither a later correct capture nor another verify can activate a rejected order.
+    await webhook(capturedEvent(orderId, 'pay_full', 1918800));
+    expect((await verify(personas.expired, orderId, 'pay_other')).body.code).toBe('ORDER_REJECTED');
+    expect(userByEmail(personas.expired).membership_status).toBe('expired');
+    expect(db.payments.some(p => p.order_id === orderId)).toBe(false);
+  });
+
+  it('rejects a capture in another currency or without an amount', async () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const usd = await createOrder(personas.expired, 'basic', 'monthly');
+    const usdEvent = capturedEvent(usd, 'pay_usd', 119900);
+    usdEvent.payload.payment.entity.currency = 'USD';
+    expect((await webhook(usdEvent)).status).toBe(200);
+    const noAmount = await createOrder(personas.expired, 'basic', 'monthly');
+    const noAmountEvent = { event: 'payment.captured', payload: { payment: { entity: { id: 'pay_na', order_id: noAmount, currency: 'INR' } } } };
+    expect((await webhook(noAmountEvent)).status).toBe(200);
+    spy.mockRestore();
+    expect(db.payment_orders.find(o => o.id === usd)!.status).toBe('rejected');
+    expect(db.payment_orders.find(o => o.id === noAmount)!.status).toBe('rejected');
+    expect(userByEmail(personas.expired).membership_status).toBe('expired');
+  });
+
+  it('leaves a paid order paid when a mismatched event arrives for it later', async () => {
+    const orderId = await createOrder(personas.basic, 'basic', 'monthly');
+    await verify(personas.basic, orderId, 'pay_ok');
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await webhook(capturedEvent(orderId, 'pay_odd', 100));
+    spy.mockRestore();
+    expect(db.payment_orders.find(o => o.id === orderId)!.status).toBe('paid');
   });
 
   it('acknowledges events for unknown orders and other event types', async () => {
@@ -447,9 +482,15 @@ describe('POST /payment/webhook', () => {
     expect(userByEmail(personas.expired).membership_status).toBe('expired');
   });
 
-  it('rejects a non-JSON body', async () => {
+  it('rejects a non-JSON body with 400 BAD_PAYLOAD, signed or not (review: one case said BAD_JSON)', async () => {
     const res = await api().post('/api/payment/webhook').set('Content-Type', 'text/plain').set('X-Razorpay-Signature', 'x').send('hello');
     expect(res.status).toBe(400);
+    expect(res.body.code).toBe('BAD_PAYLOAD');
+    const raw = '{"event": "payment.captured", ';
+    const sig = crypto.createHmac('sha256', WEBHOOK_SECRET).update(raw).digest('hex');
+    const broken = await api().post('/api/payment/webhook').set('Content-Type', 'application/json').set('X-Razorpay-Signature', sig).send(raw);
+    expect(broken.status).toBe(400);
+    expect(broken.body.code).toBe('BAD_PAYLOAD');
   });
 
   it('answers 503 when no webhook secret is configured', async () => {
@@ -529,7 +570,8 @@ describe('seeded payment history', () => {
       const latest = mine[mine.length - 1];
       expect(user.membership_tier).toBe(latest.tier);
       expect(user.membership_expiry).toBe(latest.period_end);
-      // Periods join up day to day.
+      // Each period is exactly what an activation would bill, and they join up day to day.
+      for (const p of mine) expect(p.period_end).toBe(periodEnd(p.period_start, p.billing_cycle));
       for (let i = 1; i < mine.length; i++) {
         const prevEnd = new Date(`${mine[i - 1].period_end}T00:00:00Z`);
         prevEnd.setUTCDate(prevEnd.getUTCDate() + 1);
@@ -564,5 +606,36 @@ describe('seeded payment history', () => {
       expect(user.membership_expiry! >= '2027-05-20').toBe(true);
     }
     expect(userByEmail(personas.expired).membership_status).toBe('expired');
+  });
+
+  it.each([
+    '2027-03-31T06:30:00.000Z',
+    '2027-03-29T06:30:00.000Z',
+    '2027-05-02T06:30:00.000Z',
+    '2028-02-29T06:30:00.000Z',
+    '2028-03-05T06:30:00.000Z',
+    '2027-01-30T20:00:00.000Z'
+  ])('bills every seeded period exactly as an activation would, near month ends (clock %s)', iso => {
+    vi.setSystemTime(new Date(iso));
+    resetDb();
+    const today = gymToday();
+    for (const email of [personas.member, personas.vip, personas.basic, 'maya.patel@example.com', personas.expired]) {
+      const user = userByEmail(email);
+      const mine = db.payments.filter(p => p.user_id === user.id).sort((a, b) => a.period_start.localeCompare(b.period_start));
+      for (const p of mine) {
+        expect(p.period_end).toBe(periodEnd(p.period_start, p.billing_cycle));
+        expect(p.created_at < new Date(iso).toISOString()).toBe(true);
+      }
+      for (let i = 1; i < mine.length; i++) expect(mine[i].period_start).toBe(addDays(mine[i - 1].period_end, 1));
+      const latest = mine[mine.length - 1];
+      expect(user.membership_expiry).toBe(latest.period_end);
+      if (email === personas.expired) {
+        expect(user.membership_status).toBe('expired');
+        expect(latest.period_end < today).toBe(true);
+      } else {
+        expect(user.membership_status).toBe('active');
+        expect(latest.period_start <= today && latest.period_end >= today).toBe(true);
+      }
+    }
   });
 });
