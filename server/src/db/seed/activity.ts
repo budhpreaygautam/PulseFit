@@ -2,6 +2,7 @@ import db from '../database.js';
 import { addDays, dayOfWeek, gymDateTime, gymToday } from '../../lib/dates.js';
 import { isMembershipActive, tierAllowsCategory } from '../../lib/membership.js';
 import { newId } from '../../lib/users.js';
+import { activityDays, runEndingOn } from '../../lib/floor.js';
 import { workoutVolume } from '../../controllers/workoutController.js';
 import { TimeSession, TimeSessionCategory, User, Workout } from '../../types/index.js';
 
@@ -18,6 +19,9 @@ const MINUTE = 60_000;
 // When each demo member usually trains, and how long ago the live sessions started.
 const USUAL_START = ['07:00', '19:00', '18:30', '17:30', '06:30', '20:00'];
 const LIVE_STARTED_MINUTES_AGO = [42, 25, 55, 18];
+// How many of the most recent days each demo member trained without a break (a Sunday, when the
+// gym is closed, still ends the run).
+const RECENT_RUN = [6, 3, 2, 5, 1, 4];
 
 /** The gym is open Monday to Saturday, 06:00-22:00 gym time. */
 function isGymOpen(now: Date): boolean {
@@ -80,13 +84,14 @@ function seedTimeSessions(now: Date): void {
   const members = db.users.filter(u => u.role === 'member' && floorsFor(u).length > 0);
   const sessions: TimeSession[] = [];
 
-  // Completed sessions over the past three weeks, about every other open day per member,
-  // only on days their membership was active.
+  // Completed sessions over the past three weeks: a recent unbroken run for some members, about
+  // every other open day before that, only on days their membership was active.
   members.forEach((user, i) => {
     const floors = floorsFor(user);
     for (let back = 1; back <= 21; back++) {
       const date = addDays(today, -back);
-      if (dayOfWeek(date) === 0 || (back + i) % 2 !== 0 || !isMembershipActive(user, date)) continue;
+      const trains = back <= RECENT_RUN[i % RECENT_RUN.length] || (back + i) % 2 === 0;
+      if (dayOfWeek(date) === 0 || !trains || !isMembershipActive(user, date)) continue;
       const start = new Date(gymDateTime(date, USUAL_START[i % USUAL_START.length]).getTime() + ((back * 11 + i * 5) % 20) * MINUTE);
       const duration = 40 + ((back * 7 + i * 13) % 45);
       const category = floors[back % floors.length];
@@ -111,7 +116,24 @@ function seedTimeSessions(now: Date): void {
   db.time_sessions = sessions.sort((a, b) => b.clock_in_time.localeCompare(a.clock_in_time));
 }
 
+/**
+ * Make every user's streak agree with the activity history that now exists: the run of
+ * consecutive days ending on their last active day, or 0 once that day is before yesterday.
+ * The base users carry made-up streak numbers with no last_active_date, which would otherwise
+ * be shown (and incremented) forever.
+ */
+function seedStreaks(now: Date): void {
+  const today = gymToday(now);
+  db.users = db.users.map(u => {
+    const days = activityDays(u.id);
+    const last = [...days].filter(d => d <= today).sort().pop() ?? null;
+    const streak = last && last >= addDays(today, -1) ? runEndingOn(days, last) : 0;
+    return { ...u, streak_days: streak, last_active_date: last };
+  });
+}
+
 export function seedActivity(now: Date = new Date()): void {
   seedWorkouts(gymToday(now));
   seedTimeSessions(now);
+  seedStreaks(now);
 }

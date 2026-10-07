@@ -19,6 +19,8 @@ const validWorkout = (overrides: Record<string, unknown> = {}) => ({
   ...overrides
 });
 
+const LIFTS = ['ex_deadlift', 'ex_bench_press', 'ex_tricep_rope_pushdown'];
+
 const set = (patch: Record<string, unknown>) => validWorkout({ sets: [{ exercise_id: 'ex_bench_press', set_number: 1, weight_kg: 50, reps: 5, ...patch }] });
 
 describe('workouts & exercises', () => {
@@ -113,7 +115,7 @@ describe('workouts & exercises', () => {
       ['notes over 1000', validWorkout({ notes: 'x'.repeat(1001) })],
       ['sets not an array (regression: 500)', validWorkout({ sets: 'lots' })],
       ['no sets', validWorkout({ sets: [] })],
-      ['101 sets', validWorkout({ sets: Array.from({ length: 101 }, () => ({ exercise_id: 'ex_deadlift', set_number: 1, weight_kg: 100, reps: 5 })) })],
+      ['101 sets', validWorkout({ sets: Array.from({ length: 101 }, (_, i) => ({ exercise_id: LIFTS[i % 3], set_number: Math.floor(i / 3) + 1, weight_kg: 100, reps: 5 })) })],
       ['unknown key', validWorkout({ user_id: 'usr_admin_1' })],
       ['negative weight (regression)', set({ weight_kg: -20 })],
       ['weight over 500', set({ weight_kg: 501 })],
@@ -133,6 +135,27 @@ describe('workouts & exercises', () => {
       expect(res.body.code).toBe('VALIDATION_ERROR');
       expect(Array.isArray(res.body.data.issues)).toBe(true);
       expect(db.workouts.length).toBe(before);
+    });
+
+    it('rejects a set number repeated for the same exercise, naming the set', async () => {
+      const body = validWorkout();
+      body.sets[3] = { ...body.sets[3], set_number: 2 };
+      const before = db.workouts.length;
+      const res = await api().post('/api/workouts').set(authHeader(personas.member)).send(body);
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('VALIDATION_ERROR');
+      expect(res.body.data.issues.map((i: any) => i.path)).toEqual(['sets.3.set_number']);
+      expect(db.workouts.length).toBe(before);
+    });
+
+    it('allows the same set number on different exercises', async () => {
+      const res = await api().post('/api/workouts').set(authHeader(personas.member)).send(validWorkout({
+        sets: [
+          { exercise_id: 'ex_bench_press', set_number: 1, weight_kg: 60, reps: 8 },
+          { exercise_id: 'ex_deadlift', set_number: 1, weight_kg: 120, reps: 5 }
+        ]
+      }));
+      expect(res.status).toBe(201);
     });
 
     it('rejects an exercise that does not exist, naming the set', async () => {
