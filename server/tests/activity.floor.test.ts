@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, authHeader, db, personas, resetDb, userByEmail } from './helpers.js';
 import { TimeSession } from '../src/types/index.js';
+import { recordActivity } from '../src/lib/streak.js';
 
 // Wednesday 2026-10-07, 10:00 at the gym (IST): the gym is open.
 const NOW = new Date('2026-10-07T04:30:00.000Z');
@@ -209,11 +210,99 @@ describe('floor time tracking', () => {
       expect(stored(other.id).status).toBe('active');
     });
 
+    it('does not let a trainer clock out a member session', async () => {
+      const other = openSession(personas.vip);
+      const res = await api().post('/api/time-tracking/clock-out').set(authHeader(personas.trainer)).send({ session_id: other.id });
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe('FORBIDDEN');
+      expect(stored(other.id).status).toBe('active');
+    });
+
+    it('answers 404 NO_ACTIVE_SESSION for an unknown or already closed session id', async () => {
+      openSession(personas.vip);
+      const unknown = await api().post('/api/time-tracking/clock-out').set(authHeader(personas.vip)).send({ session_id: 'ses_missing' });
+      expect(unknown.status).toBe(404);
+      expect(unknown.body.code).toBe('NO_ACTIVE_SESSION');
+      const closed = openSession(personas.basic, { status: 'completed', clock_out_time: NOW.toISOString(), duration_minutes: 30 });
+      const res = await api().post('/api/time-tracking/clock-out').set(authHeader(personas.admin)).send({ session_id: closed.id });
+      expect(res.status).toBe(404);
+      expect(res.body.code).toBe('NO_ACTIVE_SESSION');
+    });
+
     it('finds nothing to close once a forgotten session has been auto-closed', async () => {
       const s = openSession(personas.vip, { clock_in_time: new Date(NOW.getTime() - 6 * HOUR).toISOString() });
       const res = await api().post('/api/time-tracking/clock-out').set(authHeader(personas.vip)).send({});
       expect(res.status).toBe(404);
       expect(stored(s.id)).toMatchObject({ status: 'completed', auto_closed: true, duration_minutes: 240 });
+    });
+  });
+
+  describe('streak credit for sessions closed late', () => {
+    // Monday 10-05 was the member's last counted day; on Tuesday 10-06 at 21:00 they clocked in
+    // and never clocked out. "Today" is Wednesday 10-07, 10:00.
+    const TUESDAY_9PM = '2026-10-06T15:30:00.000Z';
+
+    function activeMonday(email: string, streak: number) {
+      const user = userByEmail(email);
+      openSession(email, {
+        clock_in_time: '2026-10-05T12:30:00.000Z',
+        clock_out_time: '2026-10-05T13:30:00.000Z',
+        duration_minutes: 60,
+        status: 'completed'
+      });
+      db.attendance_logs = db.attendance_logs.filter(l => l.user_id !== user.id);
+      db.bookings = db.bookings.filter(b => b.user_id !== user.id);
+      db.workouts = db.workouts.filter(w => w.user_id !== user.id);
+      patchUser(email, { streak_days: streak, last_active_date: '2026-10-05' });
+      return openSession(email, { clock_in_time: TUESDAY_9PM });
+    }
+
+    it('credits an auto-closed session to its owner on the day they clocked in', async () => {
+      const s = activeMonday(personas.vip, 4);
+      await api().get('/api/time-tracking/my-stats').set(authHeader(personas.vip)).expect(200);
+      expect(stored(s.id)).toMatchObject({ status: 'completed', auto_closed: true });
+      expect(userByEmail(personas.vip)).toMatchObject({ streak_days: 5, last_active_date: '2026-10-06' });
+    });
+
+    it('closes a forgotten session before a workout for today is counted (regression: streak reset)', async () => {
+      const s = activeMonday(personas.vip, 4);
+      const workout = { title: 'Legs', date: '2026-10-07', duration_minutes: 40, sets: [{ exercise_id: 'ex_barbell_squat', set_number: 1, weight_kg: 60, reps: 5 }] };
+      await api().post('/api/workouts').set(authHeader(personas.vip)).send(workout).expect(201);
+      expect(stored(s.id)).toMatchObject({ status: 'completed', auto_closed: true });
+      expect(userByEmail(personas.vip)).toMatchObject({ streak_days: 6, last_active_date: '2026-10-07' });
+    });
+
+    it('rebuilds the run from history when a later check-in was counted before the auto-close (regression)', async () => {
+      activeMonday(personas.vip, 1);
+      const user = userByEmail(personas.vip);
+      // What a turnstile check-in in another part of the API does: log it and count today.
+      db.attendance_logs = [...db.attendance_logs, { id: 'att_test', user_id: user.id, check_in_time: NOW.toISOString(), check_in_method: 'qr' }];
+      recordActivity(user.id, '2026-10-07');
+      expect(userByEmail(personas.vip).streak_days).toBe(1);
+
+      await api().get('/api/time-tracking/active-floor').expect(200);
+      expect(userByEmail(personas.vip)).toMatchObject({ streak_days: 3, last_active_date: '2026-10-07' });
+    });
+
+    it('rebuilds the run when a session is clocked out after midnight following a workout', async () => {
+      activeMonday(personas.vip, 1);
+      db.time_sessions = db.time_sessions.map(x => (x.clock_in_time === TUESDAY_9PM ? { ...x, clock_in_time: '2026-10-06T16:00:00.000Z' } : x)); // 21:30
+      setNow('2026-10-06T18:40:00.000Z'); // 00:10 Wednesday at the gym
+      const workout = { title: 'Late', date: '2026-10-07', duration_minutes: 20, sets: [{ exercise_id: 'ex_pullup', set_number: 1, weight_kg: 0, reps: 8 }] };
+      await api().post('/api/workouts').set(authHeader(personas.vip)).send(workout).expect(201);
+      expect(userByEmail(personas.vip).streak_days).toBe(1);
+
+      setNow('2026-10-06T19:10:00.000Z'); // 00:40
+      await api().post('/api/time-tracking/clock-out').set(authHeader(personas.vip)).send({}).expect(200);
+      expect(userByEmail(personas.vip)).toMatchObject({ streak_days: 3, last_active_date: '2026-10-07' });
+    });
+
+    it('never lowers a streak when the late day does not bridge anything', async () => {
+      const s = activeMonday(personas.vip, 1);
+      patchUser(personas.vip, { streak_days: 9, last_active_date: '2026-10-07' });
+      await api().get('/api/time-tracking/active-floor').expect(200);
+      expect(stored(s.id).status).toBe('completed');
+      expect(userByEmail(personas.vip)).toMatchObject({ streak_days: 9, last_active_date: '2026-10-07' });
     });
   });
 

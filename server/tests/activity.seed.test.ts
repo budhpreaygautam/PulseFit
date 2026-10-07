@@ -3,6 +3,7 @@ import { db, resetDb } from './helpers.js';
 import { addDays, dayOfWeek, gymDateTime, gymHour, toGymDate } from '../src/lib/dates.js';
 import { isMembershipActive, tierAllowsCategory } from '../src/lib/membership.js';
 import { workoutVolume } from '../src/controllers/workoutController.js';
+import { recordActivity } from '../src/lib/streak.js';
 
 function seedAt(iso: string) {
   vi.useFakeTimers({ toFake: ['Date'] });
@@ -89,6 +90,46 @@ describe('activity seed', () => {
       expect(toGymDate(w.created_at!)).toBe(w.date);
     }
     const chest = db.workouts.find(w => w.id === 'wk_aarav_1');
-    if (chest) expect(chest.total_volume_kg).toBe(3137);
+    expect(chest).toBeDefined();
+    expect(chest!.total_volume_kg).toBe(3137);
+  });
+
+  it.each([
+    ['on a Wednesday', '2026-10-07T04:30:00.000Z'],
+    ['on a Monday', '2026-10-12T04:30:00.000Z'],
+    ['on a Sunday', '2026-10-11T05:00:00.000Z']
+  ])('gives every user a streak that matches the seeded history %s (regression: made-up streak numbers)', async (_label, iso) => {
+    const now = seedAt(iso);
+    const today = toGymDate(now);
+    for (const u of db.users) {
+      const days = new Set<string>();
+      for (const s of db.time_sessions) if (s.user_id === u.id && s.status === 'completed') days.add(toGymDate(s.clock_in_time));
+      for (const l of db.attendance_logs) if (l.user_id === u.id) days.add(toGymDate(l.check_in_time));
+      for (const b of db.bookings) if (b.user_id === u.id && b.status === 'attended') days.add(b.booking_date);
+      for (const w of db.workouts) if (w.user_id === u.id && toGymDate(w.created_at!) === w.date) days.add(w.date);
+      const last = [...days].filter(d => d <= today).sort().pop() ?? null;
+      let run = 0;
+      if (last && last >= addDays(today, -1)) for (let d = last; days.has(d); d = addDays(d, -1)) run++;
+      expect(u.last_active_date ?? null, u.name).toBe(last);
+      expect(u.streak_days, u.name).toBe(run);
+    }
+    // Staff have no seeded activity, so no streak; some members are on a live run.
+    expect(db.users.find(u => u.role === 'admin')!.streak_days).toBe(0);
+    if (dayOfWeek(today) !== 1) expect(db.users.some(u => (u.streak_days || 0) >= 2)).toBe(true);
+  });
+
+  it('does not inflate a seeded streak on the next activity (regression: +1 on a date-less streak)', async () => {
+    seedAt('2026-10-07T04:30:00.000Z');
+    const onRun = db.users.find(u => u.last_active_date === '2026-10-06' && (u.streak_days || 0) > 0);
+    expect(onRun).toBeDefined();
+    recordActivity(onRun!.id, '2026-10-07');
+    expect(db.users.find(u => u.id === onRun!.id)!.streak_days).toBe(onRun!.streak_days! + 1);
+    // A user whose last activity was before yesterday starts again at 1.
+    const lapsed = db.users.find(u => u.role === 'member' && u.last_active_date && u.last_active_date < '2026-10-06');
+    if (lapsed) {
+      expect(lapsed.streak_days).toBe(0);
+      recordActivity(lapsed.id, '2026-10-07');
+      expect(db.users.find(u => u.id === lapsed.id)!.streak_days).toBe(1);
+    }
   });
 });

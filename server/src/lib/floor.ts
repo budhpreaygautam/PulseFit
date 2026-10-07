@@ -1,6 +1,6 @@
 import db from '../db/database.js';
 import { recordActivity } from './streak.js';
-import { toGymDate } from './dates.js';
+import { addDays, toGymDate } from './dates.js';
 import { FloorPresence, TimeSession } from '../types/index.js';
 
 // Floor time rules shared by the time-tracking endpoints and the seed.
@@ -40,8 +40,52 @@ export function closeStaleSessions(now: Date = new Date()): number {
   });
   if (closed.length === 0) return 0;
   db.time_sessions = sessions;
-  for (const s of closed) recordActivity(s.user_id, toGymDate(s.clock_in_time));
+  for (const s of closed) creditSession(s.user_id, toGymDate(s.clock_in_time));
   return closed.length;
+}
+
+/**
+ * Gym-local days on which a user did something that counts towards the streak, read from stored
+ * history: completed floor sessions, turnstile check-ins, attended bookings, and workouts logged
+ * on the day they are for.
+ */
+export function activityDays(userId: string): Set<string> {
+  const days = new Set<string>();
+  for (const s of db.time_sessions) if (s.user_id === userId && s.status === 'completed') days.add(toGymDate(s.clock_in_time));
+  for (const l of db.attendance_logs) if (l.user_id === userId) days.add(toGymDate(l.check_in_time));
+  for (const b of db.bookings) if (b.user_id === userId && b.status === 'attended') days.add(b.booking_date);
+  for (const w of db.workouts) {
+    if (w.user_id === userId && w.created_at && toGymDate(w.created_at) === w.date) days.add(w.date);
+  }
+  return days;
+}
+
+/** Number of consecutive days in `days` ending on `through` (0 when `through` is not one of them). */
+export function runEndingOn(days: Set<string>, through: string): number {
+  let run = 0;
+  for (let d = through; days.has(d); d = addDays(d, -1)) run++;
+  return run;
+}
+
+/**
+ * Credit a completed session (already stored) to its owner's streak on its clock-in gym date.
+ * recordActivity ignores a day earlier than the last one it counted, so a session closed after
+ * some later activity was recorded (a forgotten clock-out auto-closed only once the member is
+ * back the next day) would leave a gap in a streak it actually bridges. In that case the run
+ * ending on the last counted day is rebuilt from history, and kept only if it is longer.
+ */
+export function creditSession(userId: string, date: string): void {
+  const user = db.users.find(u => u.id === userId);
+  if (!user) return;
+  const last = user.last_active_date;
+  if (!last || date >= last) {
+    recordActivity(userId, date);
+    return;
+  }
+  const run = runEndingOn(activityDays(userId), last);
+  if (run > (user.streak_days || 0)) {
+    db.users = db.users.map(u => (u.id === userId ? { ...u, streak_days: run } : u));
+  }
 }
 
 /** What staff may see about a person on the floor: no email, notes or ids. */

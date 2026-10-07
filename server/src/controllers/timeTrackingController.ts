@@ -5,9 +5,8 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler, conflict, forbidden, notFound, ok, parse } from '../lib/http.js';
 import { newId } from '../lib/users.js';
 import { effectiveStatus, isStaff, tierAllowsCategory } from '../lib/membership.js';
-import { recordActivity } from '../lib/streak.js';
 import { gymToday, startOfWeek, toGymDate } from '../lib/dates.js';
-import { closeStaleSessions, elapsedMinutes, MAX_SESSION_MINUTES, toFloorPresence } from '../lib/floor.js';
+import { closeStaleSessions, creditSession, elapsedMinutes, MAX_SESSION_MINUTES, toFloorPresence } from '../lib/floor.js';
 import { ActiveFloorStatus, TimeSession, UserTimeTrackingStats } from '../types/index.js';
 
 const CATEGORIES = ['Workout & Strength', 'Zumba & Cardio'] as const;
@@ -104,7 +103,7 @@ export const clockOut = asyncHandler<AuthenticatedRequest>((req, res: Response) 
     ...(body.notes !== undefined ? { notes: body.notes } : {})
   };
   db.time_sessions = db.time_sessions.map(s => (s.id === target.id ? completed : s));
-  recordActivity(target.user_id, toGymDate(target.clock_in_time));
+  creditSession(target.user_id, toGymDate(target.clock_in_time));
 
   return ok(res, completed, `Clocked out after ${completed.duration_minutes} min on the ${completed.category} floor.`);
 });

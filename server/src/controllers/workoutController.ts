@@ -6,6 +6,7 @@ import { asyncHandler, forbidden, notFound, ok, parse } from '../lib/http.js';
 import { newId } from '../lib/users.js';
 import { addDays, gymToday, isValidDate } from '../lib/dates.js';
 import { recordActivity } from '../lib/streak.js';
+import { closeStaleSessions } from '../lib/floor.js';
 import { Exercise, Workout, WorkoutSet } from '../types/index.js';
 
 const EXERCISE_CATEGORIES: Exercise['category'][] = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Cardio', 'Full Body'];
@@ -45,10 +46,16 @@ function workoutSchema(today: string) {
     notes: z.string().trim().max(1000).optional(),
     sets: z.array(setSchema).min(1, 'Add at least one set.').max(100)
   }).strict().superRefine((body, ctx) => {
+    const seen = new Set<string>();
     body.sets.forEach((s, i) => {
       if (!db.exercises.some(e => e.id === s.exercise_id)) {
         ctx.addIssue({ code: 'custom', path: ['sets', i, 'exercise_id'], message: 'Unknown exercise.' });
       }
+      const key = `${s.exercise_id}#${s.set_number}`;
+      if (seen.has(key)) {
+        ctx.addIssue({ code: 'custom', path: ['sets', i, 'set_number'], message: `Set ${s.set_number} of this exercise is already in the workout.` });
+      }
+      seen.add(key);
     });
   });
 }
@@ -129,7 +136,12 @@ export const createWorkout = asyncHandler<AuthenticatedRequest>((req, res: Respo
   db.workouts = [workout, ...db.workouts];
 
   // Only a workout logged for today extends the streak; back-dated logs do not rewrite it.
-  if (body.date === today) recordActivity(user.id, today);
+  // A forgotten floor session from an earlier day is closed (and credited) first, so its day
+  // is not skipped over by today's activity.
+  if (body.date === today) {
+    closeStaleSessions();
+    recordActivity(user.id, today);
+  }
 
   return ok(res, workout, 'Workout saved.', 201);
 });
