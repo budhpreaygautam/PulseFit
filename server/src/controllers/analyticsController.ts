@@ -17,7 +17,7 @@ export const getDashboardKPIs = async (req: Request, res: Response) => {
 
     // Class fill rate
     const totalCapacity = db.classes.reduce((sum, c) => sum + c.capacity, 0);
-    const totalBooked = db.classes.reduce((sum, c) => sum + c.booked_count, 0);
+    const totalBooked = db.classes.reduce((sum, c) => sum + (c.booked_count ?? 0), 0);
     const fillRatePercent = totalCapacity > 0 ? Math.round((totalBooked / totalCapacity) * 100) : 0;
 
     // Attendance by Day of Week
@@ -78,16 +78,16 @@ export const getDashboardKPIs = async (req: Request, res: Response) => {
 
     // Top Classes Leaderboard
     const topClasses = [...db.classes]
-      .sort((a, b) => b.booked_count - a.booked_count)
+      .sort((a, b) => (b.booked_count ?? 0) - (a.booked_count ?? 0))
       .slice(0, 5)
       .map(c => ({
         id: c.id,
         title: c.title,
         category: c.category,
         trainer: c.trainer_name,
-        booked: c.booked_count,
+        booked: (c.booked_count ?? 0),
         capacity: c.capacity,
-        occupancy: Math.round((c.booked_count / c.capacity) * 100)
+        occupancy: Math.round(((c.booked_count ?? 0) / c.capacity) * 100)
       }));
 
     res.json({

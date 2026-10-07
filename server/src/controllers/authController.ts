@@ -251,13 +251,3 @@ export const updateProfile = async (req: AuthenticatedRequest, res: Response) =>
   }
 };
 
-export const getPlans = async (req: Request, res: Response) => {
-  try {
-    res.json({
-      success: true,
-      data: db.membership_plans
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import config from '../config.js';
 import {
   User,
   Trainer,
@@ -11,18 +11,13 @@ import {
   Workout,
   WorkoutSet,
   MembershipPlan,
-  TimeSession
+  TimeSession,
+  PaymentOrder,
+  Payment,
+  TrialPass,
+  TrainerNote,
+  PasswordReset
 } from '../types/index.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const dataDir = path.resolve(__dirname, '../../data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
-
-const dbFilePath = path.resolve(dataDir, 'gym-db.json');
 
 export interface DatabaseSchema {
   users: User[];
@@ -35,9 +30,14 @@ export interface DatabaseSchema {
   workout_sets: WorkoutSet[];
   membership_plans: MembershipPlan[];
   time_sessions: TimeSession[];
+  payment_orders: PaymentOrder[];
+  payments: Payment[];
+  trial_passes: TrialPass[];
+  trainer_notes: TrainerNote[];
+  password_resets: PasswordReset[];
 }
 
-const defaultSchema: DatabaseSchema = {
+const emptySchema = (): DatabaseSchema => ({
   users: [],
   trainers: [],
   classes: [],
@@ -47,153 +47,130 @@ const defaultSchema: DatabaseSchema = {
   workouts: [],
   workout_sets: [],
   membership_plans: [],
-  time_sessions: []
-};
+  time_sessions: [],
+  payment_orders: [],
+  payments: [],
+  trial_passes: [],
+  trainer_notes: [],
+  password_resets: []
+});
 
+/**
+ * A small JSON-file store. Collections are replaced wholesale through their setters
+ * (`db.users = [...]`), which schedules a save. Saves write a temporary file and rename it
+ * over the real one, so a crash mid-write never leaves a half-written database behind.
+ */
 class GymDatabase {
   private data: DatabaseSchema;
-  private saveDebounceTimer: NodeJS.Timeout | null = null;
+  private saveTimer: NodeJS.Timeout | null = null;
+  readonly filePath: string;
 
-  constructor() {
+  constructor(filePath: string) {
+    this.filePath = filePath;
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
     this.data = this.load();
   }
 
   private load(): DatabaseSchema {
-    if (fs.existsSync(dbFilePath)) {
-      try {
-        const raw = fs.readFileSync(dbFilePath, 'utf-8');
-        return { ...defaultSchema, ...JSON.parse(raw) };
-      } catch (err) {
-        console.error('Error reading database file, initializing default:', err);
-        return { ...defaultSchema };
-      }
-    }
-    return { ...defaultSchema };
-  }
-
-  public saveSync(): void {
+    if (!fs.existsSync(this.filePath)) return emptySchema();
+    const raw = fs.readFileSync(this.filePath, 'utf-8');
+    if (raw.trim() === '') return emptySchema();
     try {
-      fs.writeFileSync(dbFilePath, JSON.stringify(this.data, null, 2), 'utf-8');
+      return { ...emptySchema(), ...JSON.parse(raw) };
     } catch (err) {
-      console.error('Error saving database synchronously:', err);
+      // Never silently replace a damaged file with an empty database: that would wipe every
+      // member. Keep a copy and stop, so a person can decide what to do with it.
+      const backup = `${this.filePath}.corrupt-${Date.now()}`;
+      fs.copyFileSync(this.filePath, backup);
+      throw new Error(
+        `Database file ${this.filePath} is not valid JSON (a copy was saved to ${backup}). ` +
+        `Fix or delete it, or run "npm run seed" to start from demo data.`
+      );
     }
   }
 
-  public save(): void {
-    if (this.saveDebounceTimer) {
-      clearTimeout(this.saveDebounceTimer);
+  /** True when nothing has been stored yet (first start, or a deleted file). */
+  isEmpty(): boolean {
+    return this.data.users.length === 0 && this.data.classes.length === 0;
+  }
+
+  saveSync(): void {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
     }
-    this.saveDebounceTimer = setTimeout(() => {
-      this.saveSync();
+    const tmp = `${this.filePath}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2), 'utf-8');
+    fs.renameSync(tmp, this.filePath);
+  }
+
+  save(): void {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      try {
+        this.saveSync();
+      } catch (err) {
+        console.error('❌ Failed to save the database file:', err);
+      }
     }, 50);
   }
 
-  // Users
-  get users() {
-    return this.data.users;
-  }
-  set users(val: User[]) {
-    this.data.users = val;
-    this.save();
+  /** Write any pending change now. Called on shutdown. */
+  flush(): void {
+    if (this.saveTimer) this.saveSync();
   }
 
-  // Trainers
-  get trainers() {
-    return this.data.trainers;
-  }
-  set trainers(val: Trainer[]) {
-    this.data.trainers = val;
-    this.save();
-  }
-
-  // Classes
-  get classes() {
-    return this.data.classes;
-  }
-  set classes(val: GymClass[]) {
-    this.data.classes = val;
-    this.save();
-  }
-
-  // Bookings
-  get bookings() {
-    return this.data.bookings;
-  }
-  set bookings(val: Booking[]) {
-    this.data.bookings = val;
-    this.save();
-  }
-
-  // Attendance Logs
-  get attendance_logs() {
-    return this.data.attendance_logs;
-  }
-  set attendance_logs(val: AttendanceLog[]) {
-    this.data.attendance_logs = val;
-    this.save();
-  }
-
-  // Exercises
-  get exercises() {
-    return this.data.exercises;
-  }
-  set exercises(val: Exercise[]) {
-    this.data.exercises = val;
-    this.save();
-  }
-
-  // Workouts
-  get workouts() {
-    return this.data.workouts;
-  }
-  set workouts(val: Workout[]) {
-    this.data.workouts = val;
-    this.save();
-  }
-
-  // Workout Sets
-  get workout_sets() {
-    return this.data.workout_sets;
-  }
-  set workout_sets(val: WorkoutSet[]) {
-    this.data.workout_sets = val;
-    this.save();
-  }
-
-  // Membership Plans
-  get membership_plans() {
-    return this.data.membership_plans;
-  }
-  set membership_plans(val: MembershipPlan[]) {
-    this.data.membership_plans = val;
-    this.save();
-  }
-
-  // Time Sessions (Clock-In / Clock-Out)
-  get time_sessions() {
-    return this.data.time_sessions || [];
-  }
-  set time_sessions(val: TimeSession[]) {
-    this.data.time_sessions = val;
-    this.save();
-  }
-
-  public reset(): void {
-    this.data = {
-      users: [],
-      trainers: [],
-      classes: [],
-      bookings: [],
-      attendance_logs: [],
-      exercises: [],
-      workouts: [],
-      workout_sets: [],
-      membership_plans: [],
-      time_sessions: []
-    };
+  reset(): void {
+    this.data = emptySchema();
     this.saveSync();
   }
+
+  get users() { return this.data.users; }
+  set users(val: User[]) { this.data.users = val; this.save(); }
+
+  get trainers() { return this.data.trainers; }
+  set trainers(val: Trainer[]) { this.data.trainers = val; this.save(); }
+
+  get classes() { return this.data.classes; }
+  set classes(val: GymClass[]) { this.data.classes = val; this.save(); }
+
+  get bookings() { return this.data.bookings; }
+  set bookings(val: Booking[]) { this.data.bookings = val; this.save(); }
+
+  get attendance_logs() { return this.data.attendance_logs; }
+  set attendance_logs(val: AttendanceLog[]) { this.data.attendance_logs = val; this.save(); }
+
+  get exercises() { return this.data.exercises; }
+  set exercises(val: Exercise[]) { this.data.exercises = val; this.save(); }
+
+  get workouts() { return this.data.workouts; }
+  set workouts(val: Workout[]) { this.data.workouts = val; this.save(); }
+
+  get workout_sets() { return this.data.workout_sets; }
+  set workout_sets(val: WorkoutSet[]) { this.data.workout_sets = val; this.save(); }
+
+  get membership_plans() { return this.data.membership_plans; }
+  set membership_plans(val: MembershipPlan[]) { this.data.membership_plans = val; this.save(); }
+
+  get time_sessions() { return this.data.time_sessions; }
+  set time_sessions(val: TimeSession[]) { this.data.time_sessions = val; this.save(); }
+
+  get payment_orders() { return this.data.payment_orders; }
+  set payment_orders(val: PaymentOrder[]) { this.data.payment_orders = val; this.save(); }
+
+  get payments() { return this.data.payments; }
+  set payments(val: Payment[]) { this.data.payments = val; this.save(); }
+
+  get trial_passes() { return this.data.trial_passes; }
+  set trial_passes(val: TrialPass[]) { this.data.trial_passes = val; this.save(); }
+
+  get trainer_notes() { return this.data.trainer_notes; }
+  set trainer_notes(val: TrainerNote[]) { this.data.trainer_notes = val; this.save(); }
+
+  get password_resets() { return this.data.password_resets; }
+  set password_resets(val: PasswordReset[]) { this.data.password_resets = val; this.save(); }
 }
 
-export const db = new GymDatabase();
+export const db = new GymDatabase(config.dbPath);
 export default db;
