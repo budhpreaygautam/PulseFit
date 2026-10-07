@@ -19,7 +19,7 @@ import {
   Music2,
   ShieldCheck
 } from 'lucide-react';
-import { GymClass, Trainer, ActiveFloorStatus } from '../../types/index.js';
+import { ClassOccurrence as GymClass, Trainer, ActiveFloorStatus } from '../../types/index.js';
 import { api } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
 import { useAuth } from '../../context/AuthContext.js';
@@ -262,9 +262,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <span className="text-[10px] text-slate-500 font-mono">Real-time Clock-in</span>
                 </div>
 
-                {activeFloor && activeFloor.workoutUsers.length > 0 ? (
+                {activeFloor && (activeFloor.workoutUsers ?? []).length > 0 ? (
                   <div className="space-y-2">
-                    {activeFloor.workoutUsers.map(session => (
+                    {(activeFloor.workoutUsers ?? []).map(session => (
                       <div
                         key={session.id}
                         className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800/80 flex items-center justify-between gap-3"
@@ -325,9 +325,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <span className="text-[10px] text-slate-500 font-mono">Real-time Clock-in</span>
                 </div>
 
-                {activeFloor && activeFloor.zumbaUsers.length > 0 ? (
+                {activeFloor && (activeFloor.zumbaUsers ?? []).length > 0 ? (
                   <div className="space-y-2">
-                    {activeFloor.zumbaUsers.map(session => (
+                    {(activeFloor.zumbaUsers ?? []).map(session => (
                       <div
                         key={session.id}
                         className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800/80 flex items-center justify-between gap-3"

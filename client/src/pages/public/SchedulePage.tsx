@@ -12,7 +12,7 @@ import {
   Sparkles,
   Info
 } from 'lucide-react';
-import { GymClass, Trainer } from '../../types/index.js';
+import { ClassOccurrence as GymClass, Trainer } from '../../types/index.js';
 import { api } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
 import { Modal } from '../../components/common/Modal.js';

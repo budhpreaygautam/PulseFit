@@ -24,7 +24,7 @@ interface MemberProfilePageProps {
 }
 
 export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrentTab }) => {
-  const { user, refreshUser, triggerCelebration } = useAuth();
+  const { user, refreshUser, triggerCelebration, updateUser, changePassword } = useAuth();
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<'details' | 'membership' | 'billing' | 'security'>('details');
@@ -137,23 +137,16 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
     }
   };
 
+  // Plan changes are paid through checkout on the pricing page.
   const handleChangeTier = async (newTier: MembershipTier) => {
     if (newTier === user.membership_tier) return;
-    try {
-      await api.updateProfile({ membership_tier: newTier });
-      await refreshUser();
-      triggerCelebration();
-      showToast(`Membership successfully updated to ${newTier.toUpperCase()}!`, 'success', 'Plan Changed');
-    } catch (err: any) {
-      showToast(err.message || 'Failed to update membership plan', 'error');
-    }
+    setCurrentTab('pricing');
   };
 
   const handleToggleFreeze = async () => {
     const nextStatus: MembershipStatus = user.membership_status === 'frozen' ? 'active' : 'frozen';
     try {
-      await api.updateProfile({ membership_status: nextStatus });
-      await refreshUser();
+      updateUser(nextStatus === 'frozen' ? await api.freezeMembership() : await api.unfreezeMembership());
       showToast(
         nextStatus === 'frozen'
           ? 'Membership frozen. Turnstile access is paused.'
@@ -178,10 +171,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
 
     setIsChangingPassword(true);
     try {
-      await api.updateProfile({
-        currentPassword,
-        newPassword
-      });
+      await changePassword(currentPassword || undefined, newPassword);
       showToast('Password changed successfully!', 'success');
       setCurrentPassword('');
       setNewPassword('');

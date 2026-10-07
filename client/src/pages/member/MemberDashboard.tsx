@@ -121,7 +121,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
   const handleClockOut = async () => {
     setIsClocking(true);
     try {
-      const session = await api.clockOut({ notes: sessionNotes });
+      const session = await api.clockOut(sessionNotes);
       showToast(
         `Great job! Clocked out after ${session.duration_minutes} minutes of ${session.category}.`,
         'success',
