@@ -1,253 +1,216 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
+import config, { googleSignInEnabled } from '../config.js';
 import db from '../db/database.js';
 import { generateToken, AuthenticatedRequest } from '../middleware/auth.js';
-import { User, MembershipTier } from '../types/index.js';
+import { ApiError, asyncHandler, conflict, notFound, ok, parse, unauthorized, unavailable } from '../lib/http.js';
+import { defaultAvatar, findUserByEmail, generateQrToken, newId, toSafeUser } from '../lib/users.js';
+import { InvalidGoogleTokenError, verifyGoogleCredential } from '../lib/google.js';
+import { User } from '../types/index.js';
 
-export const login = async (req: Request, res: Response) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ success: false, error: 'Email and password are required' });
+export const BCRYPT_ROUNDS = 10;
+
+// A real cost-10 hash of a throwaway string. Unknown emails are compared against it so a
+// failed sign-in takes as long whether or not the account exists.
+const DUMMY_HASH = '$2a$10$C9adwVDYgOx0myGVXHzRK.y/vwed0byodrWpO2tY9J4.A7bvk01AC';
+
+export const emailSchema = z
+  .string({ error: 'Enter your email address.' })
+  .trim()
+  .toLowerCase()
+  .pipe(z.email({ error: 'Enter a valid email address.' }));
+
+export const newPasswordSchema = z
+  .string({ error: 'Enter a password.' })
+  .min(8, 'Use at least 8 characters for your password.')
+  .max(72, 'Use at most 72 characters for your password.')
+  .regex(/[A-Za-z]/, 'Your password needs at least one letter.')
+  .regex(/\d/, 'Your password needs at least one digit.');
+
+const nameSchema = z
+  .string({ error: 'Enter your name.' })
+  .trim()
+  .min(2, 'Your name needs at least 2 characters.')
+  .max(60, 'Your name can be at most 60 characters.');
+
+const phoneSchema = z
+  .string()
+  .trim()
+  .max(20, 'Enter a valid phone number.')
+  .refine(v => v === '' || /^\+?[0-9][0-9\s()-]{6,19}$/.test(v), 'Enter a valid phone number, for example +91 98110 12345.');
+
+const AVATAR_DATA_URL = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+
+const avatarSchema = z
+  .string()
+  .max(350_000, 'The profile photo is too large. Please choose a smaller image.')
+  .refine(v => {
+    if (v.startsWith('data:')) return AVATAR_DATA_URL.test(v);
+    try {
+      return new URL(v).protocol === 'https:';
+    } catch {
+      return false;
     }
+  }, 'The profile photo must be an https link or a PNG, JPEG or WebP image.');
 
-    const user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!user || !user.password_hash) {
-      return res.status(401).json({ success: false, error: 'Invalid email or password' });
-    }
+const loginSchema = z.object({
+  email: z.string({ error: 'Enter your email address.' }).trim().toLowerCase().min(1, 'Enter your email address.').max(254),
+  password: z.string({ error: 'Enter your password.' }).min(1, 'Enter your password.').max(1000)
+});
 
-    const isValid = bcrypt.compareSync(password, user.password_hash);
-    if (!isValid) {
-      return res.status(401).json({ success: false, error: 'Invalid email or password' });
-    }
+const registerSchema = z.object({
+  name: nameSchema,
+  email: emailSchema,
+  password: newPasswordSchema,
+  phone: phoneSchema.optional()
+});
 
-    const token = generateToken(user);
-    const { password_hash, ...safeUser } = user;
+const googleSchema = z.object({
+  credential: z.string({ error: 'The Google sign-in response is missing.' }).min(1, 'The Google sign-in response is missing.').max(10_000)
+});
 
-    res.json({
-      success: true,
-      data: {
-        token,
-        user: safeUser
-      }
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+const DEMO_PERSONAS = {
+  member: 'member@pulsefit.com',
+  vip: 'vip@pulsefit.com',
+  trainer: 'trainer@pulsefit.com',
+  admin: 'admin@pulsefit.com'
+} as const;
+
+const demoLoginSchema = z.object({
+  role: z.enum(['member', 'vip', 'trainer', 'admin']).default('member')
+});
+
+const profileSchema = z.strictObject(
+  {
+    name: nameSchema.optional(),
+    phone: phoneSchema.optional(),
+    avatar_url: avatarSchema.optional()
+  },
+  {
+    error: issue =>
+      issue.code === 'unrecognized_keys' ? 'Only your name, phone number and photo can be changed here.' : undefined
   }
-};
+);
 
-export const register = async (req: Request, res: Response) => {
-  try {
-    const { name, email, password, phone, tier = 'pro' } = req.body;
-    if (!name || !email || !password) {
-      return res.status(400).json({ success: false, error: 'Name, email, and password are required' });
-    }
+/** What every successful sign-in returns. */
+export function session(user: User) {
+  return { token: generateToken(user), user: toSafeUser(user) };
+}
 
-    const existing = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (existing) {
-      return res.status(400).json({ success: false, error: 'Email already in use' });
-    }
+/** A new member account: no plan until they pay (or an admin grants one). */
+function newMember(fields: { name: string; email: string; phone?: string; password_hash?: string; google_sub?: string }): User {
+  return {
+    id: newId('usr'),
+    name: fields.name,
+    email: fields.email,
+    ...(fields.password_hash ? { password_hash: fields.password_hash } : {}),
+    ...(fields.google_sub ? { google_sub: fields.google_sub } : {}),
+    role: 'member',
+    avatar_url: defaultAvatar(fields.name),
+    phone: fields.phone ?? '',
+    membership_tier: 'none',
+    membership_status: 'pending',
+    membership_expiry: null,
+    qr_code_token: generateQrToken(fields.name),
+    created_at: new Date().toISOString(),
+    streak_days: 0,
+    last_active_date: null,
+    token_version: 0
+  };
+}
 
-    const password_hash = bcrypt.hashSync(password, 10);
-    const id = `usr_${uuidv4().substring(0, 8)}`;
-    const qr_code_token = `PULSE-MEM-${name.toUpperCase().replace(/[^A-Z]/g, '').substring(0, 5)}-${Math.floor(1000 + Math.random() * 9000)}`;
+function emailTaken(): ApiError {
+  return conflict('An account with this email already exists. Please sign in instead.', 'EMAIL_TAKEN');
+}
 
-    const newUser: User = {
-      id,
-      name,
-      email: email.toLowerCase(),
-      password_hash,
-      role: 'member',
-      avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
-      phone: phone || '+1 (555) 000-0000',
-      membership_tier: tier,
-      membership_status: 'active',
-      membership_expiry: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      qr_code_token,
-      created_at: new Date().toISOString(),
-      streak_days: 1
-    };
+export const login = asyncHandler(async (req: Request, res: Response) => {
+  const { email, password } = parse(loginSchema, req.body);
+  const user = findUserByEmail(email);
 
-    const currentUsers = [...db.users, newUser];
-    db.users = currentUsers;
-
-    const token = generateToken(newUser);
-    const { password_hash: _, ...safeUser } = newUser;
-
-    res.status(201).json({
-      success: true,
-      data: {
-        token,
-        user: safeUser
-      }
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  const matches = await bcrypt.compare(password, user?.password_hash || DUMMY_HASH);
+  if (!user || !user.password_hash || !matches) {
+    throw new ApiError(401, 'The email or password is incorrect.', 'INVALID_CREDENTIALS');
   }
-};
 
-export const firebaseSync = async (req: Request, res: Response) => {
-  try {
-    const { uid, email, displayName, photoURL, tier = 'pro', phone } = req.body;
+  return ok(res, session(user));
+});
 
-    if (!email) {
-      return res.status(400).json({ success: false, error: 'Firebase email is required' });
-    }
+export const register = asyncHandler(async (req: Request, res: Response) => {
+  // Any tier, role or status in the body is ignored: the schema strips unknown keys.
+  const { name, email, password, phone } = parse(registerSchema, req.body);
+  if (findUserByEmail(email)) throw emailTaken();
 
-    const normalizedEmail = email.toLowerCase();
-    let user = db.users.find(u => u.email.toLowerCase() === normalizedEmail);
+  const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  // Another request may have registered the same email while we were hashing.
+  if (findUserByEmail(email)) throw emailTaken();
 
-    if (user) {
-      // User exists, update avatar or name if provided
-      if (photoURL || displayName) {
-        db.users = db.users.map(u => {
-          if (u.id === user!.id) {
-            return {
-              ...u,
-              name: displayName || u.name,
-              avatar_url: photoURL || u.avatar_url
-            };
-          }
-          return u;
-        });
-        user = db.users.find(u => u.id === user!.id)!;
-      }
-    } else {
-      // New member from Firebase / Google Auth
-      const id = `usr_fb_${(uid || uuidv4()).substring(0, 8)}`;
-      const memberName = displayName || email.split('@')[0];
-      const qr_code_token = `PULSE-MEM-${memberName.toUpperCase().replace(/[^A-Z]/g, '').substring(0, 5) || 'ATHL'}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const user = newMember({ name, email, phone, password_hash });
+  db.users = [...db.users, user];
 
-      user = {
-        id,
-        name: memberName,
-        email: normalizedEmail,
-        password_hash: '',
-        role: 'member',
-        avatar_url: photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(memberName)}`,
-        phone: phone || '+1 (555) 000-0000',
-        membership_tier: tier,
-        membership_status: 'active',
-        membership_expiry: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        qr_code_token,
-        created_at: new Date().toISOString(),
-        streak_days: 1
-      };
+  return ok(res, session(user), 'Welcome to PulseFit! Choose a plan to start training.', 201);
+});
 
-      db.users = [...db.users, user];
-    }
-
-    const token = generateToken(user);
-    const { password_hash, ...safeUser } = user;
-
-    res.json({
-      success: true,
-      data: {
-        token,
-        user: safeUser
-      }
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+export const googleSignIn = asyncHandler(async (req: Request, res: Response) => {
+  if (!googleSignInEnabled()) {
+    throw unavailable('Google sign-in is not available on this server.', 'GOOGLE_SIGNIN_DISABLED');
   }
-};
+  const { credential } = parse(googleSchema, req.body);
 
-export const demoLogin = async (req: Request, res: Response) => {
+  let profile;
   try {
-    const { role = 'member' } = req.body;
-    let targetEmail = 'member@pulsefit.com';
-
-    if (role === 'admin') targetEmail = 'admin@pulsefit.com';
-    else if (role === 'trainer') targetEmail = 'trainer@pulsefit.com';
-    else if (role === 'vip') targetEmail = 'vip@pulsefit.com';
-    else if (role === 'member') targetEmail = 'member@pulsefit.com';
-
-    const user = db.users.find(u => u.email === targetEmail);
-    if (!user) {
-      return res.status(404).json({ success: false, error: `Demo user for role ${role} not found` });
-    }
-
-    const token = generateToken(user);
-    const { password_hash, ...safeUser } = user;
-
-    res.json({
-      success: true,
-      data: {
-        token,
-        user: safeUser
-      }
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    profile = await verifyGoogleCredential(credential, config.googleClientId);
+  } catch (err) {
+    if (err instanceof InvalidGoogleTokenError) throw unauthorized(err.message, 'INVALID_GOOGLE_TOKEN');
+    throw unauthorized('The Google sign-in could not be verified. Please try again.', 'INVALID_GOOGLE_TOKEN');
   }
-};
 
-export const getMe = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ success: false, error: 'Unauthorized' });
+  const bySub = db.users.find(u => u.google_sub === profile.sub);
+  if (bySub) return ok(res, { ...session(bySub), created: false });
+
+  const byEmail = findUserByEmail(profile.email);
+  if (byEmail) {
+    if (byEmail.google_sub) {
+      throw conflict('This email is already linked to a different Google account.', 'GOOGLE_ACCOUNT_CONFLICT');
     }
-
-    const { password_hash, ...safeUser } = req.user;
-    res.json({
-      success: true,
-      data: safeUser
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    // Link the account; the member's own name and photo stay as they are.
+    const linked: User = { ...byEmail, google_sub: profile.sub };
+    db.users = db.users.map(u => (u.id === linked.id ? linked : u));
+    return ok(res, { ...session(linked), created: false });
   }
-};
 
-export const updateProfile = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ success: false, error: 'Unauthorized' });
-    }
+  const name = (profile.name?.trim() || profile.email.split('@')[0]).slice(0, 60);
+  const user = newMember({ name, email: profile.email, google_sub: profile.sub });
+  db.users = [...db.users, user];
+  return ok(res, { ...session(user), created: true });
+});
 
-    const { name, phone, avatar_url, membership_tier, membership_status, currentPassword, newPassword } = req.body;
-    const currentUser = db.users.find(u => u.id === req.user!.id);
+export const demoLogin = asyncHandler(async (req: Request, res: Response) => {
+  if (!config.demoMode) throw notFound('Demo accounts are turned off on this server.', 'DEMO_DISABLED');
+  const { role } = parse(demoLoginSchema, req.body);
 
-    if (!currentUser) {
-      return res.status(404).json({ success: false, error: 'User not found' });
-    }
+  const user = findUserByEmail(DEMO_PERSONAS[role]);
+  if (!user) throw notFound('That demo account does not exist. Run "npm run seed" to restore the demo data.');
 
-    let updatedPasswordHash = currentUser.password_hash;
-    if (newPassword) {
-      if (currentPassword && currentUser.password_hash) {
-        const isMatch = bcrypt.compareSync(currentPassword, currentUser.password_hash);
-        if (!isMatch) {
-          return res.status(400).json({ success: false, error: 'Current password does not match' });
-        }
-      }
-      updatedPasswordHash = bcrypt.hashSync(newPassword, 10);
-    }
+  return ok(res, session(user));
+});
 
-    const users = db.users.map(u => {
-      if (u.id === req.user!.id) {
-        return {
-          ...u,
-          name: name !== undefined ? name : u.name,
-          phone: phone !== undefined ? phone : u.phone,
-          avatar_url: avatar_url !== undefined ? avatar_url : u.avatar_url,
-          membership_tier: membership_tier !== undefined ? membership_tier : u.membership_tier,
-          membership_status: membership_status !== undefined ? membership_status : u.membership_status,
-          password_hash: updatedPasswordHash
-        };
-      }
-      return u;
-    });
+export const getMe = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  return ok(res, toSafeUser(req.user!));
+});
 
-    db.users = users;
-    const updated = users.find(u => u.id === req.user!.id)!;
-    const { password_hash, ...safeUser } = updated;
+export const updateProfile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const changes = parse(profileSchema, req.body);
+  const current = db.users.find(u => u.id === req.user!.id);
+  if (!current) throw unauthorized();
 
-    res.json({
-      success: true,
-      data: safeUser
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
+  const updated: User = {
+    ...current,
+    ...(changes.name !== undefined ? { name: changes.name } : {}),
+    ...(changes.phone !== undefined ? { phone: changes.phone } : {}),
+    ...(changes.avatar_url !== undefined ? { avatar_url: changes.avatar_url } : {})
+  };
+  db.users = db.users.map(u => (u.id === updated.id ? updated : u));
 
+  return ok(res, toSafeUser(updated), 'Profile updated.');
+});
