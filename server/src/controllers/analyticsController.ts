@@ -108,23 +108,29 @@ export const getDashboardKPIs = asyncHandler((_req: Request, res: Response) => {
     }));
 
   // ---- Retention ----
-  // A period is a paid payment, or a member's stored expiry when no payment covers it
-  // (members created by an admin). It is renewed when the same member paid again later.
+  // One decision per member: did a membership period of theirs run out in the last 90 days, and
+  // did they pay again afterwards? A period whose end was pushed back (freeze days returned, an
+  // admin extension) has not run out, and a frozen member has not left.
   const windowStart = addDays(today, -90);
   const inWindow = (end: string) => end >= windowStart && end < today;
   let periodsEnded = 0;
   let periodsRenewed = 0;
-  for (const p of paidPayments) {
-    if (!inWindow(p.period_end)) continue;
-    periodsEnded++;
-    if ((paymentsByUser.get(p.user_id) || []).some(other => other.id !== p.id && other.created_at > p.created_at)) {
-      periodsRenewed++;
-    }
-  }
   for (const m of members) {
-    if (!m.membership_expiry || statusOf.get(m.id) === 'frozen' || !inWindow(m.membership_expiry)) continue;
-    if ((paymentsByUser.get(m.id) || []).some(p => p.period_end === m.membership_expiry)) continue;
-    periodsEnded++;
+    if (statusOf.get(m.id) === 'frozen') continue;
+    const payments = paymentsByUser.get(m.id) || [];
+    const ended = payments.filter(p => inWindow(p.period_end)).sort((a, b) => a.period_end.localeCompare(b.period_end)).pop();
+    if (ended) {
+      const paidAgain = payments.some(p => p.created_at > ended.created_at);
+      if (paidAgain) {
+        periodsEnded++;
+        periodsRenewed++;
+      } else if (!m.membership_expiry || m.membership_expiry <= ended.period_end) {
+        periodsEnded++;
+      }
+      continue;
+    }
+    // Members set up by an admin without any payment: their stored expiry is the period end.
+    if (payments.length === 0 && m.membership_expiry && inWindow(m.membership_expiry)) periodsEnded++;
   }
   const retentionRate = periodsEnded > 0 ? round1((periodsRenewed / periodsEnded) * 100) : null;
 

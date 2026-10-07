@@ -3,6 +3,7 @@ import { z } from 'zod';
 import db from '../db/database.js';
 import { asyncHandler, notFound, ok, parse } from '../lib/http.js';
 import { MembershipPlan } from '../types/index.js';
+import { releaseUnentitledBookings } from '../lib/bookingRules.js';
 
 // The plan catalogue (db.membership_plans) is the single source of truth for plan names,
 // prices and entitlements. The client renders pricing from GET /api/plans.
@@ -37,5 +38,10 @@ export const updatePlan = asyncHandler(async (req: Request<{ id: string }>, res:
   if (changes.badge === '') delete updated.badge;
 
   db.membership_plans = db.membership_plans.map(p => (p.id === existing.id ? updated : p));
-  ok(res, updated, 'Plan updated.');
+  // Narrower entitlements: members on this plan lose bookings in categories it no longer covers.
+  const released = changes.categories ? releaseUnentitledBookings({ tier: existing.tier }) : 0;
+  const message = released > 0
+    ? `Plan updated. ${released} upcoming booking${released === 1 ? ' was' : 's were'} cancelled because the plan no longer covers those classes.`
+    : 'Plan updated.';
+  ok(res, updated, message);
 });

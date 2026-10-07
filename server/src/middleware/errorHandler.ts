@@ -25,7 +25,7 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
   console.error(`API error on ${req.method} ${req.originalUrl}:`, err);
   res.status(500).json({
     success: false,
-    error: config.isProduction ? 'Something went wrong on our side. Please try again.' : err?.message || 'Internal Server Error',
+    error: config.isLocal ? err?.message || 'Internal Server Error' : 'Something went wrong on our side. Please try again.',
     code: 'INTERNAL'
   });
 }

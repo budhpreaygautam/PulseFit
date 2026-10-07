@@ -112,6 +112,8 @@ Additional rules:
 - `PUT /plans/:id` rejects unknown keys (`id` and `tier` are immutable); limits: name 2–80, description ≤ 500,
   price_annual 1–1 200 000, ≤ 20 features of ≤ 200 chars, badge ≤ 30 (an empty badge removes it).
 - Invoice numbers come from one global sequence; the year prefix is the gym-local year of the payment.
+- A payment captured after its member was deleted marks the order `orphaned` (with the Razorpay payment id) and is
+  logged for a manual refund; it activates nothing.
 - Buying a plan and freezing are open to any signed-in account.
 
 **Activation rules.** `months` = 1 (monthly) or 12 (annual), using calendar months.
@@ -140,7 +142,7 @@ status `confirmed` or `attended` for that date. Stored classes carry no counter.
 | `PUT /classes/:id` (admin) | any subset of the above (id is immutable) | `GymClass` | |
 | `DELETE /classes/:id` (admin) | — | `{ cancelled_bookings: number }` (future confirmed bookings are cancelled) | |
 | `GET /bookings/my` | `scope = upcoming (default) \| past \| all` | `MyBooking[]`: booking + `class_title, category, start_time, room, trainer_name, image_url, duration_minutes, starts_at, can_cancel`. `upcoming` = confirmed and not started; `past` = started (any status but cancelled); `all` includes cancelled | |
-| `POST /bookings` (members only) | `{ class_id, booking_date }` | 201 `Booking` | 403 `MEMBERS_ONLY`, 400 `DATE_MISMATCH` (wrong weekday), 400 `CLASS_STARTED`, 400 `TOO_FAR_AHEAD` (> 14 days), 403 `MEMBERSHIP_INACTIVE` (`data.status`), 403 `PLAN_EXCLUDES_CATEGORY`, 409 `CLASS_FULL`, 409 `ALREADY_BOOKED`, 404 |
+| `POST /bookings` (members only) | `{ class_id, booking_date }` | 201 `Booking` | 403 `MEMBERS_ONLY`, 400 `DATE_MISMATCH` (wrong weekday), 400 `CLASS_STARTED`, 400 `TOO_FAR_AHEAD` (> 14 days), 403 `MEMBERSHIP_INACTIVE` (`data.status`), 403 `MEMBERSHIP_ENDS_BEFORE_CLASS` (`data.membership_expiry`), 403 `PLAN_EXCLUDES_CATEGORY`, 409 `CLASS_FULL`, 409 `ALREADY_BOOKED`, 404 |
 | `DELETE /bookings/:id` | — (owner or admin) | `Booking` with status `cancelled` | 409 `ALREADY_CANCELLED`, 400 `CLASS_STARTED` |
 | `PATCH /bookings/:id/attendance` | `{ status: 'attended' \| 'no_show' \| 'confirmed' }` (admin or the class's trainer; from 15 min before start) | `Booking` | 400 `CLASS_NOT_STARTED`, 403 `NOT_YOUR_CLASS` |
 | `GET /bookings/class/:classId/roster` | `date?` (default next occurrence) (admin or the class's trainer) | `{ class: ClassOccurrence, date, attendees: [{ booking_id, user_id, user_name, user_email, user_phone, user_avatar, user_tier, status, booked_at }] }` | 403 `NOT_YOUR_CLASS` |
@@ -166,6 +168,10 @@ Additional rules:
 - `GET /classes/:id?date=` and the roster answer 400 `DATE_MISMATCH` for a date that is not a session of the class
   (its current weekday, or a date that still has bookings for it).
 - `POST /bookings` checks `ALREADY_BOOKED` before `CLASS_FULL`, so a retry always gets the same answer.
+- Spots a member can no longer use are released automatically: freezing a membership (by the member or an admin)
+  cancels their upcoming confirmed bookings and closes an open floor session; changing a class's category, a
+  member's tier, or a plan's categories cancels upcoming bookings the member's plan no longer covers. The response
+  `message` says how many were cancelled.
 - `PUT /classes/:id`: 409 `CAPACITY_BELOW_BOOKINGS` (`data.max_booked`) when the new capacity is below an occurrence's
   bookings; moving a class to another weekday cancels its upcoming confirmed bookings.
 - `POST/PUT /trainers`: 409 `EMAIL_TAKEN`, 400 `USER_NOT_TRAINER`, 409 `USER_ALREADY_LINKED`; `user_id: null` unlinks the account.
@@ -196,7 +202,7 @@ Additional rules:
 
 Additional rules:
 - `PUT /members/:id` refuses (400 `VALIDATION_ERROR` on `membership_expiry`) a change that would leave a member active
-  without a future expiry date. Moving from `frozen` to `active` gives back the frozen days, like `/membership/unfreeze`.
+  without a future expiry date, and (on `membership_tier`) an active membership with tier `none`. Moving from `frozen` to `active` gives back the frozen days, like `/membership/unfreeze`.
 - A trial pass scanned again on the day it was redeemed is let through with `already_checked_in: true`.
 - A trial `preferred_date` outside today … today + 14 is 400 `VALIDATION_ERROR`. The CSV export ignores `limit`/`offset`.
 - Request bodies are strict: unknown keys are 400 `VALIDATION_ERROR`. Staff skip membership checks at check-in.

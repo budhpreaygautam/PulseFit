@@ -9,8 +9,9 @@ import { errorHandler } from './middleware/errorHandler.js';
 
 export const app = express();
 
-// Behind one reverse proxy (Render, Railway, nginx) so rate limits see the real client IP.
-app.set('trust proxy', 1);
+// Set TRUST_PROXY to the number of proxies in front of the API (e.g. 1 on Render/Railway/nginx)
+// so rate limits see the real client IP; without it, forged X-Forwarded-For headers are ignored.
+app.set('trust proxy', config.trustProxy);
 
 app.use(
   helmet({

@@ -4,6 +4,7 @@ import { gymToday } from '../lib/dates.js';
 import { asyncHandler, conflict, ok } from '../lib/http.js';
 import { effectiveStatus } from '../lib/membership.js';
 import { toSafeUser } from '../lib/users.js';
+import { closeOpenSession, releaseMemberBookings } from '../lib/bookingRules.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { User } from '../types/index.js';
 
@@ -25,7 +26,14 @@ export const freezeMembership = asyncHandler<AuthenticatedRequest>(async (req, r
       'NOT_ACTIVE'
     );
   }
-  ok(res, saveUser({ ...user, membership_status: 'frozen', frozen_since: today }), 'Membership frozen.');
+  const frozen = saveUser({ ...user, membership_status: 'frozen', frozen_since: today });
+  // A frozen member cannot come in, so the class spots they hold go back to others.
+  const released = releaseMemberBookings(user.id);
+  closeOpenSession(user.id);
+  const message = released > 0
+    ? `Membership frozen. ${released} upcoming class booking${released === 1 ? ' was' : 's were'} cancelled.`
+    : 'Membership frozen.';
+  ok(res, frozen, message);
 });
 
 export const unfreezeMembership = asyncHandler<AuthenticatedRequest>(async (req, res) => {

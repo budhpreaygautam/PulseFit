@@ -122,7 +122,16 @@ function activateOrder(orderId: string, paymentId: string, source: Payment['sour
   }
   if (order.status === 'rejected') return { outcome: 'rejected' };
   const user = db.users.find(u => u.id === order.user_id);
-  if (!user) return { outcome: 'skipped' };
+  if (!user) {
+    // The member was deleted between checkout and capture. Keep a record so the money can be
+    // found and refunded instead of silently disappearing.
+    db.payment_orders = db.payment_orders.map(o =>
+      o.id === orderId ? { ...o, status: 'orphaned' as const, paid_at: new Date().toISOString(), razorpay_payment_id: paymentId } : o
+    );
+    db.saveSync();
+    console.error(`⚠️  Payment ${paymentId} for order ${orderId} was captured after its member was deleted; refund it in the Razorpay dashboard.`);
+    return { outcome: 'skipped' };
+  }
 
   const today = gymToday();
   const activation = computeActivation(user, order, db.membership_plans, today);
@@ -160,6 +169,8 @@ function activateOrder(orderId: string, paymentId: string, source: Payment['sour
   db.users = db.users.map(u => (u.id === user.id ? updatedUser : u));
   db.payment_orders = db.payment_orders.map(o => (o.id === order.id ? { ...o, status: 'paid' as const, paid_at: now } : o));
   db.payments = [...db.payments, payment];
+  // Money has moved: make the activation durable before anyone is told it succeeded.
+  db.saveSync();
 
   return { outcome: 'activated', payment, user: toSafeUser(updatedUser), token: generateToken(updatedUser) };
 }

@@ -72,19 +72,19 @@ function resetOrigin(req: Request): string {
 }
 
 /**
- * Whether the response itself may carry the reset link. Outside production it is the developer's
+ * Whether the response itself may carry the reset link. In local development it is the developer's
  * shortcut. A public demo (production + DEMO_MODE) shows it only for the shared demo personas, which
  * anyone can enter through demo-login anyway; every real account there goes through staff instead.
  */
 function mayShowResetLink(email: string): boolean {
-  if (!config.isProduction) return true;
+  if (config.isLocal) return true;
   return config.demoMode && (Object.values(DEMO_PERSONAS) as string[]).includes(email);
 }
 
 export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
   const { email } = parse(forgotPasswordSchema, req.body);
   // Depends only on the server mode, never on whether the account exists.
-  const message = config.isProduction ? FORGOT_MESSAGE_STAFF : FORGOT_MESSAGE;
+  const message = config.isLocal ? FORGOT_MESSAGE : FORGOT_MESSAGE_STAFF;
   const user = findUserByEmail(email);
   if (!user) return ok(res, { message });
 

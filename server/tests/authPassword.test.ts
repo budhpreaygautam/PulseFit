@@ -85,7 +85,7 @@ describe('PUT /auth/password', () => {
 });
 
 describe('POST /auth/forgot-password and /auth/reset-password', () => {
-  const original = { demoMode: config.demoMode, isProduction: config.isProduction };
+  const original = { demoMode: config.demoMode, isProduction: config.isProduction, isLocal: config.isLocal };
   let log: MockInstance<typeof console.log>;
 
   beforeEach(() => {
@@ -95,6 +95,7 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
   afterEach(() => {
     config.demoMode = original.demoMode;
     config.isProduction = original.isProduction;
+    config.isLocal = original.isLocal;
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -139,6 +140,7 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
 
   it('regression: in production the link is logged for staff, never returned, and still works', async () => {
     config.isProduction = true;
+    config.isLocal = false;
     config.demoMode = false;
     const known = await requestReset();
     const unknown = await requestReset('ghost@example.com');
@@ -157,6 +159,7 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
 
   it('regression: a public demo returns the link only for the shared demo personas', async () => {
     config.isProduction = true;
+    config.isLocal = false;
     config.demoMode = true;
     expect((await requestReset(personas.admin)).body.data.resetUrl).toBeTruthy();
 
@@ -170,6 +173,7 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
 
   it('outside production the link is returned for any account and also logged', async () => {
     config.isProduction = false;
+    config.isLocal = true;
     config.demoMode = false;
     const res = await requestReset('kabir.singh@example.com');
     expect(res.body.data.resetUrl).toBeTruthy();

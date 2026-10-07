@@ -122,7 +122,7 @@ function seedTimeSessions(now: Date): void {
  * The base users carry made-up streak numbers with no last_active_date, which would otherwise
  * be shown (and incremented) forever.
  */
-function seedStreaks(now: Date): void {
+export function seedStreaks(now: Date = new Date()): void {
   const today = gymToday(now);
   db.users = db.users.map(u => {
     const days = activityDays(u.id);

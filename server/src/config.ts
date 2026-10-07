@@ -8,12 +8,24 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const env = process.env;
-const isProduction = env.NODE_ENV === 'production';
-const isTest = env.NODE_ENV === 'test' || env.VITEST === 'true';
+// Fail closed: the compiled build (`npm start`, which runs dist/) is production unless NODE_ENV
+// says otherwise, so forgetting NODE_ENV on a deploy cannot switch on development shortcuts.
+const runningCompiledBuild = __dirname.split(path.sep).includes('dist');
+const nodeEnv = env.NODE_ENV || (runningCompiledBuild ? 'production' : 'development');
+const isProduction = nodeEnv === 'production';
+const isTest = nodeEnv === 'test' || env.VITEST === 'true';
+const isDevelopment = nodeEnv === 'development';
 
 function flag(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined || value === '') return fallback;
   return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+}
+
+function parseTrustProxy(value: string | undefined): boolean | number {
+  if (!value || ['false', '0', 'no', 'off'].includes(value.toLowerCase())) return false;
+  if (value.toLowerCase() === 'true') return true;
+  const hops = Number(value);
+  return Number.isInteger(hops) && hops > 0 ? hops : false;
 }
 
 const DEV_JWT_SECRET = 'pulsefit-dev-only-secret-do-not-use-in-production';
@@ -21,8 +33,9 @@ const DEV_JWT_SECRET = 'pulsefit-dev-only-secret-do-not-use-in-production';
 function resolveJwtSecret(): string {
   const secret = env.JWT_SECRET;
   if (secret && secret.length >= 32) return secret;
-  if (isProduction) {
-    throw new Error('JWT_SECRET must be set to a random string of at least 32 characters when NODE_ENV=production.');
+  // Only local development and tests may run without a real secret.
+  if (!isDevelopment && !isTest) {
+    throw new Error(`JWT_SECRET must be set to a random string of at least 32 characters (NODE_ENV=${nodeEnv}).`);
   }
   if (secret) {
     console.warn('⚠️  JWT_SECRET is shorter than 32 characters; using it anyway because this is not production.');
@@ -35,16 +48,24 @@ function resolveJwtSecret(): string {
 }
 
 export const config = {
+  nodeEnv,
   isProduction,
   isTest,
+  // Local development or tests: the only environments where development shortcuts (demo
+  // personas by default, reset links in API responses, the dev JWT secret) are allowed.
+  isLocal: isDevelopment || isTest,
   port: Number(env.PORT) || 5004,
 
   jwtSecret: resolveJwtSecret(),
   jwtExpiresIn: env.JWT_EXPIRES_IN || '7d',
 
   // The 1-click demo personas (POST /api/auth/demo-login) hand out admin tokens, so they are
-  // on by default only outside production. Set DEMO_MODE=true to keep them on a public demo.
-  demoMode: flag(env.DEMO_MODE, !isProduction),
+  // on by default only in local development. Set DEMO_MODE=true to keep them on a public demo.
+  demoMode: flag(env.DEMO_MODE, isDevelopment || isTest),
+
+  // Express 'trust proxy': how many reverse proxies sit in front of the API. Only then are
+  // X-Forwarded-For addresses believed (rate limits are per client IP). Default: none.
+  trustProxy: parseTrustProxy(env.TRUST_PROXY),
 
   // Comma-separated list of browser origins allowed to call the API.
   corsOrigins: (env.CLIENT_ORIGIN || 'http://localhost:5173,https://localhost:5173')
