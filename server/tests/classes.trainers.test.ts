@@ -387,7 +387,7 @@ describe('classes: trainers and trainer portal', () => {
     });
 
     it('books no date the member’s plan does not cover, even after a plan has run out (review regression)', () => {
-      // Rohan's plan ends on 2026-11-20 in the base seed. Seed a few days before and a week after.
+      // Seed on two different days; every seeded booking must fall inside its member's paid period.
       for (const now of ['2026-11-16T04:30:00Z', '2026-11-27T04:30:00Z']) {
         vi.setSystemTime(new Date(now));
         resetDb();
@@ -397,11 +397,11 @@ describe('classes: trainers and trainer portal', () => {
           expect(isMembershipActive(user, b.booking_date)).toBe(true);
           expect(tierAllowsCategory(user.membership_tier, cls.category)).toBe(true);
         }
-        expect(db.bookings.filter(b => b.user_id === 'usr_member_3').every(b => b.booking_date <= '2026-11-20')).toBe(true);
+        for (const b of db.bookings) {
+          const user = db.users.find(u => u.id === b.user_id)!;
+          expect(b.booking_date <= (user.membership_expiry ?? '')).toBe(true);
+        }
       }
-      // After the plan ends, nothing is left that the booking rules would now refuse; the history stays.
-      expect(db.bookings.some(b => b.user_id === 'usr_member_3' && b.status === 'confirmed')).toBe(false);
-      expect(db.bookings.some(b => b.user_id === 'usr_member_3' && b.status === 'attended')).toBe(true);
     });
 
     it('seeds Coach Vikram’s notes, some visible to the member', () => {

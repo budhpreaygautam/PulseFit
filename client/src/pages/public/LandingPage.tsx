@@ -266,7 +266,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <div className="space-y-2">
                     {(activeFloor.workoutUsers ?? []).map(session => (
                       <div
-                        key={session.id}
+                        key={`${session.user_name}-${session.clock_in_time}`}
                         className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800/80 flex items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-2.5 truncate">
@@ -277,7 +277,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           />
                           <div className="truncate">
                             <div className="text-xs font-bold text-white truncate">{session.user_name}</div>
-                            <div className="text-[10px] text-slate-400 truncate">{session.notes || 'Strength Training'}</div>
+                            <div className="text-[10px] text-slate-400 truncate">{'Strength Training'}</div>
                           </div>
                         </div>
 
@@ -329,7 +329,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <div className="space-y-2">
                     {(activeFloor.zumbaUsers ?? []).map(session => (
                       <div
-                        key={session.id}
+                        key={`${session.user_name}-${session.clock_in_time}`}
                         className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800/80 flex items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-2.5 truncate">
@@ -340,7 +340,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           />
                           <div className="truncate">
                             <div className="text-xs font-bold text-white truncate">{session.user_name}</div>
-                            <div className="text-[10px] text-slate-400 truncate">{session.notes || 'Dance Cardio Workout'}</div>
+                            <div className="text-[10px] text-slate-400 truncate">{'Dance Cardio Workout'}</div>
                           </div>
                         </div>
 

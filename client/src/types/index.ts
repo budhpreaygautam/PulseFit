@@ -342,7 +342,8 @@ export interface WorkoutAnalytics {
   totalVolumeKg: number;
   avgDurationMinutes: number;
   volumeTimeline: { date: string; volumeKg: number; durationMinutes: number; title: string }[];
-  e1rmRecords: { exerciseName: string; e1rm: number; date: string; weight: number; reps: number }[];
+  // Best estimated one-rep max per exercise (Epley) over working sets.
+  personalRecords: { exerciseId: string; exerciseName: string; e1rm: number; date: string; weight: number; reps: number }[];
   muscleDistribution: { category: string; count: number }[];
 }
 
@@ -364,13 +365,22 @@ export interface TimeSession {
   notes?: string;
 }
 
+/** Who is on the floor (staff only): no emails, notes or session ids. */
+export interface FloorPresence {
+  user_name: string;
+  user_avatar: string;
+  user_tier: string;
+  clock_in_time: string;
+  duration_minutes: number;
+}
+
 export interface ActiveFloorStatus {
   totalActive: number;
   workoutActive: number;
   zumbaActive: number;
   // Only sent to staff.
-  workoutUsers?: TimeSession[];
-  zumbaUsers?: TimeSession[];
+  workoutUsers?: FloorPresence[];
+  zumbaUsers?: FloorPresence[];
 }
 
 export interface UserTimeTrackingStats {

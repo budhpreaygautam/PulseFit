@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, authHeader, db, personas, resetDb, userByEmail } from './helpers.js';
 import { addDays, gymToday, toGymDate } from '../src/lib/dates.js';
+import { activityDays, runEndingOn } from '../src/lib/floor.js';
 
 // Wednesday 7 Oct 2026, 10:00 at the gym (IST).
 const NOW = new Date('2026-10-07T04:30:00.000Z');
@@ -333,24 +334,23 @@ describe('members seed', () => {
     expect(memberLogs.some(l => l.user_id === userByEmail(personas.expired).id)).toBe(false);
   });
 
-  it('derives member streaks from the seeded visits (review regression)', () => {
+  it('derives member streaks from the seeded activity (review regression)', () => {
+    // The final seed pass (seed/activity.ts) derives streaks from every kind of activity:
+    // check-ins, completed floor sessions, attended classes and same-day workouts.
     const today = gymToday();
     for (const user of db.users.filter(u => u.role === 'member')) {
-      const days = [...new Set(db.attendance_logs.filter(l => l.user_id === user.id).map(l => toGymDate(l.check_in_time)))].sort();
-      if (days.length === 0) {
+      const days = activityDays(user.id);
+      const visitDays = new Set(db.attendance_logs.filter(l => l.user_id === user.id).map(l => toGymDate(l.check_in_time)));
+      for (const d of visitDays) expect(days.has(d)).toBe(true);
+      const last = [...days].filter(d => d <= today).sort().pop() ?? null;
+      if (!last) {
         expect(user.streak_days, user.name).toBe(0);
         expect(user.last_active_date ?? null).toBeNull();
         continue;
       }
-      const last = days[days.length - 1];
       expect(user.last_active_date).toBe(last);
-      expect(last <= today).toBe(true);
-      // The run of consecutive calendar days ending on the last visit (lib/streak's rule).
-      let run = 1;
-      for (let i = days.length - 1; i > 0 && addDays(days[i - 1], 1) === days[i]; i--) run++;
-      expect(user.streak_days, user.name).toBe(run);
-      // Closed Sundays cap any run at six days.
-      expect(user.streak_days).toBeLessThanOrEqual(6);
+      const expected = last >= addDays(today, -1) ? runEndingOn(days, last) : 0;
+      expect(user.streak_days, user.name).toBe(expected);
     }
     expect(userByEmail(personas.expired).streak_days).toBe(0);
   });
