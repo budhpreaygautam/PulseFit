@@ -1,31 +1,31 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import confetti from 'canvas-confetti';
-import { User, UserRole } from '../types/index.js';
-import { api } from '../api/client.js';
-import {
-  auth,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  googleProvider,
-  signOut as firebaseSignOut,
-  sendPasswordResetEmail,
-  updateProfile as firebaseUpdateProfile,
-  isFirebaseConfigured
-} from '../config/firebase.js';
+import { AuthSession, User, UserRole } from '../types/index.js';
+import { api, isApiError, UNAUTHORIZED_EVENT } from '../api/client.js';
+import { storage, TOKEN_KEY } from '../lib/storage.js';
+import { useToast } from './ToastContext.js';
+
+type DemoRole = 'member' | 'vip' | 'trainer' | 'admin';
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
-  isLoading: boolean;
+  /** True only while the saved session is being restored on page load. */
+  isInitializing: boolean;
   role: UserRole | 'guest';
-  isFirebaseEnabled: boolean;
-  login: (credentials: { email: string; password: string }) => Promise<void>;
-  register: (payload: { name: string; email: string; password: string; phone?: string; tier?: string }) => Promise<void>;
-  loginWithGoogle: (tier?: string) => Promise<void>;
-  demoLogin: (role: 'member' | 'admin' | 'trainer' | 'vip') => Promise<void>;
-  sendPasswordReset: (email: string) => Promise<void>;
+  login: (credentials: { email: string; password: string }) => Promise<User>;
+  register: (payload: { name: string; email: string; password: string; phone?: string }) => Promise<User>;
+  /** Sign in with a Google Identity Services credential (see GoogleSignInButton). */
+  loginWithGoogle: (credential: string) => Promise<User>;
+  demoLogin: (role: DemoRole) => Promise<User>;
+  forgotPassword: (email: string) => Promise<{ message: string; resetUrl?: string }>;
+  resetPassword: (token: string, newPassword: string) => Promise<User>;
+  changePassword: (currentPassword: string | undefined, newPassword: string) => Promise<void>;
+  /** Store a session returned by the API (login, payment verification, password change). */
+  setSession: (session: AuthSession) => void;
+  /** Replace the signed-in user after an API call returned the updated user. */
+  updateUser: (user: User) => void;
   logout: () => void;
   refreshUser: () => Promise<void>;
   triggerCelebration: () => void;
@@ -34,189 +34,110 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { showToast } = useToast();
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('pulsefit_token'));
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const isFirebaseEnabled = isFirebaseConfigured();
+  const [token, setToken] = useState<string | null>(() => storage.get(TOKEN_KEY));
+  const [isInitializing, setIsInitializing] = useState<boolean>(() => Boolean(storage.get(TOKEN_KEY)));
+  const userRef = useRef<User | null>(null);
+  userRef.current = user;
 
   const triggerCelebration = useCallback(() => {
-    confetti({
-      particleCount: 80,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#84cc16', '#a3e635', '#f59e0b', '#38bdf8']
-    });
+    confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors: ['#84cc16', '#a3e635', '#f59e0b', '#38bdf8'] });
+  }, []);
+
+  const clearSession = useCallback(() => {
+    storage.remove(TOKEN_KEY);
+    setToken(null);
+    setUser(null);
+  }, []);
+
+  const setSession = useCallback((session: AuthSession) => {
+    storage.set(TOKEN_KEY, session.token);
+    setToken(session.token);
+    setUser(session.user);
   }, []);
 
   const refreshUser = useCallback(async () => {
-    try {
-      if (!localStorage.getItem('pulsefit_token')) {
-        setUser(null);
-        setIsLoading(false);
-        return;
-      }
-      const userData = await api.getMe();
-      setUser(userData);
-    } catch (err) {
-      console.warn('Session expired or invalid, logging out.');
-      localStorage.removeItem('pulsefit_token');
+    if (!storage.get(TOKEN_KEY)) {
       setUser(null);
-      setToken(null);
-    } finally {
-      setIsLoading(false);
+      return;
     }
-  }, []);
+    try {
+      setUser(await api.getMe());
+    } catch (err) {
+      // Only a rejected token ends the session. A network blip keeps it, so a brief
+      // outage at page load does not sign people out.
+      if (isApiError(err) && err.status === 401) clearSession();
+    }
+  }, [clearSession]);
 
+  // Restore the saved session once, retrying a few times if the server is unreachable.
   useEffect(() => {
-    refreshUser();
-  }, [refreshUser]);
-
-  // Standard or Firebase Login
-  const login = async (credentials: { email: string; password: string }) => {
-    setIsLoading(true);
-    try {
-      let fbUser = null;
-      if (isFirebaseConfigured()) {
+    if (!storage.get(TOKEN_KEY)) return;
+    let cancelled = false;
+    (async () => {
+      for (let attempt = 0; attempt < 3 && !cancelled; attempt++) {
         try {
-          const userCredential = await signInWithEmailAndPassword(auth, credentials.email, credentials.password);
-          fbUser = userCredential.user;
-        } catch (fbErr: any) {
-          console.warn('Firebase login attempt:', fbErr.message);
+          const me = await api.getMe();
+          if (!cancelled) setUser(me);
+          break;
+        } catch (err) {
+          if (isApiError(err) && err.status === 401) {
+            if (!cancelled) clearSession();
+            break;
+          }
+          await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
         }
       }
+      if (!cancelled) setIsInitializing(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [clearSession]);
 
-      // If Firebase user authenticated or using backend auth
-      if (fbUser) {
-        const res = await api.firebaseSync({
-          uid: fbUser.uid,
-          email: fbUser.email || credentials.email,
-          displayName: fbUser.displayName || undefined,
-          photoURL: fbUser.photoURL || undefined
-        });
-        localStorage.setItem('pulsefit_token', res.token);
-        setToken(res.token);
-        setUser(res.user);
-      } else {
-        const res = await api.login(credentials);
-        localStorage.setItem('pulsefit_token', res.token);
-        setToken(res.token);
-        setUser(res.user);
-      }
+  // Any API call answered with 401 means the token is no longer valid (expired, or revoked
+  // by a password change elsewhere).
+  useEffect(() => {
+    const onUnauthorized = () => {
+      if (userRef.current) showToast('Your session has expired. Please sign in again.', 'warning');
+      clearSession();
+    };
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+  }, [clearSession, showToast]);
 
+  const startSession = useCallback(
+    (session: AuthSession) => {
+      setSession(session);
       triggerCelebration();
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      return session.user;
+    },
+    [setSession, triggerCelebration]
+  );
 
-  // Standard or Firebase Register
-  const register = async (payload: { name: string; email: string; password: string; phone?: string; tier?: string }) => {
-    setIsLoading(true);
-    try {
-      let fbUser = null;
-      if (isFirebaseConfigured()) {
-        try {
-          const userCredential = await createUserWithEmailAndPassword(auth, payload.email, payload.password);
-          fbUser = userCredential.user;
-          await firebaseUpdateProfile(fbUser, { displayName: payload.name });
-        } catch (fbErr: any) {
-          console.warn('Firebase registration attempt:', fbErr.message);
-        }
-      }
+  const login = useCallback(async (credentials: { email: string; password: string }) => startSession(await api.login(credentials)), [startSession]);
+  const register = useCallback(
+    async (payload: { name: string; email: string; password: string; phone?: string }) => startSession(await api.register(payload)),
+    [startSession]
+  );
+  const loginWithGoogle = useCallback(async (credential: string) => startSession(await api.googleSignIn(credential)), [startSession]);
+  const demoLogin = useCallback(async (role: DemoRole) => startSession(await api.demoLogin(role)), [startSession]);
+  const forgotPassword = useCallback((email: string) => api.forgotPassword(email), []);
+  const resetPassword = useCallback(
+    async (resetToken: string, newPassword: string) => startSession(await api.resetPassword({ token: resetToken, newPassword })),
+    [startSession]
+  );
+  const changePassword = useCallback(
+    async (currentPassword: string | undefined, newPassword: string) => {
+      // The server revokes older tokens on a password change and returns a fresh one.
+      setSession(await api.changePassword({ currentPassword, newPassword }));
+    },
+    [setSession]
+  );
 
-      if (fbUser) {
-        const res = await api.firebaseSync({
-          uid: fbUser.uid,
-          email: payload.email,
-          displayName: payload.name,
-          phone: payload.phone,
-          tier: payload.tier || 'pro'
-        });
-        localStorage.setItem('pulsefit_token', res.token);
-        setToken(res.token);
-        setUser(res.user);
-      } else {
-        const res = await api.register(payload);
-        localStorage.setItem('pulsefit_token', res.token);
-        setToken(res.token);
-        setUser(res.user);
-      }
-
-      triggerCelebration();
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Google Sign-In with Firebase Auth
-  const loginWithGoogle = async (tier: string = 'pro') => {
-    setIsLoading(true);
-    try {
-      if (isFirebaseConfigured()) {
-        const result = await signInWithPopup(auth, googleProvider);
-        const fbUser = result.user;
-        const res = await api.firebaseSync({
-          uid: fbUser.uid,
-          email: fbUser.email || '',
-          displayName: fbUser.displayName || '',
-          photoURL: fbUser.photoURL || '',
-          tier
-        });
-        localStorage.setItem('pulsefit_token', res.token);
-        setToken(res.token);
-        setUser(res.user);
-      } else {
-        // Mock Google sign-in demo if Firebase is in development/demo mode
-        const demoGoogleUser = {
-          name: 'Google Athlete',
-          email: `athlete.google.${Math.floor(100 + Math.random() * 900)}@gmail.com`,
-          avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300',
-          tier
-        };
-        const res = await api.firebaseSync({
-          uid: `goog_${Date.now()}`,
-          email: demoGoogleUser.email,
-          displayName: demoGoogleUser.name,
-          photoURL: demoGoogleUser.avatar_url,
-          tier
-        });
-        localStorage.setItem('pulsefit_token', res.token);
-        setToken(res.token);
-        setUser(res.user);
-      }
-      triggerCelebration();
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const sendPasswordReset = async (email: string) => {
-    if (isFirebaseConfigured()) {
-      await sendPasswordResetEmail(auth, email);
-    }
-  };
-
-  const demoLogin = async (targetRole: 'member' | 'admin' | 'trainer' | 'vip') => {
-    setIsLoading(true);
-    try {
-      const res = await api.demoLogin(targetRole);
-      localStorage.setItem('pulsefit_token', res.token);
-      setToken(res.token);
-      setUser(res.user);
-      triggerCelebration();
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const logout = () => {
-    if (isFirebaseConfigured()) {
-      firebaseSignOut(auth).catch(console.error);
-    }
-    localStorage.removeItem('pulsefit_token');
-    setToken(null);
-    setUser(null);
-  };
+  const updateUser = useCallback((next: User) => setUser(next), []);
+  const logout = useCallback(() => clearSession(), [clearSession]);
 
   const role: UserRole | 'guest' = user ? user.role : 'guest';
 
@@ -226,14 +147,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         token,
         isAuthenticated: !!user,
-        isLoading,
+        isInitializing,
         role,
-        isFirebaseEnabled,
         login,
         register,
         loginWithGoogle,
-        sendPasswordReset,
         demoLogin,
+        forgotPassword,
+        resetPassword,
+        changePassword,
+        setSession,
+        updateUser,
         logout,
         refreshUser,
         triggerCelebration
@@ -246,8 +170,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };

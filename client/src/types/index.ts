@@ -1,6 +1,11 @@
+// Shapes returned by the PulseFit API. docs/API.md is the source of truth.
+
 export type UserRole = 'admin' | 'member' | 'trainer';
 export type MembershipTier = 'none' | 'basic' | 'pro' | 'vip';
+export type PaidTier = Exclude<MembershipTier, 'none'>;
 export type MembershipStatus = 'active' | 'expired' | 'pending' | 'frozen';
+export type BillingCycle = 'monthly' | 'annual';
+export type ClassCategory = 'Workout & Strength' | 'Zumba & Cardio';
 
 export interface User {
   id: string;
@@ -10,11 +15,27 @@ export interface User {
   avatar_url?: string;
   phone?: string;
   membership_tier: MembershipTier;
+  // Effective today: a membership past its expiry date arrives as 'expired'.
   membership_status: MembershipStatus;
-  membership_expiry: string;
+  // Last day of access (inclusive), or null when no plan has been bought.
+  membership_expiry: string | null;
+  frozen_since?: string | null;
   qr_code_token: string;
   created_at: string;
   streak_days?: number;
+  last_active_date?: string | null;
+}
+
+export interface AppConfig {
+  demoMode: boolean;
+  googleClientId: string | null;
+  payments: { enabled: boolean; keyId: string | null };
+  gym: { name: string; timezone: string; currency: string };
+}
+
+export interface AuthSession {
+  token: string;
+  user: User;
 }
 
 export interface Trainer {
@@ -33,8 +54,6 @@ export interface Trainer {
   classes_count?: number;
 }
 
-export type ClassCategory = 'Workout & Strength' | 'Zumba & Cardio' | 'Strength' | 'Zumba' | 'Cardio' | 'HIIT';
-
 export interface GymClass {
   id: string;
   title: string;
@@ -42,32 +61,103 @@ export interface GymClass {
   trainer_id: string;
   trainer_name?: string;
   trainer_avatar?: string;
-  day_of_week: number;
-  start_time: string;
+  day_of_week: number; // 0 = Sunday
+  start_time: string; // HH:MM, gym-local
   duration_minutes: number;
   room: string;
   capacity: number;
-  booked_count: number;
   intensity: 'Low' | 'Medium' | 'High' | 'Extreme';
   description: string;
   image_url: string;
   calories_burn_est: number;
 }
 
+/** A class on a specific date, with capacity counted for that date. */
+export interface ClassOccurrence extends GymClass {
+  occurrence_date: string; // YYYY-MM-DD
+  starts_at: string; // ISO instant
+  booked_count: number;
+  spots_left: number;
+  is_full: boolean;
+  my_booking_id: string | null;
+}
+
+export type BookingStatus = 'confirmed' | 'attended' | 'no_show' | 'cancelled';
+
 export interface Booking {
   id: string;
   class_id: string;
   user_id: string;
   booking_date: string;
-  status: 'confirmed' | 'attended' | 'cancelled';
+  status: BookingStatus;
   created_at: string;
+  cancelled_at?: string;
   class_title?: string;
   category?: string;
   start_time?: string;
   room?: string;
   trainer_name?: string;
+}
+
+export interface MyBooking extends Booking {
   image_url?: string;
   duration_minutes?: number;
+  starts_at: string;
+  can_cancel: boolean;
+}
+
+export interface RosterEntry {
+  booking_id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  user_phone?: string;
+  user_avatar?: string;
+  user_tier: MembershipTier;
+  status: BookingStatus;
+  booked_at: string;
+}
+
+export interface ClassRoster {
+  class: ClassOccurrence;
+  date: string;
+  attendees: RosterEntry[];
+}
+
+export interface TrainerDashboard {
+  trainer: Trainer;
+  upcoming: ClassOccurrence[];
+  stats: {
+    classes_per_week: number;
+    booked_next_7_days: number;
+    attendance_rate_30d: number | null;
+    clients_count: number;
+  };
+}
+
+export interface TrainerClient {
+  user_id: string;
+  name: string;
+  avatar_url?: string;
+  membership_tier: MembershipTier;
+  membership_status: MembershipStatus;
+  sessions_attended: number;
+  last_attended: string | null;
+  upcoming_bookings: number;
+  notes_count: number;
+}
+
+export type TrainerNoteCategory = 'assessment' | 'progress' | 'injury' | 'general';
+
+export interface TrainerNote {
+  id: string;
+  trainer_user_id: string;
+  trainer_name: string;
+  member_id: string;
+  category: TrainerNoteCategory;
+  note: string;
+  visible_to_member: boolean;
+  created_at: string;
 }
 
 export interface AttendanceLog {
@@ -77,7 +167,61 @@ export interface AttendanceLog {
   user_email?: string;
   user_tier?: string;
   check_in_time: string;
-  check_in_method: 'qr' | 'manual' | 'kiosk';
+  check_in_method: 'qr' | 'manual' | 'kiosk' | 'camera';
+  trial_pass_id?: string;
+}
+
+export interface Paginated<T> {
+  items: T[];
+  total: number;
+}
+
+export interface TrialPass {
+  id: string;
+  code: string;
+  name: string;
+  email: string;
+  phone: string;
+  interest: ClassCategory;
+  valid_on: string;
+  status: 'issued' | 'redeemed';
+  created_at: string;
+  redeemed_at?: string;
+}
+
+export interface CheckInMember {
+  id: string;
+  name: string;
+  email: string;
+  avatar_url?: string;
+  membership_tier: MembershipTier;
+  membership_status: MembershipStatus;
+  membership_expiry: string | null;
+  streak_days?: number;
+}
+
+export interface CheckInResult {
+  result: 'granted';
+  already_checked_in: boolean;
+  kind: 'member' | 'trial';
+  member?: CheckInMember;
+  trial?: TrialPass;
+  log: AttendanceLog;
+}
+
+/** `data` of a denied check-in (403). */
+export interface CheckInDenial {
+  member?: CheckInMember;
+  trial?: TrialPass;
+}
+
+export interface MemberDetail extends User {
+  bookings_count: number;
+  attendance_count: number;
+  workouts_count: number;
+  upcoming_bookings: number;
+  recent_attendance: AttendanceLog[];
+  payments: Payment[];
 }
 
 export interface Exercise {
@@ -115,33 +259,82 @@ export interface Workout {
   sets?: WorkoutSet[];
 }
 
+export interface NewWorkout {
+  title: string;
+  date: string;
+  duration_minutes: number;
+  notes?: string;
+  sets: Array<Pick<WorkoutSet, 'exercise_id' | 'set_number' | 'weight_kg' | 'reps' | 'rpe' | 'is_warmup'>>;
+}
+
 export interface MembershipPlan {
   id: string;
   name: string;
-  tier: MembershipTier;
-  price_monthly: number;
-  price_annual: number;
+  tier: PaidTier;
+  price_monthly: number; // INR
+  price_annual: number; // INR for 12 months, billed once
   description: string;
   features: string[];
+  categories: ClassCategory[]; // empty = every category
   is_popular?: boolean;
   badge?: string;
+}
+
+export interface PaymentOrder {
+  orderId: string;
+  amount: number; // paise
+  amount_inr: number;
+  currency: 'INR';
+  keyId: string;
+  tier: PaidTier;
+  billing_cycle: BillingCycle;
+  plan_name: string;
+  description: string;
+}
+
+export interface Payment {
+  id: string;
+  invoice_number: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  order_id: string;
+  razorpay_payment_id: string;
+  tier: PaidTier;
+  plan_name: string;
+  billing_cycle: BillingCycle;
+  amount_inr: number;
+  currency: 'INR';
+  status: 'paid' | 'refunded';
+  period_start: string;
+  period_end: string;
+  created_at: string;
+  source: 'checkout' | 'webhook' | 'seed';
 }
 
 export interface AdminDashboardKPIs {
   kpis: {
     totalMembers: number;
     activeMembers: number;
+    frozenMembers: number;
+    expiredMembers: number;
+    pendingMembers: number;
     monthlyRevenue: number;
+    revenueThisMonth: number;
     todayCheckIns: number;
     avgFillRate: number;
-    retentionRate: number;
+    retentionRate: number | null;
     totalTrainers: number;
     classesScheduled: number;
+    trialsThisMonth: number;
   };
   weeklyAttendanceChart: { day: string; visits: number }[];
   hourlyPeakCurve: { hour: string; checkIns: number }[];
   tierDistribution: { name: string; tier: string; count: number; revenue: number; color: string }[];
   topClasses: { id: string; title: string; category: string; trainer?: string; booked: number; capacity: number; occupancy: number }[];
+  revenueByMonth: { month: string; revenue: number }[];
+  definitions: { monthlyRevenue: string; avgFillRate: string; retentionRate: string };
+  generatedAt: string;
 }
 
 export interface WorkoutAnalytics {
@@ -153,20 +346,21 @@ export interface WorkoutAnalytics {
   muscleDistribution: { category: string; count: number }[];
 }
 
-export type TimeSessionCategory = 'Workout & Strength' | 'Zumba & Cardio';
+export type TimeSessionCategory = ClassCategory;
 
 export interface TimeSession {
   id: string;
   user_id: string;
   user_name: string;
-  user_email: string;
+  user_email?: string;
   user_avatar?: string;
   user_tier: string;
   category: TimeSessionCategory;
-  clock_in_time: string; // ISO timestamp
-  clock_out_time: string | null; // ISO timestamp or null if active
+  clock_in_time: string;
+  clock_out_time: string | null;
   duration_minutes: number;
   status: 'active' | 'completed';
+  auto_closed?: boolean;
   notes?: string;
 }
 
@@ -174,8 +368,9 @@ export interface ActiveFloorStatus {
   totalActive: number;
   workoutActive: number;
   zumbaActive: number;
-  workoutUsers: TimeSession[];
-  zumbaUsers: TimeSession[];
+  // Only sent to staff.
+  workoutUsers?: TimeSession[];
+  zumbaUsers?: TimeSession[];
 }
 
 export interface UserTimeTrackingStats {

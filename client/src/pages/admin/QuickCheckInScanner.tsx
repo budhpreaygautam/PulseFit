@@ -41,7 +41,7 @@ export const QuickCheckInScanner: React.FC = () => {
   const fetchLogs = async () => {
     try {
       const logs = await api.getAttendanceLogs();
-      setRecentLogs(logs);
+      setRecentLogs(logs.items);
     } catch (err) {
       console.error(err);
     }
@@ -60,15 +60,16 @@ export const QuickCheckInScanner: React.FC = () => {
 
     setIsProcessing(true);
     try {
-      const res = await api.checkInMember(code, 'qr');
+      const res = await api.checkIn(code, 'manual');
+      const message = res.already_checked_in ? 'Already checked in today.' : 'Check-in confirmed.';
       setScanResult({
         status: 'success',
-        message: res.message,
-        user: res.data.user as CheckInUser,
+        message,
+        user: res.member as unknown as CheckInUser,
         timestamp: new Date().toLocaleTimeString()
       });
       triggerCelebration();
-      showToast(res.message, 'success', 'Access Granted');
+      showToast(message, 'success', 'Access Granted');
       setTokenInput('');
       fetchLogs();
     } catch (err: any) {

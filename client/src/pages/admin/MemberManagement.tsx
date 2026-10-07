@@ -489,7 +489,7 @@ export const MemberManagement: React.FC = () => {
               </label>
               <input
                 type="date"
-                value={editingMember.membership_expiry}
+                value={editingMember.membership_expiry ?? ''}
                 onChange={e => setEditingMember({ ...editingMember, membership_expiry: e.target.value })}
                 className="w-full px-4 py-2.5 neu-pressed-sm rounded-xl text-xs sm:text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-lime-500 font-medium"
               />

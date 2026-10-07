@@ -25,7 +25,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
-  const { login, register, loginWithGoogle, demoLogin, sendPasswordReset } = useAuth();
+  const { login, register, loginWithGoogle, demoLogin, forgotPassword } = useAuth();
   const { showToast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,7 +36,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         await login({ email, password });
         showToast('Welcome back to PulseFit Cyber Hub!', 'success');
       } else {
-        await register({ name, email, password, phone, tier });
+        await register({ name, email, password, phone });
         showToast('Registration successful! Welcome to the club.', 'success');
       }
       onClose();
@@ -67,8 +67,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
     setIsResetting(true);
     try {
-      await sendPasswordReset(email);
-      showToast(`Password reset link sent to ${email}`, 'success');
+      const result = await forgotPassword(email);
+      showToast(result.message, 'success');
+      if (result.resetUrl) window.location.assign(result.resetUrl);
     } catch (err: any) {
       showToast(err.message || 'Could not send reset email', 'error');
     } finally {

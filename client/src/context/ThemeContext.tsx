@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { storage } from '../lib/storage.js';
 
 type Theme = 'dark' | 'light';
 
@@ -14,7 +15,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const THEME_KEY = 'pulsefit_theme';
 
 const getInitialTheme = (): Theme => {
-  const stored = localStorage.getItem(THEME_KEY) as Theme | null;
+  const stored = storage.get(THEME_KEY);
   if (stored === 'dark' || stored === 'light') {
     return stored;
   }
@@ -39,22 +40,37 @@ const applyThemeClass = (theme: Theme) => {
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(getInitialTheme);
 
-  // Apply the theme class on the <html> element as soon as possible on mount
   useEffect(() => {
     applyThemeClass(theme);
-    localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
+
+  // Follow the OS setting until the visitor picks a theme themselves.
+  useEffect(() => {
+    if (storage.get(THEME_KEY) || !window.matchMedia) return;
+    const query = window.matchMedia('(prefers-color-scheme: light)');
+    const onChange = () => {
+      if (!storage.get(THEME_KEY)) setThemeState(query.matches ? 'light' : 'dark');
+    };
+    query.addEventListener?.('change', onChange);
+    return () => query.removeEventListener?.('change', onChange);
+  }, []);
 
   useEffect(() => {
     document.documentElement.style.colorScheme = theme;
   }, [theme]);
 
+  // An explicit choice is remembered; the OS preference is not saved.
   const setTheme = useCallback((next: Theme) => {
+    storage.set(THEME_KEY, next);
     setThemeState(next);
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setThemeState((prev) => (prev === 'dark' ? 'light' : 'dark'));
+    setThemeState(prev => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      storage.set(THEME_KEY, next);
+      return next;
+    });
   }, []);
 
   return (

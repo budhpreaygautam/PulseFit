@@ -31,9 +31,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
 
     try {
       await checkout({
-        amount: billingCycle === 'annual' ? plan.priceAnnual : plan.priceMonthly,
         tier: plan.id as 'basic' | 'pro' | 'vip',
-        planName: plan.name,
         billingCycle,
         onSuccess: () =>
           showToast(
