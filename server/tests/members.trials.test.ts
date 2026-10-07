@@ -95,6 +95,15 @@ describe('free trials API', () => {
       expect(missing.status).toBe(400);
     });
 
+    it('accepts an autofilled email with surrounding spaces and still spots the repeat (review regression)', async () => {
+      const res = await claim({ ...valid, email: '  Sara.Ali@Example.com ' });
+      expect(res.status).toBe(201);
+      expect(res.body.data.email).toBe('sara.ali@example.com');
+      const again = await claim({ ...valid, email: ' sara.ali@example.com', phone: '9000000005' });
+      expect(again.status).toBe(409);
+      expect(again.body.code).toBe('TRIAL_ALREADY_CLAIMED');
+    });
+
     it('gives unique codes', async () => {
       const codes = new Set(db.trial_passes.map(t => t.code));
       for (let i = 0; i < 10; i++) {

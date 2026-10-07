@@ -162,6 +162,45 @@ describe('members admin API', () => {
       expect(noEmail.body.data.issues[0].path).toBe('email');
     });
 
+    it('rejects expiry_months values that only coerce to numbers, but accepts a numeric string (review regression)', async () => {
+      for (const expiry_months of [true, false, null, '', ' ', '1e1', [3]]) {
+        const res = await api()
+          .post('/api/members')
+          .set(authHeader(personas.admin))
+          .send({ name: 'Valid Name', email: 'valid@example.com', membership_tier: 'pro', expiry_months });
+        expect(res.status, JSON.stringify(expiry_months)).toBe(400);
+        expect(res.body.data.issues[0].path).toBe('expiry_months');
+      }
+      expect(db.users.some(u => u.email === 'valid@example.com')).toBe(false);
+
+      const fromForm = await api()
+        .post('/api/members')
+        .set(authHeader(personas.admin))
+        .send({ name: 'Valid Name', email: 'valid@example.com', membership_tier: 'pro', expiry_months: '3' });
+      expect(fromForm.status).toBe(201);
+      expect(fromForm.body.data.member.membership_expiry).toBe('2027-01-06');
+    });
+
+    it('accepts an email pasted with surrounding spaces (review regression)', async () => {
+      const res = await api().post('/api/members').set(authHeader(personas.admin)).send({ name: 'Kiran Rao', email: '  Kiran@Example.com \t' });
+      expect(res.status).toBe(201);
+      expect(res.body.data.member.email).toBe('kiran@example.com');
+      const dup = await api().post('/api/members').set(authHeader(personas.admin)).send({ name: 'Kiran Rao', email: ' kiran@example.com ' });
+      expect(dup.status).toBe(409);
+      const bad = await api().post('/api/members').set(authHeader(personas.admin)).send({ name: 'Kiran Rao', email: ' not an email ' });
+      expect(bad.status).toBe(400);
+      expect(bad.body.data.issues[0].path).toBe('email');
+    });
+
+    it('creates one account when the same email is submitted twice at once (review regression)', async () => {
+      const send = () =>
+        api().post('/api/members').set(authHeader(personas.admin)).send({ name: 'Race Case', email: 'race@example.com' });
+      const results = await Promise.all([send(), send(), send()]);
+      expect(results.map(r => r.status).sort()).toEqual([201, 409, 409]);
+      expect(results.filter(r => r.status === 409).every(r => r.body.code === 'EMAIL_TAKEN')).toBe(true);
+      expect(db.users.filter(u => u.email === 'race@example.com')).toHaveLength(1);
+    });
+
     it('is admin only', async () => {
       const res = await api().post('/api/members').set(authHeader(personas.trainer)).send({ name: 'X Y', email: 'xy@example.com' });
       expect(res.status).toBe(403);
@@ -219,6 +258,73 @@ describe('members admin API', () => {
 
     it('404s for an unknown member', async () => {
       expect((await api().put('/api/members/usr_nope').set(authHeader(personas.admin)).send({ name: 'Ab Cd' })).status).toBe(404);
+    });
+
+    it('requires a token and the admin role', async () => {
+      const id = userByEmail(personas.basic).id;
+      expect((await api().put(`/api/members/${id}`).send({ name: 'Hacked' })).status).toBe(401);
+      expect((await api().put(`/api/members/${id}`).set(authHeader(personas.member)).send({ name: 'Hacked' })).status).toBe(403);
+      expect((await api().put(`/api/members/${id}`).set(authHeader(personas.trainer)).send({ name: 'Hacked' })).status).toBe(403);
+      // Not even on their own record: a member cannot hand themselves a plan.
+      const self = userByEmail(personas.member).id;
+      expect((await api().put(`/api/members/${self}`).set(authHeader(personas.member)).send({ membership_tier: 'vip' })).status).toBe(403);
+      expect(userByEmail(personas.basic).name).toBe('Rohan Mehra');
+      expect(userByEmail(personas.member).membership_tier).toBe('pro');
+    });
+
+    it('refuses an active membership without a current expiry (review regression)', async () => {
+      const pending = (
+        await api().post('/api/members').set(authHeader(personas.admin)).send({ name: 'Zoya Khan', email: 'zoya@example.com' })
+      ).body.data.member;
+      const rohan = userByEmail(personas.basic);
+      const cases: Array<[string, Record<string, unknown>]> = [
+        [pending.id, { membership_status: 'active' }],
+        [pending.id, { membership_status: 'active', membership_expiry: null }],
+        [pending.id, { membership_status: 'active', membership_expiry: '2026-10-06' }],
+        [rohan.id, { membership_expiry: null }],
+        [rohan.id, { membership_expiry: '2026-09-30' }]
+      ];
+      for (const [id, body] of cases) {
+        const res = await api().put(`/api/members/${id}`).set(authHeader(personas.admin)).send(body);
+        expect(res.status, JSON.stringify(body)).toBe(400);
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+        expect(res.body.data.issues[0].path).toBe('membership_expiry');
+      }
+      expect(db.users.find(u => u.id === pending.id)!.membership_status).toBe('pending');
+      expect(userByEmail(personas.basic).membership_expiry).toBe(rohan.membership_expiry);
+
+      const activated = await api()
+        .put(`/api/members/${pending.id}`)
+        .set(authHeader(personas.admin))
+        .send({ membership_status: 'active', membership_tier: 'basic', membership_expiry: '2026-10-07' });
+      expect(activated.status).toBe(200);
+      expect(activated.body.data).toMatchObject({ membership_status: 'active', membership_expiry: '2026-10-07' });
+      // Edits that leave the plan alone still work when the stored status has gone stale.
+      db.users = db.users.map(u => (u.id === rohan.id ? { ...u, membership_expiry: '2026-10-01' } : u));
+      expect((await api().put(`/api/members/${rohan.id}`).set(authHeader(personas.admin)).send({ phone: '+91 90000 22222' })).status).toBe(200);
+      expect((await api().put(`/api/members/${rohan.id}`).set(authHeader(personas.admin)).send({ membership_status: 'expired' })).status).toBe(200);
+    });
+
+    it('gives the frozen days back when unfreezing, like POST /membership/unfreeze (review regression)', async () => {
+      const rohan = userByEmail(personas.basic);
+      expect(rohan.membership_expiry).toBe('2026-11-20');
+      const freeze = () =>
+        (db.users = db.users.map(u =>
+          u.id === rohan.id ? { ...u, membership_status: 'frozen' as const, frozen_since: '2026-09-27' } : u
+        ));
+      freeze();
+      const res = await api().put(`/api/members/${rohan.id}`).set(authHeader(personas.admin)).send({ membership_status: 'active' });
+      expect(res.status).toBe(200);
+      // Frozen 27 Sep to 7 Oct: 10 days added to 20 Nov.
+      expect(res.body.data).toMatchObject({ membership_status: 'active', membership_expiry: '2026-11-30', frozen_since: null });
+
+      // An expiry sent with the unfreeze is the admin's explicit choice.
+      freeze();
+      const explicit = await api()
+        .put(`/api/members/${rohan.id}`)
+        .set(authHeader(personas.admin))
+        .send({ membership_status: 'active', membership_expiry: '2026-12-15' });
+      expect(explicit.body.data).toMatchObject({ membership_status: 'active', membership_expiry: '2026-12-15', frozen_since: null });
     });
   });
 

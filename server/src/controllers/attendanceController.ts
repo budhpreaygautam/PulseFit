@@ -59,6 +59,19 @@ function resolveCode(code: string): { user: User } | { trial: TrialPass } | null
   return trial ? { trial } : null;
 }
 
+function trialLog(trial: TrialPass, at: string, method: AttendanceLog['check_in_method']): AttendanceLog {
+  return {
+    id: newId('att'),
+    user_id: trial.id,
+    user_name: trial.name,
+    user_email: trial.email,
+    user_tier: 'trial',
+    check_in_time: at,
+    check_in_method: method,
+    trial_pass_id: trial.id
+  };
+}
+
 function denyMember(user: User, status: 'expired' | 'frozen' | 'pending'): ApiError {
   const member = memberSummary(user);
   if (status === 'expired') {
@@ -84,6 +97,19 @@ export const checkIn = asyncHandler<AuthenticatedRequest>((req, res: Response) =
 
   if ('trial' in match) {
     const trial = match.trial;
+    // Same idempotency as members: a double read or stepping out and back in on the trial day
+    // is still the one visit the pass was for.
+    if (trial.status === 'redeemed' && trial.redeemed_at && toGymDate(trial.redeemed_at) === today) {
+      const log =
+        db.attendance_logs.filter(a => a.trial_pass_id === trial.id && toGymDate(a.check_in_time) === today).sort(newestFirst)[0] ??
+        trialLog(trial, trial.redeemed_at, body.method);
+      if (!db.attendance_logs.some(a => a.id === log.id)) db.attendance_logs = [log, ...db.attendance_logs];
+      return ok(
+        res,
+        { result: 'granted', already_checked_in: true, kind: 'trial', trial, log },
+        `${trial.name} already checked in today. Come on through!`
+      );
+    }
     if (trial.status === 'redeemed') {
       throw forbidden(`This free trial pass was already used${trial.redeemed_at ? ` on ${toGymDate(trial.redeemed_at)}` : ''}.`, 'TRIAL_ALREADY_USED', { trial });
     }
@@ -92,16 +118,7 @@ export const checkIn = asyncHandler<AuthenticatedRequest>((req, res: Response) =
     }
 
     const redeemed: TrialPass = { ...trial, status: 'redeemed', redeemed_at: now.toISOString() };
-    const log: AttendanceLog = {
-      id: newId('att'),
-      user_id: trial.id,
-      user_name: trial.name,
-      user_email: trial.email,
-      user_tier: 'trial',
-      check_in_time: now.toISOString(),
-      check_in_method: body.method,
-      trial_pass_id: trial.id
-    };
+    const log = trialLog(trial, now.toISOString(), body.method);
     db.trial_passes = db.trial_passes.map(t => (t.id === trial.id ? redeemed : t));
     db.attendance_logs = [log, ...db.attendance_logs];
 

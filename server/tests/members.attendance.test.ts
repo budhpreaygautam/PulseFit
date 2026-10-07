@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, authHeader, db, personas, resetDb, userByEmail } from './helpers.js';
-import { gymToday, toGymDate } from '../src/lib/dates.js';
+import { addDays, gymToday, toGymDate } from '../src/lib/dates.js';
 
 // Wednesday 7 Oct 2026, 10:00 at the gym (IST).
 const NOW = new Date('2026-10-07T04:30:00.000Z');
@@ -180,10 +180,23 @@ describe('attendance API', () => {
         expect(res.body.data.log).toMatchObject({ user_id: t.id, trial_pass_id: t.id, user_name: t.name });
         expect(db.trial_passes.find(x => x.id === t.id)!.redeemed_at).toBe(NOW.toISOString());
 
+        // Later the same day (a double read, or stepping out and back in) it still lets them through.
+        vi.setSystemTime(new Date(NOW.getTime() + 2 * 3600_000));
+        const logs = db.attendance_logs.length;
         const again = await checkIn({ code: t.code });
-        expect(again.status).toBe(403);
-        expect(again.body.code).toBe('TRIAL_ALREADY_USED');
-        expect(again.body.data.trial.id).toBe(t.id);
+        expect(again.status).toBe(200);
+        expect(again.body.data).toMatchObject({ result: 'granted', already_checked_in: true, kind: 'trial', trial: { id: t.id, status: 'redeemed' } });
+        expect(again.body.data.log.id).toBe(res.body.data.log.id);
+        expect(db.attendance_logs.length).toBe(logs);
+        expect(db.trial_passes.find(x => x.id === t.id)!.redeemed_at).toBe(NOW.toISOString());
+
+        // The next day the pass is spent.
+        vi.setSystemTime(new Date(NOW.getTime() + 24 * 3600_000));
+        const tomorrow = await checkIn({ code: t.code });
+        expect(tomorrow.status).toBe(403);
+        expect(tomorrow.body.code).toBe('TRIAL_ALREADY_USED');
+        expect(tomorrow.body.data.trial.id).toBe(t.id);
+        expect(db.attendance_logs.length).toBe(logs);
       });
 
       it('rejects a trial on another day', async () => {
@@ -318,6 +331,28 @@ describe('members seed', () => {
     expect(new Set(keys).size).toBe(keys.length);
     // Nothing for Dev after his expiry.
     expect(memberLogs.some(l => l.user_id === userByEmail(personas.expired).id)).toBe(false);
+  });
+
+  it('derives member streaks from the seeded visits (review regression)', () => {
+    const today = gymToday();
+    for (const user of db.users.filter(u => u.role === 'member')) {
+      const days = [...new Set(db.attendance_logs.filter(l => l.user_id === user.id).map(l => toGymDate(l.check_in_time)))].sort();
+      if (days.length === 0) {
+        expect(user.streak_days, user.name).toBe(0);
+        expect(user.last_active_date ?? null).toBeNull();
+        continue;
+      }
+      const last = days[days.length - 1];
+      expect(user.last_active_date).toBe(last);
+      expect(last <= today).toBe(true);
+      // The run of consecutive calendar days ending on the last visit (lib/streak's rule).
+      let run = 1;
+      for (let i = days.length - 1; i > 0 && addDays(days[i - 1], 1) === days[i]; i--) run++;
+      expect(user.streak_days, user.name).toBe(run);
+      // Closed Sundays cap any run at six days.
+      expect(user.streak_days).toBeLessThanOrEqual(6);
+    }
+    expect(userByEmail(personas.expired).streak_days).toBe(0);
   });
 
   it('adds one trial valid today and one already redeemed, with its check-in', () => {
