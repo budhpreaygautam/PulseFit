@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import config from '../src/config.js';
@@ -62,6 +62,23 @@ describe('PUT /auth/password', () => {
     }
   });
 
+  it('regression: limits passwords to 72 bytes, because bcrypt ignores anything after that', async () => {
+    // 36 x 'é' is 72 bytes but only 36 characters; both of these used to share one hash.
+    for (const newPassword of ['é'.repeat(36) + '1a', 'é'.repeat(36) + 'zz9']) {
+      const res = await api().put('/api/auth/password').set(authHeader(personas.member)).send({ currentPassword: 'pulse123', newPassword });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('VALIDATION_ERROR');
+    }
+    const reg = await api().post('/api/auth/register').send({ name: 'Zoë', email: 'zoe@example.com', password: 'ü'.repeat(35) + 'a12' });
+    expect(reg.status).toBe(400);
+
+    const fits = 'é'.repeat(34) + 'a1';
+    expect(Buffer.byteLength(fits)).toBe(70);
+    const ok = await api().put('/api/auth/password').set(authHeader(personas.member)).send({ currentPassword: 'pulse123', newPassword: fits });
+    expect(ok.status).toBe(200);
+    expect((await api().post('/api/auth/login').send({ email: personas.member, password: fits })).status).toBe(200);
+  });
+
   it('answers 401 without a token', async () => {
     expect((await api().put('/api/auth/password').send({ newPassword: NEW_PASSWORD })).status).toBe(401);
   });
@@ -69,13 +86,21 @@ describe('PUT /auth/password', () => {
 
 describe('POST /auth/forgot-password and /auth/reset-password', () => {
   const original = { demoMode: config.demoMode, isProduction: config.isProduction };
+  let log: MockInstance<typeof console.log>;
 
-  beforeEach(() => resetDb());
+  beforeEach(() => {
+    resetDb();
+    log = vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
   afterEach(() => {
     config.demoMode = original.demoMode;
     config.isProduction = original.isProduction;
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
+
+  const loggedLinks = () =>
+    log.mock.calls.map(args => String(args[0])).filter(line => line.includes('/reset-password?token='));
 
   async function requestReset(email: string = personas.member, origin?: string) {
     const req = api().post('/api/auth/forgot-password');
@@ -112,17 +137,43 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
     expect(fromEvil.body.data.resetUrl.startsWith(`${config.corsOrigins[0]}/reset-password?token=`)).toBe(true);
   });
 
-  it('hides the link in production unless demo mode is on', async () => {
+  it('regression: in production the link is logged for staff, never returned, and still works', async () => {
     config.isProduction = true;
     config.demoMode = false;
-    const hidden = await requestReset();
-    expect(hidden.status).toBe(200);
-    expect(hidden.body.data.resetUrl).toBeUndefined();
-    expect(hidden.body.data.message).toBeTruthy();
+    const known = await requestReset();
+    const unknown = await requestReset('ghost@example.com');
+    expect(known.status).toBe(200);
+    expect(known.body.data).toEqual({ message: unknown.body.data.message });
+    expect(known.body.data.message).toMatch(/front desk/);
     expect(db.password_resets).toHaveLength(1);
 
+    const lines = loggedLinks();
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain(personas.member);
+    const url = lines[0].slice(lines[0].indexOf('http'));
+    const res = await api().post('/api/auth/reset-password').send({ token: tokenFromUrl(url), newPassword: NEW_PASSWORD });
+    expect(res.status).toBe(200);
+  });
+
+  it('regression: a public demo returns the link only for the shared demo personas', async () => {
+    config.isProduction = true;
     config.demoMode = true;
-    expect((await requestReset()).body.data.resetUrl).toBeTruthy();
+    expect((await requestReset(personas.admin)).body.data.resetUrl).toBeTruthy();
+
+    // A real account on the demo: no link in the response, and the same body as an unknown email.
+    const real = await requestReset('kabir.singh@example.com');
+    const ghost = await requestReset('ghost@example.com');
+    expect(real.body.data).toEqual(ghost.body.data);
+    expect(real.body.data.resetUrl).toBeUndefined();
+    expect(loggedLinks()).toHaveLength(2);
+  });
+
+  it('outside production the link is returned for any account and also logged', async () => {
+    config.isProduction = false;
+    config.demoMode = false;
+    const res = await requestReset('kabir.singh@example.com');
+    expect(res.body.data.resetUrl).toBeTruthy();
+    expect(loggedLinks()[0]).toContain(res.body.data.resetUrl);
   });
 
   it('rejects an invalid email with 400', async () => {

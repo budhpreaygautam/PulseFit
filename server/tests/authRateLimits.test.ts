@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import config from '../src/config.js';
 import { resetAuthRateLimits } from '../src/lib/authRateLimits.js';
 import { setGoogleVerifierForTests } from '../src/lib/google.js';
-import { api, personas, resetDb } from './helpers.js';
+import { api, authHeader, personas, resetDb } from './helpers.js';
 
 describe('auth rate limits', () => {
   const original = { enabled: config.rateLimit.enabled, googleClientId: config.googleClientId };
@@ -11,8 +11,10 @@ describe('auth rate limits', () => {
     resetDb();
     await resetAuthRateLimits();
     config.rateLimit.enabled = true;
+    vi.spyOn(console, 'log').mockImplementation(() => {});
   });
   afterEach(async () => {
+    vi.restoreAllMocks();
     config.rateLimit.enabled = original.enabled;
     config.googleClientId = original.googleClientId;
     setGoogleVerifierForTests(null);
@@ -32,14 +34,27 @@ describe('auth rate limits', () => {
     }
   });
 
-  it('login: 10 failed attempts per 15 minutes; successful sign-ins do not count', async () => {
+  it('login: 10 attempts per 15 minutes, successful ones included (as the contract says)', async () => {
     for (let i = 0; i < 5; i++) {
       expect((await api().post('/api/auth/login').send({ email: personas.member, password: 'pulse123' })).status).toBe(200);
     }
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 5; i++) {
       expect((await api().post('/api/auth/login').send({ email: personas.member, password: 'wrong123' })).status).toBe(401);
     }
     expectLimited(await api().post('/api/auth/login').send({ email: personas.member, password: 'pulse123' }));
+  });
+
+  it('regression: password change is limited to 10 attempts per 15 minutes per account', async () => {
+    for (let i = 0; i < 10; i++) {
+      const res = await api().put('/api/auth/password').set(authHeader(personas.member)).send({ currentPassword: `guess${i}x`, newPassword: 'Stronger2026' });
+      expect(res.body.code).toBe('WRONG_PASSWORD');
+    }
+    expectLimited(
+      await api().put('/api/auth/password').set(authHeader(personas.member)).send({ currentPassword: 'pulse123', newPassword: 'Stronger2026' })
+    );
+    // Another account on the same IP is not affected.
+    const other = await api().put('/api/auth/password').set(authHeader(personas.vip)).send({ currentPassword: 'pulse123', newPassword: 'Stronger2026' });
+    expect(other.status).toBe(200);
   });
 
   it('register: 5 per hour', async () => {
