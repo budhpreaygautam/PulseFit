@@ -17,9 +17,17 @@ export function planPrice(plan: Pick<MembershipPlan, 'price_monthly' | 'price_an
   return cycle === 'annual' ? plan.price_annual : plan.price_monthly;
 }
 
-/** Inclusive last day of a period of calendar months starting on `start`. */
+/**
+ * Inclusive last day of a period of calendar months starting on `start`: the day before the
+ * same day n months later. When that month is too short for the start day (a start on the
+ * 29th-31st, or Feb 29 annual), the anniversary does not exist and the period runs to the end
+ * of that month, so the next period starts on the 1st and no paid day is lost.
+ */
 export function periodEnd(start: string, cycle: BillingCycle): string {
-  return addDays(addMonths(start, CYCLE_MONTHS[cycle]), -1);
+  const anniversary = addMonths(start, CYCLE_MONTHS[cycle]);
+  // addMonths clamps to the last day of the target month when the start day does not fit.
+  if (anniversary.slice(8, 10) !== start.slice(8, 10)) return anniversary;
+  return addDays(anniversary, -1);
 }
 
 /** Days of access lost while frozen: frozen on day F and back on day T gives T - F days. */
