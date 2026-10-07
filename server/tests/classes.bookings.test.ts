@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, authHeader, db, personas, resetDb, userByEmail } from './helpers.js';
 import { Booking } from '../src/types/index.js';
+import { gymToday, nextOccurrence } from '../src/lib/dates.js';
 
 // Wednesday 7 October 2026, 10:00 at the gym (IST).
 const NOW = new Date('2026-10-07T04:30:00Z');
@@ -156,6 +157,20 @@ describe('classes: bookings', () => {
       const again = await book(personas.member, 'cls_zumba_thu', THU);
       expect(again.status).toBe(201);
       expect(again.body.data.id).not.toBe(first.body.data.id);
+    });
+
+    it('answers ALREADY_BOOKED, not CLASS_FULL, to a retry once the caller’s own booking filled the class (review regression)', async () => {
+      // Maya holds one spot on Thursday; capacity 2 leaves exactly one, and Aarav takes it.
+      setCapacity('cls_zumba_thu', 2);
+      expect((await book(personas.member, 'cls_zumba_thu', THU)).status).toBe(201);
+      for (let i = 0; i < 2; i++) {
+        const retry = await book(personas.member, 'cls_zumba_thu', THU);
+        expect(retry.status).toBe(409);
+        expect(retry.body.code).toBe('ALREADY_BOOKED');
+      }
+      // Someone without a spot still hears that the class is full.
+      expect((await book(personas.vip, 'cls_zumba_thu', THU)).body.code).toBe('CLASS_FULL');
+      expect(db.bookings.filter(b => b.class_id === 'cls_zumba_thu' && b.booking_date === THU && b.status === 'confirmed')).toHaveLength(2);
     });
   });
 
@@ -334,6 +349,25 @@ describe('classes: bookings', () => {
       expect(bad.body.code).toBe('DATE_MISMATCH');
     });
 
+    it('keeps past sessions reachable after the class moves to another weekday (review regression)', async () => {
+      await api().put('/api/classes/cls_str_wed').set(authHeader(personas.admin)).send({ day_of_week: 4 });
+      const past = await api().get('/api/bookings/class/cls_str_wed/roster?date=2026-09-30').set(authHeader(personas.trainer));
+      expect(past.status).toBe(200);
+      expect(past.body.data.date).toBe('2026-09-30');
+      expect(past.body.data.attendees).toHaveLength(2);
+      // Today's Wednesday session was called off by the move: it has only cancelled bookings.
+      const calledOff = await api().get('/api/bookings/class/cls_str_wed/roster?date=2026-10-07').set(authHeader(personas.trainer));
+      expect(calledOff.status).toBe(400);
+      expect(calledOff.body.code).toBe('DATE_MISMATCH');
+      const moved = await api().get('/api/bookings/class/cls_str_wed/roster?date=2026-10-08').set(authHeader(personas.trainer));
+      expect(moved.status).toBe(200);
+      expect(moved.body.data.attendees).toEqual([]);
+      // The old session's attendance can still be corrected, but new bookings follow the new weekday.
+      const old = seededBooking('usr_member_3', 'cls_str_wed', '2026-09-30');
+      expect((await api().patch(`/api/bookings/${old.id}/attendance`).set(authHeader(personas.trainer)).send({ status: 'attended' })).status).toBe(200);
+      expect((await book(personas.basic, 'cls_str_wed', '2026-10-14')).body.code).toBe('DATE_MISMATCH');
+    });
+
     it('leaves out cancelled bookings', async () => {
       await api().delete(`/api/bookings/${seededBooking('usr_member_3', 'cls_str_wed', '2026-10-07').id}`).set(authHeader(personas.basic));
       const res = await api().get('/api/bookings/class/cls_str_wed/roster').set(authHeader(personas.trainer));
@@ -349,5 +383,50 @@ describe('classes: bookings', () => {
       expect((await api().get('/api/bookings/class/cls_str_wed/roster')).status).toBe(401);
       expect((await api().get('/api/bookings/class/cls_nope/roster').set(authHeader(personas.admin))).status).toBe(404);
     });
+  });
+});
+
+describe('classes: gym-time dates between 00:00 and 05:30 IST (review regression)', () => {
+  // Thursday 8 October 2026, 01:30 at the gym, while it is still Wednesday 7 October in UTC.
+  const EARLY = new Date('2026-10-07T20:00:00Z');
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(EARLY);
+    resetDb();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('uses the gym date for the timetable', async () => {
+    expect(gymToday(EARLY)).toBe('2026-10-08');
+    expect(nextOccurrence(4, '08:00', EARLY)).toBe('2026-10-08');
+    const res = await api().get('/api/classes');
+    expect(res.status).toBe(200);
+    const byId = Object.fromEntries(res.body.data.map((c: any) => [c.id, c.occurrence_date]));
+    expect(byId.cls_zumba_thu).toBe('2026-10-08');
+    expect(byId.cls_str_thu).toBe('2026-10-08');
+    // Wednesday's classes are over in gym time, so they move to next week.
+    expect(byId.cls_str_wed).toBe('2026-10-14');
+    expect(byId.cls_zumba_wed).toBe('2026-10-14');
+    expect(res.body.data[0].id).toBe('cls_zumba_thu');
+  });
+
+  it('accepts today’s class and counts the 14-day window from the gym date', async () => {
+    const today = await book(personas.member, 'cls_zumba_thu', '2026-10-08');
+    expect(today.status).toBe(201);
+    // 14 days from Thursday 8 October is Thursday 22 October; a UTC "today" would stop at the 21st.
+    expect((await book(personas.member, 'cls_zumba_thu', '2026-10-22')).status).toBe(201);
+    expect((await book(personas.member, 'cls_zumba_thu', '2026-10-29')).body.code).toBe('TOO_FAR_AHEAD');
+    // Wednesday 7 October is yesterday at the gym.
+    expect((await book(personas.member, 'cls_zumba_wed', '2026-10-07')).body.code).toBe('CLASS_STARTED');
+
+    const mine = await api().get('/api/bookings/my').set(authHeader(personas.member));
+    expect(mine.body.data[0]).toMatchObject({ id: today.body.data.id, booking_date: '2026-10-08', can_cancel: true });
+  });
+
+  it('defaults the roster to today’s session', async () => {
+    const res = await api().get('/api/bookings/class/cls_zumba_thu/roster').set(authHeader(personas.admin));
+    expect(res.status).toBe(200);
+    expect(res.body.data.date).toBe('2026-10-08');
   });
 });

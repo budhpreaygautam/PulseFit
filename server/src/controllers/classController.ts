@@ -9,9 +9,11 @@ import {
   bookedCount,
   byStart,
   hasStarted,
+  isSessionDate,
   nextOccurrenceOf,
   occurrenceInWeek,
   presentClass,
+  publicTrainer,
   toOccurrence
 } from '../lib/occurrences.js';
 import { GymClass } from '../types/index.js';
@@ -107,11 +109,12 @@ export const getClassById = asyncHandler<AuthenticatedRequest>((req, res: Respon
   const gymClass = db.classes.find(c => c.id === req.params.id);
   if (!gymClass) throw notFound('That class does not exist.');
 
-  if (date && dayOfWeek(date) !== gymClass.day_of_week) {
+  if (date && !isSessionDate(gymClass, date)) {
     throw badRequest('This class does not run on that day of the week.', 'DATE_MISMATCH');
   }
   const occurrenceDate = date ?? nextOccurrenceOf(gymClass);
-  const trainer = db.trainers.find(t => t.id === gymClass.trainer_id) ?? null;
+  const record = db.trainers.find(t => t.id === gymClass.trainer_id);
+  const trainer = record ? publicTrainer(record, req.user) : null;
   ok(res, { ...toOccurrence(gymClass, occurrenceDate, req.user?.id), trainer });
 });
 

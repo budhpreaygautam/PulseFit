@@ -1,5 +1,6 @@
 import db from '../database.js';
 import { addDays, dayOfWeek, gymToday } from '../../lib/dates.js';
+import { isMembershipActive, tierAllowsCategory } from '../../lib/membership.js';
 import { startsAt } from '../../lib/occurrences.js';
 import { Booking, TrainerNote } from '../../types/index.js';
 
@@ -34,12 +35,17 @@ export function seedClasses(): void {
   const bookings: Booking[] = [];
   let seq = 0;
   for (const [userId, classIds] of Object.entries(REGULARS)) {
+    const member = db.users.find(u => u.id === userId);
+    if (!member) continue;
     for (const classId of classIds) {
       const cls = db.classes.find(c => c.id === classId);
-      if (!cls) continue;
+      if (!cls || !tierAllowsCategory(member.membership_tier, cls.category)) continue;
       for (let offset = -PAST_DAYS; offset <= AHEAD_DAYS; offset++) {
         const date = addDays(today, offset);
         if (dayOfWeek(date) !== cls.day_of_week) continue;
+        // Membership expiry dates in the base seed are fixed, so as the calendar moves on a
+        // member's plan can end inside this window: book only the dates the plan covers.
+        if (!isMembershipActive(member, date)) continue;
 
         const start = startsAt(cls.start_time, date).getTime();
         const started = start <= now.getTime();

@@ -129,27 +129,28 @@ export const getTrainerClients = asyncHandler<AuthenticatedRequest>((req, res: R
 
 export const getTrainerNotes = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
   const { trainer_id, member_id } = parse(notesQuery, req.query);
-  const user = req.user!;
-  let notes: TrainerNote[];
-  if (user.role === 'admin') {
-    notes = notesFor(resolveTrainer(req, trainer_id));
-  } else {
-    notes = db.trainer_notes.filter(n => n.trainer_user_id === user.id);
-  }
+  let notes = notesFor(resolveTrainer(req, trainer_id));
   if (member_id) notes = notes.filter(n => n.member_id === member_id);
   ok(res, [...notes].sort((a, b) => b.created_at.localeCompare(a.created_at)));
 });
 
 export const createTrainerNote = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
   const body = parse(createNoteSchema, req.body);
+  const author = req.user!;
+  const trainer = author.role === 'admin' ? trainerOfUser(author.id) ?? null : resolveTrainer(req, undefined);
+
   const member = db.users.find(u => u.id === body.member_id && u.role === 'member');
   if (!member) throw notFound('That member does not exist.');
+  // A note makes the member one of the trainer's clients, which shows their plan and status;
+  // so a trainer may only write about members who book their classes.
+  if (author.role !== 'admin' && !bookingsFor(trainer).some(b => b.user_id === member.id && b.status !== 'cancelled')) {
+    throw forbidden('You can only write notes about members who book your classes.', 'NOT_YOUR_CLIENT');
+  }
 
-  const author = req.user!;
   const note: TrainerNote = {
     id: newId('note'),
     trainer_user_id: author.id,
-    trainer_name: trainerOfUser(author.id)?.name ?? author.name,
+    trainer_name: trainer?.name ?? author.name,
     member_id: member.id,
     category: body.category,
     note: body.note,

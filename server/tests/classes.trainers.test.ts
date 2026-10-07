@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, authHeader, db, personas, resetDb } from './helpers.js';
 import { addDays, dayOfWeek, gymDateTime } from '../src/lib/dates.js';
-import { tierAllowsCategory } from '../src/lib/membership.js';
+import { isMembershipActive, tierAllowsCategory } from '../src/lib/membership.js';
 
 // Wednesday 7 October 2026, 10:00 at the gym (IST).
 const NOW = new Date('2026-10-07T04:30:00Z');
@@ -36,6 +36,25 @@ describe('classes: trainers and trainer portal', () => {
       expect(counts).toEqual({ trn_vikram: 4, trn_kavya: 3, trn_rohan: 2, trn_simran: 3 });
     });
 
+    it('keeps staff contact details and the account link from everyone but admins (review regression)', async () => {
+      for (const headers of [{}, authHeader(personas.member), authHeader(personas.trainer)]) {
+        const res = await api().get('/api/trainers').set(headers);
+        expect(res.status).toBe(200);
+        for (const t of res.body.data) {
+          expect(t).not.toHaveProperty('email');
+          expect(t).not.toHaveProperty('phone');
+          expect(t).not.toHaveProperty('user_id');
+          expect(t).toHaveProperty('name');
+        }
+      }
+      const admin = await api().get('/api/trainers').set(authHeader(personas.admin));
+      expect(admin.body.data.find((t: any) => t.id === 'trn_vikram')).toMatchObject({
+        email: expect.any(String),
+        phone: expect.any(String),
+        user_id: 'usr_trainer_1'
+      });
+    });
+
     it('reports 0 for a trainer without classes', async () => {
       await api().post('/api/trainers').set(authHeader(personas.admin)).send(newTrainer);
       const res = await api().get('/api/trainers');
@@ -50,6 +69,15 @@ describe('classes: trainers and trainer portal', () => {
       expect(res.body.data.name).toBe('Coach Vikram Rathore');
       expect(res.body.data.classes.map((c: any) => c.id)).toEqual(['cls_str_wed', 'cls_str_fri', 'cls_str_sat', 'cls_str_mon']);
       expect(res.body.data.classes[0]).toMatchObject({ occurrence_date: '2026-10-07', booked_count: 2 });
+    });
+
+    it('shows contact details and the account link only to admins (review regression)', async () => {
+      const anon = await api().get('/api/trainers/trn_vikram');
+      for (const key of ['email', 'phone', 'user_id']) expect(anon.body.data).not.toHaveProperty(key);
+      const member = await api().get('/api/trainers/trn_vikram').set(authHeader(personas.member));
+      expect(member.body.data).not.toHaveProperty('email');
+      const admin = await api().get('/api/trainers/trn_vikram').set(authHeader(personas.admin));
+      expect(admin.body.data).toMatchObject({ email: expect.any(String), user_id: 'usr_trainer_1' });
     });
 
     it('404s for an unknown trainer', async () => {
@@ -221,7 +249,12 @@ describe('classes: trainers and trainer portal', () => {
   });
 
   describe('trainer notes', () => {
-    const note = { member_id: 'usr_member_1', category: 'assessment', note: 'Good cardio base.', visible_to_member: true };
+    // Ananya books Coach Vikram's strength classes, so she is one of his clients.
+    const note = { member_id: 'usr_member_2', category: 'assessment', note: 'Good cardio base.', visible_to_member: true };
+
+    function linkTrainerUser(trainerId: string, userId: string) {
+      db.trainers = db.trainers.map(t => (t.id === trainerId ? { ...t, user_id: userId } : t));
+    }
 
     it('lists the trainer’s own notes, newest first, optionally for one member', async () => {
       const res = await api().get('/api/trainer/notes').set(authHeader(personas.trainer));
@@ -251,13 +284,53 @@ describe('classes: trainers and trainer portal', () => {
 
     it('shows another trainer’s notes only to admins', async () => {
       addTrainerUser('usr_trainer_2', 'coach2@pulsefit.com');
+      linkTrainerUser('trn_kavya', 'usr_trainer_2'); // Aarav books Kavya's Zumba classes
       const res = await api().get('/api/trainer/notes').set(authHeader('coach2@pulsefit.com'));
+      expect(res.status).toBe(200);
       expect(res.body.data).toEqual([]);
-      await api().post('/api/trainer/notes').set(authHeader('coach2@pulsefit.com')).send(note);
+      const created = await api().post('/api/trainer/notes').set(authHeader('coach2@pulsefit.com')).send({ ...note, member_id: 'usr_member_1' });
+      expect(created.status).toBe(201);
+      expect(created.body.data.trainer_name).toBe(db.trainers.find(t => t.id === 'trn_kavya')!.name);
+      const own = await api().get('/api/trainer/notes').set(authHeader(personas.trainer));
+      expect(own.body.data).toHaveLength(5);
+      expect(own.body.data.every((n: any) => n.trainer_user_id === 'usr_trainer_1')).toBe(true);
       const all = await api().get('/api/trainer/notes').set(authHeader(personas.admin));
       expect(all.body.data).toHaveLength(6);
       const vikram = await api().get('/api/trainer/notes?trainer_id=trn_vikram').set(authHeader(personas.admin));
       expect(vikram.body.data).toHaveLength(5);
+      const kavya = await api().get('/api/trainer/notes?trainer_id=trn_kavya').set(authHeader(personas.admin));
+      expect(kavya.body.data.map((n: any) => n.id)).toEqual([created.body.data.id]);
+    });
+
+    it('requires a linked trainer profile to list or write notes (review regression)', async () => {
+      addTrainerUser('usr_trainer_2', 'coach2@pulsefit.com');
+      const list = await api().get('/api/trainer/notes').set(authHeader('coach2@pulsefit.com'));
+      expect(list.status).toBe(404);
+      expect(list.body.code).toBe('NO_TRAINER_PROFILE');
+      const create = await api().post('/api/trainer/notes').set(authHeader('coach2@pulsefit.com')).send(note);
+      expect(create.status).toBe(404);
+      expect(create.body.code).toBe('NO_TRAINER_PROFILE');
+      expect(db.trainer_notes).toHaveLength(5);
+    });
+
+    it('refuses notes about members who do not book the trainer’s classes (review regression)', async () => {
+      // Aarav (pro) only books Zumba classes, none of them Coach Vikram's.
+      const res = await api().post('/api/trainer/notes').set(authHeader(personas.trainer)).send({ ...note, member_id: 'usr_member_1' });
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe('NOT_YOUR_CLIENT');
+
+      // A cancelled booking does not make someone a client either.
+      db.bookings = [...db.bookings, {
+        id: 'bk_cancelled', class_id: 'cls_str_wed', user_id: 'usr_member_1', booking_date: '2026-10-14',
+        status: 'cancelled', created_at: NOW.toISOString(), cancelled_at: NOW.toISOString()
+      }];
+      expect((await api().post('/api/trainer/notes').set(authHeader(personas.trainer)).send({ ...note, member_id: 'usr_member_1' })).status).toBe(403);
+
+      const clients = await api().get('/api/trainer/clients').set(authHeader(personas.trainer));
+      expect(clients.body.data.map((c: any) => c.user_id)).not.toContain('usr_member_1');
+
+      // Admins are not limited to one trainer's clients.
+      expect((await api().post('/api/trainer/notes').set(authHeader(personas.admin)).send({ ...note, member_id: 'usr_member_1' })).status).toBe(201);
     });
 
     it('lets only the author or an admin delete a note', async () => {
@@ -311,6 +384,24 @@ describe('classes: trainers and trainer portal', () => {
         expect(db.bookings.some(b => b.user_id === id && b.status === 'attended')).toBe(true);
       }
       expect(db.bookings.some(b => b.status === 'no_show')).toBe(true);
+    });
+
+    it('books no date the member’s plan does not cover, even after a plan has run out (review regression)', () => {
+      // Rohan's plan ends on 2026-11-20 in the base seed. Seed a few days before and a week after.
+      for (const now of ['2026-11-16T04:30:00Z', '2026-11-27T04:30:00Z']) {
+        vi.setSystemTime(new Date(now));
+        resetDb();
+        for (const b of db.bookings) {
+          const user = db.users.find(u => u.id === b.user_id)!;
+          const cls = db.classes.find(c => c.id === b.class_id)!;
+          expect(isMembershipActive(user, b.booking_date)).toBe(true);
+          expect(tierAllowsCategory(user.membership_tier, cls.category)).toBe(true);
+        }
+        expect(db.bookings.filter(b => b.user_id === 'usr_member_3').every(b => b.booking_date <= '2026-11-20')).toBe(true);
+      }
+      // After the plan ends, nothing is left that the booking rules would now refuse; the history stays.
+      expect(db.bookings.some(b => b.user_id === 'usr_member_3' && b.status === 'confirmed')).toBe(false);
+      expect(db.bookings.some(b => b.user_id === 'usr_member_3' && b.status === 'attended')).toBe(true);
     });
 
     it('seeds Coach Vikram’s notes, some visible to the member', () => {

@@ -114,6 +114,25 @@ describe('classes: timetable and class admin', () => {
       expect(bad.body.code).toBe('DATE_MISMATCH');
     });
 
+    it('shows the trainer’s contact details and account link only to admins (review regression)', async () => {
+      const anon = await api().get('/api/classes/cls_str_mon');
+      expect(anon.body.data.trainer).toMatchObject({ id: 'trn_vikram', name: 'Coach Vikram Rathore' });
+      for (const key of ['email', 'phone', 'user_id']) expect(anon.body.data.trainer).not.toHaveProperty(key);
+      const member = await api().get('/api/classes/cls_str_mon').set(authHeader(personas.member));
+      expect(member.body.data.trainer).not.toHaveProperty('email');
+      const admin = await api().get('/api/classes/cls_str_mon').set(authHeader(personas.admin));
+      expect(admin.body.data.trainer).toMatchObject({ email: expect.any(String), phone: expect.any(String), user_id: 'usr_trainer_1' });
+    });
+
+    it('still opens a past session on the class’s old weekday (review regression)', async () => {
+      await api().put('/api/classes/cls_str_wed').set(authHeader(personas.admin)).send({ day_of_week: 4 });
+      const res = await api().get('/api/classes/cls_str_wed?date=2026-09-30');
+      expect(res.status).toBe(200);
+      expect(res.body.data.occurrence_date).toBe('2026-09-30');
+      // A Wednesday with no bookings is not a session of this class any more.
+      expect((await api().get('/api/classes/cls_str_wed?date=2026-10-21')).body.code).toBe('DATE_MISMATCH');
+    });
+
     it('404s for an unknown class', async () => {
       const res = await api().get('/api/classes/cls_nope');
       expect(res.status).toBe(404);
