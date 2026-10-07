@@ -1,271 +1,252 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
 import db from '../db/database.js';
-import { User, AttendanceLog } from '../types/index.js';
+import { AuthenticatedRequest } from '../middleware/auth.js';
+import { asyncHandler, badRequest, conflict, notFound, ok, parse } from '../lib/http.js';
+import { addDays, addMonths, daysBetween, gymDateTime, gymToday, isValidDate } from '../lib/dates.js';
+import { effectiveStatus } from '../lib/membership.js';
+import { defaultAvatar, findUserByEmail, generateQrToken, generateTempPassword, newId, toSafeUser } from '../lib/users.js';
+import { MembershipStatus, MembershipTier, User, UserRole } from '../types/index.js';
 
-export const getMembers = async (req: Request, res: Response) => {
-  try {
-    const { search, tier, status, role } = req.query;
-    let list = db.users.map(({ password_hash, ...u }) => u);
+const ROLES = ['member', 'trainer', 'admin'] as const satisfies readonly UserRole[];
+const TIERS = ['none', 'basic', 'pro', 'vip'] as const satisfies readonly MembershipTier[];
+const STATUSES = ['active', 'expired', 'pending', 'frozen'] as const satisfies readonly MembershipStatus[];
 
-    if (role && role !== 'All') {
-      list = list.filter(u => u.role === role);
-    }
+// Filters arrive from <select>s that may say 'All'; compare case-insensitively.
+const lower = (v: unknown) => (typeof v === 'string' ? v.trim().toLowerCase() : v);
 
-    if (tier && tier !== 'All') {
-      list = list.filter(u => u.membership_tier === tier);
-    }
+const listQuery = z.object({
+  search: z.string().trim().max(100).optional(),
+  tier: z.preprocess(lower, z.enum([...TIERS, 'all'])).optional(),
+  status: z.preprocess(lower, z.enum([...STATUSES, 'all'])).optional(),
+  role: z.preprocess(lower, z.enum([...ROLES, 'all'])).default('member')
+});
 
-    if (status && status !== 'All') {
-      list = list.filter(u => u.membership_status === status);
-    }
+const nameField = z.string().trim().min(2, 'Name must be at least 2 characters.').max(60, 'Name must be at most 60 characters.');
+const phoneField = z.string().trim().max(20, 'Phone number is too long.');
+// Trim before the format check: zod's z.email().trim() validates first and rejects pasted ' a@b.com '.
+const emailField = z.string().trim().toLowerCase().pipe(z.email('Enter a valid email address.'));
+// Forms may send "3", but z.coerce would also turn true into 1 and null or '' into 0.
+const monthsField = z.preprocess(
+  v => (typeof v === 'string' && /^\s*\d+\s*$/.test(v) ? Number(v) : v),
+  z.number('Months must be a number.').int('Months must be a whole number.').min(0).max(24)
+);
 
-    if (search) {
-      const q = (search as string).toLowerCase();
-      list = list.filter(u =>
+const createBody = z
+  .object({
+    name: nameField,
+    email: emailField,
+    phone: phoneField.optional(),
+    role: z.enum(ROLES).default('member'),
+    membership_tier: z.enum(TIERS).default('none'),
+    expiry_months: monthsField.default(0)
+  })
+  .strict();
+
+const updateBody = z
+  .object({
+    name: nameField.optional(),
+    phone: phoneField.optional(),
+    role: z.enum(ROLES).optional(),
+    membership_tier: z.enum(TIERS).optional(),
+    membership_status: z.enum(STATUSES).optional(),
+    membership_expiry: z.string().refine(isValidDate, 'Use a date in YYYY-MM-DD format.').nullable().optional()
+  })
+  .strict();
+
+function findUserOr404(id: string): User {
+  const user = db.users.find(u => u.id === id);
+  if (!user) throw notFound('No member with that id.', 'NOT_FOUND');
+  return user;
+}
+
+function emailTaken(): never {
+  throw conflict('An account with this email already exists.', 'EMAIL_TAKEN');
+}
+
+function adminCount(): number {
+  return db.users.filter(u => u.role === 'admin').length;
+}
+
+export const getMembers = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
+  const { search, tier, status, role } = parse(listQuery, req.query);
+  const today = gymToday();
+
+  let list = db.users;
+  if (role !== 'all') list = list.filter(u => u.role === role);
+  if (tier && tier !== 'all') list = list.filter(u => u.membership_tier === tier);
+  if (status && status !== 'all') list = list.filter(u => effectiveStatus(u, today) === status);
+  if (search) {
+    const q = search.toLowerCase();
+    list = list.filter(
+      u =>
         u.name.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
-        u.phone.includes(q) ||
+        (u.phone || '').includes(q) ||
         u.qr_code_token.toLowerCase().includes(q)
-      );
-    }
-
-    res.json({
-      success: true,
-      data: list
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
-
-export const getMemberById = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const user = db.users.find(u => u.id === id);
-
-    if (!user) {
-      return res.status(404).json({ success: false, error: 'Member not found' });
-    }
-
-    const { password_hash, ...safeUser } = user;
-    const userBookings = db.bookings.filter(b => b.user_id === id);
-    const userAttendance = db.attendance_logs.filter(a => a.user_id === id);
-    const userWorkouts = db.workouts.filter(w => w.user_id === id);
-
-    res.json({
-      success: true,
-      data: {
-        ...safeUser,
-        bookings_count: userBookings.length,
-        attendance_count: userAttendance.length,
-        workouts_count: userWorkouts.length
-      }
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
-
-export const createMember = async (req: Request, res: Response) => {
-  try {
-    const { name, email, phone, role = 'member', membership_tier = 'pro', membership_status = 'active', expiry_months = 12 } = req.body;
-
-    if (!name || !email) {
-      return res.status(400).json({ success: false, error: 'Name and email are required' });
-    }
-
-    const existing = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (existing) {
-      return res.status(400).json({ success: false, error: 'Email already registered' });
-    }
-
-    const defaultPassword = 'pulse' + Math.floor(100 + Math.random() * 900);
-    const password_hash = bcrypt.hashSync(defaultPassword, 10);
-    const id = `usr_${uuidv4().substring(0, 8)}`;
-    const qr_code_token = `PULSE-MEM-${name.toUpperCase().replace(/[^A-Z]/g, '').substring(0, 5)}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-    const expiryDate = new Date();
-    expiryDate.setMonth(expiryDate.getMonth() + Number(expiry_months));
-
-    const newMember: User = {
-      id,
-      name,
-      email: email.toLowerCase(),
-      password_hash,
-      role,
-      avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
-      phone: phone || '+1 (555) 000-0000',
-      membership_tier,
-      membership_status,
-      membership_expiry: expiryDate.toISOString().split('T')[0],
-      qr_code_token,
-      created_at: new Date().toISOString(),
-      streak_days: 0
-    };
-
-    db.users = [...db.users, newMember];
-    const { password_hash: _, ...safeUser } = newMember;
-
-    res.status(201).json({
-      success: true,
-      data: safeUser,
-      tempPassword: defaultPassword
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
-
-export const updateMember = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const existing = db.users.find(u => u.id === id);
-
-    if (!existing) {
-      return res.status(404).json({ success: false, error: 'Member not found' });
-    }
-
-    const { name, phone, membership_tier, membership_status, membership_expiry, role } = req.body;
-
-    const updatedUsers = db.users.map(u => {
-      if (u.id === id) {
-        return {
-          ...u,
-          name: name ?? u.name,
-          phone: phone ?? u.phone,
-          membership_tier: membership_tier ?? u.membership_tier,
-          membership_status: membership_status ?? u.membership_status,
-          membership_expiry: membership_expiry ?? u.membership_expiry,
-          role: role ?? u.role
-        };
-      }
-      return u;
-    });
-
-    db.users = updatedUsers;
-    const updated = updatedUsers.find(u => u.id === id)!;
-    const { password_hash, ...safeUser } = updated;
-
-    res.json({
-      success: true,
-      data: safeUser
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
-
-export const deleteMember = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const existing = db.users.find(u => u.id === id);
-
-    if (!existing) {
-      return res.status(404).json({ success: false, error: 'Member not found' });
-    }
-
-    db.users = db.users.filter(u => u.id !== id);
-    db.bookings = db.bookings.filter(b => b.user_id !== id);
-    db.workouts = db.workouts.filter(w => w.user_id !== id);
-    db.attendance_logs = db.attendance_logs.filter(a => a.user_id !== id);
-
-    res.json({
-      success: true,
-      message: 'Member removed successfully'
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
-
-export const checkInMember = async (req: Request, res: Response) => {
-  try {
-    const { tokenOrId, method = 'qr' } = req.body;
-
-    if (!tokenOrId) {
-      return res.status(400).json({ success: false, error: 'QR Code or Member ID token is required' });
-    }
-
-    const trimmed = (tokenOrId as string).trim();
-    const user = db.users.find(
-      u => u.qr_code_token === trimmed || u.id === trimmed || u.email.toLowerCase() === trimmed.toLowerCase()
     );
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'Invalid pass code: Member not found in database.'
-      });
-    }
-
-    if (user.membership_status === 'expired') {
-      return res.status(403).json({
-        success: false,
-        error: `Check-in denied: ${user.name}'s membership has expired on ${user.membership_expiry}.`,
-        user: { name: user.name, tier: user.membership_tier, status: user.membership_status }
-      });
-    }
-
-    if (user.membership_status === 'frozen') {
-      return res.status(403).json({
-        success: false,
-        error: `Check-in denied: ${user.name}'s membership is currently frozen.`,
-        user: { name: user.name, tier: user.membership_tier, status: user.membership_status }
-      });
-    }
-
-    // Record check-in log
-    const log: AttendanceLog = {
-      id: `att_${uuidv4().substring(0, 8)}`,
-      user_id: user.id,
-      user_name: user.name,
-      user_email: user.email,
-      user_tier: user.membership_tier,
-      check_in_time: new Date().toISOString(),
-      check_in_method: method as any
-    };
-
-    db.attendance_logs = [log, ...db.attendance_logs];
-
-    // Update member streak
-    db.users = db.users.map(u => {
-      if (u.id === user.id) {
-        return { ...u, streak_days: (u.streak_days || 0) + 1 };
-      }
-      return u;
-    });
-
-    res.json({
-      success: true,
-      message: `Welcome to PulseFit, ${user.name}! Check-in confirmed.`,
-      data: {
-        log,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          tier: user.membership_tier,
-          avatar_url: user.avatar_url,
-          streak_days: (user.streak_days || 0) + 1,
-          expiry: user.membership_expiry
-        }
-      }
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
   }
-};
 
-export const getAttendanceLogs = async (req: Request, res: Response) => {
-  try {
-    const logs = db.attendance_logs.slice(0, 50);
-    res.json({
-      success: true,
-      data: logs
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  return ok(res, list.map(toSafeUser));
+});
+
+export const getMemberById = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
+  const user = findUserOr404(req.params.id);
+  const now = Date.now();
+  const today = gymToday();
+
+  const bookings = db.bookings.filter(b => b.user_id === user.id);
+  const upcoming = bookings.filter(b => {
+    if (b.status !== 'confirmed') return false;
+    const cls = db.classes.find(c => c.id === b.class_id);
+    if (!cls) return b.booking_date >= today;
+    return gymDateTime(b.booking_date, cls.start_time).getTime() > now;
+  });
+  const attendance = db.attendance_logs
+    .filter(a => a.user_id === user.id)
+    .sort((a, b) => b.check_in_time.localeCompare(a.check_in_time));
+  const payments = db.payments
+    .filter(p => p.user_id === user.id)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+  return ok(res, {
+    ...toSafeUser(user),
+    bookings_count: bookings.length,
+    attendance_count: attendance.length,
+    workouts_count: db.workouts.filter(w => w.user_id === user.id).length,
+    upcoming_bookings: upcoming.length,
+    recent_attendance: attendance.slice(0, 10),
+    payments
+  });
+});
+
+export const createMember = asyncHandler<AuthenticatedRequest>(async (req, res: Response) => {
+  const body = parse(createBody, req.body);
+  if (findUserByEmail(body.email)) emailTaken();
+
+  const tempPassword = generateTempPassword();
+  const password_hash = await bcrypt.hash(tempPassword, 10);
+  // Another request (a double-clicked "Add Member") may have inserted this email during the
+  // hash, so check again; from here to the insert nothing awaits.
+  if (findUserByEmail(body.email)) emailTaken();
+
+  const today = gymToday();
+  const paid = body.membership_tier !== 'none' && body.expiry_months > 0;
+
+  const member: User = {
+    id: newId('usr'),
+    email: body.email,
+    password_hash,
+    name: body.name,
+    role: body.role,
+    avatar_url: defaultAvatar(body.name),
+    phone: body.phone ?? '',
+    membership_tier: body.membership_tier,
+    membership_status: paid ? 'active' : 'pending',
+    // Inclusive last day: one month from 7 Oct runs until 6 Nov.
+    membership_expiry: paid ? addDays(addMonths(today, body.expiry_months), -1) : null,
+    frozen_since: null,
+    qr_code_token: generateQrToken(body.name),
+    created_at: new Date().toISOString(),
+    streak_days: 0,
+    last_active_date: null,
+    token_version: 0
+  };
+
+  db.users = [...db.users, member];
+  return ok(res, { member: toSafeUser(member), tempPassword }, `${member.name} was added.`, 201);
+});
+
+export const updateMember = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
+  const existing = findUserOr404(req.params.id);
+  const body = parse(updateBody, req.body);
+
+  if (body.role !== undefined && body.role !== existing.role) {
+    if (existing.id === req.user!.id) {
+      throw badRequest('You cannot change your own role. Ask another admin to do it.', 'CANNOT_CHANGE_OWN_ROLE');
+    }
+    if (existing.role === 'admin' && adminCount() <= 1) {
+      throw badRequest('This is the only admin account, so its role cannot be changed.', 'LAST_ADMIN');
+    }
   }
-};
+
+  const today = gymToday();
+  const next: User = { ...existing };
+  if (body.name !== undefined) next.name = body.name;
+  if (body.phone !== undefined) next.phone = body.phone;
+  if (body.role !== undefined) next.role = body.role;
+  if (body.membership_tier !== undefined) next.membership_tier = body.membership_tier;
+  if (body.membership_expiry !== undefined) next.membership_expiry = body.membership_expiry;
+  if (body.membership_status !== undefined && body.membership_status !== existing.membership_status) {
+    next.membership_status = body.membership_status;
+    // Keep frozen_since in step with the status so a later unfreeze computes the right extension.
+    next.frozen_since = body.membership_status === 'frozen' ? today : null;
+    // Unfreezing here follows the same rule as POST /membership/unfreeze: the frozen days are
+    // given back. An expiry sent in the same request is the admin's explicit choice and wins.
+    if (
+      existing.membership_status === 'frozen' &&
+      body.membership_status === 'active' &&
+      body.membership_expiry === undefined &&
+      existing.frozen_since &&
+      existing.membership_expiry
+    ) {
+      const frozenDays = Math.max(0, daysBetween(existing.frozen_since, today));
+      next.membership_expiry = addDays(existing.membership_expiry, frozenDays);
+    }
+  }
+
+  const touchesMembership = body.membership_status !== undefined || body.membership_expiry !== undefined;
+  if (touchesMembership && next.membership_status === 'active' && (!next.membership_expiry || next.membership_expiry < today)) {
+    const message = 'An active membership needs an expiry date of today or later.';
+    throw badRequest(`membership_expiry: ${message}`, 'VALIDATION_ERROR', {
+      issues: [{ path: 'membership_expiry', message }]
+    });
+  }
+
+  db.users = db.users.map(u => (u.id === existing.id ? next : u));
+  return ok(res, toSafeUser(next));
+});
+
+export const deleteMember = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
+  const existing = findUserOr404(req.params.id);
+  if (existing.id === req.user!.id) {
+    throw badRequest('You cannot delete your own account.', 'CANNOT_DELETE_SELF');
+  }
+  if (existing.role === 'admin' && adminCount() <= 1) {
+    throw badRequest('This is the only admin account, so it cannot be deleted.', 'LAST_ADMIN');
+  }
+
+  const id = existing.id;
+  const workoutIds = new Set(db.workouts.filter(w => w.user_id === id).map(w => w.id));
+
+  // Seats free themselves: capacity is counted from bookings, so dropping the bookings is enough.
+  // Payments and payment orders stay as financial records (they carry a name/email snapshot).
+  db.bookings = db.bookings.filter(b => b.user_id !== id);
+  db.workouts = db.workouts.filter(w => w.user_id !== id);
+  db.workout_sets = db.workout_sets.filter(s => !s.workout_id || !workoutIds.has(s.workout_id));
+  db.attendance_logs = db.attendance_logs.filter(a => a.user_id !== id);
+  db.time_sessions = db.time_sessions.filter(s => s.user_id !== id);
+  db.trainer_notes = db.trainer_notes.filter(n => n.member_id !== id);
+  db.password_resets = db.password_resets.filter(r => r.user_id !== id);
+  if (db.trainers.some(t => t.user_id === id)) {
+    db.trainers = db.trainers.map(t => (t.user_id === id ? { ...t, user_id: undefined } : t));
+  }
+  db.users = db.users.filter(u => u.id !== id);
+
+  return ok(res, { deleted: true }, `${existing.name} was removed.`);
+});
+
+export const resetMemberPassword = asyncHandler<AuthenticatedRequest>(async (req, res: Response) => {
+  const existing = findUserOr404(req.params.id);
+  const tempPassword = generateTempPassword();
+  const password_hash = await bcrypt.hash(tempPassword, 10);
+
+  db.users = db.users.map(u =>
+    u.id === existing.id ? { ...u, password_hash, token_version: (u.token_version || 0) + 1 } : u
+  );
+  // A reset link sent earlier would otherwise still overwrite the password the admin just set.
+  db.password_resets = db.password_resets.filter(r => r.user_id !== existing.id);
+
+  return ok(res, { tempPassword }, `A new temporary password was set for ${existing.name}.`);
+});
