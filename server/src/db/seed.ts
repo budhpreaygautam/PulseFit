@@ -1,10 +1,11 @@
 import db from './database.js';
+import { runSeedExtensions } from './seed/index.js';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { User, Trainer, GymClass, Exercise, MembershipPlan, Booking, AttendanceLog, Workout, WorkoutSet, TimeSession } from '../types/index.js';
 
 export function seedDatabase() {
-  console.log('🌱 Seeding PulseFit Gym Gurugram database with Mon-Sat Schedule, 1000-2000 INR Pricing & Time Tracking...');
+  if (!process.env.VITEST) console.log('🌱 Seeding the PulseFit demo database...');
 
   db.reset();
 
@@ -589,6 +590,7 @@ export function seedDatabase() {
       id: 'plan_basic',
       name: 'Workout & Strength Pass',
       tier: 'basic',
+      categories: ['Workout & Strength'],
       price_monthly: 1199,
       price_annual: 11988, // ₹999/month billed annually (₹11,988/yr)
       description: 'Complete access to the gym floor, free weights & strength workout sessions.',
@@ -605,6 +607,7 @@ export function seedDatabase() {
       id: 'plan_pro',
       name: 'Zumba & Cardio Pass',
       tier: 'pro',
+      categories: ['Zumba & Cardio'],
       price_monthly: 1499,
       price_annual: 14388, // ₹1,199/month billed annually (₹14,388/yr)
       description: 'Unlimited high-energy Zumba dance and cardio conditioning classes.',
@@ -621,6 +624,7 @@ export function seedDatabase() {
       id: 'plan_vip',
       name: 'Dual All-Access Pass (Strength + Zumba)',
       tier: 'vip',
+      categories: [], // empty = every category
       price_monthly: 1999,
       price_annual: 19188, // ₹1,599/month billed annually (₹19,188/yr)
       description: 'The best value: unlimited access to BOTH Strength Training & Zumba Cardio sessions.',
@@ -897,10 +901,11 @@ export function seedDatabase() {
 
   db.time_sessions = timeSessions;
 
+  // Domain-specific demo data (payments, bookings, trials, ...), see db/seed/.
+  runSeedExtensions();
+
   db.saveSync();
 
-  console.log('✅ PulseFit Gurugram database seeded and saved to disk with Mon-Sat Schedule, 1000-2000 INR Pricing & Time Tracking!');
+  if (!process.env.VITEST) console.log(`✅ Demo data written to ${db.filePath}`);
 }
 
-// Auto-run if executed directly
-seedDatabase();

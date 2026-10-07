@@ -1,22 +1,22 @@
-import 'dotenv/config'; // Ensure .env is loaded before constructing Razorpay (module imports are hoisted)
 import crypto from 'crypto';
 import { Response } from 'express';
 import Razorpay from 'razorpay';
+import config, { paymentsEnabled } from '../config.js';
 import db from '../db/database.js';
+import { ApiError } from '../lib/http.js';
 import { generateToken, AuthenticatedRequest } from '../middleware/auth.js';
 import { MembershipTier } from '../types/index.js';
 
-const keyId = process.env.RAZORPAY_KEY_ID;
-const keySecret = process.env.RAZORPAY_KEY_SECRET;
+let razorpayClient: Razorpay | null = null;
 
-if (!keyId || !keySecret) {
-  console.error('⚠️  Razorpay keys missing. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in server/.env');
+/** The Razorpay SDK client, created on first use so the API can start without payment keys. */
+function getRazorpay(): Razorpay {
+  if (!paymentsEnabled()) {
+    throw new ApiError(503, 'Online payments are not configured on this server.', 'PAYMENTS_DISABLED');
+  }
+  razorpayClient ??= new Razorpay({ key_id: config.razorpay.keyId, key_secret: config.razorpay.keySecret });
+  return razorpayClient;
 }
-
-const razorpay = new Razorpay({
-  key_id: keyId || '',
-  key_secret: keySecret || '',
-});
 
 // Create a Razorpay order for a membership purchase.
 // Amount is passed in INR (main unit) and converted to paise (smallest unit) server-side.
@@ -38,7 +38,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       },
     };
 
-    const order = await razorpay.orders.create(options);
+    const order = await getRazorpay().orders.create(options);
 
     res.json({
       success: true,
@@ -50,6 +50,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       },
     });
   } catch (err: any) {
+    if (err instanceof ApiError) return res.status(err.status).json({ success: false, error: err.message, code: err.code });
     console.error('Razorpay order creation error:', err);
     res.status(500).json({ success: false, error: err?.error?.description || err?.message || 'Order creation failed' });
   }
@@ -71,7 +72,7 @@ export const verifyPayment = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     // Recompute the expected signature and compare with the one Razorpay sent back.
-    const shasum = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || '');
+    const shasum = crypto.createHmac('sha256', config.razorpay.keySecret);
     shasum.update(`${razorpay_order_id}|${razorpay_payment_id}`);
     const digest = shasum.digest('hex');
 

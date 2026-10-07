@@ -1,0 +1,5 @@
+# Keep line endings LF in the repository so commits from Windows and elsewhere diff cleanly.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary

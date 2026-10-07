@@ -67,7 +67,7 @@ export const createBooking = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     // Check capacity
-    if (gymClass.booked_count >= gymClass.capacity) {
+    if ((gymClass.booked_count ?? 0) >= gymClass.capacity) {
       return res.status(400).json({ success: false, error: 'Class is completely full' });
     }
 
@@ -99,7 +99,7 @@ export const createBooking = async (req: AuthenticatedRequest, res: Response) =>
     // Increment class booked count
     db.classes = db.classes.map(c => {
       if (c.id === class_id) {
-        return { ...c, booked_count: c.booked_count + 1 };
+        return { ...c, booked_count: (c.booked_count ?? 0) + 1 };
       }
       return c;
     });
@@ -136,8 +136,8 @@ export const cancelBooking = async (req: AuthenticatedRequest, res: Response) =>
 
     // Decrement class booked count
     db.classes = db.classes.map(c => {
-      if (c.id === booking.class_id && c.booked_count > 0) {
-        return { ...c, booked_count: c.booked_count - 1 };
+      if (c.id === booking.class_id && (c.booked_count ?? 0) > 0) {
+        return { ...c, booked_count: (c.booked_count ?? 0) - 1 };
       }
       return c;
     });
