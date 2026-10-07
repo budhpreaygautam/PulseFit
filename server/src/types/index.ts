@@ -155,7 +155,7 @@ export interface PaymentOrder {
   billing_cycle: BillingCycle;
   amount_inr: number;
   currency: 'INR';
-  status: 'created' | 'paid' | 'failed';
+  status: 'created' | 'paid' | 'failed' | 'rejected'; // rejected: Razorpay reported a payment that does not match the order
   created_at: string;
   paid_at?: string;
 }
