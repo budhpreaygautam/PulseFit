@@ -232,13 +232,22 @@ export interface TimeSession {
   notes?: string;
 }
 
+/** A person on the floor as staff see them: no email, notes or ids. */
+export interface FloorPresence {
+  user_name: string;
+  user_avatar: string;
+  user_tier: string;
+  clock_in_time: string;
+  duration_minutes: number;
+}
+
 export interface ActiveFloorStatus {
   totalActive: number;
   workoutActive: number;
   zumbaActive: number;
   // Only included for staff (admin/trainer); the public sees counts only.
-  workoutUsers?: TimeSession[];
-  zumbaUsers?: TimeSession[];
+  workoutUsers?: FloorPresence[];
+  zumbaUsers?: FloorPresence[];
 }
 
 export interface UserTimeTrackingStats {
