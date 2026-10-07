@@ -13,8 +13,12 @@ const STATUS_CHIP: Record<BookingStatus, { label: string; className: string }> =
   cancelled: { label: 'Cancelled', className: 'bg-slate-500/10 border-slate-500/40 text-slate-600 dark:text-slate-400' }
 };
 
-export const BookingStatusChip: React.FC<{ status: BookingStatus }> = ({ status }) => {
-  const chip = STATUS_CHIP[status] ?? STATUS_CHIP.confirmed;
+// A class that has started stays 'confirmed' until the coach marks attendance.
+const UNMARKED_CHIP = { label: 'Attendance not marked yet', className: 'bg-slate-500/10 border-slate-500/40 text-slate-600 dark:text-slate-300' };
+
+export const BookingStatusChip: React.FC<{ status: BookingStatus; startsAt?: string }> = ({ status, startsAt }) => {
+  const started = startsAt !== undefined && Date.parse(startsAt) <= Date.now();
+  const chip = status === 'confirmed' && started ? UNMARKED_CHIP : (STATUS_CHIP[status] ?? STATUS_CHIP.confirmed);
   return <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border whitespace-nowrap ${chip.className}`}>{chip.label}</span>;
 };
 
@@ -36,7 +40,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ booking, onCancel, com
     <div className="flex-1 min-w-0 space-y-1">
       <div className="flex items-center gap-2 flex-wrap">
         <h3 className="font-extrabold text-sm text-slate-100 font-['Outfit'] break-words">{booking.class_title || 'Class'}</h3>
-        <BookingStatusChip status={booking.status} />
+        <BookingStatusChip status={booking.status} startsAt={booking.starts_at} />
       </div>
       <p className="text-xs text-slate-400 flex flex-wrap gap-x-3 gap-y-0.5">
         {booking.category && <span>{booking.category}</span>}

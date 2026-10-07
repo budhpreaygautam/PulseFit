@@ -16,12 +16,11 @@ const TABS: { id: Scope; label: string }[] = [
 
 export const MyBookingsPage: React.FC = () => {
   const { params, navigate } = useNavigation();
-  const [scope, setScope] = useState<Scope>(params.get('scope') === 'past' ? 'past' : 'upcoming');
+  const scope: Scope = params.get('scope') === 'past' ? 'past' : 'upcoming';
   const [toCancel, setToCancel] = useState<MyBooking | null>(null);
   const bookings = useApiResource(() => api.getMyBookings(scope), [scope]);
 
   const selectTab = (next: Scope) => {
-    setScope(next);
     navigate('my-bookings', next === 'past' ? { scope: 'past' } : undefined, { replace: true });
   };
 
