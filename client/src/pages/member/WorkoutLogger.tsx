@@ -140,6 +140,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
   };
 
   const updateSet = (groupKey: string, setKey: string, fields: Partial<DraftSet>) => {
+    clearError(`${setKey}.row`);
     setExercises(prev => prev.map(g => (g.key === groupKey ? { ...g, sets: g.sets.map(s => (s.key === setKey ? { ...s, ...fields } : s)) } : g)));
   };
 
@@ -219,8 +220,9 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
     for (const issue of issues) {
       const [head, index, field] = issue.path.split('.');
       if (head === 'sets' && index !== undefined && flat[Number(index)]) {
+        // exercise_id / set_number / whole-set issues belong to the set, not to one of its inputs.
         const key = flat[Number(index)].key;
-        next[`${key}.${SERVER_SET_FIELDS[field] ?? 'weight'}`] = issue.message;
+        next[`${key}.${SERVER_SET_FIELDS[field] ?? 'row'}`] = issue.message;
       } else if (head === 'duration_minutes') next.duration = issue.message;
       else if (head === 'title' || head === 'date' || head === 'notes' || head === 'sets') next[head] = issue.message;
     }
@@ -586,6 +588,11 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
                               <X className="w-4 h-4" aria-hidden="true" />
                             </button>
                           </div>
+                          {errors[`${s.key}.row`] && (
+                            <p className="text-[11px] text-rose-600 dark:text-rose-300 mt-2" role="alert">
+                              {setLabel}: {errors[`${s.key}.row`]}
+                            </p>
+                          )}
                         </li>
                       );
                     })}

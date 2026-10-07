@@ -494,8 +494,9 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
   const { user, updateUser, refreshUser } = useAuth();
   const { showToast } = useToast();
   const { params, navigate } = useNavigation();
-  const requested = params.get('tab') as TabId | null;
-  const [activeTab, setActiveTab] = useState<TabId>(TABS.some(t => t.id === requested) ? requested! : 'details');
+  // The URL is the single source of truth, so Navbar links and back/forward switch the panel too.
+  const requested = params.get('tab');
+  const activeTab: TabId = TABS.find(t => t.id === requested)?.id ?? 'details';
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -509,7 +510,6 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
   if (!user) return null;
 
   const selectTab = (id: TabId) => {
-    setActiveTab(id);
     navigate('profile', id === 'details' ? undefined : { tab: id }, { replace: true });
   };
 
