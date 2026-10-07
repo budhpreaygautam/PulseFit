@@ -306,8 +306,9 @@ describe('members admin API', () => {
     });
 
     it('gives the frozen days back when unfreezing, like POST /membership/unfreeze (review regression)', async () => {
+      // Pin the expiry: the payments seed sets it relative to today.
+      db.users = db.users.map(u => (u.email === personas.basic ? { ...u, membership_expiry: '2026-11-20' } : u));
       const rohan = userByEmail(personas.basic);
-      expect(rohan.membership_expiry).toBe('2026-11-20');
       const freeze = () =>
         (db.users = db.users.map(u =>
           u.id === rohan.id ? { ...u, membership_status: 'frozen' as const, frozen_since: '2026-09-27' } : u
