@@ -147,6 +147,12 @@ export const api = {
   register: (payload: { name: string; email: string; password: string; phone?: string }) =>
     post<AuthSession>('/auth/register', payload),
   googleSignIn: (credential: string) => post<AuthSession & { created: boolean }>('/auth/google', { credential }),
+  /** Like googleSignIn, but keeps the server's message (it explains when a password account was linked). */
+  googleSignInWithMessage: (credential: string) =>
+    send<AuthSession & { created: boolean }>('/auth/google', { method: 'POST', body: JSON.stringify({ credential }) }).then(r => ({
+      ...r.data,
+      message: r.message
+    })),
   demoLogin: (role: 'member' | 'vip' | 'trainer' | 'admin') => post<AuthSession>('/auth/demo-login', { role }),
   getMe: () => get<User>('/auth/me'),
   updateProfile: (profile: { name?: string; phone?: string; avatar_url?: string }) => put<User>('/auth/profile', profile),
