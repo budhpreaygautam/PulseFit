@@ -1,5 +1,6 @@
 import db from '../database.js';
-import { addDays, dayOfWeek, gymDateTime, gymToday } from '../../lib/dates.js';
+import { addDays, dayOfWeek, gymDateTime, gymToday, toGymDate } from '../../lib/dates.js';
+import { recordActivity } from '../../lib/streak.js';
 import { newId } from '../../lib/users.js';
 import { AttendanceLog, TrialPass } from '../../types/index.js';
 
@@ -87,6 +88,26 @@ function seedAttendance(today: string, now: Date): AttendanceLog[] {
   return logs;
 }
 
+/**
+ * seed.ts gives members fixed streak numbers that the generated history cannot back up
+ * (21 days in a row is impossible with Sundays closed). Replay each member's visit days
+ * through recordActivity instead, so the streak follows whatever rule lib/streak applies.
+ */
+function syncStreaks(logs: AttendanceLog[]): void {
+  const visitDays = new Map<string, Set<string>>();
+  for (const log of logs) {
+    if (log.trial_pass_id) continue;
+    const days = visitDays.get(log.user_id) ?? new Set<string>();
+    days.add(toGymDate(log.check_in_time));
+    visitDays.set(log.user_id, days);
+  }
+
+  db.users = db.users.map(u => (u.role === 'member' ? { ...u, streak_days: 0, last_active_date: null } : u));
+  for (const [userId, days] of visitDays) {
+    for (const day of [...days].sort()) recordActivity(userId, day);
+  }
+}
+
 function previousOpenDay(date: string, daysBack: number): string {
   let d = addDays(date, -daysBack);
   while (dayOfWeek(d) === 0) d = addDays(d, -1);
@@ -143,4 +164,5 @@ export function seedMembers(): void {
 
   db.attendance_logs = logs.sort((a, b) => b.check_in_time.localeCompare(a.check_in_time));
   db.trial_passes = trials;
+  syncStreaks(logs);
 }

@@ -14,7 +14,8 @@ const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const trialBody = z
   .object({
     name: z.string().trim().min(2, 'Name must be at least 2 characters.').max(60, 'Name must be at most 60 characters.'),
-    email: z.email('Enter a valid email address.').trim().toLowerCase(),
+    // Trim before the format check: autofill and paste often add spaces around the address.
+    email: z.string().trim().toLowerCase().pipe(z.email('Enter a valid email address.')),
     phone: z
       .string()
       .trim()

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import db from '../db/database.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler, badRequest, conflict, notFound, ok, parse } from '../lib/http.js';
-import { addDays, addMonths, gymDateTime, gymToday, isValidDate } from '../lib/dates.js';
+import { addDays, addMonths, daysBetween, gymDateTime, gymToday, isValidDate } from '../lib/dates.js';
 import { effectiveStatus } from '../lib/membership.js';
 import { defaultAvatar, findUserByEmail, generateQrToken, generateTempPassword, newId, toSafeUser } from '../lib/users.js';
 import { MembershipStatus, MembershipTier, User, UserRole } from '../types/index.js';
@@ -25,15 +25,22 @@ const listQuery = z.object({
 
 const nameField = z.string().trim().min(2, 'Name must be at least 2 characters.').max(60, 'Name must be at most 60 characters.');
 const phoneField = z.string().trim().max(20, 'Phone number is too long.');
+// Trim before the format check: zod's z.email().trim() validates first and rejects pasted ' a@b.com '.
+const emailField = z.string().trim().toLowerCase().pipe(z.email('Enter a valid email address.'));
+// Forms may send "3", but z.coerce would also turn true into 1 and null or '' into 0.
+const monthsField = z.preprocess(
+  v => (typeof v === 'string' && /^\s*\d+\s*$/.test(v) ? Number(v) : v),
+  z.number('Months must be a number.').int('Months must be a whole number.').min(0).max(24)
+);
 
 const createBody = z
   .object({
     name: nameField,
-    email: z.email('Enter a valid email address.').trim().toLowerCase(),
+    email: emailField,
     phone: phoneField.optional(),
     role: z.enum(ROLES).default('member'),
     membership_tier: z.enum(TIERS).default('none'),
-    expiry_months: z.coerce.number().int('Months must be a whole number.').min(0).max(24).default(0)
+    expiry_months: monthsField.default(0)
   })
   .strict();
 
@@ -52,6 +59,10 @@ function findUserOr404(id: string): User {
   const user = db.users.find(u => u.id === id);
   if (!user) throw notFound('No member with that id.', 'NOT_FOUND');
   return user;
+}
+
+function emailTaken(): never {
+  throw conflict('An account with this email already exists.', 'EMAIL_TAKEN');
 }
 
 function adminCount(): number {
@@ -112,18 +123,21 @@ export const getMemberById = asyncHandler<AuthenticatedRequest>((req, res: Respo
 
 export const createMember = asyncHandler<AuthenticatedRequest>(async (req, res: Response) => {
   const body = parse(createBody, req.body);
-  if (findUserByEmail(body.email)) {
-    throw conflict('An account with this email already exists.', 'EMAIL_TAKEN');
-  }
+  if (findUserByEmail(body.email)) emailTaken();
+
+  const tempPassword = generateTempPassword();
+  const password_hash = await bcrypt.hash(tempPassword, 10);
+  // Another request (a double-clicked "Add Member") may have inserted this email during the
+  // hash, so check again; from here to the insert nothing awaits.
+  if (findUserByEmail(body.email)) emailTaken();
 
   const today = gymToday();
   const paid = body.membership_tier !== 'none' && body.expiry_months > 0;
-  const tempPassword = generateTempPassword();
 
   const member: User = {
     id: newId('usr'),
     email: body.email,
-    password_hash: await bcrypt.hash(tempPassword, 10),
+    password_hash,
     name: body.name,
     role: body.role,
     avatar_url: defaultAvatar(body.name),
@@ -157,6 +171,7 @@ export const updateMember = asyncHandler<AuthenticatedRequest>((req, res: Respon
     }
   }
 
+  const today = gymToday();
   const next: User = { ...existing };
   if (body.name !== undefined) next.name = body.name;
   if (body.phone !== undefined) next.phone = body.phone;
@@ -166,7 +181,27 @@ export const updateMember = asyncHandler<AuthenticatedRequest>((req, res: Respon
   if (body.membership_status !== undefined && body.membership_status !== existing.membership_status) {
     next.membership_status = body.membership_status;
     // Keep frozen_since in step with the status so a later unfreeze computes the right extension.
-    next.frozen_since = body.membership_status === 'frozen' ? gymToday() : null;
+    next.frozen_since = body.membership_status === 'frozen' ? today : null;
+    // Unfreezing here follows the same rule as POST /membership/unfreeze: the frozen days are
+    // given back. An expiry sent in the same request is the admin's explicit choice and wins.
+    if (
+      existing.membership_status === 'frozen' &&
+      body.membership_status === 'active' &&
+      body.membership_expiry === undefined &&
+      existing.frozen_since &&
+      existing.membership_expiry
+    ) {
+      const frozenDays = Math.max(0, daysBetween(existing.frozen_since, today));
+      next.membership_expiry = addDays(existing.membership_expiry, frozenDays);
+    }
+  }
+
+  const touchesMembership = body.membership_status !== undefined || body.membership_expiry !== undefined;
+  if (touchesMembership && next.membership_status === 'active' && (!next.membership_expiry || next.membership_expiry < today)) {
+    const message = 'An active membership needs an expiry date of today or later.';
+    throw badRequest(`membership_expiry: ${message}`, 'VALIDATION_ERROR', {
+      issues: [{ path: 'membership_expiry', message }]
+    });
   }
 
   db.users = db.users.map(u => (u.id === existing.id ? next : u));
