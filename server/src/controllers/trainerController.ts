@@ -4,7 +4,7 @@ import db from '../db/database.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler, badRequest, conflict, notFound, ok, parse } from '../lib/http.js';
 import { newId, defaultAvatar } from '../lib/users.js';
-import { byStart, nextOccurrenceOf, toOccurrence } from '../lib/occurrences.js';
+import { byStart, nextOccurrenceOf, publicTrainer, toOccurrence } from '../lib/occurrences.js';
 import { Trainer } from '../types/index.js';
 
 const trainerFields = {
@@ -57,9 +57,9 @@ function assertLinkableUser(userId: string, exceptTrainerId?: string) {
   }
 }
 
-export const getTrainers = asyncHandler((_req, res: Response) => {
+export const getTrainers = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
   const trainers = db.trainers.map(t => ({
-    ...t,
+    ...publicTrainer(t, req.user),
     classes_count: db.classes.filter(c => c.trainer_id === t.id).length
   }));
   ok(res, trainers);
@@ -74,7 +74,7 @@ export const getTrainerById = asyncHandler<AuthenticatedRequest>((req, res: Resp
     .filter(c => c.trainer_id === trainer.id)
     .map(c => toOccurrence(c, nextOccurrenceOf(c, now), req.user?.id))
     .sort(byStart);
-  ok(res, { ...trainer, classes });
+  ok(res, { ...publicTrainer(trainer, req.user), classes });
 });
 
 export const createTrainer = asyncHandler((req, res: Response) => {

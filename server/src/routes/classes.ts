@@ -31,7 +31,7 @@ router.delete('/bookings/:id', authenticate, cancelBooking);
 router.patch('/bookings/:id/attendance', ...staff, markAttendance);
 router.get('/bookings/class/:classId/roster', ...staff, getClassRoster);
 
-router.get('/trainers', getTrainers);
+router.get('/trainers', optionalAuth, getTrainers);
 router.get('/trainers/:id', optionalAuth, getTrainerById);
 router.post('/trainers', ...admin, createTrainer);
 router.put('/trainers/:id', ...admin, updateTrainer);

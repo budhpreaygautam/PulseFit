@@ -12,6 +12,7 @@ import {
   BOOKING_WINDOW_DAYS,
   bookedCount,
   hasStarted,
+  isSessionDate,
   nextOccurrenceOf,
   presentClass,
   startsAt,
@@ -121,14 +122,16 @@ export const createBooking = asyncHandler<AuthenticatedRequest>((req, res: Respo
   if (!tierAllowsCategory(user.membership_tier, gymClass.category)) {
     throw forbidden(`Your plan does not include ${gymClass.category} classes. Upgrade your plan to book this class.`, 'PLAN_EXCLUDES_CATEGORY');
   }
-  if (bookedCount(gymClass.id, booking_date) >= gymClass.capacity) {
-    throw conflict('This class is full on that date.', 'CLASS_FULL');
-  }
+  // Duplicate before capacity: a retry from someone whose own booking took the last spot must
+  // read "already booked", not "full".
   const duplicate = db.bookings.some(
     b => b.class_id === gymClass.id && b.user_id === user.id && b.booking_date === booking_date && b.status !== 'cancelled'
   );
   if (duplicate) {
     throw conflict('You have already booked this class on that date.', 'ALREADY_BOOKED');
+  }
+  if (bookedCount(gymClass.id, booking_date) >= gymClass.capacity) {
+    throw conflict('This class is full on that date.', 'CLASS_FULL');
   }
 
   const shown = presentClass(gymClass);
@@ -198,7 +201,7 @@ export const getClassRoster = asyncHandler<AuthenticatedRequest>((req, res: Resp
   if (!gymClass) throw notFound('That class does not exist.');
   assertCanManageClass(req.user!, gymClass);
 
-  if (date && dayOfWeek(date) !== gymClass.day_of_week) {
+  if (date && !isSessionDate(gymClass, date)) {
     throw badRequest('This class does not run on that day of the week.', 'DATE_MISMATCH');
   }
   const occurrenceDate = date ?? nextOccurrenceOf(gymClass);

@@ -1,6 +1,6 @@
 import db from '../db/database.js';
-import { addDays, gymDateTime, nextOccurrence } from './dates.js';
-import { Booking, BookingStatus, GymClass, Trainer } from '../types/index.js';
+import { addDays, dayOfWeek, gymDateTime, nextOccurrence } from './dates.js';
+import { Booking, BookingStatus, GymClass, Trainer, User } from '../types/index.js';
 
 // Classes are weekly templates; everything a member books or a trainer runs is an
 // occurrence (class + gym-local date). Capacity is counted per occurrence from bookings.
@@ -69,6 +69,15 @@ export function nextOccurrenceOf(cls: Pick<GymClass, 'day_of_week' | 'start_time
   return nextOccurrence(cls.day_of_week, cls.start_time, now);
 }
 
+/**
+ * Whether a session of the class can exist on this date: its weekday, or a date that still has
+ * bookings (sessions held before the class moved to another weekday stay reachable as history).
+ */
+export function isSessionDate(cls: Pick<GymClass, 'id' | 'day_of_week'>, date: string): boolean {
+  if (dayOfWeek(date) === cls.day_of_week) return true;
+  return db.bookings.some(b => b.class_id === cls.id && b.booking_date === date && b.status !== 'cancelled');
+}
+
 /** Date of a class's occurrence in the week that starts on the given Monday. */
 export function occurrenceInWeek(cls: Pick<GymClass, 'day_of_week'>, monday: string): string {
   return addDays(monday, (cls.day_of_week + 6) % 7);
@@ -76,6 +85,15 @@ export function occurrenceInWeek(cls: Pick<GymClass, 'day_of_week'>, monday: str
 
 export function byStart(a: { starts_at: string }, b: { starts_at: string }): number {
   return a.starts_at.localeCompare(b.starts_at);
+}
+
+export type PublicTrainer = Omit<Trainer, 'user_id' | 'email' | 'phone'> & Partial<Pick<Trainer, 'user_id' | 'email' | 'phone'>>;
+
+/** A trainer as the public pages see it: staff contact details and the login link only for admins. */
+export function publicTrainer(trainer: Trainer, viewer?: Pick<User, 'role'>): PublicTrainer {
+  if (viewer?.role === 'admin') return { ...trainer };
+  const { user_id: _userId, email: _email, phone: _phone, ...rest } = trainer;
+  return rest;
 }
 
 /** The trainer record linked to a user account, if any. */
