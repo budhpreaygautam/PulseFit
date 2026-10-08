@@ -9,7 +9,12 @@ const DEFAULT_CONFIG: AppConfig = {
   demoMode: false,
   googleClientId: null,
   payments: { enabled: false, keyId: null },
-  gym: { name: 'PulseFit Athletics', timezone: 'Asia/Kolkata', currency: 'INR' }
+  gym: {
+    name: 'PulseFit Athletics',
+    timezone: 'Asia/Kolkata',
+    currency: 'INR',
+    hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: true }
+  }
 };
 
 interface ConfigContextType {

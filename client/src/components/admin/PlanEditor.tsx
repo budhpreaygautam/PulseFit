@@ -106,7 +106,7 @@ export const PlanEditor: React.FC<PlanEditorProps> = ({ plan, onSaved, onStale }
     if (Object.keys(found).length || !isDirty) return;
     setIsSaving(true);
     try {
-      onSaved(await api.updatePlan(plan.id, changes));
+      onSaved((await api.updatePlan(plan.id, changes)).data);
     } catch (err) {
       if (err instanceof ApiError && err.code === 'VALIDATION_ERROR' && Object.keys(fieldErrorsFrom(err)).length) setErrors(fieldErrorsFrom(err));
       else {

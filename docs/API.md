@@ -43,8 +43,10 @@ Read from `membership_plans[].categories` (empty = all). Prices live only in the
 ## Runtime config — owner: platform
 
 ### `GET /config` (public)
-`{ demoMode: boolean, googleClientId: string | null, payments: { enabled: boolean, keyId: string | null }, gym: { name, timezone, currency } }`.
+`{ demoMode: boolean, googleClientId: string | null, payments: { enabled: boolean, keyId: string | null }, gym: { name, timezone, currency, hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: boolean } } }`.
 The client hides the demo persona switcher, "Continue with Google" and checkout when they are off.
+`hours` is the gym's opening hours in gym time (`closedWeekdays`: 0 = Sunday). `enforced` mirrors `ENFORCE_OPENING_HOURS`:
+when on, check-ins, floor clock-ins and same-day free trials are refused while the gym is closed.
 
 ### `GET /health`
 `{ status: 'ok', timestamp }`.

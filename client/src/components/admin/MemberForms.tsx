@@ -220,7 +220,7 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, curren
 
     setIsSaving(true);
     try {
-      onSaved(await api.updateMember(member.id, changes));
+      onSaved((await api.updateMember(member.id, changes)).data);
     } catch (err) {
       if (err instanceof ApiError && (err.code === 'CANNOT_CHANGE_OWN_ROLE' || err.code === 'LAST_ADMIN')) setErrors({ role: err.message });
       else if (err instanceof ApiError && err.code === 'VALIDATION_ERROR' && Object.keys(fieldErrorsFrom(err)).length) setErrors(fieldErrorsFrom(err));

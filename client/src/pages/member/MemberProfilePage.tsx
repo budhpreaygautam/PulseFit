@@ -201,7 +201,7 @@ const MembershipPanel: React.FC<{ user: User; onOpenPricing: () => void }> = ({ 
 
   const run = async () => {
     try {
-      const next = confirm === 'freeze' ? await api.freezeMembership() : await api.unfreezeMembership();
+      const { data: next } = confirm === 'freeze' ? await api.freezeMembership() : await api.unfreezeMembership();
       updateUser(next);
       showToast(
         confirm === 'freeze'

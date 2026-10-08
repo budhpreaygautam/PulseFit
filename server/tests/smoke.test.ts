@@ -13,7 +13,10 @@ describe('API smoke', () => {
   it('describes the deployment in /config without leaking secrets', async () => {
     const res = await api().get('/api/config');
     expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ demoMode: true, gym: { timezone: 'Asia/Kolkata', currency: 'INR' } });
+    expect(res.body.data).toMatchObject({
+      demoMode: true,
+      gym: { timezone: 'Asia/Kolkata', currency: 'INR', hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: false } }
+    });
     expect(JSON.stringify(res.body)).not.toMatch(/secret/i);
   });
 

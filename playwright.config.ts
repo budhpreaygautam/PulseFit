@@ -34,6 +34,8 @@ export default defineConfig({
       SERVE_CLIENT: 'true',
       DEMO_MODE: 'true',
       RATE_LIMIT: 'false',
+      // The e2e flows check in and clock in, so they must not depend on the hour they run at.
+      ENFORCE_OPENING_HOURS: 'false',
       PULSEFIT_DB_PATH: dbPath
     }
   }

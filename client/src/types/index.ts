@@ -30,7 +30,16 @@ export interface AppConfig {
   demoMode: boolean;
   googleClientId: string | null;
   payments: { enabled: boolean; keyId: string | null };
-  gym: { name: string; timezone: string; currency: string };
+  gym: { name: string; timezone: string; currency: string; hours: OpeningHours };
+}
+
+/** Gym-local opening hours; closedWeekdays uses 0 = Sunday. */
+export interface OpeningHours {
+  opensAt: string;
+  closesAt: string;
+  closedWeekdays: number[];
+  /** When true the server refuses check-ins, clock-ins and same-day trials outside these hours. */
+  enforced: boolean;
 }
 
 export interface AuthSession {
