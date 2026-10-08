@@ -174,7 +174,7 @@ function MainAppContent() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gym-950 text-slate-100">
+    <div className="min-h-screen flex flex-col overflow-x-clip bg-gym-950 text-slate-100">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] neu-btn-lime px-4 py-2 rounded-lg text-sm font-bold">
         Skip to content
       </a>

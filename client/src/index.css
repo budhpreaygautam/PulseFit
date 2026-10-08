@@ -21,6 +21,13 @@
   --gym-800: #202b3d;
   --gym-700: #2c3b52;
   --gym-600: #425573;
+  /* The same colours as RGB channels, so Tailwind opacity modifiers (bg-gym-900/80) work. */
+  --gym-950-rgb: 15 20 29;
+  --gym-900-rgb: 20 27 39;
+  --gym-850-rgb: 25 34 49;
+  --gym-800-rgb: 32 43 61;
+  --gym-700-rgb: 44 59 82;
+  --gym-600-rgb: 66 85 115;
 
   /* Neumorphic Shadow Tokens */
   --neu-shadow-dark: #080b10;
@@ -40,6 +47,12 @@
   --gym-800: #dce3ee;
   --gym-700: #c5d0df;
   --gym-600: #9cb0c8;
+  --gym-950-rgb: 230 235 242;
+  --gym-900-rgb: 236 241 248;
+  --gym-850-rgb: 241 246 252;
+  --gym-800-rgb: 220 227 238;
+  --gym-700-rgb: 197 208 223;
+  --gym-600-rgb: 156 176 200;
 
   /* Neumorphic Shadow Tokens */
   --neu-shadow-dark: #b8c3d1;
@@ -347,4 +360,116 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #84cc16;
+}
+/* ------------------------------------------------------------------ */
+/* Toast notifications: frosted glass with a neumorphic edge           */
+/* ------------------------------------------------------------------ */
+/* Text colours are set here, not through the slate remaps, so a toast stays readable over */
+/* anything behind it (photos, the dark dialog backdrop) in both themes.                  */
+.glass-toast {
+  --toast-accent: #22d3ee;
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  background-color: rgb(var(--gym-850-rgb) / 0.8);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 22px 45px -18px rgba(0, 0, 0, 0.75),
+    6px 6px 14px var(--neu-shadow-dark),
+    -4px -4px 12px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  animation: toast-in 0.28s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+}
+.light .glass-toast {
+  background-color: rgb(var(--gym-850-rgb) / 0.86);
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 22px 45px -18px rgba(15, 23, 42, 0.45),
+    6px 6px 14px var(--neu-shadow-dark),
+    -6px -6px 14px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+/* Accent bar on the leading edge. */
+.glass-toast::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--toast-accent);
+}
+.glass-toast[data-type='success'] { --toast-accent: #84cc16; }
+.glass-toast[data-type='error'] { --toast-accent: #f43f5e; }
+.glass-toast[data-type='warning'] { --toast-accent: #f59e0b; }
+.light .glass-toast[data-type='success'] { --toast-accent: #4d7c0f; }
+.light .glass-toast[data-type='error'] { --toast-accent: #be123c; }
+.light .glass-toast[data-type='warning'] { --toast-accent: #b45309; }
+.light .glass-toast[data-type='info'] { --toast-accent: #0e7490; }
+
+.glass-toast .toast-icon {
+  color: var(--toast-accent);
+  border-radius: 0.85rem;
+  background-color: rgb(var(--gym-950-rgb) / 0.55);
+  box-shadow: inset 2px 2px 5px var(--neu-shadow-dark), inset -2px -2px 5px var(--neu-shadow-light);
+}
+.glass-toast .toast-title { color: #f8fafc; }
+.glass-toast .toast-message { color: #cbd5e1; }
+.light .glass-toast .toast-title { color: #0f172a; }
+.light .glass-toast .toast-message { color: #334155; }
+.glass-toast .toast-close { color: #94a3b8; }
+.glass-toast .toast-close:hover { color: #f8fafc; }
+.light .glass-toast .toast-close { color: #475569; }
+.light .glass-toast .toast-close:hover { color: #0f172a; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (min-width: 640px) {
+  .glass-toast { animation-name: toast-in-up; }
+}
+@keyframes toast-in-up {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .glass-toast { animation: none; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Dialogs: bottom sheet on phones, centred card from 640px            */
+/* ------------------------------------------------------------------ */
+.modal-panel {
+  /* Leave a strip at the top: room for toasts, and somewhere to tap to close. */
+  max-height: calc(100vh - 4.75rem);
+  max-height: calc(100dvh - 4.75rem);
+  border-radius: 1.75rem 1.75rem 0 0 !important;
+  animation: sheet-in 0.26s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+}
+.modal-body {
+  /* Keep the last button clear of the phone's home indicator. */
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+}
+@media (min-width: 640px) {
+  .modal-panel {
+    max-height: calc(100vh - 3rem);
+    max-height: calc(100dvh - 3rem);
+    border-radius: 2rem !important;
+    animation-name: dialog-in;
+  }
+  .modal-body {
+    padding-bottom: 2rem;
+  }
+}
+@keyframes sheet-in {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes dialog-in {
+  from { transform: translateY(8px) scale(0.98); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-panel { animation: none; }
 }

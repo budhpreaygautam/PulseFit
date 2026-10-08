@@ -39,9 +39,11 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <ToastContext.Provider value={{ toasts, showToast, removeToast }}>
       {children}
-      {/* Toast Render Container */}
+      {/* Phones: full width along the top, below the status bar, in the strip a bottom-sheet dialog
+          always leaves free. From 640px: bottom-right corner. Above dialogs (z-50). Toasts never block
+          taps on what is underneath; only their dismiss button is clickable. */}
       <div
-        className="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-md w-full pointer-events-none px-4"
+        className="fixed inset-x-0 top-0 z-[70] flex flex-col gap-2 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pointer-events-none sm:inset-x-auto sm:top-auto sm:right-5 sm:bottom-5 sm:w-[24rem] sm:gap-2.5 sm:px-0 sm:pt-0"
         role="region"
         aria-label="Notifications"
         aria-live="polite"
@@ -50,33 +52,26 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           <div
             key={t.id}
             role={t.type === 'error' ? 'alert' : 'status'}
-            className={`pointer-events-auto flex items-start gap-3 p-4 rounded-xl border shadow-2xl backdrop-blur-xl ${
-              t.type === 'success'
-                ? 'bg-gym-900/95 border-lime-500/40 text-slate-100 shadow-glow-lime'
-                : t.type === 'error'
-                ? 'bg-gym-900/95 border-rose-500/40 text-slate-100 shadow-glow-crimson'
-                : t.type === 'warning'
-                ? 'bg-gym-900/95 border-amber-500/40 text-slate-100 shadow-glow-amber'
-                : 'bg-gym-900/95 border-blue-500/40 text-slate-100'
-            }`}
+            data-type={t.type}
+            className="glass-toast pointer-events-none flex items-start gap-3 py-3 pl-5 pr-2.5 sm:py-3.5 sm:pr-3"
           >
-            <div className="shrink-0 mt-0.5">
-              {t.type === 'success' && <CheckCircle2 className="w-5 h-5 text-lime-400" />}
-              {t.type === 'error' && <AlertCircle className="w-5 h-5 text-rose-400" />}
-              {t.type === 'warning' && <AlertTriangle className="w-5 h-5 text-amber-400" />}
-              {t.type === 'info' && <Info className="w-5 h-5 text-cyan-400" />}
+            <div className="toast-icon shrink-0 w-9 h-9 flex items-center justify-center">
+              {t.type === 'success' && <CheckCircle2 className="w-5 h-5" aria-hidden="true" />}
+              {t.type === 'error' && <AlertCircle className="w-5 h-5" aria-hidden="true" />}
+              {t.type === 'warning' && <AlertTriangle className="w-5 h-5" aria-hidden="true" />}
+              {t.type === 'info' && <Info className="w-5 h-5" aria-hidden="true" />}
             </div>
 
-            <div className="flex-1 text-sm">
-              {t.title && <div className="font-semibold text-slate-100 mb-0.5">{t.title}</div>}
-              <div className="text-slate-300 leading-snug">{t.message}</div>
+            <div className="flex-1 min-w-0 self-center text-sm">
+              {t.title && <div className="toast-title font-bold mb-0.5">{t.title}</div>}
+              <div className="toast-message leading-snug break-words">{t.message}</div>
             </div>
 
             <button
               type="button"
               onClick={() => removeToast(t.id)}
               aria-label="Dismiss notification"
-              className="text-slate-400 hover:text-slate-200 transition-colors p-1"
+              className="toast-close pointer-events-auto shrink-0 p-1.5 rounded-lg transition-colors"
             >
               <X className="w-4 h-4" aria-hidden="true" />
             </button>

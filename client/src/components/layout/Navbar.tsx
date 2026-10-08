@@ -208,7 +208,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
             <span className="w-10 h-10 rounded-2xl flex items-center justify-center neu-btn-lime group-hover:scale-105 transition-transform">
               <Dumbbell className="w-5 h-5 stroke-[2.5]" aria-hidden="true" />
             </span>
-            <span className="text-left">
+            {/* Below 360px only the logo mark fits next to the buttons; the link keeps its aria-label. */}
+            <span className="text-left max-[359px]:hidden">
               <span className="block text-lg font-black tracking-tight text-slate-100 font-['Outfit'] leading-tight">
                 PULSE<span className="text-lime-400">FIT</span>
               </span>
@@ -224,7 +225,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
             ))}
           </nav>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
             {isInitializing ? (
               <div className="flex items-center gap-2" role="status">
                 <span className="w-24 h-8 rounded-xl neu-pressed-sm animate-pulse" aria-hidden="true" />
