@@ -146,9 +146,8 @@ export const api = {
   login: (credentials: { email: string; password: string }) => post<AuthSession>('/auth/login', credentials),
   register: (payload: { name: string; email: string; password: string; phone?: string }) =>
     post<AuthSession>('/auth/register', payload),
-  googleSignIn: (credential: string) => post<AuthSession & { created: boolean }>('/auth/google', { credential }),
-  /** Like googleSignIn, but keeps the server's message (it explains when a password account was linked). */
-  googleSignInWithMessage: (credential: string) =>
+  /** `message` is set when an existing password account was linked (its password was removed). */
+  googleSignIn: (credential: string) =>
     send<AuthSession & { created: boolean }>('/auth/google', { method: 'POST', body: JSON.stringify({ credential }) }).then(r => ({
       ...r.data,
       message: r.message

@@ -16,9 +16,14 @@ export function planCovers(plan: MembershipPlan, category: string): boolean {
   return plan.categories.length === 0 || plan.categories.includes(category as ClassCategory);
 }
 
-/** The cheapest plan that lets a member book classes of this category. */
-export function cheapestPlanFor(plans: MembershipPlan[], category: string): MembershipPlan | undefined {
-  return [...plans].filter(p => planCovers(p, category)).sort((a, b) => a.price_monthly - b.price_monthly)[0];
+/**
+ * The cheapest plan that lets a member book classes of this category. With `keeping`, the plan must also
+ * cover everything that plan covers, so a member is never pointed at a switch that takes classes away.
+ */
+export function cheapestPlanFor(plans: MembershipPlan[], category: string, keeping?: MembershipPlan): MembershipPlan | undefined {
+  const keeps = (p: MembershipPlan) =>
+    !keeping || p.categories.length === 0 || (keeping.categories.length > 0 && keeping.categories.every(c => p.categories.includes(c)));
+  return [...plans].filter(p => planCovers(p, category) && keeps(p)).sort((a, b) => a.price_monthly - b.price_monthly)[0];
 }
 
 export function cheapestPlan(plans: MembershipPlan[]): MembershipPlan | undefined {

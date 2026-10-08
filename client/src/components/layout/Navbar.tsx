@@ -85,6 +85,14 @@ const DEMO_PERSONAS: { role: DemoRole; label: string; email: string }[] = [
   { role: 'admin', label: 'Admin', email: 'admin@pulsefit.com' }
 ];
 
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0].toUpperCase())
+    .join('');
+
 const ROLE_SECTION_LABEL: Record<UserRole, string> = { member: 'My PulseFit', trainer: 'Coach tools', admin: 'Front desk & admin' };
 
 const linkClass = (active: boolean) =>
@@ -189,7 +197,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
         </div>
       )}
 
-      <header className="sticky top-0 z-40 bg-gym-950/95 backdrop-blur-md border-b border-slate-800/80 shadow-[0_4px_16px_var(--neu-shadow-dark)] transition-colors">
+      <header className="sticky top-0 z-40 bg-gym-950 border-b border-slate-800/80 shadow-[0_4px_16px_var(--neu-shadow-dark)] transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
           <TabLink
             tab="home"
@@ -244,11 +252,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
                     currentTab === 'profile' ? 'neu-pressed-sm border border-lime-500/30' : 'neu-btn'
                   }`}
                 >
-                  <img
-                    src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`}
-                    alt=""
-                    className="w-7 h-7 rounded-lg object-cover bg-slate-800"
-                  />
+                  {user.avatar_url ? (
+                    <img src={user.avatar_url} alt="" className="w-7 h-7 rounded-lg object-cover bg-slate-800" />
+                  ) : (
+                    <span aria-hidden="true" className="w-7 h-7 rounded-lg neu-btn-lime flex items-center justify-center text-[11px] font-black">
+                      {initials(user.name)}
+                    </span>
+                  )}
                   <span className="text-xs font-bold hidden sm:inline text-slate-200 max-w-[8rem] truncate">{user.name.split(' ')[0]}</span>
                 </TabLink>
                 <button

@@ -103,6 +103,11 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
     [classes]
   );
 
+  // A new week or coach can drop the chosen intensity from the list; keep the filter in step with what the select shows.
+  useEffect(() => {
+    if (classesState.data && intensity !== 'All' && !intensityOptions.includes(intensity)) setIntensity('All');
+  }, [classesState.data, intensityOptions, intensity]);
+
   const matchesFilters = (c: ClassOccurrence) => {
     const q = search.trim().toLowerCase();
     return (
@@ -162,11 +167,11 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
         return null;
       case 'PLAN_EXCLUDES_CATEGORY': {
         const all = await loadPlans();
-        const cover = all ? cheapestPlanFor(all, c.category) : undefined;
         const current = all?.find(p => p.tier === user?.membership_tier);
+        const cover = all ? cheapestPlanFor(all, c.category, current) : undefined;
         return {
           message: cover
-            ? `${current ? `Your ${current.name}` : 'Your plan'} doesn't include ${c.category} classes. The ${cover.name} covers them, from ${formatINR(cover.price_monthly)} a month.`
+            ? `${current ? `Your ${current.name}` : 'Your plan'} doesn't include ${c.category} classes. The ${cover.name} covers them${current ? ' as well as everything your plan has now' : ''}, from ${formatINR(cover.price_monthly)} a month.`
             : errorMessage(err),
           action: { label: cover ? `See the ${cover.name}` : 'See plans', tab: 'pricing', params: cover ? { plan: cover.tier } : undefined }
         };

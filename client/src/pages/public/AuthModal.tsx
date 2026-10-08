@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { useToast } from '../../context/ToastContext.js';
-import { api, errorMessage, isApiError } from '../../api/client.js';
+import { errorMessage, isApiError } from '../../api/client.js';
 import { homeTabFor } from '../../routes.js';
 import { User } from '../../types/index.js';
 
@@ -54,7 +54,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const [resetResult, setResetResult] = useState<{ message: string; resetUrl?: string } | null>(null);
   const [busy, setBusy] = useState<'form' | 'google' | DemoRole | null>(null);
 
-  const { login, register, demoLogin, forgotPassword, setSession, triggerCelebration } = useAuth();
+  const { login, register, loginWithGoogle, demoLogin, forgotPassword } = useAuth();
   const { config } = useAppConfig();
   const { navigate } = useNavigation();
   const { showToast } = useToast();
@@ -153,9 +153,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setFormError(null);
     setBusy('google');
     try {
-      const result = await api.googleSignInWithMessage(credential);
-      setSession({ token: result.token, user: result.user });
-      triggerCelebration();
+      const result = await loginWithGoogle(credential);
       if (result.message) {
         // Linking removed the old password; send them where they can set a new one.
         onClose();
