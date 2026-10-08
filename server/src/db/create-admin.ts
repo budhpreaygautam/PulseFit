@@ -49,5 +49,5 @@ db.saveSync();
 
 console.log(`✅ Admin ${email} created in ${db.filePath}`);
 console.log(`   Temporary password: ${password}`);
-console.log('   Sign in and change it from My account → Security.');
+console.log('   Sign in and change it under My account → Password.');
 console.log('   If the API was running, restart it now so it loads the new account.');
