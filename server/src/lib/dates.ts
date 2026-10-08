@@ -133,3 +133,10 @@ export function startOfWeek(date: string): string {
   const dow = dayOfWeek(date);
   return addDays(date, dow === 0 ? -6 : 1 - dow);
 }
+
+const displayFormatter = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+/** A 'YYYY-MM-DD' date as people read it in messages: '31 Oct 2026'. */
+export function displayDate(date: string): string {
+  return displayFormatter.format(new Date(`${date}T00:00:00Z`));
+}
