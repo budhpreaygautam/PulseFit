@@ -50,6 +50,8 @@ money and access rules are enforced on the server, and the features the README a
 
 ### Changed
 
+- Pocket-friendly default prices: ₹699 / ₹799 / ₹999 a month (₹7,188 / ₹8,388 / ₹10,188 a year),
+  down from ₹1,199 / ₹1,499 / ₹1,999. Prices live in the plan catalogue and admins can change them.
 - Dashboards show only stored data: MRR, revenue, check-ins, fill rate, retention and peak hours are
   computed in India Standard Time from real records, with a one-line definition for each figure.
 - Streaks count consecutive days with any activity (check-in, class, floor session, same-day workout).
