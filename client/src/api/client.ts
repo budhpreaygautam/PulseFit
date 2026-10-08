@@ -169,7 +169,11 @@ export const api = {
   getClasses: (params: { day?: number; category?: string; trainerId?: string; intensity?: string; search?: string; week_start?: string } = {}) =>
     get<ClassOccurrence[]>(`/classes${qs(params)}`),
   getClassById: (id: string, date?: string) => get<ClassOccurrence & { trainer?: Trainer }>(`/classes/${id}${qs({ date })}`),
-  createClass: (payload: Omit<GymClass, 'id' | 'trainer_name' | 'trainer_avatar'>) => post<GymClass>('/classes', payload),
+  // The server defaults intensity, description, image_url and calories_burn_est.
+  createClass: (
+    payload: Omit<GymClass, 'id' | 'trainer_name' | 'trainer_avatar' | 'intensity' | 'description' | 'image_url' | 'calories_burn_est'> &
+      Partial<Pick<GymClass, 'intensity' | 'description' | 'image_url' | 'calories_burn_est'>>
+  ) => post<GymClass>('/classes', payload),
   updateClass: (id: string, payload: Partial<Omit<GymClass, 'id'>>) => put<GymClass>(`/classes/${id}`, payload),
   deleteClass: (id: string) => del<{ cancelled_bookings: number }>(`/classes/${id}`),
 
@@ -184,13 +188,16 @@ export const api = {
   getTrainers: () => get<Trainer[]>('/trainers'),
   getTrainerById: (id: string) => get<Trainer & { classes: ClassOccurrence[] }>(`/trainers/${id}`),
   createTrainer: (payload: Partial<Trainer>) => post<Trainer>('/trainers', payload),
-  updateTrainer: (id: string, payload: Partial<Trainer>) => put<Trainer>(`/trainers/${id}`, payload),
+  // user_id: null unlinks the trainer's login account.
+  updateTrainer: (id: string, payload: Partial<Omit<Trainer, 'user_id'>> & { user_id?: string | null }) =>
+    put<Trainer>(`/trainers/${id}`, payload),
   deleteTrainer: (id: string, reassignTo?: string) =>
     del<{ deleted: true; reassigned_classes: number }>(`/trainers/${id}${qs({ reassign_to: reassignTo })}`),
 
   getTrainerDashboard: (trainerId?: string) => get<TrainerDashboard>(`/trainer/me${qs({ trainer_id: trainerId })}`),
   getTrainerClients: (trainerId?: string) => get<TrainerClient[]>(`/trainer/clients${qs({ trainer_id: trainerId })}`),
-  getTrainerNotes: (memberId?: string) => get<TrainerNote[]>(`/trainer/notes${qs({ member_id: memberId })}`),
+  getTrainerNotes: (memberId?: string, trainerId?: string) =>
+    get<TrainerNote[]>(`/trainer/notes${qs({ member_id: memberId, trainer_id: trainerId })}`),
   createTrainerNote: (payload: { member_id: string; category: TrainerNoteCategory; note: string; visible_to_member: boolean }) =>
     post<TrainerNote>('/trainer/notes', payload),
   deleteTrainerNote: (id: string) => del<{ deleted: true }>(`/trainer/notes/${id}`),
