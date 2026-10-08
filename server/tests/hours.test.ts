@@ -63,3 +63,11 @@ describe('opening hours', () => {
     expect(openDaysBetween('2026-10-14', '2026-10-12')).toBe(0);
   });
 });
+
+describe('displayDate', () => {
+  it('formats a calendar date for messages', async () => {
+    const { displayDate } = await import('../src/lib/dates.js');
+    expect(displayDate('2026-10-31')).toBe('31 Oct 2026');
+    expect(displayDate('2026-01-05')).toBe('5 Jan 2026');
+  });
+});
