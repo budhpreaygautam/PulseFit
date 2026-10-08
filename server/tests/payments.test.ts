@@ -13,6 +13,9 @@ const WEBHOOK_SECRET = 'test-webhook-secret';
 const NOW = new Date('2026-10-07T06:30:00.000Z');
 
 const original = { ...config.razorpay };
+// Expected amounts come from the seeded plan catalogue, so a price change does not break these tests.
+const plan = (tier: 'basic' | 'pro' | 'vip') => db.membership_plans.find(p => p.tier === tier)!;
+const paise = (inr: number) => inr * 100;
 let orderSeq = 0;
 const createOrderMock = vi.fn(async (params: { amount: number; currency: string }) => ({
   id: `order_test_${++orderSeq}`,
@@ -68,11 +71,11 @@ describe('GET /plans', () => {
     const res = await api().get('/api/plans');
     expect(res.status).toBe(200);
     expect(res.body.data.map((p: any) => p.tier)).toEqual(['basic', 'pro', 'vip']);
-    expect(res.body.data[0]).toMatchObject({ price_monthly: 1199, price_annual: 11988, categories: ['Workout & Strength'] });
+    expect(res.body.data[0]).toMatchObject({ price_monthly: 699, price_annual: 7188, categories: ['Workout & Strength'] });
   });
 
   it('keeps the sort after an admin reprices a plan', async () => {
-    await api().put('/api/plans/plan_vip').set(authHeader(personas.admin)).send({ price_monthly: 999 });
+    await api().put('/api/plans/plan_vip').set(authHeader(personas.admin)).send({ price_monthly: plan('basic').price_monthly - 100 });
     const res = await api().get('/api/plans');
     expect(res.body.data.map((p: any) => p.tier)).toEqual(['vip', 'basic', 'pro']);
   });
@@ -110,10 +113,11 @@ describe('PUT /plans/:id', () => {
     [{ tier: 'vip' }],
     [{ id: 'plan_x' }]
   ])('rejects %j with 400 VALIDATION_ERROR', async body => {
+    const before = plan('basic').price_monthly;
     const res = await api().put('/api/plans/plan_basic').set(authHeader(personas.admin)).send(body);
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('VALIDATION_ERROR');
-    expect(db.membership_plans.find(p => p.id === 'plan_basic')!.price_monthly).toBe(1199);
+    expect(db.membership_plans.find(p => p.id === 'plan_basic')!.price_monthly).toBe(before);
   });
 
   it('answers 404 for an unknown plan', async () => {
@@ -135,8 +139,8 @@ describe('POST /payment/create-order', () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({
       orderId: 'order_test_' + orderSeq,
-      amount: 149900,
-      amount_inr: 1499,
+      amount: paise(plan('pro').price_monthly),
+      amount_inr: plan('pro').price_monthly,
       currency: 'INR',
       keyId: KEY_ID,
       tier: 'pro',
@@ -144,15 +148,15 @@ describe('POST /payment/create-order', () => {
       plan_name: 'Zumba & Cardio Pass',
       description: expect.stringContaining('Zumba & Cardio Pass')
     });
-    expect(createOrderMock).toHaveBeenCalledWith(expect.objectContaining({ amount: 149900, currency: 'INR' }));
+    expect(createOrderMock).toHaveBeenCalledWith(expect.objectContaining({ amount: paise(plan('pro').price_monthly), currency: 'INR' }));
     const stored = db.payment_orders.find(o => o.id === res.body.data.orderId)!;
-    expect(stored).toMatchObject({ user_id: userByEmail(personas.member).id, tier: 'pro', billing_cycle: 'monthly', amount_inr: 1499, status: 'created' });
+    expect(stored).toMatchObject({ user_id: userByEmail(personas.member).id, tier: 'pro', billing_cycle: 'monthly', amount_inr: plan('pro').price_monthly, status: 'created' });
   });
 
   it('charges the yearly total for annual (regression: annual charged one month)', async () => {
     const res = await api().post('/api/payment/create-order').set(authHeader(personas.vip)).send({ tier: 'vip', billing_cycle: 'annual' });
-    expect(res.body.data).toMatchObject({ amount: 1918800, amount_inr: 19188 });
-    expect(createOrderMock).toHaveBeenCalledWith(expect.objectContaining({ amount: 1918800 }));
+    expect(res.body.data).toMatchObject({ amount: paise(plan('vip').price_annual), amount_inr: plan('vip').price_annual });
+    expect(createOrderMock).toHaveBeenCalledWith(expect.objectContaining({ amount: paise(plan('vip').price_annual) }));
   });
 
   it('ignores an amount or currency sent by the client (regression: VIP for ₹69)', async () => {
@@ -161,8 +165,8 @@ describe('POST /payment/create-order', () => {
       .set(authHeader(personas.member))
       .send({ tier: 'vip', billing_cycle: 'monthly', amount: 69, currency: 'USD', notes: { tier: 'vip' } });
     expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ amount: 199900, amount_inr: 1999, currency: 'INR' });
-    expect(createOrderMock).toHaveBeenCalledWith(expect.objectContaining({ amount: 199900, currency: 'INR' }));
+    expect(res.body.data).toMatchObject({ amount: paise(plan('vip').price_monthly), amount_inr: plan('vip').price_monthly, currency: 'INR' });
+    expect(createOrderMock).toHaveBeenCalledWith(expect.objectContaining({ amount: paise(plan('vip').price_monthly), currency: 'INR' }));
   });
 
   it.each([[{}], [{ tier: 'none', billing_cycle: 'monthly' }], [{ tier: 'pro', billing_cycle: 'weekly' }], [{ billing_cycle: 'monthly' }]])(
@@ -214,7 +218,7 @@ describe('POST /payment/verify', () => {
       razorpay_payment_id: 'pay_dev_1',
       tier: 'basic',
       billing_cycle: 'monthly',
-      amount_inr: 1199,
+      amount_inr: plan('basic').price_monthly,
       currency: 'INR',
       status: 'paid',
       period_start: '2026-10-07',
@@ -233,7 +237,7 @@ describe('POST /payment/verify', () => {
     const res = await verify(personas.expired, orderId, 'pay_x', { tier: 'vip', billing_cycle: 'annual', amount: 1 });
     expect(res.status).toBe(200);
     expect(res.body.data.user).toMatchObject({ membership_tier: 'basic', membership_expiry: '2026-11-06' });
-    expect(res.body.data.payment).toMatchObject({ tier: 'basic', billing_cycle: 'monthly', amount_inr: 1199 });
+    expect(res.body.data.payment).toMatchObject({ tier: 'basic', billing_cycle: 'monthly', amount_inr: plan('basic').price_monthly });
   });
 
   it('extends the same active tier from the day after the current expiry (regression: reset from today)', async () => {
@@ -248,7 +252,7 @@ describe('POST /payment/verify', () => {
     const orderId = await createOrder(personas.expired, 'basic', 'annual');
     const res = await verify(personas.expired, orderId);
     expect(res.body.data.user.membership_expiry).toBe('2027-10-06');
-    expect(res.body.data.payment.amount_inr).toBe(11988);
+    expect(res.body.data.payment.amount_inr).toBe(plan('basic').price_annual);
   });
 
   it('credits unused days when changing to a different plan', async () => {
@@ -256,9 +260,10 @@ describe('POST /payment/verify', () => {
     expect(userByEmail(maya)).toMatchObject({ membership_tier: 'pro', membership_expiry: '2026-10-24' });
     const orderId = await createOrder(maya, 'vip', 'monthly');
     const res = await verify(maya, orderId);
-    // 18 days of pro left => floor(18 * 1499 / 1999) = 13 extra days
-    expect(res.body.data.user).toMatchObject({ membership_tier: 'vip', membership_expiry: '2026-11-19' });
-    expect(res.body.data.payment).toMatchObject({ period_start: '2026-10-07', period_end: '2026-11-19' });
+    // 18 days of pro left are worth floor(18 * pro / vip) days of vip, added to the month ending 11-06.
+    const end = addDays('2026-11-06', Math.floor((18 * plan('pro').price_monthly) / plan('vip').price_monthly));
+    expect(res.body.data.user).toMatchObject({ membership_tier: 'vip', membership_expiry: end });
+    expect(res.body.data.payment).toMatchObject({ period_start: '2026-10-07', period_end: end });
   });
 
   it('unfreezes a frozen member before extending', async () => {
@@ -355,7 +360,7 @@ describe('POST /payment/verify', () => {
 describe('POST /payment/webhook', () => {
   it('activates an order on payment.captured without a user token', async () => {
     const orderId = await createOrder(personas.expired, 'basic', 'monthly');
-    const res = await webhook(capturedEvent(orderId, 'pay_wh_1', 119900));
+    const res = await webhook(capturedEvent(orderId, 'pay_wh_1', paise(plan('basic').price_monthly)));
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ received: true });
     expect(userByEmail(personas.expired)).toMatchObject({ membership_status: 'active', membership_expiry: '2026-11-06' });
@@ -367,8 +372,8 @@ describe('POST /payment/webhook', () => {
     const res = await webhook({
       event: 'order.paid',
       payload: {
-        order: { entity: { id: orderId, amount_paid: 149900, status: 'paid' } },
-        payment: { entity: { id: 'pay_op', order_id: orderId, amount: 149900, currency: 'INR', status: 'captured' } }
+        order: { entity: { id: orderId, amount_paid: paise(plan('pro').price_monthly), status: 'paid' } },
+        payment: { entity: { id: 'pay_op', order_id: orderId, amount: paise(plan('pro').price_monthly), currency: 'INR', status: 'captured' } }
       }
     });
     expect(res.status).toBe(200);
@@ -377,7 +382,7 @@ describe('POST /payment/webhook', () => {
 
   it('is idempotent with checkout: webhook first, then verify answers 409', async () => {
     const orderId = await createOrder(personas.expired, 'basic', 'monthly');
-    await webhook(capturedEvent(orderId, 'pay_1', 119900));
+    await webhook(capturedEvent(orderId, 'pay_1', paise(plan('basic').price_monthly)));
     const res = await verify(personas.expired, orderId, 'pay_1');
     expect(res.status).toBe(409);
     expect(res.body.code).toBe('ALREADY_PROCESSED');
@@ -388,8 +393,8 @@ describe('POST /payment/webhook', () => {
   it('is idempotent with checkout: verify first, then the webhook changes nothing', async () => {
     const orderId = await createOrder(personas.basic, 'basic', 'monthly');
     await verify(personas.basic, orderId, 'pay_1');
-    const res = await webhook(capturedEvent(orderId, 'pay_1', 119900));
-    const again = await webhook({ ...capturedEvent(orderId, 'pay_1', 119900), event: 'order.paid' });
+    const res = await webhook(capturedEvent(orderId, 'pay_1', paise(plan('basic').price_monthly)));
+    const again = await webhook({ ...capturedEvent(orderId, 'pay_1', paise(plan('basic').price_monthly)), event: 'order.paid' });
     expect(res.status).toBe(200);
     expect(again.status).toBe(200);
     expect(db.payments.filter(p => p.order_id === orderId)).toHaveLength(1);
@@ -427,7 +432,7 @@ describe('POST /payment/webhook', () => {
     expect(viaCheckout.status).toBe(409);
     expect(viaCheckout.body.code).toBe('ORDER_REJECTED');
     // Neither a later correct capture nor another verify can activate a rejected order.
-    await webhook(capturedEvent(orderId, 'pay_full', 1918800));
+    await webhook(capturedEvent(orderId, 'pay_full', paise(plan('vip').price_annual)));
     expect((await verify(personas.expired, orderId, 'pay_other')).body.code).toBe('ORDER_REJECTED');
     expect(userByEmail(personas.expired).membership_status).toBe('expired');
     expect(db.payments.some(p => p.order_id === orderId)).toBe(false);
@@ -436,7 +441,7 @@ describe('POST /payment/webhook', () => {
   it('rejects a capture in another currency or without an amount', async () => {
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const usd = await createOrder(personas.expired, 'basic', 'monthly');
-    const usdEvent = capturedEvent(usd, 'pay_usd', 119900);
+    const usdEvent = capturedEvent(usd, 'pay_usd', paise(plan('basic').price_monthly));
     usdEvent.payload.payment.entity.currency = 'USD';
     expect((await webhook(usdEvent)).status).toBe(200);
     const noAmount = await createOrder(personas.expired, 'basic', 'monthly');
@@ -466,16 +471,16 @@ describe('POST /payment/webhook', () => {
 
   it('rejects a bad or missing signature with 400', async () => {
     const orderId = await createOrder(personas.expired, 'basic', 'monthly');
-    const bad = await webhook(capturedEvent(orderId, 'pay_1', 119900), 'deadbeef');
+    const bad = await webhook(capturedEvent(orderId, 'pay_1', paise(plan('basic').price_monthly)), 'deadbeef');
     expect(bad.status).toBe(400);
     expect(bad.body.code).toBe('INVALID_SIGNATURE');
     const missing = await api()
       .post('/api/payment/webhook')
       .set('Content-Type', 'application/json')
-      .send(JSON.stringify(capturedEvent(orderId, 'pay_1', 119900)));
+      .send(JSON.stringify(capturedEvent(orderId, 'pay_1', paise(plan('basic').price_monthly))));
     expect(missing.status).toBe(400);
     // A signature over the parsed-and-reserialised body would not match the raw bytes Razorpay signed.
-    const raw = JSON.stringify(capturedEvent(orderId, 'pay_1', 119900), null, 2);
+    const raw = JSON.stringify(capturedEvent(orderId, 'pay_1', paise(plan('basic').price_monthly)), null, 2);
     const sigOverCompact = crypto.createHmac('sha256', WEBHOOK_SECRET).update(JSON.stringify(JSON.parse(raw))).digest('hex');
     const reserialised = await api().post('/api/payment/webhook').set('Content-Type', 'application/json').set('X-Razorpay-Signature', sigOverCompact).send(raw);
     expect(reserialised.status).toBe(400);
@@ -510,7 +515,7 @@ describe('GET /payments/my and GET /payments', () => {
     expect(res.body.data.every((p: any) => p.user_id === ananya)).toBe(true);
     const dates = res.body.data.map((p: any) => p.created_at);
     expect(dates).toEqual([...dates].sort().reverse());
-    expect(res.body.data[0]).toMatchObject({ tier: 'vip', billing_cycle: 'annual', amount_inr: 19188 });
+    expect(res.body.data[0]).toMatchObject({ tier: 'vip', billing_cycle: 'annual', amount_inr: plan('vip').price_annual });
   });
 
   it('puts a new payment at the top', async () => {

@@ -82,9 +82,9 @@ ships with:
 
 | Plan | Books | Monthly | Annual (billed once) |
 | :--- | :--- | :--- | :--- |
-| **Workout & Strength Pass** | Workout & Strength classes | **₹1,199** | **₹11,988** (₹999/mo) |
-| **Zumba & Cardio Pass** | Zumba & Cardio classes | **₹1,499** | **₹14,388** (₹1,199/mo) |
-| **Dual All-Access Pass** ⭐ | Everything | **₹1,999** | **₹19,188** (₹1,599/mo) |
+| **Workout & Strength Pass** | Workout & Strength classes | **₹699** | **₹7,188** (₹599/mo) |
+| **Zumba & Cardio Pass** | Zumba & Cardio classes | **₹799** | **₹8,388** (₹699/mo) |
+| **Dual All-Access Pass** ⭐ | Everything | **₹999** | **₹10,188** (₹849/mo) |
 
 Renewing extends from the current expiry. Switching plans credits the unused days of the old plan.
 A freeze pauses the plan and gives the frozen days back.
