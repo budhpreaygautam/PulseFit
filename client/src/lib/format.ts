@@ -5,7 +5,7 @@ export const GYM_TIMEZONE = 'Asia/Kolkata';
 
 const inr = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 
-/** ₹1,499 */
+/** ₹1,499 (Indian digit grouping: ₹1,00,000) */
 export function formatINR(amount: number): string {
   return inr.format(amount);
 }

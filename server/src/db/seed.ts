@@ -592,15 +592,15 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
 
   db.exercises = exercises;
 
-  // 5. Plans (₹1,000 - ₹2,000 INR Pricing)
+  // 5. Plans: pocket-friendly INR pricing (admins can change it on the Plans page)
   const plans: MembershipPlan[] = [
     {
       id: 'plan_basic',
       name: 'Workout & Strength Pass',
       tier: 'basic',
       categories: ['Workout & Strength'],
-      price_monthly: 1199,
-      price_annual: 11988, // ₹999/month billed annually (₹11,988/yr)
+      price_monthly: 699,
+      price_annual: 7188, // ₹599/month billed annually (₹7,188/yr)
       description: 'Complete access to the gym floor, free weights & strength workout sessions.',
       features: [
         'Full Gym Floor & Free Weights Access',
@@ -616,8 +616,8 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       name: 'Zumba & Cardio Pass',
       tier: 'pro',
       categories: ['Zumba & Cardio'],
-      price_monthly: 1499,
-      price_annual: 14388, // ₹1,199/month billed annually (₹14,388/yr)
+      price_monthly: 799,
+      price_annual: 8388, // ₹699/month billed annually (₹8,388/yr)
       description: 'Unlimited high-energy Zumba dance and cardio conditioning classes.',
       features: [
         'Unlimited Zumba & Cardio Sessions',
@@ -633,8 +633,8 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       name: 'Dual All-Access Pass (Strength + Zumba)',
       tier: 'vip',
       categories: [], // empty = every category
-      price_monthly: 1999,
-      price_annual: 19188, // ₹1,599/month billed annually (₹19,188/yr)
+      price_monthly: 999,
+      price_annual: 10188, // ₹849/month billed annually (₹10,188/yr)
       description: 'The best value: unlimited access to BOTH Strength Training & Zumba Cardio sessions.',
       features: [
         'Unlimited Workout & Strength Training Sessions',

@@ -114,7 +114,7 @@ describe('GET /analytics/dashboard', () => {
       member('m_pending', { membership_tier: 'none', membership_status: 'pending', membership_expiry: null }),
       member('m_trainer', { role: 'trainer', membership_tier: 'vip' })
     ];
-    db.membership_plans = db.membership_plans.map(p => (p.tier === 'pro' ? { ...p, price_monthly: 1500 } : p));
+    db.membership_plans = db.membership_plans.map(p => (p.tier === 'pro' ? { ...p, price_monthly: 850 } : p));
     db.payments = [
       // m_basic renewed: an earlier period ended 20 days ago, then a new payment.
       payment('p1', { user_id: 'm_basic', period_start: '2026-08-18', period_end: '2026-09-17', created_at: '2026-08-18T05:00:00.000Z' }),
@@ -161,7 +161,7 @@ describe('GET /analytics/dashboard', () => {
       frozenMembers: 1,
       expiredMembers: 1,
       pendingMembers: 1,
-      monthlyRevenue: 1199 + 1599 + 1500,
+      monthlyRevenue: 1199 + 1599 + 850,
       revenueThisMonth: 19188,
       todayCheckIns: 2,
       avgFillRate: 12.5, // (3 + 1 + 1) / (10 + 10 + 20)
@@ -182,7 +182,7 @@ describe('GET /analytics/dashboard', () => {
 
     expect(data.tierDistribution).toEqual([
       { name: expect.any(String), tier: 'basic', count: 1, revenue: 1199, color: expect.any(String) },
-      { name: expect.any(String), tier: 'pro', count: 1, revenue: 1500, color: expect.any(String) },
+      { name: expect.any(String), tier: 'pro', count: 1, revenue: 850, color: expect.any(String) },
       { name: expect.any(String), tier: 'vip', count: 1, revenue: 1599, color: expect.any(String) }
     ]);
 
