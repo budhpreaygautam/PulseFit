@@ -17,7 +17,7 @@ interface AuthContextType {
   login: (credentials: { email: string; password: string }) => Promise<User>;
   register: (payload: { name: string; email: string; password: string; phone?: string }) => Promise<User>;
   /** Sign in with a Google Identity Services credential (see GoogleSignInButton). */
-  loginWithGoogle: (credential: string) => Promise<User>;
+  loginWithGoogle: (credential: string) => Promise<{ user: User; created: boolean; message?: string }>;
   demoLogin: (role: DemoRole) => Promise<User>;
   forgotPassword: (email: string) => Promise<{ message: string; resetUrl?: string }>;
   resetPassword: (token: string, newPassword: string) => Promise<User>;
@@ -121,7 +121,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async (payload: { name: string; email: string; password: string; phone?: string }) => startSession(await api.register(payload)),
     [startSession]
   );
-  const loginWithGoogle = useCallback(async (credential: string) => startSession(await api.googleSignIn(credential)), [startSession]);
+  const loginWithGoogle = useCallback(
+    async (credential: string) => {
+      const result = await api.googleSignIn(credential);
+      return { user: startSession(result), created: result.created, message: result.message };
+    },
+    [startSession]
+  );
   const demoLogin = useCallback(async (role: DemoRole) => startSession(await api.demoLogin(role)), [startSession]);
   const forgotPassword = useCallback((email: string) => api.forgotPassword(email), []);
   const resetPassword = useCallback(
