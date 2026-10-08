@@ -1,292 +1,334 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Users,
-  TrendingUp,
-  Activity,
-  Calendar,
-  Clock,
-  ShieldCheck,
-  QrCode,
-  ArrowRight,
-  Flame,
-  Award
-} from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer
-} from 'recharts';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Activity, Award, CalendarDays, Clock, Dumbbell, IndianRupee, QrCode, RefreshCw, Repeat, UserPlus, Users } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { AdminDashboardKPIs } from '../../types/index.js';
-import { api } from '../../api/client.js';
-import { Badge } from '../../components/common/Badge.js';
-import { StatCard } from '../../components/common/StatCard.js';
-import { useToast } from '../../context/ToastContext.js';
+import { api, errorMessage } from '../../api/client.js';
+import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
+import { AdminNav, PageHeader, SectionCard, focusRing } from '../../components/admin/ui.js';
+import { KpiTile } from '../../components/admin/KpiTile.js';
+import { useTheme } from '../../context/ThemeContext.js';
+import { useNavigation } from '../../context/NavigationContext.js';
+import { formatDate, formatDateTime, formatINR } from '../../lib/format.js';
 
 interface AdminDashboardProps {
   setCurrentTab: (tab: string) => void;
 }
 
+function useChartColors() {
+  const { isDark } = useTheme();
+  return {
+    grid: isDark ? '#1f293d' : '#cbd5e1',
+    axis: isDark ? '#94a3b8' : '#475569',
+    bar: '#84cc16',
+    line: '#0ea5e9',
+    cursor: isDark ? 'rgba(132, 204, 22, 0.08)' : 'rgba(77, 124, 15, 0.08)'
+  };
+}
+
+const monthLabel = (month: string) => formatDate(`${month}-01`, { month: 'short', year: '2-digit' });
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab }) => {
   const [data, setData] = useState<AdminDashboardKPIs | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const { showToast } = useToast();
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const colors = useChartColors();
+  const { navigate } = useNavigation();
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     setIsLoading(true);
-    api.getDashboardKPIs()
-      .then(setData)
-      .catch(err => showToast(err.message, 'error'))
-      .finally(() => setIsLoading(false));
+    setError(null);
+    try {
+      setData(await api.getDashboardKPIs());
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  if (isLoading || !data) {
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const header = (
+    <PageHeader
+      eyebrow="Admin"
+      title="Gym overview"
+      description={data ? `Worked out from the gym's records at ${formatDateTime(data.generatedAt)}.` : 'Members, revenue, attendance and classes at a glance.'}
+      actions={
+        <>
+          <button
+            type="button"
+            onClick={load}
+            disabled={isLoading}
+            className={`px-4 py-2.5 neu-btn rounded-xl text-xs font-bold flex items-center gap-2 disabled:opacity-60 ${focusRing}`}
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentTab('admin-scanner')}
+            className={`px-4 py-2.5 neu-btn-lime rounded-xl text-xs font-black flex items-center gap-2 ${focusRing}`}
+          >
+            <QrCode className="w-4 h-4" aria-hidden="true" /> Open check-in
+          </button>
+        </>
+      }
+    />
+  );
+
+  if (!data) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center text-slate-400 text-sm">
-        Loading executive analytics dashboard...
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
+        {header}
+        <AdminNav />
+        {error ? <ErrorState message={`Could not load the dashboard. ${error}`} onRetry={load} /> : <LoadingState label="Loading the dashboard…" />}
       </div>
     );
   }
 
-  const { kpis, weeklyAttendanceChart, hourlyPeakCurve, tierDistribution, topClasses } = data;
+  const { kpis, weeklyAttendanceChart, hourlyPeakCurve, tierDistribution, topClasses, revenueByMonth, definitions } = data;
+  const hasWeekly = weeklyAttendanceChart.some(d => d.visits > 0);
+  const hasHourly = hourlyPeakCurve.some(d => d.checkIns > 0);
+  const hasRevenue = revenueByMonth.some(d => d.revenue > 0);
+  const tierTotal = tierDistribution.reduce((sum, t) => sum + t.count, 0);
+  const tooltipStyle = { contentStyle: { borderRadius: '12px', fontSize: '12px' } };
 
-  const COLORS = ['#38bdf8', '#84cc16', '#f59e0b', '#ec4899'];
+  const statusTiles = [
+    { status: 'active', label: 'Active', count: kpis.activeMembers, tone: 'text-lime-400' },
+    { status: 'frozen', label: 'Frozen', count: kpis.frozenMembers, tone: 'text-cyan-400' },
+    { status: 'expired', label: 'Expired', count: kpis.expiredMembers, tone: 'text-rose-400' },
+    { status: 'pending', label: 'No plan yet', count: kpis.pendingMembers, tone: 'text-amber-400' }
+  ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8 sm:space-y-10">
-      {/* Executive Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-800/80 pb-6">
-        <div>
-          <Badge variant="cyan">ADMIN EXECUTIVE SUITE</Badge>
-          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight mt-2 font-['Outfit']">
-            GYM PERFORMANCE ANALYTICS
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl font-medium">
-            Real-time revenue metrics, hourly member flow distribution, and class capacity utilization for Cyber Hub Gurugram.
-          </p>
-        </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6 sm:space-y-8">
+      {header}
+      <AdminNav />
+      {error && <ErrorState message={`Could not refresh the dashboard. ${error}`} onRetry={load} />}
 
-        {/* Quick Turnstile Scanner Shortcut */}
-        <button
-          onClick={() => setCurrentTab('admin-scanner')}
-          className="px-5 py-3 sm:px-6 sm:py-3.5 neu-btn-lime text-black font-black text-xs rounded-2xl shadow-glow-lime flex items-center gap-2 shrink-0 transition-all active:scale-95"
-        >
-          <QrCode className="w-4 h-4" /> Open Turnstile Scanner
-        </button>
-      </div>
-
-      {/* KPI Tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
-        <StatCard
-          title="Active Members"
-          value={`${kpis.activeMembers} / ${kpis.totalMembers}`}
-          subtitle="94.6% membership retention"
-          icon={<Users className="w-6 h-6" />}
-          accentColor="cyan"
-          trend={{ value: "+12 this month", isPositive: true }}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+        <KpiTile
+          title="Active members"
+          value={kpis.activeMembers}
+          detail={`of ${kpis.totalMembers} member accounts`}
+          icon={<Users className="w-5 h-5" />}
+          accent="cyan"
         />
-
-        <StatCard
-          title="Monthly Recurring Revenue"
-          value={`₹${kpis.monthlyRevenue.toLocaleString('en-IN')}`}
-          subtitle="Active member subscriptions"
-          icon={<span className="text-2xl font-bold font-mono">₹</span>}
-          accentColor="lime"
-          trend={{ value: "+18.4% YoY", isPositive: true }}
+        <KpiTile
+          title="Monthly recurring revenue"
+          value={formatINR(kpis.monthlyRevenue)}
+          detail="Monthly value of active memberships"
+          icon={<IndianRupee className="w-5 h-5" />}
+          definition={definitions.monthlyRevenue}
         />
-
-        <StatCard
-          title="Today's Check-Ins"
-          value={kpis.todayCheckIns}
-          subtitle="Turnstile scans recorded"
-          icon={<Activity className="w-6 h-6" />}
-          accentColor="amber"
-          trend={{ value: "Peak at 6:00 PM", isPositive: true }}
-        />
-
-        <StatCard
-          title="Class Fill Rate"
+        <KpiTile title="Check-ins today" value={kpis.todayCheckIns} detail="Front-desk and turnstile check-ins" icon={<Activity className="w-5 h-5" />} accent="amber" />
+        <KpiTile
+          title="Class fill rate"
           value={`${kpis.avgFillRate}%`}
-          subtitle="Capacity utilization"
-          icon={<Calendar className="w-6 h-6" />}
-          accentColor="crimson"
-          trend={{ value: "40+ scheduled sessions", isPositive: true }}
+          detail={`${kpis.classesScheduled} weekly classes · ${kpis.totalTrainers} coaches`}
+          icon={<CalendarDays className="w-5 h-5" />}
+          accent="rose"
+          definition={definitions.avgFillRate}
         />
-      </div>
-
-      {/* Analytics Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Weekly Attendance Bar Chart (8 cols) */}
-        <div className="lg:col-span-8 neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-extrabold text-white flex items-center gap-2 font-['Outfit']">
-                <Activity className="w-4 h-4 text-lime-400" />
-                Weekly Attendance Visits
-              </h3>
-              <p className="text-xs text-slate-400 font-medium">Total member visits distributed Mon–Sun</p>
-            </div>
-            <Badge variant="lime" size="sm">7-DAY TIMELINE</Badge>
-          </div>
-
-          <div className="h-72 w-full pt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyAttendanceChart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f293d" vertical={false} />
-                <XAxis dataKey="day" stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                <YAxis stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0c1017', borderColor: '#334155', borderRadius: '12px', fontSize: '12px', color: '#fff' }}
-                  itemStyle={{ color: '#ffffff', fontWeight: 600 }}
-                  labelStyle={{ color: '#ffffff', fontWeight: 700 }}
-                  cursor={{ fill: 'rgba(132, 204, 22, 0.05)' }}
-                />
-                <Bar dataKey="visits" fill="#84cc16" radius={[6, 6, 0, 0]} barSize={38} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Revenue by Tier Donut Chart (4 cols) */}
-        <div className="lg:col-span-4 neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-4 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-extrabold text-white flex items-center gap-2 font-['Outfit']">
-                <span className="text-amber-400 font-bold font-mono text-base">₹</span>
-                Revenue by Tier
-              </h3>
-              <Badge variant="amber" size="sm">MRR BREAKDOWN</Badge>
-            </div>
-            <p className="text-xs text-slate-400 mt-1 font-medium">Tier contribution to monthly revenue</p>
-          </div>
-
-          <div className="h-56 w-full flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={tierDistribution}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="revenue"
+        <KpiTile
+          title="Retention (90 days)"
+          value={kpis.retentionRate === null ? 'Not enough data' : `${kpis.retentionRate}%`}
+          detail={kpis.retentionRate === null ? 'No membership period ended in the last 90 days.' : 'Membership periods renewed'}
+          icon={<Repeat className="w-5 h-5" />}
+          accent="slate"
+          definition={definitions.retentionRate}
+        />
+        <KpiTile title="Revenue this month" value={formatINR(kpis.revenueThisMonth)} detail="Payments received since the 1st" icon={<IndianRupee className="w-5 h-5" />} accent="amber" />
+        <KpiTile
+          title="Free trials this month"
+          value={kpis.trialsThisMonth}
+          detail={
+            <button type="button" onClick={() => setCurrentTab('admin-trials')} className={`text-lime-400 font-bold hover:underline rounded ${focusRing}`}>
+              View trial leads
+            </button>
+          }
+          icon={<UserPlus className="w-5 h-5" />}
+          accent="cyan"
+        />
+        <section aria-labelledby="status-heading" className="neu-card p-5 rounded-3xl min-w-0">
+          <h2 id="status-heading" className="text-xs font-bold uppercase tracking-wider text-slate-400">
+            Members by status
+          </h2>
+          <ul className="mt-3 grid grid-cols-2 gap-2">
+            {statusTiles.map(s => (
+              <li key={s.status}>
+                <button
+                  type="button"
+                  onClick={() => navigate('admin-members', { status: s.status })}
+                  className={`w-full neu-pressed-sm rounded-xl px-3 py-2 text-left ${focusRing}`}
+                  aria-label={`${s.count} ${s.label.toLowerCase()}: show these members`}
                 >
-                  {tierDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0c1017', borderColor: '#334155', borderRadius: '12px', fontSize: '12px', color: '#fff' }}
-                  itemStyle={{ color: '#ffffff', fontWeight: 600 }}
-                  labelStyle={{ color: '#ffffff', fontWeight: 700 }}
-                  formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}/mo`, 'Revenue']}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="space-y-2 pt-3 border-t border-slate-800/80 text-xs font-medium">
-            {tierDistribution.map((t, i) => (
-              <div key={t.tier} className="flex items-center justify-between">
-                <span className="flex items-center gap-2 text-slate-300">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                  {t.name}
-                </span>
-                <strong className="text-white font-mono">₹{t.revenue.toLocaleString('en-IN')}/mo</strong>
-              </div>
+                  <span className={`block text-lg font-black font-['Outfit'] ${s.tone}`}>{s.count}</span>
+                  <span className="block text-[11px] font-semibold text-slate-400">{s.label}</span>
+                </button>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </section>
       </div>
 
-      {/* Hourly Peak Hours Heatmap Curve */}
-      <div className="neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-extrabold text-white flex items-center gap-2 font-['Outfit']">
-              <Clock className="w-4 h-4 text-cyan-400" />
-              Hourly Facility Traffic Curve (06:00 – 21:00)
-            </h3>
-            <p className="text-xs text-slate-400 font-medium">Identify peak gym floor rush hours and staff accordingly.</p>
-          </div>
-          <Badge variant="cyan" size="sm">HOURLY DISTRIBUTION</Badge>
-        </div>
-
-        <div className="h-64 w-full pt-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={hourlyPeakCurve} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f293d" vertical={false} />
-              <XAxis dataKey="hour" stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 12 }} />
-              <YAxis stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 12 }} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#0c1017', borderColor: '#334155', borderRadius: '12px', fontSize: '12px', color: '#fff' }}
-                itemStyle={{ color: '#ffffff', fontWeight: 600 }}
-                labelStyle={{ color: '#ffffff', fontWeight: 700 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="checkIns"
-                stroke="#38bdf8"
-                strokeWidth={3}
-                dot={{ fill: '#38bdf8', strokeWidth: 2, r: 4 }}
-                activeDot={{ r: 7, fill: '#84cc16' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Popular Classes Leaderboard */}
-      <div className="neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-extrabold text-white flex items-center gap-2 font-['Outfit']">
-              <Award className="w-4 h-4 text-amber-400" />
-              Highest Demand Group Classes
-            </h3>
-            <p className="text-xs text-slate-400 font-medium">Leaderboard by booked capacity percentage.</p>
-          </div>
-          <button
-            onClick={() => setCurrentTab('schedule')}
-            className="text-xs font-bold text-lime-400 hover:text-lime-300 flex items-center gap-1"
-          >
-            Manage Timetable <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {topClasses.map((cls, idx) => (
-            <div key={cls.id} className="p-4 rounded-2xl neu-pressed-sm space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 font-mono font-bold text-xs flex items-center justify-center border border-amber-500/30">
-                  #{idx + 1}
-                </span>
-                <span className="text-xs font-bold text-lime-400 font-mono">{cls.occupancy}% Booked</span>
-              </div>
-              <div>
-                <h4 className="font-extrabold text-sm text-white truncate font-['Outfit']">{cls.title}</h4>
-                <p className="text-xs text-slate-400 font-medium">Coach: {cls.trainer} • {cls.category}</p>
-              </div>
-              <div className="w-full h-1.5 neu-pressed-sm rounded-full overflow-hidden mt-2 p-0">
-                <div
-                  className="h-full bg-lime-400 rounded-full"
-                  style={{ width: `${cls.occupancy}%` }}
-                />
-              </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <SectionCard
+          id="weekly-heading"
+          className="lg:col-span-7"
+          title="Check-ins by weekday"
+          icon={<Activity className="w-4 h-4 text-lime-400" aria-hidden="true" />}
+          description="All check-ins in the last 28 days, by day of the week."
+        >
+          {hasWeekly ? (
+            <div className="h-64 w-full" role="img" aria-label={`Check-ins by weekday: ${weeklyAttendanceChart.map(d => `${d.day} ${d.visits}`).join(', ')}`}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeklyAttendanceChart} margin={{ top: 10, right: 8, left: -24, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} vertical={false} />
+                  <XAxis dataKey="day" stroke={colors.axis} tick={{ fill: colors.axis, fontSize: 12 }} />
+                  <YAxis allowDecimals={false} stroke={colors.axis} tick={{ fill: colors.axis, fontSize: 12 }} />
+                  <Tooltip {...tooltipStyle} cursor={{ fill: colors.cursor }} formatter={(v: number) => [v, 'Check-ins']} />
+                  <Bar dataKey="visits" fill={colors.bar} radius={[6, 6, 0, 0]} maxBarSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          ))}
-        </div>
+          ) : (
+            <EmptyState title="No check-ins in the last 28 days" />
+          )}
+        </SectionCard>
+
+        <SectionCard
+          id="tiers-heading"
+          className="lg:col-span-5"
+          title="Active members by plan"
+          icon={<Dumbbell className="w-4 h-4 text-amber-400" aria-hidden="true" />}
+          description="Each plan's active members and their monthly recurring revenue."
+        >
+          {tierTotal > 0 && (
+            <div className="h-44 w-full" role="img" aria-label={`Active members by plan: ${tierDistribution.map(t => `${t.name} ${t.count}`).join(', ')}`}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={tierDistribution} dataKey="count" nameKey="name" innerRadius={45} outerRadius={70} paddingAngle={3}>
+                    {tierDistribution.map(t => (
+                      <Cell key={t.tier} fill={t.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip {...tooltipStyle} formatter={(v: number) => [v, 'Active members']} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          <ul className="space-y-2 text-xs font-medium">
+            {tierDistribution.map(t => (
+              <li key={t.tier} className="flex items-center justify-between gap-3 neu-pressed-sm rounded-xl px-3 py-2">
+                <span className="flex items-center gap-2 text-slate-300 min-w-0">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: t.color }} aria-hidden="true" />
+                  <span className="truncate">{t.name}</span>
+                </span>
+                <span className="text-right shrink-0">
+                  <strong className="text-slate-100">{t.count}</strong>
+                  <span className="text-slate-400"> · {formatINR(t.revenue)}/mo</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          {tierTotal === 0 && <p className="text-xs text-slate-400">No member has an active plan right now.</p>}
+        </SectionCard>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SectionCard
+          id="hourly-heading"
+          title="Check-ins by hour"
+          icon={<Clock className="w-4 h-4 text-cyan-400" aria-hidden="true" />}
+          description="All check-ins in the last 30 days, by hour of arrival (gym time)."
+        >
+          {hasHourly ? (
+            <div className="h-60 w-full" role="img" aria-label="Check-ins by hour of the day over the last 30 days">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={hourlyPeakCurve} margin={{ top: 10, right: 8, left: -24, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} vertical={false} />
+                  <XAxis dataKey="hour" stroke={colors.axis} tick={{ fill: colors.axis, fontSize: 11 }} interval="preserveStartEnd" minTickGap={16} />
+                  <YAxis allowDecimals={false} stroke={colors.axis} tick={{ fill: colors.axis, fontSize: 12 }} />
+                  <Tooltip {...tooltipStyle} formatter={(v: number) => [v, 'Check-ins']} />
+                  <Line type="monotone" dataKey="checkIns" stroke={colors.line} strokeWidth={3} dot={{ r: 3, fill: colors.line }} activeDot={{ r: 6, fill: colors.bar }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <EmptyState title="No check-ins in the last 30 days" />
+          )}
+        </SectionCard>
+
+        <SectionCard
+          id="revenue-heading"
+          title="Revenue by month"
+          icon={<IndianRupee className="w-4 h-4 text-lime-400" aria-hidden="true" />}
+          description="Payments received in each of the last six months."
+        >
+          {hasRevenue ? (
+            <div className="h-60 w-full" role="img" aria-label={`Revenue by month: ${revenueByMonth.map(r => `${monthLabel(r.month)} ${formatINR(r.revenue)}`).join(', ')}`}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={revenueByMonth} margin={{ top: 10, right: 8, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} vertical={false} />
+                  <XAxis dataKey="month" tickFormatter={monthLabel} stroke={colors.axis} tick={{ fill: colors.axis, fontSize: 11 }} interval="preserveStartEnd" minTickGap={8} />
+                  <YAxis
+                    stroke={colors.axis}
+                    tick={{ fill: colors.axis, fontSize: 11 }}
+                    tickFormatter={(v: number) => (v >= 1000 ? `₹${Math.round(v / 1000)}k` : `₹${v}`)}
+                    width={48}
+                  />
+                  <Tooltip {...tooltipStyle} cursor={{ fill: colors.cursor }} labelFormatter={monthLabel} formatter={(v: number) => [formatINR(v), 'Revenue']} />
+                  <Bar dataKey="revenue" fill={colors.bar} radius={[6, 6, 0, 0]} maxBarSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <EmptyState title="No payments in the last six months" />
+          )}
+        </SectionCard>
+      </div>
+
+      <SectionCard
+        id="classes-heading"
+        title="Busiest classes this week"
+        icon={<Award className="w-4 h-4 text-amber-400" aria-hidden="true" />}
+        description="This week's sessions with the most bookings."
+        actions={
+          <button type="button" onClick={() => setCurrentTab('admin-classes')} className={`text-xs font-bold text-lime-400 hover:underline rounded ${focusRing}`}>
+            Manage classes
+          </button>
+        }
+      >
+        {topClasses.length > 0 ? (
+          <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {topClasses.map((cls, idx) => (
+              <li key={cls.id} className="p-4 rounded-2xl neu-pressed-sm space-y-2 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-black text-amber-400 font-mono">#{idx + 1}</span>
+                  <span className="text-xs font-bold text-slate-300">
+                    {cls.booked}/{cls.capacity} booked · {cls.occupancy}%
+                  </span>
+                </div>
+                <h3 className="font-extrabold text-sm text-slate-100 truncate font-['Outfit']">{cls.title}</h3>
+                <p className="text-xs text-slate-400">
+                  {cls.trainer ?? 'No coach assigned'} · {cls.category}
+                </p>
+                <div className="w-full h-1.5 bg-slate-700/40 rounded-full overflow-hidden" aria-hidden="true">
+                  <div className="h-full bg-lime-500 rounded-full" style={{ width: `${Math.min(100, cls.occupancy)}%` }} />
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <EmptyState title="No classes on the timetable" action={
+            <button type="button" onClick={() => setCurrentTab('admin-classes')} className={`neu-btn px-4 py-2 rounded-xl text-xs font-bold ${focusRing}`}>
+              Add a class
+            </button>
+          } />
+        )}
+      </SectionCard>
     </div>
   );
 };
-
