@@ -86,7 +86,13 @@ interface Envelope<T> {
   code?: string;
 }
 
-async function send<T>(endpoint: string, options: RequestInit = {}): Promise<{ data: T; message?: string }> {
+/** Data plus the server's own message, for actions whose side effects the user must be told about. */
+export interface WithMessage<T> {
+  data: T;
+  message?: string;
+}
+
+async function send<T>(endpoint: string, options: RequestInit = {}): Promise<WithMessage<T>> {
   const token = storage.get(TOKEN_KEY);
   const headers: Record<string, string> = { ...(options.headers as Record<string, string>) };
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
@@ -128,6 +134,10 @@ const put = <T>(endpoint: string, body: unknown) =>
 const patch = <T>(endpoint: string, body: unknown) =>
   send<T>(endpoint, { method: 'PATCH', body: JSON.stringify(body) }).then(r => r.data);
 const del = <T>(endpoint: string) => send<T>(endpoint, { method: 'DELETE' }).then(r => r.data);
+// Keep the message: these actions can cancel bookings, and the message says how many.
+const postWithMessage = <T>(endpoint: string, body: unknown = {}) =>
+  send<T>(endpoint, { method: 'POST', body: JSON.stringify(body) });
+const putWithMessage = <T>(endpoint: string, body: unknown) => send<T>(endpoint, { method: 'PUT', body: JSON.stringify(body) });
 
 function qs(params: Record<string, string | number | boolean | undefined | null>): string {
   const query = new URLSearchParams();
@@ -161,14 +171,15 @@ export const api = {
 
   // --- Plans, payments & membership ---
   getPlans: () => get<MembershipPlan[]>('/plans'),
-  updatePlan: (id: string, payload: Partial<Omit<MembershipPlan, 'id' | 'tier'>>) => put<MembershipPlan>(`/plans/${id}`, payload),
+  updatePlan: (id: string, payload: Partial<Omit<MembershipPlan, 'id' | 'tier'>>) =>
+    putWithMessage<MembershipPlan>(`/plans/${id}`, payload),
   createPaymentOrder: (payload: { tier: PaidTier; billing_cycle: BillingCycle }) => post<PaymentOrder>('/payment/create-order', payload),
   verifyPayment: (payload: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) =>
     post<AuthSession & { payment: Payment; message: string }>('/payment/verify', payload),
   getMyPayments: () => get<Payment[]>('/payments/my'),
   getPayments: (params: { user_id?: string } = {}) => get<Payment[]>(`/payments${qs(params)}`),
-  freezeMembership: () => post<User>('/membership/freeze'),
-  unfreezeMembership: () => post<User>('/membership/unfreeze'),
+  freezeMembership: () => postWithMessage<User>('/membership/freeze'),
+  unfreezeMembership: () => postWithMessage<User>('/membership/unfreeze'),
 
   // --- Classes & bookings ---
   getClasses: (params: { day?: number; category?: string; trainerId?: string; intensity?: string; search?: string; week_start?: string } = {}) =>
@@ -179,7 +190,7 @@ export const api = {
     payload: Omit<GymClass, 'id' | 'trainer_name' | 'trainer_avatar' | 'intensity' | 'description' | 'image_url' | 'calories_burn_est'> &
       Partial<Pick<GymClass, 'intensity' | 'description' | 'image_url' | 'calories_burn_est'>>
   ) => post<GymClass>('/classes', payload),
-  updateClass: (id: string, payload: Partial<Omit<GymClass, 'id'>>) => put<GymClass>(`/classes/${id}`, payload),
+  updateClass: (id: string, payload: Partial<Omit<GymClass, 'id'>>) => putWithMessage<GymClass>(`/classes/${id}`, payload),
   deleteClass: (id: string) => del<{ cancelled_bookings: number }>(`/classes/${id}`),
 
   getMyBookings: (scope: 'upcoming' | 'past' | 'all' = 'upcoming') => get<MyBooking[]>(`/bookings/my${qs({ scope })}`),
@@ -217,7 +228,7 @@ export const api = {
   updateMember: (
     id: string,
     payload: Partial<{ name: string; phone: string; role: UserRole; membership_tier: MembershipTier; membership_status: MembershipStatus; membership_expiry: string | null }>
-  ) => put<User>(`/members/${id}`, payload),
+  ) => putWithMessage<User>(`/members/${id}`, payload),
   deleteMember: (id: string) => del<{ deleted: true }>(`/members/${id}`),
   resetMemberPassword: (id: string) => post<{ tempPassword: string }>(`/members/${id}/reset-password`),
 

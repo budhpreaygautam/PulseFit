@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import config, { googleSignInEnabled, paymentsEnabled } from '../config.js';
 import { notFoundHandler } from '../middleware/errorHandler.js';
+import { publicOpeningHours } from '../lib/hours.js';
 import authRoutes from './auth.js';
 import paymentRoutes from './payments.js';
 import classRoutes from './classes.js';
@@ -21,7 +22,7 @@ router.get('/config', (_req, res) => {
       demoMode: config.demoMode,
       googleClientId: googleSignInEnabled() ? config.googleClientId : null,
       payments: { enabled: paymentsEnabled(), keyId: paymentsEnabled() ? config.razorpay.keyId : null },
-      gym: { name: 'PulseFit Athletics', timezone: config.gymTimezone, currency: 'INR' }
+      gym: { name: 'PulseFit Athletics', timezone: config.gymTimezone, currency: 'INR', hours: publicOpeningHours() }
     }
   });
 });

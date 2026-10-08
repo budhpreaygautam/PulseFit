@@ -79,6 +79,10 @@ export const config = {
   // All "today", weekday and hour calculations use the gym's local time, not the server's.
   gymTimezone: env.GYM_TIMEZONE || 'Asia/Kolkata',
 
+  // Refuse check-ins, floor clock-ins and same-day trials while the gym is closed (lib/hours.ts).
+  // Tests switch it off so they pass at any hour of the day.
+  enforceOpeningHours: flag(env.ENFORCE_OPENING_HOURS, true),
+
   razorpay: {
     keyId: env.RAZORPAY_KEY_ID || '',
     keySecret: env.RAZORPAY_KEY_SECRET || '',
