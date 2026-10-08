@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
-import { ShieldCheck, QrCode, Sparkles, Copy, Check, Info, SunMedium } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
+import { AlertTriangle, Check, Copy, Download } from 'lucide-react';
 import { Modal } from '../common/Modal.js';
-import { Badge } from '../common/Badge.js';
 import { User } from '../../types/index.js';
 import { useToast } from '../../context/ToastContext.js';
+import { useAppConfig } from '../../context/ConfigContext.js';
+import { formatDate, TIER_LABELS } from '../../lib/format.js';
+import { MembershipStatusBadge } from '../member/MembershipStatusBadge.js';
+import { copyText } from '../member/clipboard.js';
 
 interface DigitalQrPassModalProps {
   isOpen: boolean;
@@ -11,167 +15,180 @@ interface DigitalQrPassModalProps {
   user: User | null;
 }
 
-export const DigitalQrPassModal: React.FC<DigitalQrPassModalProps> = ({
-  isOpen,
-  onClose,
-  user
-}) => {
-  const [copied, setCopied] = useState(false);
+const NOT_ACTIVE_NOTE: Record<string, string> = {
+  frozen: 'Your membership is frozen, so the front desk will not let this pass in until you unfreeze it.',
+  expired: 'Your membership has expired, so the front desk will not let this pass in until you renew.',
+  pending: 'You do not have an active plan yet, so the front desk will not let this pass in until you choose one.'
+};
+
+/** Draw the pass (QR code, name, plan, code) onto a canvas for the PNG download. */
+async function renderPassPng(user: User, qrDataUrl: string, gymName: string): Promise<Blob> {
+  const width = 600;
+  const height = 820;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Your browser could not create the image.');
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = '#84cc16';
+  ctx.fillRect(0, 0, width, 12);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 30px Outfit, system-ui, sans-serif';
+  ctx.fillText(gymName, width / 2, 70);
+  ctx.font = '600 18px Inter, system-ui, sans-serif';
+  ctx.fillStyle = '#475569';
+  ctx.fillText('Member access pass', width / 2, 100);
+
+  const qr = new Image();
+  await new Promise<void>((resolve, reject) => {
+    qr.onload = () => resolve();
+    qr.onerror = () => reject(new Error('The QR code could not be drawn.'));
+    qr.src = qrDataUrl;
+  });
+  ctx.drawImage(qr, 100, 130, 400, 400);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 30px Inter, system-ui, sans-serif';
+  ctx.fillText(user.name, width / 2, 590, width - 60);
+  ctx.font = '20px Inter, system-ui, sans-serif';
+  ctx.fillStyle = '#334155';
+  ctx.fillText(TIER_LABELS[user.membership_tier] ?? user.membership_tier, width / 2, 628);
+  if (user.membership_expiry) ctx.fillText(`Valid through ${formatDate(user.membership_expiry)}`, width / 2, 660);
+  ctx.font = 'bold 22px ui-monospace, Consolas, monospace';
+  ctx.fillStyle = '#0f172a';
+  ctx.fillText(user.qr_code_token, width / 2, 720, width - 60);
+  ctx.font = '15px Inter, system-ui, sans-serif';
+  ctx.fillStyle = '#64748b';
+  ctx.fillText('Show this code at the front desk to check in.', width / 2, 770);
+
+  return new Promise((resolve, reject) => canvas.toBlob(b => (b ? resolve(b) : reject(new Error('The image could not be saved.'))), 'image/png'));
+}
+
+export const DigitalQrPassModal: React.FC<DigitalQrPassModalProps> = ({ isOpen, onClose, user }) => {
   const { showToast } = useToast();
+  const { config } = useAppConfig();
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const token = user?.qr_code_token;
+
+  useEffect(() => {
+    if (!isOpen || !token) return;
+    let cancelled = false;
+    setQrDataUrl(null);
+    setQrError(null);
+    QRCode.toDataURL(token, { width: 512, margin: 2, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } })
+      .then(url => !cancelled && setQrDataUrl(url))
+      .catch(() => !cancelled && setQrError('The QR code could not be generated. You can still check in with the code below.'));
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, token]);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
 
   if (!user) return null;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(user.qr_code_token);
-    setCopied(true);
-    showToast('Pass token copied to clipboard!', 'success');
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    if (await copyText(user.qr_code_token)) {
+      setCopied(true);
+      showToast('Pass code copied.', 'success');
+    } else {
+      showToast('Your browser blocked copying. Select the code and copy it by hand.', 'error');
+    }
   };
 
-  const tierColors = {
-    vip: 'from-amber-500/20 via-slate-900 to-amber-950/40 border-amber-500/40 text-amber-400',
-    pro: 'from-lime-500/20 via-slate-900 to-lime-950/40 border-lime-500/40 text-lime-400',
-    basic: 'from-sky-500/20 via-slate-900 to-sky-950/40 border-sky-500/40 text-sky-400',
-    none: 'from-slate-700/20 via-slate-900 to-slate-950/40 border-slate-700/40 text-slate-400'
+  const handleDownload = async () => {
+    if (!qrDataUrl) return;
+    setIsDownloading(true);
+    try {
+      const blob = await renderPassPng(user, qrDataUrl, config.gym.name);
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `pulsefit-pass-${user.qr_code_token}.png`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'The pass could not be downloaded.', 'error');
+    } finally {
+      setIsDownloading(false);
+    }
   };
+
+  const isActive = user.membership_status === 'active';
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="md">
-      <div className="flex flex-col items-center text-center">
-        {/* Pass Header Card */}
-        <div
-          className={`w-full p-6 rounded-3xl border neu-flat ${tierColors[user.membership_tier]} shadow-2xl relative overflow-hidden`}
-        >
-          {/* Subtle Background Badge Pattern */}
-          <div className="absolute -right-8 -bottom-8 opacity-10 pointer-events-none">
-            <QrCode className="w-48 h-48" />
-          </div>
-
-          <div className="flex items-center justify-between pb-4 border-b border-slate-700/50">
-            <div className="flex items-center gap-2 text-left">
-              <div className="w-8 h-8 rounded-xl bg-lime-500 flex items-center justify-center font-black text-black text-sm shadow-glow-lime">
-                P
-              </div>
-              <div>
-                <div className="font-extrabold tracking-wider text-xs uppercase text-slate-100 font-['Outfit']">
-                  PULSEFIT ATHLETICS
-                </div>
-                <div className="text-[10px] text-slate-400 font-medium">DIGITAL ACCESS PASS</div>
-              </div>
+    <Modal isOpen={isOpen} onClose={onClose} title="Digital access pass" description="Show this QR code at the front desk to check in." maxWidth="md">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <img
+            src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`}
+            alt=""
+            className="w-12 h-12 rounded-xl object-cover bg-slate-800 shrink-0"
+          />
+          <div className="min-w-0">
+            <p className="font-black text-slate-100 font-['Outfit'] truncate">{user.name}</p>
+            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+              <span className="text-xs text-slate-400">{TIER_LABELS[user.membership_tier] ?? user.membership_tier}</span>
+              <MembershipStatusBadge status={user.membership_status} />
             </div>
-
-            <Badge
-              variant={user.membership_tier === 'vip' ? 'amber' : user.membership_tier === 'pro' ? 'lime' : 'cyan'}
-              size="sm"
-            >
-              {user.membership_tier.toUpperCase()} MEMBER
-            </Badge>
-          </div>
-
-          {/* Member Info */}
-          <div className="flex items-center gap-4 my-6 text-left">
-            <img
-              src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`}
-              alt={user.name}
-              className="w-16 h-16 rounded-2xl border-2 border-slate-700 object-cover bg-slate-800 shrink-0 shadow-md"
-            />
-            <div>
-              <h4 className="text-xl font-black text-slate-100 font-['Outfit']">{user.name}</h4>
-              <p className="text-xs text-slate-400 font-medium">{user.email}</p>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="inline-block w-2 h-2 rounded-full bg-lime-400 animate-pulse-dot" />
-                <span className="text-[11px] font-bold text-lime-400 capitalize">
-                  {user.membership_status} • Streak: {user.streak_days || 0}d
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* QR Code Container with High Contrast */}
-          <div className="bg-white p-4 rounded-2xl shadow-inner inline-flex flex-col items-center justify-center mx-auto my-2 border border-slate-200">
-            {/* SVG QR Code Simulation with accurate visual patterns */}
-            <svg
-              viewBox="0 0 100 100"
-              className="w-48 h-48 text-black"
-              fill="currentColor"
-              shapeRendering="crispEdges"
-            >
-              {/* Corner 1 */}
-              <rect x="5" y="5" width="28" height="28" fill="black" />
-              <rect x="9" y="9" width="20" height="20" fill="white" />
-              <rect x="13" y="13" width="12" height="12" fill="black" />
-
-              {/* Corner 2 */}
-              <rect x="67" y="5" width="28" height="28" fill="black" />
-              <rect x="71" y="9" width="20" height="20" fill="white" />
-              <rect x="75" y="13" width="12" height="12" fill="black" />
-
-              {/* Corner 3 */}
-              <rect x="5" y="67" width="28" height="28" fill="black" />
-              <rect x="9" y="71" width="20" height="20" fill="white" />
-              <rect x="13" y="75" width="12" height="12" fill="black" />
-
-              {/* Data Pattern Matrix */}
-              <rect x="38" y="8" width="5" height="5" />
-              <rect x="48" y="8" width="10" height="5" />
-              <rect x="38" y="18" width="5" height="15" />
-              <rect x="48" y="23" width="10" height="5" />
-              <rect x="58" y="13" width="5" height="10" />
-
-              <rect x="8" y="38" width="15" height="5" />
-              <rect x="8" y="48" width="5" height="10" />
-              <rect x="18" y="53" width="15" height="5" />
-
-              <rect x="38" y="38" width="8" height="8" />
-              <rect x="50" y="38" width="8" height="8" />
-              <rect x="62" y="38" width="8" height="8" />
-              <rect x="74" y="38" width="8" height="8" />
-
-              <rect x="38" y="50" width="8" height="8" />
-              <rect x="50" y="50" width="8" height="8" />
-              <rect x="62" y="50" width="8" height="8" />
-              <rect x="74" y="50" width="8" height="8" />
-
-              <rect x="38" y="68" width="10" height="5" />
-              <rect x="52" y="68" width="5" height="10" />
-              <rect x="68" y="68" width="10" height="10" />
-              <rect x="82" y="68" width="5" height="5" />
-              <rect x="82" y="78" width="10" height="10" />
-              <rect x="68" y="82" width="10" height="5" />
-              <rect x="38" y="82" width="20" height="8" />
-            </svg>
-            <span className="text-[10px] font-mono tracking-widest text-slate-800 font-bold mt-1">
-              {user.qr_code_token}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-4 pt-3 border-t border-slate-700/50 font-medium">
-            <span>Valid Thru: <strong className="text-slate-200 font-mono">{user.membership_expiry}</strong></span>
-            <span>Turnstile Pass ID: <strong className="text-slate-200 font-mono">#{user.id.slice(-6).toUpperCase()}</strong></span>
           </div>
         </div>
 
-        {/* Copy / Actions Bar */}
-        <div className="w-full mt-4 flex items-center justify-between gap-3 neu-pressed-sm p-3 rounded-2xl text-xs">
-          <div className="text-left font-mono text-slate-200 font-bold truncate">
-            {user.qr_code_token}
-          </div>
-          <button
-            onClick={handleCopy}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 neu-btn text-slate-200 rounded-xl transition-all shrink-0 font-bold text-xs"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-lime-400" /> : <Copy className="w-3.5 h-3.5" />}
-            {copied ? 'Copied' : 'Copy'}
+        {!isActive && (
+          <p role="status" className="flex items-start gap-2 text-xs rounded-xl p-3 border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+            {NOT_ACTIVE_NOTE[user.membership_status]}
+          </p>
+        )}
+
+        <div className="mx-auto w-full max-w-[260px] aspect-square bg-white rounded-2xl p-2 flex items-center justify-center">
+          {qrDataUrl ? (
+            <img src={qrDataUrl} alt={`QR code for pass ${user.qr_code_token}`} className="w-full h-full" style={{ imageRendering: 'pixelated' }} />
+          ) : qrError ? (
+            <p className="text-xs text-slate-700 text-center p-4" role="alert">{qrError}</p>
+          ) : (
+            <div className="w-8 h-8 rounded-full border-4 border-lime-500/30 border-t-lime-500 animate-spin" role="status" aria-label="Generating QR code" />
+          )}
+        </div>
+
+        <p className="text-center text-xs text-slate-400">
+          {user.membership_expiry ? (
+            <>
+              Valid through <strong className="text-slate-200">{formatDate(user.membership_expiry)}</strong>
+            </>
+          ) : (
+            'No paid period yet'
+          )}
+        </p>
+
+        <div className="flex items-center justify-between gap-3 neu-pressed-sm p-3 rounded-2xl">
+          <code className="font-mono text-xs sm:text-sm font-bold text-slate-200 break-all select-all">{user.qr_code_token}</code>
+          <button type="button" onClick={handleCopy} className="neu-btn flex items-center gap-1.5 px-3 py-1.5 rounded-xl shrink-0 font-bold text-xs">
+            {copied ? <Check className="w-3.5 h-3.5 text-lime-700 dark:text-lime-400" aria-hidden="true" /> : <Copy className="w-3.5 h-3.5" aria-hidden="true" />}
+            {copied ? 'Copied' : 'Copy code'}
           </button>
         </div>
 
-        {/* Tip for Kiosk Screen Brightness */}
-        <div className="flex items-center gap-2 text-xs text-slate-400 mt-4 neu-pressed-sm p-3.5 rounded-2xl w-full text-left">
-          <SunMedium className="w-4 h-4 text-lime-400 shrink-0" />
-          <span className="font-medium">
-            <strong className="text-slate-200">Tip:</strong> Hold your screen 4–6 inches from the optical turnstile scanner at front desk check-in.
-          </span>
-        </div>
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={!qrDataUrl || isDownloading}
+          className="w-full neu-btn-lime py-3 rounded-xl text-sm font-extrabold flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <Download className="w-4 h-4" aria-hidden="true" /> {isDownloading ? 'Preparing…' : 'Download pass (PNG)'}
+        </button>
+        <p className="text-[11px] text-slate-500 text-center">Front desk staff scan the code or type it in. Keep it private: it identifies you at check-in.</p>
       </div>
     </Modal>
   );
