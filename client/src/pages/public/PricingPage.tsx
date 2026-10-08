@@ -1,333 +1,379 @@
-import React, { useState } from 'react';
-import { CheckCircle2, XCircle, Sparkles, ChevronDown, ChevronUp, Lock, Loader2, AlertCircle, Dumbbell, Music2, Zap } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, CheckCircle2, ChevronDown, Dumbbell, Info, Loader2, Lock, Music2, Sparkles, Store, XCircle, Zap } from 'lucide-react';
 import { Badge } from '../../components/common/Badge.js';
+import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
+import { useApiData } from '../../components/public/useApiData.js';
+import { annualPerMonth, annualSavingPercent, planCovers } from '../../components/public/plans.js';
+import { rememberPendingPlan } from '../../components/public/pendingPlan.js';
+import { CATEGORIES } from '../../components/public/gymInfo.js';
 import { useAuth } from '../../context/AuthContext.js';
+import { useAppConfig } from '../../context/ConfigContext.js';
+import { useNavigation } from '../../context/NavigationContext.js';
 import { useToast } from '../../context/ToastContext.js';
 import { useRazorpay } from '../../hooks/useRazorpay.js';
+import { api } from '../../api/client.js';
+import { addDays, formatDate, formatINR, gymToday, STATUS_LABELS } from '../../lib/format.js';
+import { BillingCycle, MembershipPlan, PaidTier, User } from '../../types/index.js';
 
 interface PricingPageProps {
   onOpenAuthModal: (mode: 'login' | 'register') => void;
   onOpenFreeTrialModal: () => void;
 }
 
-export const PricingPage: React.FC<PricingPageProps> = ({
-  onOpenAuthModal,
-  onOpenFreeTrialModal
-}) => {
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const { isAuthenticated } = useAuth();
+const PLAN_ICONS: Record<PaidTier, React.ComponentType<{ className?: string }>> = { basic: Dumbbell, pro: Music2, vip: Zap };
+
+interface PlanAction {
+  label: string;
+  note?: string;
+  isCurrent: boolean;
+}
+
+/** The plan's last day once any freeze is lifted: the server adds the frozen days back before it applies a payment. */
+function endAfterUnfreeze(user: User): string | null {
+  if (!user.membership_expiry) return null;
+  if (user.membership_status !== 'frozen' || !user.frozen_since) return user.membership_expiry;
+  const frozenDays = Math.max(0, Math.round((Date.parse(`${gymToday()}T00:00:00Z`) - Date.parse(`${user.frozen_since}T00:00:00Z`)) / 86_400_000));
+  return addDays(user.membership_expiry, frozenDays);
+}
+
+/** What buying this plan would do for the signed-in account, following the server's activation rules. */
+function planAction(plan: MembershipPlan, user: User | null, plans: MembershipPlan[]): PlanAction {
+  if (!user || user.membership_tier === 'none') return { label: `Choose ${plan.name}`, isCurrent: false };
+
+  const status = user.membership_status;
+  const lastDay = status === 'active' || status === 'frozen' ? endAfterUnfreeze(user) : null;
+  const hasRunningPlan = !!lastDay && lastDay >= gymToday();
+  const current = plans.find(p => p.tier === user.membership_tier);
+  const frozenNote = status === 'frozen' ? ' Paying unfreezes your membership first and adds the frozen days back.' : '';
+
+  if (plan.tier === user.membership_tier) {
+    if (hasRunningPlan && lastDay) {
+      return {
+        label: 'Renew this plan',
+        note: `The new period starts on ${formatDate(addDays(lastDay, 1))}, the day after your current one ends.${frozenNote}`,
+        isCurrent: true
+      };
+    }
+    return { label: 'Renew this plan', note: 'Your plan has ended, so the new period starts today.', isCurrent: true };
+  }
+
+  if (hasRunningPlan) {
+    return {
+      label: `Switch to ${plan.name}`,
+      note: `Starts today. The unused days of your ${current?.name ?? 'current plan'} are credited pro-rata as extra days on this plan.${frozenNote}`,
+      isCurrent: false
+    };
+  }
+  return { label: `Choose ${plan.name}`, note: 'Starts today.', isCurrent: false };
+}
+
+export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpenFreeTrialModal }) => {
+  const { params } = useNavigation();
+  const requestedTier = params.get('plan') as PaidTier | null;
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>(params.get('cycle') === 'annual' ? 'annual' : 'monthly');
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [payingTier, setPayingTier] = useState<PaidTier | null>(null);
+  const { user } = useAuth();
+  const { config, isConfigLoaded } = useAppConfig();
   const { showToast } = useToast();
   const { checkout, isProcessing, error, clearError } = useRazorpay();
+  const { data: plans, error: loadError, isLoading, reload } = useApiData(() => api.getPlans());
 
-  const handleChoosePlan = async (plan: typeof plans[number]) => {
+  // A guest who picked a plan before creating an account comes back here with it in view.
+  useEffect(() => {
+    if (!plans || !requestedTier) return;
+    document.getElementById(`plan-${requestedTier}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [plans, requestedTier]);
+
+  const maxSaving = useMemo(() => Math.max(0, ...(plans ?? []).map(annualSavingPercent)), [plans]);
+  const currentPlan = plans?.find(p => p.tier === user?.membership_tier);
+
+  const handleChoosePlan = async (plan: MembershipPlan) => {
     clearError();
-
-    if (!isAuthenticated) {
-      showToast('Sign in or create an account to purchase a membership.', 'info', 'Login Required');
+    if (!user) {
+      rememberPendingPlan({ tier: plan.tier, cycle: billingCycle });
+      showToast('Create a free account first, then pay for your plan.', 'info');
       onOpenAuthModal('register');
       return;
     }
-
-    try {
-      await checkout({
-        tier: plan.id as 'basic' | 'pro' | 'vip',
-        billingCycle,
-        onSuccess: () =>
-          showToast(
-            `${plan.name} activated! Your membership is now live. Welcome to PulseFit Cyber Hub.`,
-            'success',
-            'Payment Successful'
-          )
-      });
-    } catch (err: any) {
-      showToast(err.message || 'Payment could not be completed. Please try again.', 'error', 'Payment Failed');
-    }
+    setPayingTier(plan.tier);
+    await checkout({
+      tier: plan.tier,
+      billingCycle,
+      onSuccess: ({ payment, user: updated }) => {
+        const until = payment?.period_end ?? updated.membership_expiry;
+        showToast(`${plan.name} is paid${until ? `. Your membership now runs until ${formatDate(until)}` : ''}.`, 'success', 'Payment received');
+      }
+    });
   };
-
-  const plans = [
-    {
-      id: 'basic',
-      name: 'Workout & Strength Pass',
-      badge: null,
-      icon: Dumbbell,
-      priceMonthly: 1199,
-      priceAnnual: 999,
-      description: 'Complete access to the gym floor, free weights & strength workout sessions.',
-      features: [
-        'Full Gym Floor & Free Weights Access',
-        'Olympic Barbells, Racks & Dumbbells (up to 40kg)',
-        'Daily Workout & Strength Training Sessions',
-        'Daily Workout Set Logger & Time Tracker',
-        'Locker Room & High-Pressure Showers',
-        'Pulse Mobile App & Digital QR Turnstile Pass'
-      ],
-      excluded: [
-        'Zumba & Dance Cardio Group Sessions',
-        'Personal Trainer Form & Progress Assessment'
-      ]
-    },
-    {
-      id: 'pro',
-      name: 'Zumba & Cardio Pass',
-      badge: null,
-      icon: Music2,
-      priceMonthly: 1499,
-      priceAnnual: 1199,
-      description: 'Unlimited high-energy Zumba dance and cardio conditioning classes.',
-      features: [
-        'Unlimited Zumba & Dance Cardio Sessions',
-        'Acoustic Dance Studio & Aerobic Floor',
-        'Calorie Burn Tracking & Class Reservations',
-        'Locker Room & High-Pressure Showers',
-        'Pulse Mobile App & Digital QR Turnstile Pass'
-      ],
-      excluded: [
-        'Gym Floor & Heavy Free Weights Zone',
-        'Personal Trainer Form & Progress Assessment'
-      ]
-    },
-    {
-      id: 'vip',
-      name: 'Dual All-Access Pass',
-      badge: 'BEST VALUE',
-      icon: Zap,
-      priceMonthly: 1999,
-      priceAnnual: 1599,
-      description: 'The complete package: unlimited access to BOTH Strength Training & Zumba Cardio sessions.',
-      features: [
-        'Unlimited Workout & Strength Training Floor',
-        'Unlimited Zumba & Cardio Dance Classes',
-        'Full Free Weights, Racks & Machine Access',
-        '1 Monthly Trainer Form & Fitness Assessment',
-        'Priority Class Spot Advance Booking',
-        'Pulse Mobile App & Digital QR Turnstile Pass',
-        'Locker Room & High-Pressure Showers'
-      ],
-      excluded: []
-    }
-  ];
 
   const faqs = [
     {
-      q: 'Are there any hidden sign-up fees or cancellation penalties?',
-      a: 'Zero hidden fees. PulseFit operates on a transparent month-to-month model in INR. You can cancel or freeze your membership with 14-days notice with no penalty fees.'
+      q: 'Which classes can I book with each plan?',
+      a: (plans ?? [])
+        .map(p => `${p.name}: ${p.categories.length === 0 ? 'every class on the timetable' : `${p.categories.join(' and ')} classes`}.`)
+        .join(' ')
     },
     {
-      q: 'How does the digital QR Pass turnstile work at Cyber Hub?',
-      a: 'Once you sign up, your mobile app generates a dynamic encrypted QR token. Simply hold your phone screen up to our optical entrance turnstiles for frictionless access.'
+      q: 'Are there sign-up fees, or does my plan renew automatically?',
+      a: 'There is no sign-up fee: you pay the plan price shown here, in rupees. Plans never renew on their own. When a period ends you decide whether to buy another one.'
     },
     {
-      q: 'Can I test the gym and classes before committing?',
-      a: 'Yes! You can claim our 1-Day Free Trial pass right now, which grants complete access to strength workouts and Zumba sessions at no cost.'
+      q: 'Can I switch plans later?',
+      a: 'Yes. A different plan starts the day you pay for it, and the unused days of your current plan are credited pro-rata as extra days on the new one. Renewing the same plan adds the new period after your current one ends, so you never lose days.'
     },
     {
-      q: 'Can I switch between Strength Pass and Zumba Pass later?',
-      a: 'Yes, you can upgrade or switch plans anytime from your member dashboard. The Dual All-Access plan at ₹1,999/mo gives you access to both simultaneously.'
+      q: 'Can I pause my membership if I travel?',
+      a: 'Yes. Freezing pauses your plan, and when you unfreeze, the days it was frozen are added back to your expiry date. See the refund & cancellation policy for details.'
     },
     {
-      q: 'Can I freeze my membership if I travel?',
-      a: 'Yes. All active members can freeze their membership directly in their portal for up to 60 days per calendar year at no extra charge.'
+      q: 'How do I get in?',
+      a: 'Every account has a personal QR entry pass. Show it at the front desk and staff scan it to check you in.'
+    },
+    {
+      q: 'Can I try the gym first?',
+      a: 'Yes. Claim a free 1-day pass for a day in the next two weeks (Monday to Saturday). There is one free pass per person.'
     }
   ];
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-12 sm:space-y-16">
-      {/* Header */}
       <div className="text-center max-w-3xl mx-auto space-y-3 sm:space-y-4">
-        <Badge variant="lime">MEMBERSHIP TIERS</Badge>
-        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-white tracking-tight font-['Outfit']">
-          AFFORDABLE FITNESS IN GURUGRAM
-        </h1>
-        <p className="text-xs sm:text-sm md:text-base text-slate-400 font-medium">
-          High-end equipment and energetic Zumba classes at honest, pocket-friendly INR pricing.
+        <Badge variant="lime">MEMBERSHIPS</Badge>
+        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-slate-100 tracking-tight font-['Outfit']">CHOOSE YOUR PLAN</h1>
+        <p className="text-sm md:text-base text-slate-400 font-medium">
+          Three plans, priced in rupees, with no sign-up fee. Pay monthly, or once for a full year.
         </p>
 
-        {/* Neumorphic Inset Monthly vs Annual Toggle */}
-        <div className="inline-flex items-center gap-2 p-1.5 rounded-2xl neu-pressed-sm mt-3">
+        <div className="inline-flex items-center gap-1.5 p-1.5 rounded-2xl neu-pressed-sm mt-3" role="group" aria-label="Billing cycle">
           <button
+            type="button"
+            aria-pressed={billingCycle === 'monthly'}
             onClick={() => setBillingCycle('monthly')}
-            className={`px-4 sm:px-5 py-2 rounded-xl text-xs font-bold transition-all ${
-              billingCycle === 'monthly'
-                ? 'neu-btn-lime shadow-glow-lime'
-                : 'text-slate-800 dark:text-slate-200 hover:text-black dark:hover:text-white'
-            }`}
+            className={`px-4 sm:px-5 py-2 rounded-xl text-xs font-bold transition-all ${billingCycle === 'monthly' ? 'neu-btn-lime' : 'text-slate-200'}`}
           >
-            Monthly Billing
+            Monthly
           </button>
           <button
+            type="button"
+            aria-pressed={billingCycle === 'annual'}
             onClick={() => setBillingCycle('annual')}
-            className={`px-4 sm:px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-              billingCycle === 'annual'
-                ? 'neu-btn-lime shadow-glow-lime'
-                : 'text-slate-800 dark:text-slate-200 hover:text-black dark:hover:text-white'
-            }`}
+            className={`px-4 sm:px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${billingCycle === 'annual' ? 'neu-btn-lime' : 'text-slate-200'}`}
           >
-            Annual Billing
-            <span className="bg-amber-400/20 text-amber-300 text-[10px] px-1.5 py-0.5 rounded font-black">
-              SAVE 15%
-            </span>
+            Annual
+            {maxSaving > 0 && (
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded font-black ${
+                  billingCycle === 'annual' ? 'bg-black/15 text-black' : 'bg-amber-400/20 text-amber-700 dark:text-amber-400'
+                }`}
+              >
+                SAVE UP TO {maxSaving}%
+              </span>
+            )}
           </button>
         </div>
       </div>
 
-      {/* Neumorphic Pricing Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 items-stretch">
-        {plans.map(plan => {
-          const isVip = plan.id === 'vip';
-          const price = billingCycle === 'annual' ? plan.priceAnnual : plan.priceMonthly;
-          const PlanIcon = plan.icon;
+      {user && user.membership_tier !== 'none' && (
+        <div className="max-w-3xl mx-auto p-4 rounded-2xl neu-pressed-sm flex items-start gap-3 text-sm text-slate-300">
+          <Info className="w-5 h-5 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
+          <p>
+            You're on <strong className="text-slate-100">{currentPlan?.name ?? 'a plan'}</strong> ({STATUS_LABELS[user.membership_status].toLowerCase()}
+            {user.membership_expiry ? `, ${user.membership_status === 'expired' ? 'ended' : 'until'} ${formatDate(user.membership_expiry)}` : ''}).
+            {user.membership_status === 'frozen' && user.frozen_since ? ` Frozen since ${formatDate(user.frozen_since)}.` : ''}
+          </p>
+        </div>
+      )}
 
-          return (
-            <div
-              key={plan.id}
-              className={`rounded-3xl p-6 sm:p-8 flex flex-col justify-between relative transition-all ${
-                isVip
-                  ? 'neu-flat border-2 border-lime-500/70 shadow-glow-lime transform lg:-translate-y-3'
-                  : 'neu-flat'
-              }`}
-            >
-              {plan.badge && (
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 neu-btn-lime text-[10px] font-black uppercase tracking-widest px-3.5 py-1 rounded-full shadow-md">
-                  {plan.badge}
-                </div>
-              )}
+      {isConfigLoaded && !config.payments.enabled && user && (
+        <div className="max-w-3xl mx-auto p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 text-sm text-slate-200" role="status">
+          <Store className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+          <p>Online payment isn't available — pay at the front desk and staff will activate your plan.</p>
+        </div>
+      )}
 
-              <div className="space-y-5 sm:space-y-6">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="text-xl font-black text-white font-['Outfit']">{plan.name}</h3>
-                    <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{plan.description}</p>
+      {isLoading ? (
+        <LoadingState label="Loading plans…" />
+      ) : loadError ? (
+        <ErrorState message={loadError} onRetry={reload} className="max-w-xl mx-auto" />
+      ) : !plans || plans.length === 0 ? (
+        <EmptyState title="No plans are on sale right now" body="Please ask at the front desk about memberships." className="max-w-xl mx-auto" />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 items-stretch">
+          {plans.map(plan => {
+            const PlanIcon = PLAN_ICONS[plan.tier];
+            const saving = annualSavingPercent(plan);
+            const amount = billingCycle === 'annual' ? plan.price_annual : plan.price_monthly;
+            const action = planAction(plan, user, plans);
+            const highlighted = plan.is_popular || action.isCurrent;
+            const isRequested = requestedTier === plan.tier;
+            const excluded = plan.categories.length === 0 ? [] : CATEGORIES.filter(c => !planCovers(plan, c));
+            const isPaying = isProcessing && payingTier === plan.tier;
+
+            return (
+              <section
+                key={plan.id}
+                id={`plan-${plan.tier}`}
+                aria-labelledby={`plan-${plan.tier}-name`}
+                className={`rounded-3xl p-6 sm:p-8 flex flex-col justify-between relative neu-flat ${
+                  highlighted ? 'border-2 border-lime-500/70 shadow-glow-lime' : 'border border-slate-800/80'
+                } ${isRequested ? 'ring-2 ring-amber-400/70 ring-offset-2 ring-offset-transparent' : ''}`}
+              >
+                {(action.isCurrent || plan.badge) && (
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 neu-btn-lime text-[10px] font-black uppercase tracking-widest px-3.5 py-1 rounded-full whitespace-nowrap">
+                    {action.isCurrent ? 'Your current plan' : plan.badge}
                   </div>
-                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 neu-pressed-sm ${
-                    isVip ? 'text-lime-400 border border-lime-500/30' : plan.id === 'pro' ? 'text-pink-400 border border-pink-500/30' : 'text-cyan-400 border border-cyan-500/30'
-                  }`}>
-                    <PlanIcon className="w-5 h-5" />
-                  </div>
-                </div>
+                )}
 
-                <div className="flex items-baseline gap-1.5 py-3 border-y border-slate-800/80">
-                  <span className="text-4xl sm:text-5xl font-black text-white font-['Outfit']">
-                    ₹{price.toLocaleString('en-IN')}
-                  </span>
-                  <span className="text-xs text-slate-400 font-medium">
-                    / month {billingCycle === 'annual' ? '(billed annually)' : ''}
-                  </span>
-                </div>
-
-                {/* Features List */}
-                <div className="space-y-3">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono">
-                    Included Amenities:
+                <div className="space-y-5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h2 id={`plan-${plan.tier}-name`} className="text-xl font-black text-slate-100 font-['Outfit']">
+                        {plan.name}
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{plan.description}</p>
+                    </div>
+                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 neu-pressed-sm text-lime-400 border border-lime-500/30">
+                      <PlanIcon className="w-5 h-5" />
+                    </div>
                   </div>
-                  <ul className="space-y-2.5 text-xs text-slate-200">
-                    {plan.features.map((feat, i) => (
-                      <li key={i} className="flex items-start gap-2.5">
-                        <CheckCircle2 className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" />
-                        <span className="leading-snug">{feat}</span>
+
+                  <div className="py-3 border-y border-slate-800/80">
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                      <span className="text-4xl sm:text-5xl font-black text-slate-100 font-['Outfit']">{formatINR(amount)}</span>
+                      <span className="text-xs text-slate-400 font-medium">{billingCycle === 'annual' ? 'for 12 months, billed once' : 'per month'}</span>
+                    </div>
+                    {billingCycle === 'annual' ? (
+                      <p className="mt-1 text-xs text-slate-400">
+                        That's {formatINR(annualPerMonth(plan))} a month
+                        {saving > 0 ? (
+                          <>
+                            {' '}
+                            — <strong className="text-amber-600 dark:text-amber-400">{saving}% less</strong> than 12 × {formatINR(plan.price_monthly)}
+                          </>
+                        ) : null}
+                        .
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-slate-400">
+                        Or {formatINR(plan.price_annual)} for a year{saving > 0 ? ` (save ${saving}%)` : ''}.
+                      </p>
+                    )}
+                  </div>
+
+                  <ul className="space-y-2.5 text-xs text-slate-200" aria-label={`What ${plan.name} includes`}>
+                    {plan.features.map(feature => (
+                      <li key={feature} className="flex items-start gap-2.5">
+                        <CheckCircle2 className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
+                        <span className="leading-snug">{feature}</span>
                       </li>
                     ))}
-                    {plan.excluded.map((exc, i) => (
-                      <li key={i} className="flex items-start gap-2.5 text-slate-500 opacity-60">
-                        <XCircle className="w-4 h-4 text-slate-600 shrink-0 mt-0.5" />
-                        <span className="leading-snug line-through">{exc}</span>
+                    {excluded.map(category => (
+                      <li key={category} className="flex items-start gap-2.5 text-slate-400">
+                        <XCircle className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" aria-hidden="true" />
+                        <span className="leading-snug">Doesn't include {category} classes</span>
                       </li>
                     ))}
                   </ul>
                 </div>
-              </div>
 
-              {/* Action Button */}
-              <div className="mt-8 pt-6 border-t border-slate-800/80">
-                <button
-                  onClick={() => handleChoosePlan(plan)}
-                  disabled={isProcessing}
-                  className={`w-full py-3.5 sm:py-4 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-2 ${
-                    isVip
-                      ? 'neu-btn-lime shadow-glow-lime'
-                      : 'neu-btn text-white hover:text-lime-400'
-                  } ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
-                >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Processing…
-                    </>
-                  ) : isAuthenticated ? (
-                    <>
-                      <Lock className="w-3.5 h-3.5" />
-                      Pay ₹{price.toLocaleString('en-IN')} & Activate
-                    </>
+                <div className="mt-8 pt-6 border-t border-slate-800/80 space-y-2">
+                  {!user ? (
+                    <button
+                      type="button"
+                      onClick={() => handleChoosePlan(plan)}
+                      className={`w-full py-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-2 ${highlighted ? 'neu-btn-lime' : 'neu-btn text-slate-100'}`}
+                    >
+                      Create an account to join
+                    </button>
+                  ) : !isConfigLoaded ? (
+                    <div className="h-11 rounded-2xl neu-pressed-sm animate-pulse" aria-hidden="true" />
+                  ) : config.payments.enabled ? (
+                    <button
+                      type="button"
+                      onClick={() => handleChoosePlan(plan)}
+                      disabled={isProcessing}
+                      aria-describedby={action.note ? `plan-${plan.tier}-note` : undefined}
+                      className={`w-full py-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-2 disabled:opacity-60 ${
+                        highlighted ? 'neu-btn-lime' : 'neu-btn text-slate-100'
+                      }`}
+                    >
+                      {isPaying ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Lock className="w-3.5 h-3.5" aria-hidden="true" />}
+                      {isPaying ? 'Waiting for payment…' : `${action.label} · ${formatINR(amount)}`}
+                    </button>
                   ) : (
-                    `Choose ${plan.name}`
+                    <p className="p-3 rounded-xl neu-pressed-sm text-xs text-slate-300 text-center">Online payment isn't available — pay for this plan at the front desk.</p>
                   )}
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Payment Error Message */}
-      {error && (
-        <div className="max-w-3xl mx-auto flex items-start gap-3 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-200 neu-pressed-sm">
-          <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-          <div className="text-sm leading-snug font-medium">{error}</div>
+                  {user && config.payments.enabled && action.note && (
+                    <p id={`plan-${plan.tier}-note`} className="text-[11px] text-slate-400 leading-relaxed">
+                      {action.note}
+                    </p>
+                  )}
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
 
-      {/* Neumorphic Free Pass Banner */}
+      {error && (
+        <div role="alert" className="max-w-3xl mx-auto flex items-start gap-3 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30">
+          <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" aria-hidden="true" />
+          <p className="text-sm leading-snug font-medium text-slate-200">{error}</p>
+        </div>
+      )}
+
       <div className="p-6 sm:p-8 rounded-3xl neu-flat text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6 border border-lime-500/20">
         <div className="space-y-1">
-          <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 justify-center sm:justify-start font-['Outfit']">
-            <Sparkles className="w-5 h-5 text-lime-400" /> Want to try PulseFit Gurugram first?
-          </h3>
-          <p className="text-xs text-slate-400 font-medium">
-            Get a 1-day complimentary all-access pass to our Strength floor and Zumba sessions.
-          </p>
+          <h2 className="text-lg sm:text-xl font-bold text-slate-100 flex items-center gap-2 justify-center sm:justify-start font-['Outfit']">
+            <Sparkles className="w-5 h-5 text-lime-400" aria-hidden="true" /> Want to try PulseFit first?
+          </h2>
+          <p className="text-xs text-slate-400 font-medium">Claim a free 1-day pass for the Strength floor or a Zumba & Cardio class.</p>
         </div>
-        <button
-          onClick={onOpenFreeTrialModal}
-          className="px-6 py-3.5 neu-btn-lime text-black font-black text-xs rounded-xl shadow-glow-lime transition-all shrink-0"
-        >
-          Claim 1-Day Free Pass
+        <button type="button" onClick={onOpenFreeTrialModal} className="px-6 py-3.5 neu-btn-lime font-black text-xs rounded-xl shrink-0">
+          Claim a free pass
         </button>
       </div>
 
-      {/* Neumorphic FAQ Accordion */}
       <div className="max-w-3xl mx-auto space-y-6 pt-4">
         <div className="text-center space-y-2">
-          <Badge variant="cyan">FREQUENTLY ASKED QUESTIONS</Badge>
-          <h2 className="text-2xl sm:text-3xl font-black text-white font-['Outfit']">
-            EVERYTHING YOU NEED TO KNOW
-          </h2>
+          <Badge variant="cyan">QUESTIONS</Badge>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit']">GOOD TO KNOW</h2>
         </div>
 
         <div className="space-y-3">
-          {faqs.map((faq, idx) => (
-            <div
-              key={idx}
-              className="rounded-2xl neu-flat p-1 overflow-hidden transition-all"
-            >
-              <button
-                onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                className="w-full p-4 sm:p-5 text-left flex items-center justify-between gap-4 font-bold text-xs sm:text-sm text-slate-100 hover:text-lime-400 transition-colors"
-              >
-                <span>{faq.q}</span>
-                {openFaq === idx ? (
-                  <ChevronUp className="w-4 h-4 text-lime-400 shrink-0" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
-                )}
-              </button>
-
-              {openFaq === idx && (
-                <div className="px-4 sm:px-5 pb-4 sm:pb-5 text-xs text-slate-400 leading-relaxed border-t border-slate-800/60 pt-3 animate-in fade-in neu-pressed-sm m-2 rounded-xl">
-                  {faq.a}
+          {faqs
+            .filter(faq => faq.a)
+            .map((faq, idx) => {
+              const isOpen = openFaq === idx;
+              return (
+                <div key={faq.q} className="rounded-2xl neu-flat p-1 overflow-hidden">
+                  <h3>
+                    <button
+                      type="button"
+                      id={`faq-${idx}-button`}
+                      aria-expanded={isOpen}
+                      aria-controls={`faq-${idx}-panel`}
+                      onClick={() => setOpenFaq(isOpen ? null : idx)}
+                      className="w-full p-4 sm:p-5 text-left flex items-center justify-between gap-4 font-bold text-sm text-slate-100 hover:text-lime-400 transition-colors rounded-xl"
+                    >
+                      <span>{faq.q}</span>
+                      <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${isOpen ? 'rotate-180 text-lime-400' : 'text-slate-400'}`} aria-hidden="true" />
+                    </button>
+                  </h3>
+                  {isOpen && (
+                    <div
+                      id={`faq-${idx}-panel`}
+                      role="region"
+                      aria-labelledby={`faq-${idx}-button`}
+                      className="px-4 sm:px-5 py-4 text-sm text-slate-300 leading-relaxed neu-pressed-sm m-2 rounded-xl"
+                    >
+                      {faq.a}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
+              );
+            })}
         </div>
       </div>
     </div>
