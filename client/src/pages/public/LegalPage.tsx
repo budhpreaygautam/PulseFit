@@ -42,7 +42,7 @@ const PRIVACY: Section[] = [
     body: (
       <ul>
         <li>
-          <strong>Your account:</strong> name, email address, an optional mobile number and an optional profile photo. We use them to identify you at the front desk and to
+          <strong>Your account:</strong> name, email address, an optional mobile number and a profile picture. We use them to identify you at the front desk and to
           contact you about your membership. Your password is stored only as a one-way hash; we never see it.
         </li>
         <li>
@@ -81,6 +81,14 @@ const PRIVACY: Section[] = [
         <li>Front-desk and admin staff see member accounts, memberships, payments, visits and bookings so they can run the gym.</li>
         <li>Coaches see the names, contact details and attendance of members booked into their classes, and the notes they write.</li>
         <li>Razorpay processes online payments. Google processes sign-in if you use "Continue with Google".</li>
+        <li>
+          Until you choose your own photo, your account picture is a cartoon avatar drawn by DiceBear (api.dicebear.com) from your name, so your name is sent to DiceBear
+          whenever the picture is shown. To stop this, upload your own photo or pick a preset on your account page.
+        </li>
+        <li>
+          Our pages load fonts from Google Fonts and photos from Unsplash. Like any website you visit, those services see your IP address and browser details, but not your
+          account.
+        </li>
         <li>On the public website, the live floor counter shows only how many people are training, never who.</li>
       </ul>
     )

@@ -12,7 +12,7 @@ import { useNavigation } from '../../context/NavigationContext.js';
 import { useToast } from '../../context/ToastContext.js';
 import { useRazorpay } from '../../hooks/useRazorpay.js';
 import { api } from '../../api/client.js';
-import { addDays, formatDate, formatINR, STATUS_LABELS } from '../../lib/format.js';
+import { addDays, formatDate, formatINR, gymToday, STATUS_LABELS } from '../../lib/format.js';
 import { BillingCycle, MembershipPlan, PaidTier, User } from '../../types/index.js';
 
 interface PricingPageProps {
@@ -28,20 +28,29 @@ interface PlanAction {
   isCurrent: boolean;
 }
 
+/** The plan's last day once any freeze is lifted: the server adds the frozen days back before it applies a payment. */
+function endAfterUnfreeze(user: User): string | null {
+  if (!user.membership_expiry) return null;
+  if (user.membership_status !== 'frozen' || !user.frozen_since) return user.membership_expiry;
+  const frozenDays = Math.max(0, Math.round((Date.parse(`${gymToday()}T00:00:00Z`) - Date.parse(`${user.frozen_since}T00:00:00Z`)) / 86_400_000));
+  return addDays(user.membership_expiry, frozenDays);
+}
+
 /** What buying this plan would do for the signed-in account, following the server's activation rules. */
 function planAction(plan: MembershipPlan, user: User | null, plans: MembershipPlan[]): PlanAction {
   if (!user || user.membership_tier === 'none') return { label: `Choose ${plan.name}`, isCurrent: false };
 
   const status = user.membership_status;
-  const hasRunningPlan = status === 'active' || status === 'frozen';
+  const lastDay = status === 'active' || status === 'frozen' ? endAfterUnfreeze(user) : null;
+  const hasRunningPlan = !!lastDay && lastDay >= gymToday();
   const current = plans.find(p => p.tier === user.membership_tier);
   const frozenNote = status === 'frozen' ? ' Paying unfreezes your membership first and adds the frozen days back.' : '';
 
   if (plan.tier === user.membership_tier) {
-    if (hasRunningPlan && user.membership_expiry) {
+    if (hasRunningPlan && lastDay) {
       return {
         label: 'Renew this plan',
-        note: `The new period starts on ${formatDate(addDays(user.membership_expiry, 1))}, the day after your current one ends.${frozenNote}`,
+        note: `The new period starts on ${formatDate(addDays(lastDay, 1))}, the day after your current one ends.${frozenNote}`,
         isCurrent: true
       };
     }
