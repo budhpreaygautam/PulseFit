@@ -32,7 +32,8 @@ export const ROUTES: RouteDef[] = [
   { tab: 'workout-logger', path: '/log-workout', title: 'Log a workout', access: 'auth' },
   { tab: 'profile', path: '/profile', title: 'My account', access: 'auth' },
 
-  { tab: 'trainer-dashboard', path: '/trainer', title: 'Coach dashboard', access: ['trainer'] },
+  // Admins open a coach's dashboard (?trainer=<id>) to take attendance for coaches without a login.
+  { tab: 'trainer-dashboard', path: '/trainer', title: 'Coach dashboard', access: ['trainer', 'admin'] },
 
   { tab: 'admin-dashboard', path: '/admin', title: 'Admin dashboard', access: ['admin'] },
   { tab: 'admin-members', path: '/admin/members', title: 'Members', access: ['admin'] },

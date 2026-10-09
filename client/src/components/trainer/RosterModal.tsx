@@ -23,6 +23,10 @@ interface RosterModalProps {
 
 // Matches the server: attendance can be taken from 15 minutes before the class starts.
 const OPENS_BEFORE_MS = 15 * 60_000;
+// While the roster waits for a change (attendance opening, then the class starting) it re-checks
+// the clock at least this often. Browsers pause timers while a computer sleeps, so after waking the
+// roster catches up within a minute, or at once when the page is shown or focused again.
+const RECHECK_MS = 60_000;
 
 const STATUS_BADGE: Record<BookingStatus, { label: string; variant: 'lime' | 'crimson' | 'slate' | 'amber' }> = {
   confirmed: { label: 'Not marked', variant: 'slate' },
@@ -45,12 +49,16 @@ export const RosterModal: React.FC<RosterModalProps> = ({ session, onClose, onCh
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  // The clock the attendance window is judged by; moved on by the timer and wake-up checks below.
+  const [now, setNow] = useState(() => Date.now());
 
   const load = useCallback(async () => {
     if (!session) return;
     setLoadError(null);
     try {
-      setRoster(await api.getClassRoster(session.classId, session.date));
+      const next = await api.getClassRoster(session.classId, session.date);
+      setNow(Date.now());
+      setRoster(next);
     } catch (err) {
       setLoadError(attendanceError(err));
     }
@@ -76,9 +84,33 @@ export const RosterModal: React.FC<RosterModalProps> = ({ session, onClose, onCh
     }
   };
 
-  const opensAt = roster ? Date.parse(roster.class.starts_at) - OPENS_BEFORE_MS : 0;
-  const isOpen = roster ? Date.now() >= opensAt : false;
+  const startsAtMs = roster ? Date.parse(roster.class.starts_at) : 0;
+  const opensAt = startsAtMs - OPENS_BEFORE_MS;
+  const isOpen = roster ? now >= opensAt : false;
   const counts = (roster?.attendees ?? []).reduce<Record<string, number>>((acc, a) => ({ ...acc, [a.status]: (acc[a.status] ?? 0) + 1 }), {});
+
+  // The next moment the roster changes by itself: attendance opens (the buttons unlock), then the
+  // class starts (the capacity leaves the header). Null once both have passed.
+  const nextChange = !roster ? null : now < opensAt ? opensAt : now < startsAtMs ? startsAtMs : null;
+
+  // Move the clock on at that moment, without the coach reopening the roster.
+  useEffect(() => {
+    if (nextChange === null) return;
+    const timer = window.setTimeout(() => setNow(Date.now()), Math.min(Math.max(nextChange - Date.now(), 0) + 250, RECHECK_MS));
+    return () => window.clearTimeout(timer);
+  }, [nextChange, now]);
+
+  // A computer waking from sleep shows or focuses the page again: catch up at once.
+  useEffect(() => {
+    if (nextChange === null) return;
+    const refresh = () => setNow(Date.now());
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [nextChange]);
 
   return (
     <Modal
@@ -94,8 +126,11 @@ export const RosterModal: React.FC<RosterModalProps> = ({ session, onClose, onCh
         <LoadingState label="Loading the roster…" />
       ) : (
         <div className="space-y-4">
+          {/* Everyone listed booked, no-shows included, so marking attendance never changes this
+              count. Capacity is shown only before the class: it may have changed since a past one. */}
           <p className="text-sm text-slate-300">
-            <strong className="text-slate-100">{roster.class.booked_count}</strong>/{roster.class.capacity} booked · {counts.attended ?? 0} attended · {counts.no_show ?? 0} no-show ·{' '}
+            <strong className="text-slate-100">{roster.attendees.length}</strong>
+            {now < startsAtMs ? `/${roster.class.capacity}` : ''} booked · {counts.attended ?? 0} attended · {counts.no_show ?? 0} no-show ·{' '}
             {counts.confirmed ?? 0} not marked
           </p>
           {!isOpen && (

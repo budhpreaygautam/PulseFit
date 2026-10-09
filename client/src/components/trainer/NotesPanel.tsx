@@ -17,6 +17,9 @@ const CATEGORIES: { value: TrainerNoteCategory; label: string; variant: 'cyan' |
 ];
 const MAX_NOTE = 2000;
 
+/** GET /trainer/notes also names the member, so a note about someone no longer a client still says who. */
+type ListedNote = TrainerNote & { member_name?: string | null };
+
 interface NotesPanelProps {
   clients: TrainerClient[];
   /** Set when an admin views a coach's dashboard. */
@@ -38,35 +41,47 @@ function noteError(err: unknown): string {
 }
 
 export const NotesPanel: React.FC<NotesPanelProps> = ({ clients, trainerId, currentUserId, isAdmin, memberFilter, onMemberFilterChange, onChanged }) => {
-  const [notes, setNotes] = useState<TrainerNote[] | null>(null);
+  // Every note of this coach; "Show notes about" filters them here, so it can offer earlier clients too.
+  const [allNotes, setAllNotes] = useState<ListedNote[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [form, setForm] = useState({ member_id: memberFilter, category: 'progress' as TrainerNoteCategory, note: '', visible_to_member: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [deleting, setDeleting] = useState<TrainerNote | null>(null);
+  const [deleting, setDeleting] = useState<ListedNote | null>(null);
   const { showToast } = useToast();
 
-  const nameOf = (memberId: string) => clients.find(c => c.user_id === memberId)?.name ?? 'Member';
+  const nameOf = (memberId: string, listed?: string | null) => clients.find(c => c.user_id === memberId)?.name ?? listed ?? 'Member';
   // A coach writes only about their own clients; an admin looking at a coach's page reads them.
   const canWrite = !trainerId;
 
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      setNotes(await api.getTrainerNotes(memberFilter || undefined, trainerId));
+      setAllNotes(await api.getTrainerNotes(undefined, trainerId));
     } catch (err) {
       setLoadError(noteError(err));
     }
-  }, [memberFilter, trainerId]);
+  }, [trainerId]);
 
   useEffect(() => {
-    setNotes(null);
+    setAllNotes(null);
     load();
   }, [load]);
 
+  const notes = allNotes && (memberFilter ? allNotes.filter(n => n.member_id === memberFilter) : allNotes);
+  // Members the notes are about who are not clients any more (their bookings were all cancelled).
+  // A coach can no longer write about them, but can still find what was written.
+  const earlierClients = [
+    ...new Map(
+      (allNotes ?? []).filter(n => !clients.some(c => c.user_id === n.member_id)).map(n => [n.member_id, n.member_name ?? 'Member'])
+    )
+  ].sort((a, b) => a[1].localeCompare(b[1]));
+
+  // Choosing whose notes to read also picks them for the next note, when they are still a client.
+  // Runs on a new choice only, so a client list refreshed after saving keeps the form's own pick.
   useEffect(() => {
-    if (memberFilter) setForm(f => ({ ...f, member_id: memberFilter }));
+    if (memberFilter && clients.some(c => c.user_id === memberFilter)) setForm(f => ({ ...f, member_id: memberFilter }));
   }, [memberFilter]);
 
   const submit = async (e: React.FormEvent) => {
@@ -84,7 +99,8 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({ clients, trainerId, curr
     try {
       await api.createTrainerNote({ member_id: form.member_id, category: form.category, note: text, visible_to_member: form.visible_to_member });
       showToast(`Note saved for ${nameOf(form.member_id)}.`, 'success');
-      setForm(f => ({ ...f, note: '' }));
+      // Private is the default: a shared note is a choice made for each note, never carried over.
+      setForm(f => ({ ...f, note: '', visible_to_member: false }));
       load();
       onChanged();
     } catch (err) {
@@ -100,6 +116,10 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({ clients, trainerId, curr
     try {
       await api.deleteTrainerNote(deleting.id);
       showToast('Note deleted.', 'success');
+      // The last note about an earlier client leaves nothing to show under their name.
+      const { id, member_id } = deleting;
+      const isEarlier = !clients.some(c => c.user_id === member_id);
+      if (memberFilter === member_id && isEarlier && !(allNotes ?? []).some(n => n.id !== id && n.member_id === member_id)) onMemberFilterChange('');
     } catch (err) {
       showToast(noteError(err), 'error', 'Could not delete the note');
     }
@@ -167,6 +187,13 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({ clients, trainerId, curr
             {clients.map(c => (
               <option key={c.user_id} value={c.user_id}>{c.name}</option>
             ))}
+            {earlierClients.length > 0 && (
+              <optgroup label="Earlier clients">
+                {earlierClients.map(([id, name]) => (
+                  <option key={id} value={id}>{name}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
         {loadError ? (
@@ -184,7 +211,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({ clients, trainerId, curr
                 <li key={n.id} className="neu-pressed-sm rounded-2xl p-4 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-bold text-sm text-slate-100">{nameOf(n.member_id)}</span>
+                      <span className="font-bold text-sm text-slate-100">{nameOf(n.member_id, n.member_name)}</span>
                       <Badge size="sm" variant={category.variant}>{category.label}</Badge>
                       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400">
                         {n.visible_to_member ? <Eye className="w-3.5 h-3.5" aria-hidden="true" /> : <EyeOff className="w-3.5 h-3.5" aria-hidden="true" />}
@@ -192,7 +219,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({ clients, trainerId, curr
                       </span>
                     </div>
                     {canDelete && (
-                      <button type="button" onClick={() => setDeleting(n)} className={`p-2 neu-btn rounded-lg hover:text-rose-400 ${focusRing}`} aria-label={`Delete note about ${nameOf(n.member_id)} from ${formatDateTime(n.created_at)}`}>
+                      <button type="button" onClick={() => setDeleting(n)} className={`p-2 neu-btn rounded-lg hover:text-rose-400 ${focusRing}`} aria-label={`Delete note about ${nameOf(n.member_id, n.member_name)} from ${formatDateTime(n.created_at)}`}>
                         <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
                     )}
@@ -211,7 +238,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({ clients, trainerId, curr
       <ConfirmDialog
         isOpen={deleting !== null}
         title="Delete this note?"
-        message={deleting && <p>The {deleting.category} note about <strong>{nameOf(deleting.member_id)}</strong> is deleted{deleting.visible_to_member ? ' and disappears from their dashboard' : ''}. This cannot be undone.</p>}
+        message={deleting && <p>The {deleting.category} note about <strong>{nameOf(deleting.member_id, deleting.member_name)}</strong> is deleted{deleting.visible_to_member ? ' and disappears from their dashboard' : ''}. This cannot be undone.</p>}
         confirmLabel="Delete note"
         tone="danger"
         onConfirm={confirmDelete}

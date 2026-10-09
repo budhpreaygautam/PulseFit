@@ -6,8 +6,13 @@ import { asyncHandler, forbidden, notFound, ok, parse } from '../lib/http.js';
 import { addDays, gymToday } from '../lib/dates.js';
 import { effectiveStatus } from '../lib/membership.js';
 import { newId } from '../lib/users.js';
-import { byStart, hasStarted, nextOccurrenceOf, toOccurrence, trainerOfUser } from '../lib/occurrences.js';
-import { Booking, TrainerNote, Trainer } from '../types/index.js';
+import { byStart, hasStarted, nextOccurrenceOf, startsAt, toOccurrence, trainerOfUser } from '../lib/occurrences.js';
+import { Booking, GymClass, TrainerNote, Trainer } from '../types/index.js';
+
+/** attendance_rate_30d covers today and the 29 days before it. */
+const ATTENDANCE_RATE_DAYS = 30;
+/** recent_sessions covers today and the 13 days before it. */
+const RECENT_SESSION_DAYS = 14;
 
 const scopeQuery = z.object({
   trainer_id: z.preprocess(v => (v === '' ? undefined : v), z.string().optional())
@@ -69,14 +74,17 @@ export const getTrainerMe = asyncHandler<AuthenticatedRequest>((req, res: Respon
     .sort(byStart);
 
   const today = gymToday(now);
-  const monthAgo = addDays(today, -30);
-  const recent = bookingsFor(trainer).filter(b => b.booking_date >= monthAgo && b.booking_date <= today);
-  const attended = recent.filter(b => b.status === 'attended').length;
-  const noShows = recent.filter(b => b.status === 'no_show').length;
+  const bookings = bookingsFor(trainer);
+  // Exactly 30 days: today and the 29 before it (the admin dashboard's 30-day window).
+  const windowStart = addDays(today, -(ATTENDANCE_RATE_DAYS - 1));
+  const marked = bookings.filter(b => b.booking_date >= windowStart && b.booking_date <= today);
+  const attended = marked.filter(b => b.status === 'attended').length;
+  const noShows = marked.filter(b => b.status === 'no_show').length;
 
   ok(res, {
     trainer,
     upcoming,
+    recent_sessions: recentSessions(classes, bookings, now),
     stats: {
       classes_per_week: classes.length,
       booked_next_7_days: upcoming.reduce((sum, o) => sum + o.booked_count, 0),
@@ -87,12 +95,52 @@ export const getTrainerMe = asyncHandler<AuthenticatedRequest>((req, res: Respon
   });
 });
 
-/** Members who booked the trainer's classes or have a note from them. */
+/**
+ * Sessions of the trainer's classes that have started, from today and the 13 days before, newest
+ * first, so attendance can be taken for any of them (upcoming covers the ones still to come).
+ * A session is listed when it has at least one booking that was not cancelled; one nobody booked
+ * has nothing to mark. Built from bookings, so a session held before its class moved to another
+ * weekday is still listed.
+ */
+function recentSessions(classes: GymClass[], bookings: Booking[], now: Date) {
+  const since = addDays(gymToday(now), -(RECENT_SESSION_DAYS - 1));
+  const sessions = new Map<string, Booking[]>();
+  for (const b of bookings) {
+    if (b.status === 'cancelled' || b.booking_date < since) continue;
+    const key = `${b.class_id}|${b.booking_date}`;
+    sessions.set(key, [...(sessions.get(key) ?? []), b]);
+  }
+  return [...sessions.values()]
+    .map(list => {
+      const cls = classes.find(c => c.id === list[0].class_id)!;
+      const date = list[0].booking_date;
+      return {
+        class_id: cls.id,
+        class_title: cls.title,
+        category: cls.category,
+        room: cls.room,
+        date,
+        start_time: cls.start_time,
+        duration_minutes: cls.duration_minutes,
+        starts_at: startsAt(cls.start_time, date).toISOString(),
+        // No-shows still held a spot, so they count as booked.
+        booked: list.length,
+        unmarked: list.filter(b => b.status === 'confirmed').length
+      };
+    })
+    .filter(s => hasStarted(s.start_time, s.date, now))
+    .sort((a, b) => b.starts_at.localeCompare(a.starts_at));
+}
+
+/**
+ * The one rule for "my clients": a member is one of a trainer's clients exactly when they hold a
+ * booking in one of the trainer's classes that was not cancelled (confirmed, attended or no-show).
+ * The client list, clients_count and the right to write a note all use it. An admin view without
+ * a trainer covers every class.
+ */
 function clientIds(trainer: Trainer | null): Set<string> {
-  const ids = new Set<string>();
-  for (const b of bookingsFor(trainer)) if (b.status !== 'cancelled') ids.add(b.user_id);
-  for (const n of notesFor(trainer)) ids.add(n.member_id);
-  return new Set([...ids].filter(id => db.users.some(u => u.id === id)));
+  const ids = new Set(bookingsFor(trainer).filter(b => b.status !== 'cancelled').map(b => b.user_id));
+  return new Set([...ids].filter(id => db.users.some(u => u.id === id && u.role === 'member')));
 }
 
 export const getTrainerClients = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
@@ -131,7 +179,14 @@ export const getTrainerNotes = asyncHandler<AuthenticatedRequest>((req, res: Res
   const { trainer_id, member_id } = parse(notesQuery, req.query);
   let notes = notesFor(resolveTrainer(req, trainer_id));
   if (member_id) notes = notes.filter(n => n.member_id === member_id);
-  ok(res, [...notes].sort((a, b) => b.created_at.localeCompare(a.created_at)));
+  // The member's current name, so notes about someone who is no longer a client still say who.
+  const names = new Map(db.users.map(u => [u.id, u.name]));
+  ok(
+    res,
+    [...notes]
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .map(n => ({ ...n, member_name: names.get(n.member_id) ?? null }))
+  );
 });
 
 export const createTrainerNote = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
@@ -141,9 +196,8 @@ export const createTrainerNote = asyncHandler<AuthenticatedRequest>((req, res: R
 
   const member = db.users.find(u => u.id === body.member_id && u.role === 'member');
   if (!member) throw notFound('That member does not exist.');
-  // A note makes the member one of the trainer's clients, which shows their plan and status;
-  // so a trainer may only write about members who book their classes.
-  if (author.role !== 'admin' && !bookingsFor(trainer).some(b => b.user_id === member.id && b.status !== 'cancelled')) {
+  // A trainer writes only about their own clients (see clientIds); admins are exempt.
+  if (author.role !== 'admin' && !clientIds(trainer).has(member.id)) {
     throw forbidden('You can only write notes about members who book your classes.', 'NOT_YOUR_CLIENT');
   }
 
