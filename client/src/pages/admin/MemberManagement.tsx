@@ -5,7 +5,7 @@ import { ApiError, api, downloadFile, errorMessage } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
-import { AdminNav, Avatar, PageHeader, focusRing, inputClass } from '../../components/admin/ui.js';
+import { AdminNav, Avatar, PageHeader, focusRing, inputClass, sideEffectTone } from '../../components/admin/ui.js';
 import { CreateMemberModal, EditMemberModal } from '../../components/admin/MemberForms.js';
 import { MemberDetailModal } from '../../components/admin/MemberDetailModal.js';
 import { TempPasswordModal } from '../../components/admin/TempPasswordModal.js';
@@ -30,15 +30,26 @@ type Credentials = React.ComponentProps<typeof TempPasswordModal>['credentials']
 const selectClass = 'px-3 py-2 rounded-xl text-xs font-semibold text-slate-100';
 
 export const MemberManagement: React.FC = () => {
-  const { params } = useNavigation();
+  const { params, navigate } = useNavigation();
   const { user } = useAuth();
   const { showToast } = useToast();
 
-  const initialStatus = params.get('status');
+  // The status filter lives in the URL (?status=frozen, as the dashboard links), so it follows
+  // links, Back and reloads; the page is not remounted when only the query string changes.
+  const urlStatus = params.get('status');
+  const status = urlStatus && STATUS_FILTERS.includes(urlStatus) ? urlStatus : 'all';
+  const setStatus = (next: string) => {
+    const query = Object.fromEntries(params);
+    if (next === 'all') delete query.status;
+    else query.status = next;
+    // navigate() scrolls to the top as for a new page; a filter change should leave the view alone.
+    const scrollY = window.scrollY;
+    navigate('admin-members', query, { replace: true });
+    window.scrollTo({ top: scrollY });
+  };
   const [filters, setFilters] = useState({
     search: '',
     tier: 'all',
-    status: initialStatus && STATUS_FILTERS.includes(initialStatus) ? initialStatus : 'all',
     role: 'member' as RoleFilter
   });
   const [searchInput, setSearchInput] = useState('');
@@ -61,13 +72,13 @@ export const MemberManagement: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      setMembers(await api.getMembers({ search: filters.search || undefined, tier: filters.tier, status: filters.status, role: filters.role }));
+      setMembers(await api.getMembers({ search: filters.search || undefined, tier: filters.tier, status, role: filters.role }));
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setIsLoading(false);
     }
-  }, [filters]);
+  }, [filters, status]);
 
   useEffect(() => {
     load();
@@ -212,7 +223,7 @@ export const MemberManagement: React.FC = () => {
             </div>
             <div>
               <label htmlFor="status-filter" className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Status</label>
-              <select id="status-filter" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} className={selectClass}>
+              <select id="status-filter" value={status} onChange={e => setStatus(e.target.value)} className={selectClass}>
                 {STATUS_FILTERS.map(s => (
                   <option key={s} value={s}>{s === 'all' ? 'All statuses' : STATUS_LABELS[s]}</option>
                 ))}
@@ -241,7 +252,13 @@ export const MemberManagement: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <Badge size="sm" variant={statusVariant(m.membership_status)}>{STATUS_LABELS[m.membership_status]}</Badge>
                   <span className="text-slate-300 font-semibold">{TIER_LABELS[m.membership_tier]}</span>
-                  <span className="text-slate-400">until {formatDate(m.membership_expiry)}</span>
+                  {/* No date, no "until": a member without a plan reads just "No plan". A frozen
+                      membership's date moves on when it is unfrozen, so it has not "ended". */}
+                  {m.membership_expiry && (
+                    <span className="text-slate-400">
+                      {m.membership_expiry < gymToday() && m.membership_status !== 'frozen' ? 'ended' : 'until'} {formatDate(m.membership_expiry)}
+                    </span>
+                  )}
                 </div>
                 {rowActions(m)}
               </li>
@@ -297,9 +314,11 @@ export const MemberManagement: React.FC = () => {
         member={editing}
         currentUserId={user?.id}
         onClose={() => setEditing(null)}
-        onSaved={saved => {
+        onSaved={(saved, notice) => {
           setEditing(null);
-          showToast(`${saved.name} was updated.`, 'success');
+          // Say what else the edit did (a freeze or a plan change cancels bookings), not just "updated".
+          if (notice) showToast(notice, sideEffectTone(notice), `${saved.name} was updated`);
+          else showToast(`${saved.name} was updated.`, 'success');
           load();
         }}
       />

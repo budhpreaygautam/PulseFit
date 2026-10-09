@@ -110,7 +110,9 @@ const OutcomePanel: React.FC<{ outcome: Outcome | null }> = ({ outcome }) => {
         <XCircle className="w-6 h-6" aria-hidden="true" /> Check-in failed
       </p>
       <p className="text-sm font-semibold text-slate-200">{outcome.message}</p>
-      <p className="text-xs text-slate-400">Nothing was recorded. Try again.</p>
+      <p className="text-xs text-slate-400">
+        Nothing was recorded. Try again. Code entered: <span className="font-mono break-all">{outcome.code}</span>
+      </p>
     </div>
   );
 };
@@ -179,7 +181,6 @@ export const QuickCheckInScanner: React.FC = () => {
     try {
       const result = await api.checkIn(value, method);
       next = { kind: 'granted', result, code: value };
-      setCode('');
       if (!result.already_checked_in) {
         triggerCelebration();
         loadFeed();
@@ -197,7 +198,13 @@ export const QuickCheckInScanner: React.FC = () => {
     }
     setOutcome(next);
     setSessionLog(log => [next, ...log].slice(0, 10));
-    if (method === 'manual') inputRef.current?.focus();
+    if (method === 'manual') {
+      // Whatever the answer, the next scan starts in an empty box (a USB scanner types and presses
+      // Enter, so a left-over code would be glued to the next one). The outcome panel still shows
+      // what was entered. Anything typed while the check ran is kept.
+      setCode(current => (current.startsWith(raw) ? current.slice(raw.length) : current));
+      inputRef.current?.focus();
+    }
   };
 
   return (

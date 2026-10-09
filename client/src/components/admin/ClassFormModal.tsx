@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { GymClass, Trainer } from '../../types/index.js';
-import { ApiError, api, errorMessage } from '../../api/client.js';
+import { ApiError, api } from '../../api/client.js';
 import { Modal } from '../common/Modal.js';
 import { DAY_NAMES } from '../../lib/format.js';
-import { FieldError, FormError, fieldErrorsFrom, focusRing, hintClass, inputClass, labelClass } from './ui.js';
+import { FieldError, FormError, focusRing, formErrorsFrom, hintClass, inputClass, labelClass, sideEffectsOf } from './ui.js';
 
 export const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const CATEGORIES = ['Workout & Strength', 'Zumba & Cardio'];
@@ -69,7 +69,8 @@ interface ClassFormModalProps {
   target: GymClass | 'new' | null;
   trainers: Trainer[];
   onClose: () => void;
-  onSaved: (message: string) => void;
+  /** `notice` is what the save did besides saving, e.g. "2 upcoming bookings were cancelled (…)". */
+  onSaved: (message: string, notice?: string) => void;
   /** The chosen coach no longer exists; the page should reload its coach list. */
   onTrainersStale: () => void;
 }
@@ -141,12 +142,9 @@ export const ClassFormModal: React.FC<ClassFormModalProps> = ({ target, trainers
           onClose();
           return;
         }
-        await api.updateClass(editing.id, changes);
-        onSaved(
-          changes.day_of_week !== undefined
-            ? `${payload.title} was updated. Any upcoming bookings on ${DAY_NAMES[editing.day_of_week]} were cancelled.`
-            : `${payload.title} was updated.`
-        );
+        // The server counts the bookings a day or category change cancelled, and why.
+        const { message } = await api.updateClass(editing.id, changes);
+        onSaved(`${payload.title} was updated.`, sideEffectsOf(message));
       } else {
         await api.createClass(payload);
         onSaved(`${payload.title} was added to the timetable.`);
@@ -156,8 +154,11 @@ export const ClassFormModal: React.FC<ClassFormModalProps> = ({ target, trainers
       else if (err instanceof ApiError && err.code === 'TRAINER_NOT_FOUND') {
         setErrors({ trainer_id: `${err.message} Choose another coach.` });
         onTrainersStale();
-      } else if (err instanceof ApiError && err.code === 'VALIDATION_ERROR' && Object.keys(fieldErrorsFrom(err)).length) setErrors(fieldErrorsFrom(err));
-      else setFormError(errorMessage(err));
+      } else {
+        const { fieldErrors, formError } = formErrorsFrom(err, Object.keys(EMPTY));
+        setErrors(fieldErrors);
+        setFormError(formError);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -178,6 +179,8 @@ export const ClassFormModal: React.FC<ClassFormModalProps> = ({ target, trainers
     className: inputClass
   });
   const dayChanged = editing && Number(form.day_of_week) !== editing.day_of_week;
+  const categoryChanged = editing && form.category !== editing.category;
+  const warningClass = 'rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs font-semibold text-amber-800 dark:text-amber-300';
 
   return (
     <Modal isOpen onClose={isSaving ? () => undefined : onClose} title={editing ? `Edit ${editing.title}` : 'Add a class'} description="A weekly class: it runs on the same day and time every week." maxWidth="2xl">
@@ -219,8 +222,13 @@ export const ClassFormModal: React.FC<ClassFormModalProps> = ({ target, trainers
           {field('duration_minutes', 'Minutes', <input type="number" inputMode="numeric" min={15} max={180} value={form.duration_minutes} onChange={e => set('duration_minutes', e.target.value)} {...common('duration_minutes')} />)}
         </div>
         {dayChanged && (
-          <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs font-semibold text-amber-300" role="note">
+          <p className={warningClass} role="note">
             Moving the class to another day cancels its upcoming bookings on {DAY_NAMES[editing.day_of_week]}.
+          </p>
+        )}
+        {categoryChanged && (
+          <p className={warningClass} role="note">
+            Changing the category cancels upcoming bookings by members whose plan does not include {form.category}.
           </p>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

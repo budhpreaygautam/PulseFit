@@ -1,6 +1,6 @@
 import React from 'react';
 import { CalendarDays, Gauge, QrCode, Tag, Users, UserPlus } from 'lucide-react';
-import { ApiError } from '../../api/client.js';
+import { ApiError, errorMessage } from '../../api/client.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 
 // Building blocks shared by the admin and coach screens.
@@ -24,17 +24,51 @@ export const FormError: React.FC<{ message?: string | null }> = ({ message }) =>
     </div>
   ) : null;
 
+type Issue = { path: string; message: string };
+const issuesOf = (err: unknown): Issue[] =>
+  err instanceof ApiError && err.code === 'VALIDATION_ERROR' ? ((err.data as { issues?: Issue[] } | undefined)?.issues ?? []) : [];
+
 /** VALIDATION_ERROR issues keyed by their first path segment, for showing next to each field. */
 export function fieldErrorsFrom(err: unknown): Record<string, string> {
-  if (!(err instanceof ApiError) || err.code !== 'VALIDATION_ERROR') return {};
-  const issues = (err.data as { issues?: { path: string; message: string }[] } | undefined)?.issues ?? [];
   const errors: Record<string, string> = {};
-  for (const issue of issues) {
+  for (const issue of issuesOf(err)) {
     const key = issue.path.split('.')[0];
     if (key && !errors[key]) errors[key] = issue.message;
   }
   return errors;
 }
+
+/**
+ * A failed save, split into errors for the fields the form shows (`fields`) and one form-level
+ * message for everything else, so no answer from the server is swallowed.
+ */
+export function formErrorsFrom(err: unknown, fields: readonly string[]): { fieldErrors: Record<string, string>; formError: string | null } {
+  const issues = issuesOf(err);
+  if (issues.length === 0) return { fieldErrors: {}, formError: errorMessage(err) };
+  const fieldErrors: Record<string, string> = {};
+  const other: string[] = [];
+  for (const issue of issues) {
+    const key = issue.path.split('.')[0];
+    if (fields.includes(key)) {
+      if (!fieldErrors[key]) fieldErrors[key] = issue.message;
+    } else {
+      other.push(key ? `${issue.path.replace(/[._]/g, ' ')}: ${issue.message}` : issue.message);
+    }
+  }
+  return { fieldErrors, formError: other.length ? other.join(' ') : null };
+}
+
+/**
+ * What an edit did besides saving, from the server's message: "Plan updated. 2 upcoming bookings
+ * were cancelled …" gives "2 upcoming bookings were cancelled …". Undefined for a plain "Plan updated."
+ */
+export function sideEffectsOf(message?: string): string | undefined {
+  const rest = message?.replace(/^\s*\w+ updated\.\s*/i, '').trim();
+  return rest || undefined;
+}
+
+/** Toast type for a side-effect message: cancelled bookings or a member still locked out are a warning, anything else is news. */
+export const sideEffectTone = (text: string) => (/cancel|cannot/i.test(text) ? ('warning' as const) : ('info' as const));
 
 export const PageHeader: React.FC<{ eyebrow: string; title: string; description?: React.ReactNode; actions?: React.ReactNode }> = ({
   eyebrow,
@@ -53,7 +87,7 @@ export const PageHeader: React.FC<{ eyebrow: string; title: string; description?
 );
 
 const ADMIN_LINKS = [
-  { tab: 'admin-dashboard', label: 'Overview', icon: Gauge },
+  { tab: 'admin-dashboard', label: 'Dashboard', icon: Gauge },
   { tab: 'admin-members', label: 'Members', icon: Users },
   { tab: 'admin-scanner', label: 'Check-in', icon: QrCode },
   { tab: 'admin-classes', label: 'Classes & coaches', icon: CalendarDays },
@@ -61,11 +95,14 @@ const ADMIN_LINKS = [
   { tab: 'admin-trials', label: 'Trial leads', icon: UserPlus }
 ];
 
-/** Links between the admin screens (the main navbar only lists some of them). */
+/**
+ * Links between the admin screens, for phones only: from the md breakpoint the navbar's
+ * "Front desk & admin" bar shows the same links, and below it they sit behind the menu button.
+ */
 export const AdminNav: React.FC = () => {
   const { tab, navigate } = useNavigation();
   return (
-    <nav aria-label="Admin sections" className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
+    <nav aria-label="Admin sections" className="md:hidden -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
       <ul className="flex gap-2 py-2 w-max sm:w-auto sm:flex-wrap">
         {ADMIN_LINKS.map(({ tab: id, label, icon: Icon }) => {
           const active = tab === id;
