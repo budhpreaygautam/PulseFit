@@ -4,14 +4,15 @@ import { ClassOccurrence, TrainerClient, TrainerDashboard as Dashboard } from '.
 import { ApiError, api, errorMessage } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
-import { Avatar, PageHeader, focusRing } from '../../components/admin/ui.js';
+import { AdminNav, Avatar, PageHeader, focusRing } from '../../components/admin/ui.js';
 import { KpiTile } from '../../components/admin/KpiTile.js';
 import { statusVariant } from '../../components/admin/memberStatus.js';
 import { RosterModal, RosterSession } from '../../components/trainer/RosterModal.js';
 import { NotesPanel } from '../../components/trainer/NotesPanel.js';
+import { CoachList, CoachSelect } from '../../components/trainer/CoachPicker.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
-import { STATUS_LABELS, TIER_LABELS, addDays, formatClock, formatDate, formatTime } from '../../lib/format.js';
+import { STATUS_LABELS, TIER_LABELS, formatClock, formatDate, formatTime } from '../../lib/format.js';
 
 type Tab = 'classes' | 'clients' | 'notes';
 const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -20,45 +21,92 @@ const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: st
   { id: 'notes', label: 'Notes', icon: NotebookPen }
 ];
 
-/** Last week's session of a class that members actually booked, from its roster. */
+/** A session that has started, from GET /trainer/me `recent_sessions` (last 14 days, newest first). */
 interface RecentSession {
-  occurrence: ClassOccurrence;
+  class_id: string;
+  class_title: string;
+  category: string;
+  room: string;
   date: string;
+  start_time: string;
+  duration_minutes: number;
+  starts_at: string;
+  /** Bookings that were not cancelled, no-shows included. */
   booked: number;
+  /** Bookings not marked attended or no-show yet. */
   unmarked: number;
 }
+
+type DashboardData = Dashboard & { recent_sessions?: RecentSession[] };
 
 interface TrainerDashboardProps {
   /** An admin viewing a coach's dashboard (?trainer=<id>). */
   trainerId?: string;
 }
 
-const SessionRow: React.FC<{ occurrence: ClassOccurrence; date: string; past?: { booked: number; unmarked: number }; onOpen: () => void }> = ({ occurrence: o, date, past, onOpen }) => (
+interface SessionRowProps {
+  title: string;
+  date: string;
+  time: string;
+  durationMinutes: number;
+  room: string;
+  category: string;
+  summary: string;
+  action: string;
+}
+
+const SessionRow: React.FC<SessionRowProps & { onOpen: () => void }> = ({ title, date, time, durationMinutes, room, category, summary, action, onOpen }) => (
   <li className="neu-pressed-sm rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
     <div className="sm:w-44 shrink-0">
       <p className="text-sm font-black text-lime-400">{formatDate(date, { weekday: 'short', day: 'numeric', month: 'short' })}</p>
-      <p className="text-xs text-slate-400">{past ? formatClock(o.start_time) : formatTime(o.starts_at)} · {o.duration_minutes} min</p>
+      <p className="text-xs text-slate-400">{time} · {durationMinutes} min</p>
     </div>
     <div className="flex-1 min-w-0">
-      <p className="font-extrabold text-slate-100 font-['Outfit'] break-words">{o.title}</p>
+      <p className="font-extrabold text-slate-100 font-['Outfit'] break-words">{title}</p>
       <p className="text-xs text-slate-400">
-        {o.room} · {o.category}
-        {past ? ` · ${past.booked} booked · ${past.unmarked === 0 ? 'all marked' : `${past.unmarked} not marked`}` : ` · ${o.booked_count}/${o.capacity} booked`}
+        {room} · {category} · {summary}
       </p>
     </div>
-    <button type="button" onClick={onOpen} className={`px-4 py-2 neu-btn rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 ${focusRing}`} aria-label={`Open roster for ${o.title} on ${formatDate(date)}`}>
-      <ClipboardList className="w-3.5 h-3.5" aria-hidden="true" /> {!past ? 'Open roster' : past.unmarked > 0 ? 'Take attendance' : 'Review attendance'}
+    {/* The accessible name starts with the visible text, so "click Take attendance" works by voice. */}
+    <button type="button" onClick={onOpen} className={`px-4 py-2 neu-btn rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 ${focusRing}`} aria-label={`${action}: ${title} on ${formatDate(date)}`}>
+      <ClipboardList className="w-3.5 h-3.5" aria-hidden="true" /> {action}
     </button>
   </li>
 );
 
+const upcomingRow = (o: ClassOccurrence): SessionRowProps => ({
+  title: o.title,
+  date: o.occurrence_date,
+  time: formatTime(o.starts_at),
+  durationMinutes: o.duration_minutes,
+  room: o.room,
+  category: o.category,
+  summary: `${o.booked_count}/${o.capacity} booked`,
+  action: 'Open roster'
+});
+
+const recentRow = (s: RecentSession): SessionRowProps => ({
+  title: s.class_title,
+  date: s.date,
+  time: formatClock(s.start_time),
+  durationMinutes: s.duration_minutes,
+  room: s.room,
+  category: s.category,
+  summary: `${s.booked} booked · ${s.unmarked === 0 ? 'all marked' : `${s.unmarked} not marked`}`,
+  action: s.unmarked > 0 ? 'Take attendance' : 'Review attendance'
+});
+
 export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: trainerIdProp }) => {
   const { user } = useAuth();
   const { params, navigate } = useNavigation();
-  const trainerId = trainerIdProp ?? params.get('trainer') ?? undefined;
   const isAdmin = user?.role === 'admin';
+  // Only an admin chooses the coach; a coach always sees their own dashboard.
+  const trainerId = isAdmin ? trainerIdProp ?? (params.get('trainer') || undefined) : undefined;
+  // An admin has no coach record of their own, so there is nothing to load until they pick one.
+  const needsCoach = isAdmin && !trainerId;
+  const chooseCoach = useCallback((id: string) => navigate('trainer-dashboard', { trainer: id }), [navigate]);
 
-  const [data, setData] = useState<Dashboard | null>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<{ message: string; notLinked: boolean } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [clients, setClients] = useState<TrainerClient[] | null>(null);
@@ -66,61 +114,52 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
   const [tab, setTab] = useState<Tab>('classes');
   const [session, setSession] = useState<RosterSession | null>(null);
   const [noteMember, setNoteMember] = useState('');
-  const [recent, setRecent] = useState<RecentSession[] | null>(null);
-  const [recentError, setRecentError] = useState<string | null>(null);
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ classes: null, clients: null, notes: null });
+  // An answer for a coach the admin has already switched away from is dropped.
+  const shownTrainer = useRef(trainerId);
+  shownTrainer.current = trainerId;
 
   const loadDashboard = useCallback(async () => {
+    if (needsCoach) return;
     setIsLoading(true);
     try {
-      setData(await api.getTrainerDashboard(trainerId));
+      const next = await api.getTrainerDashboard(trainerId);
+      if (shownTrainer.current !== trainerId) return;
+      setData(next);
       setError(null);
     } catch (err) {
+      if (shownTrainer.current !== trainerId) return;
       setError({ message: errorMessage(err), notLinked: err instanceof ApiError && err.code === 'NO_TRAINER_PROFILE' });
     } finally {
-      setIsLoading(false);
+      if (shownTrainer.current === trainerId) setIsLoading(false);
     }
-  }, [trainerId]);
+  }, [trainerId, needsCoach]);
 
   const loadClients = useCallback(async () => {
+    if (needsCoach) return;
     setClientsError(null);
     try {
-      setClients(await api.getTrainerClients(trainerId));
+      const next = await api.getTrainerClients(trainerId);
+      if (shownTrainer.current === trainerId) setClients(next);
     } catch (err) {
-      setClientsError(errorMessage(err));
+      if (shownTrainer.current === trainerId) setClientsError(errorMessage(err));
     }
+  }, [trainerId, needsCoach]);
+
+  // Switching to another coach starts from a clean page, not the previous coach's figures.
+  useEffect(() => {
+    setData(null);
+    setError(null);
+    setClients(null);
+    setClientsError(null);
+    setSession(null);
+    setNoteMember('');
   }, [trainerId]);
 
   useEffect(() => {
     loadDashboard();
     loadClients();
   }, [loadDashboard, loadClients]);
-
-  // GET /trainer/me lists only sessions that have not started, so attendance for the one just
-  // held comes from each class's previous-week roster. Sessions nobody booked (including weeks
-  // before the class existed) have nothing to mark and are left out.
-  const upcoming = data?.upcoming;
-  const loadRecent = useCallback(async () => {
-    if (!upcoming) return;
-    setRecentError(null);
-    try {
-      const rosters = await Promise.all(
-        upcoming.map(async o => ({ o, r: await api.getClassRoster(o.id, addDays(o.occurrence_date, -7)) }))
-      );
-      setRecent(
-        rosters
-          .filter(({ r }) => r.attendees.length > 0)
-          .map(({ o, r }) => ({ occurrence: o, date: r.date, booked: r.attendees.length, unmarked: r.attendees.filter(a => a.status === 'confirmed').length }))
-          .sort((a, b) => b.date.localeCompare(a.date) || b.occurrence.start_time.localeCompare(a.occurrence.start_time))
-      );
-    } catch (err) {
-      setRecentError(errorMessage(err));
-    }
-  }, [upcoming]);
-
-  useEffect(() => {
-    loadRecent();
-  }, [loadRecent]);
 
   const onTabKey = (e: React.KeyboardEvent, current: Tab) => {
     const index = TABS.findIndex(t => t.id === current);
@@ -141,20 +180,37 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
     </button>
   );
 
+  if (needsCoach) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
+        <AdminNav />
+        <PageHeader
+          eyebrow="Admin · coach view"
+          title="Coach dashboards"
+          description="Choose a coach to see their classes, take attendance and read their notes. This is also how attendance is taken for coaches who have no login."
+          actions={scannerButton}
+        />
+        <CoachList onChoose={chooseCoach} />
+      </div>
+    );
+  }
+
   if (!data) {
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
-        <PageHeader eyebrow="Coach" title="Coach dashboard" actions={scannerButton} />
+        {isAdmin && <AdminNav />}
+        <PageHeader eyebrow={isAdmin ? 'Admin · coach view' : 'Coach'} title="Coach dashboard" actions={scannerButton} />
         {isLoading ? (
-          <LoadingState label="Loading your dashboard…" />
+          <LoadingState label={isAdmin ? 'Loading the coach’s dashboard…' : 'Loading your dashboard…'} />
+        ) : error?.notLinked && isAdmin ? (
+          <>
+            <EmptyState title="We could not find that coach" body="They may have been removed. Choose another coach." />
+            <CoachList onChoose={chooseCoach} />
+          </>
         ) : error?.notLinked ? (
           <EmptyState
-            title={isAdmin && !trainerId ? 'Choose a coach to view' : 'Your account is not linked to a coach profile yet'}
-            body={
-              isAdmin && !trainerId
-                ? 'Open this page with ?trainer=<coach id> to see that coach’s dashboard.'
-                : 'Ask an admin to link your login to your coach profile under Classes & coaches. You can still use the check-in scanner.'
-            }
+            title="Your account is not linked to a coach profile yet"
+            body="Ask an admin to link your login to your coach profile under Classes & coaches. You can still use the check-in scanner."
           />
         ) : (
           <ErrorState message={`Could not load the dashboard. ${error?.message ?? ''}`} onRetry={loadDashboard} />
@@ -164,14 +220,18 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
   }
 
   const { trainer, stats } = data;
+  const recent = data.recent_sessions ?? [];
+  const whose = isAdmin ? `${trainer.name}'s` : 'your';
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
+      {isAdmin && <AdminNav />}
       <PageHeader
-        eyebrow={trainerId && isAdmin ? 'Admin · coach view' : 'Coach'}
-        title={trainerId && isAdmin ? `${trainer.name}'s dashboard` : 'Coach dashboard'}
+        eyebrow={isAdmin ? 'Admin · coach view' : 'Coach'}
+        title={isAdmin ? `${trainer.name}'s dashboard` : 'Coach dashboard'}
         actions={
           <>
+            {isAdmin && trainerId && <CoachSelect value={trainerId} onChoose={chooseCoach} />}
             <button type="button" onClick={() => {
                 loadDashboard();
                 loadClients();
@@ -202,7 +262,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
           value={stats.attendance_rate_30d === null ? 'Not enough data' : `${stats.attendance_rate_30d}%`}
           icon={<Activity className="w-5 h-5" />}
           accent="amber"
-          definition="Of the bookings you marked attended or no-show in the last 30 days, the share that attended. Bookings you have not marked are not counted."
+          definition="Of the bookings marked attended or no-show in the last 30 days (today and the 29 days before), the share that attended. Bookings not marked yet are not counted."
         />
         <KpiTile title="Clients" value={stats.clients_count} icon={<UserCheck className="w-5 h-5" />} accent="slate" />
       </div>
@@ -233,42 +293,30 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
             <section aria-labelledby="upcoming-heading" className="space-y-3">
               <h2 id="upcoming-heading" className="text-base font-extrabold text-slate-100 font-['Outfit']">Next 7 days</h2>
               {data.upcoming.length === 0 ? (
-                <EmptyState title="No classes in the next 7 days" body="Ask an admin to assign classes to you." />
+                <EmptyState title="No classes in the next 7 days" body={isAdmin ? 'Assign classes to this coach under Classes & coaches.' : 'Ask an admin to assign classes to you.'} />
               ) : (
                 <ul className="space-y-2">
                   {data.upcoming.map(o => (
-                    <SessionRow key={`${o.id}-${o.occurrence_date}`} occurrence={o} date={o.occurrence_date} onOpen={() => setSession({ classId: o.id, date: o.occurrence_date, title: o.title })} />
+                    <SessionRow key={`${o.id}-${o.occurrence_date}`} {...upcomingRow(o)} onOpen={() => setSession({ classId: o.id, date: o.occurrence_date, title: o.title })} />
                   ))}
                 </ul>
               )}
             </section>
-            {data.upcoming.length > 0 && (
-              <section aria-labelledby="recent-heading" className="space-y-3">
-                <div>
-                  <h2 id="recent-heading" className="text-base font-extrabold text-slate-100 font-['Outfit']">Last week's sessions</h2>
-                  <p className="text-xs text-slate-400">Each class's session a week before its next one, when members booked it. Mark who attended and who did not show.</p>
-                </div>
-                {recentError ? (
-                  <ErrorState message={`Could not load last week's rosters. ${recentError}`} onRetry={loadRecent} />
-                ) : !recent ? (
-                  <LoadingState label="Loading last week's rosters…" />
-                ) : recent.length === 0 ? (
-                  <EmptyState title="No booked sessions last week" body="Sessions with bookings appear here so you can take attendance." />
-                ) : (
-                  <ul className="space-y-2">
-                    {recent.map(({ occurrence, date, booked, unmarked }) => (
-                      <SessionRow
-                        key={`${occurrence.id}-${date}`}
-                        occurrence={occurrence}
-                        date={date}
-                        past={{ booked, unmarked }}
-                        onOpen={() => setSession({ classId: occurrence.id, date, title: occurrence.title })}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </section>
-            )}
+            <section aria-labelledby="recent-heading" className="space-y-3">
+              <div>
+                <h2 id="recent-heading" className="text-base font-extrabold text-slate-100 font-['Outfit']">Last 14 days</h2>
+                <p className="text-xs text-slate-400">Sessions members booked in the last 14 days, newest first. Open any of them to mark who attended and who did not show.</p>
+              </div>
+              {recent.length === 0 ? (
+                <EmptyState title="No booked sessions in the last 14 days" body="Sessions with bookings appear here once they start, so attendance can be taken." />
+              ) : (
+                <ul className="space-y-2">
+                  {recent.map(s => (
+                    <SessionRow key={`${s.class_id}-${s.date}`} {...recentRow(s)} onOpen={() => setSession({ classId: s.class_id, date: s.date, title: s.class_title })} />
+                  ))}
+                </ul>
+              )}
+            </section>
           </div>
         )}
 
@@ -278,7 +326,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
           ) : !clients ? (
             <LoadingState label="Loading clients…" />
           ) : clients.length === 0 ? (
-            <EmptyState title="No clients yet" body="Members who book your classes appear here." />
+            <EmptyState title="No clients yet" body={`Members who book ${whose} classes appear here.`} />
           ) : (
             <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {clients.map(c => (

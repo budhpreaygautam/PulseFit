@@ -183,19 +183,36 @@ status `confirmed` or `attended` for that date. Stored classes carry no counter.
 | `POST/PUT /trainers(/:id)` (admin) | trainer fields, validated | `Trainer` | |
 | `DELETE /trainers/:id` (admin) | `reassign_to?` (query) | `{ deleted: true, reassigned_classes }` | 409 `TRAINER_HAS_CLASSES` (`data.classes = [{ id, title }]`) |
 
-**Trainer portal** (role `trainer`, linked through `trainers.user_id`; admins may pass `?trainer_id=`):
+**Trainer portal** (role `trainer`, linked through `trainers.user_id`; admins may pass `?trainer_id=`, which is how the
+coach dashboard at `/trainer?trainer=<id>` shows an admin any coach, including coaches without a login):
 
 | Method & path | Body / query | Success `data` | Errors |
 |---|---|---|---|
-| `GET /trainer/me` | — | `{ trainer, upcoming: ClassOccurrence[] (next 7 days), stats: { classes_per_week, booked_next_7_days, attendance_rate_30d: number \| null, clients_count } }` | 404 `NO_TRAINER_PROFILE` |
-| `GET /trainer/clients` | — | `[{ user_id, name, avatar_url, membership_tier, membership_status, sessions_attended, last_attended: string \| null, upcoming_bookings, notes_count }]` | |
-| `GET /trainer/notes` | `member_id?` | `TrainerNote[]` (a trainer sees their own; an admin sees all) | |
+| `GET /trainer/me` | — | `{ trainer, upcoming: ClassOccurrence[] (next 7 days, not started), recent_sessions: RecentSession[], stats: { classes_per_week, booked_next_7_days, attendance_rate_30d: number \| null, clients_count } }` | 404 `NO_TRAINER_PROFILE` |
+| `GET /trainer/clients` | — | `[{ user_id, name, avatar_url, membership_tier, membership_status, sessions_attended, last_attended: string \| null, upcoming_bookings, notes_count }]` (the trainer's clients, see below) | |
+| `GET /trainer/notes` | `member_id?` | `(TrainerNote & { member_name: string \| null })[]` newest first (a trainer sees their own; an admin sees all). `member_name` is the member's current name | |
 | `POST /trainer/notes` | `{ member_id, category: 'assessment'\|'progress'\|'injury'\|'general', note (1–2000), visible_to_member: boolean }` | 201 `TrainerNote` | 404 member |
 | `DELETE /trainer/notes/:id` | — (author or admin) | `{ deleted: true }` | |
 | `GET /notes/my` (member) | — | `TrainerNote[]` about me where `visible_to_member` | |
 
 When a booking is marked `attended`, it counts towards the member's streak for that day. Changing it back to `no_show`
 or `confirmed` takes the day back unless other activity on that day also counted it (the streak is rebuilt from history).
+
+`GET /trainer/me` details:
+- `recent_sessions`: the trainer's sessions that have started, from today and the 13 days before (14 days), newest
+  first: `[{ class_id, class_title, category, room, date, start_time, duration_minutes, starts_at, booked, unmarked }]`.
+  A session is listed when it has at least one booking that was not cancelled; `booked` counts those bookings
+  (confirmed, attended and no-show: a no-show still held a spot) and `unmarked` the ones still `confirmed`. Sessions
+  come from bookings, so one held before its class moved to another weekday is listed too. Attendance can be taken
+  for any of them through the roster (`GET /bookings/class/:classId/roster?date=`) and `PATCH /bookings/:id/attendance`.
+- `attendance_rate_30d`: of the bookings marked `attended` or `no_show` with a `booking_date` from today and the 29
+  days before (exactly 30 days), the percentage attended; `null` when none were marked.
+- A trainer's clients: a member is one of a trainer's clients exactly when they hold at least one booking in one of
+  the trainer's classes that was not cancelled (confirmed, attended or no-show). `GET /trainer/clients`,
+  `stats.clients_count` and the right to write a note (`POST /trainer/notes`) all use this one rule; a note on its
+  own does not make someone a client. An admin view without `trainer_id` covers every class. Notes about someone
+  who is no longer a client stay readable through `GET /trainer/notes` (with `member_name`); the coach dashboard
+  offers such members under "Earlier clients" in its notes filter.
 
 Additional rules:
 - `GET /classes/:id?date=` and the roster answer 400 `DATE_MISMATCH` for a date that is not a session of the class
@@ -221,7 +238,8 @@ Additional rules:
 - `PATCH /bookings/:id/attendance` on a cancelled booking: 409 `ALREADY_CANCELLED`. `DELETE /bookings/:id` on an attended
   or no-show booking: 400 `CLASS_STARTED`.
 - Trainer notes: 404 `NO_TRAINER_PROFILE` for a trainer account not linked to a trainer record; 403 `NOT_YOUR_CLIENT` when
-  the member has never booked one of the trainer's classes (admins are exempt).
+  the member is not one of the trainer's clients, e.g. they never booked the trainer's classes or every such booking
+  was cancelled (admins are exempt).
 
 ---
 

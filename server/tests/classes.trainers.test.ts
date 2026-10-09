@@ -190,7 +190,7 @@ describe('classes: trainers and trainer portal', () => {
       expect(stats.clients_count).toBe(2);
 
       const recent = db.bookings.filter(
-        b => ['cls_str_mon', 'cls_str_wed', 'cls_str_fri', 'cls_str_sat'].includes(b.class_id) && b.booking_date >= '2026-09-07' && b.booking_date <= '2026-10-07'
+        b => ['cls_str_mon', 'cls_str_wed', 'cls_str_fri', 'cls_str_sat'].includes(b.class_id) && b.booking_date >= '2026-09-08' && b.booking_date <= '2026-10-07'
       );
       const attended = recent.filter(b => b.status === 'attended').length;
       const missed = recent.filter(b => b.status === 'no_show').length;
