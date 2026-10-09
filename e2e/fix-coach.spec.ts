@@ -104,9 +104,9 @@ test('an admin opens the dashboard of a coach without a login and can take atten
   // Without a coach in the address, the admin chooses one.
   await page.goto('/trainer');
   await expect(page.getByRole('heading', { level: 1, name: 'Coach dashboards' })).toBeVisible();
-  await page.getByRole('button', { name: "View Rohan Mehta's dashboard" }).click();
+  await page.getByRole('button', { name: "View Karan Joshi's dashboard" }).click();
   await expect(page).toHaveURL(/\/trainer\?trainer=trn_rohan$/);
-  await expect(page.getByRole('heading', { level: 1, name: "Rohan Mehta's dashboard" })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: "Karan Joshi's dashboard" })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

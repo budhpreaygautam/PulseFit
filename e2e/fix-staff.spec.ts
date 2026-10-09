@@ -462,7 +462,7 @@ test.describe('members page', () => {
     const pageNav = page.getByRole('navigation', { name: 'Admin sections' });
     if (testInfo.project.name === 'mobile') {
       await expect(pageNav).toBeVisible();
-      await expect(pageNav.getByRole('button', { name: 'Dashboard' })).toBeVisible();
+      await expect(pageNav.getByRole('button', { name: 'Dashboard', exact: true })).toBeVisible();
     } else {
       await expect(page.getByRole('navigation', { name: 'Front desk & admin' })).toBeVisible();
       await expect(pageNav).toBeHidden();
