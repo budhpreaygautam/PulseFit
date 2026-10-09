@@ -2,7 +2,7 @@
 
 All notable changes to PulseFit. Versions follow [Semantic Versioning](https://semver.org/).
 
-## [2.1.0] — 2026-10-07
+## [2.1.0] — 2026-10-09
 
 v2.1 makes the app real and safe to run: every number on screen now comes from stored data,
 money and access rules are enforced on the server, and the features the README already promised
@@ -45,7 +45,7 @@ money and access rules are enforced on the server, and the features the README a
 - Password reset page, 404 page, privacy/terms/refund pages, and real URLs for every page
   (refresh, back button and shared links work).
 - `GET /api/config` so the client knows whether demo mode, Google sign-in and payments are available.
-- 485 API tests (Vitest + supertest), 42 Playwright tests (every page, access rules, booking and
+- 599 API tests (Vitest + supertest), 180 Playwright tests (every page, access rules, booking and
   cancelling, front-desk check-in, pricing) on desktop and mobile, and GitHub Actions CI.
 
 ### Changed

@@ -245,8 +245,8 @@ events `payment.captured`, `order.paid` and `payment.failed`, and use the same s
 ## 🧪 Testing
 
 ```bash
-npm test            # 485 API tests (Vitest + supertest), each file on its own throwaway database
-npm run test:e2e    # 42 Playwright tests: builds the client, starts the API on a fresh demo database, runs Chromium (desktop + mobile)
+npm test            # 599 API tests (Vitest + supertest), each file on its own throwaway database
+npm run test:e2e    # 180 Playwright tests (90 per project): builds the client, starts the API on a fresh demo database, runs Chromium (desktop + mobile)
 npm run typecheck   # server, client and e2e
 ```
 
