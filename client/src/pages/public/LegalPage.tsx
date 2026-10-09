@@ -187,8 +187,9 @@ const TERMS: Section[] = [
           the two plans' monthly prices.
         </li>
         <li>
-          You can freeze an active membership. While it is frozen you cannot enter or book classes; when you unfreeze it, the days it was frozen are added to your end date.
-          Paying for a plan while frozen unfreezes your membership first.
+          You can freeze an active membership. From the day you freeze it you cannot enter, book classes or start a floor session, and your upcoming class bookings are
+          cancelled. When you unfreeze it, the open gym days you missed are added to your end date; the day you freeze, the day you unfreeze and Sundays (when the gym
+          is closed) are not counted. Paying for a plan while frozen unfreezes your membership first.
         </li>
       </ul>
     )
@@ -270,8 +271,8 @@ const REFUNDS: Section[] = [
     body: (
       <ul>
         <li>
-          <strong>Freeze:</strong> if you travel, are ill or need a break, freeze your membership. It is paused, and when you unfreeze, every day it was frozen is added back
-          to your end date, so you lose nothing.
+          <strong>Freeze:</strong> if you travel, are ill or need a break, freeze your membership. It is paused and your upcoming class bookings are cancelled. When you
+          unfreeze, the open gym days you missed are added back to your end date (not the day you freeze, the day you return, or Sundays).
         </li>
         <li>
           <strong>Switch plans:</strong> moving to a different plan credits the unused days of your current plan to the new one, in proportion to the two plans' monthly

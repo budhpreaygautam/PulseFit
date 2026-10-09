@@ -77,6 +77,7 @@ const ROLE_LINKS: Record<UserRole, RoleLink[]> = {
     { tab: 'admin-members', label: 'Members', icon: Users },
     { tab: 'admin-scanner', label: 'Check-in', icon: ScanLine },
     { tab: 'admin-classes', label: 'Classes & coaches', icon: CalendarCheck },
+    { tab: 'trainer-dashboard', label: 'Coach dashboards', icon: Activity },
     { tab: 'admin-plans', label: 'Plans', icon: Tags },
     { tab: 'admin-trials', label: 'Trial leads', icon: ClipboardList },
     { tab: 'profile', label: 'My account', icon: UserCircle }
@@ -323,7 +324,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
         {user && !isInitializing && (
           <div className="hidden md:block border-t border-slate-800/60">
             <nav
-              className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none]"
+              className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex flex-wrap items-center gap-1.5"
               aria-label={ROLE_SECTION_LABEL[user.role]}
             >
               <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mr-2 shrink-0">{ROLE_SECTION_LABEL[user.role]}</span>

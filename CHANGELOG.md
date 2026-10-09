@@ -91,6 +91,11 @@ money and access rules are enforced on the server, and the features the README a
   - **Member and public pages:** the freeze dialog tells the truth about cancelled bookings, the rest and
     floor timers keep correct time, the timetable shows Sunday classes and plan limits without flicker,
     free trials hide today after closing, and payment confirmations say what the payment did.
+  - **Across the app:** light-theme error, warning and badge text is readable; restoring a session no longer
+    jumps away from the home page or a reset link; an unreachable server keeps you signed in and reconnects by
+    itself; error toasts stay at least 10 seconds; a part of the app that fails to download shows a Reload
+    message instead of a blank screen; page changes move keyboard focus to the heading; plan names match
+    the catalogue everywhere; the first load is smaller (QR pass and confetti load on demand).
   - Messages show dates as "8 Oct 2026" instead of "2026-10-08"; demo data is consistent.
 
 ## [2.0.0] — 2026-10-05

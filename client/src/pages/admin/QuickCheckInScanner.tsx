@@ -9,7 +9,7 @@ import { CameraScanner, canScanWithCamera } from '../../components/admin/CameraS
 import { statusVariant } from '../../components/admin/memberStatus.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
-import { STATUS_LABELS, TIER_LABELS, formatDate, formatDateTime, formatTime, gymToday } from '../../lib/format.js';
+import { STATUS_LABELS, TIER_LABELS, TIER_SHORT_LABELS, formatDate, formatDateTime, formatTime, gymToday } from '../../lib/format.js';
 
 type Method = 'manual' | 'camera';
 
@@ -128,7 +128,7 @@ const LogRow: React.FC<{ log: AttendanceLog }> = ({ log }) => (
     </div>
     <div className="text-right shrink-0">
       <Badge size="sm" variant={log.trial_pass_id ? 'purple' : 'slate'}>
-        {log.trial_pass_id ? 'Trial' : TIER_LABELS[log.user_tier ?? ''] ?? log.user_tier ?? '—'}
+        {log.trial_pass_id ? 'Trial' : TIER_SHORT_LABELS[log.user_tier ?? ''] ?? log.user_tier ?? '—'}
       </Badge>
       <p className="text-[11px] text-slate-400 mt-1">
         {formatDateTime(log.check_in_time)} · {LOG_METHODS[log.check_in_method] ?? log.check_in_method}

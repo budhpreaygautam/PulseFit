@@ -59,7 +59,8 @@ No linter or formatter is configured; match the surrounding style.
 - Admin forms map server `VALIDATION_ERROR` issues with `formErrorsFrom(err, fields)` (`components/admin/ui.tsx`): issues for fields a form does not render go to the form-level error, never silently dropped.
 - `ConfigContext` reads `GET /api/config` (demo mode, Google client id, Razorpay key); the client holds no secrets or `VITE_` keys. `AuthContext` holds the session, `useRazorpay` runs checkout, `lib/format.ts` formats INR and IST dates, and `components/common` provides `States` (loading/error/empty), `ConfirmDialog` and `Modal`.
 - Show real data only: when there is nothing, render an empty state, never an invented number.
-- Gym theme colours are RGB channel variables (`--gym-950-rgb` etc. in `index.css`, `rgb(var(...) / <alpha-value>)` in `tailwind.config.js`), so opacity modifiers like `bg-gym-950/95` work. Add new theme colours the same way. Light theme remaps accent text shades in `index.css` for contrast.
+- Gym theme colours are RGB channel variables (`--gym-950-rgb` etc. in `index.css`, `rgb(var(...) / <alpha-value>)` in `tailwind.config.js`), so opacity modifiers like `bg-gym-950/95` work. Add new theme colours the same way. Light theme remaps accent text (rose, amber, cyan, purple, emerald, lime… 200–700) centrally in `index.css`, so new accent text needs no light-theme pair; text over dark photos is excluded.
+- Lazy-loaded UI goes inside `<ErrorBoundary>` (`components/common`) so a failed chunk cannot empty the app. Plan names: `tierLabel(tier, plans)` where the catalogue is loaded, `TIER_LABELS` otherwise, `TIER_SHORT_LABELS` for badges, table cells and log rows.
 
 ### E2E (`e2e/`)
 

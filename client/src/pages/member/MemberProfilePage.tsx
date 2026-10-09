@@ -13,7 +13,7 @@ import { InvoiceModal } from '../../components/member/InvoiceModal.js';
 import { useApiResource } from '../../components/member/useApiResource.js';
 import { resizeAvatar } from '../../components/member/avatarImage.js';
 import { copyText } from '../../components/member/clipboard.js';
-import { formatDate, formatDateTime, formatINR, TIER_LABELS } from '../../lib/format.js';
+import { formatDate, formatDateTime, formatINR, TIER_LABELS, tierLabel } from '../../lib/format.js';
 
 interface MemberProfilePageProps {
   setCurrentTab: (tab: string) => void;
@@ -270,7 +270,7 @@ const MembershipPanel: React.FC<{ user: User; onOpenPricing: () => void }> = ({ 
       <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="neu-pressed-sm rounded-2xl p-4">
           <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Plan</dt>
-          <dd className="text-sm font-bold text-slate-100 mt-1">{TIER_LABELS[user.membership_tier] ?? user.membership_tier}</dd>
+          <dd className="text-sm font-bold text-slate-100 mt-1">{tierLabel(user.membership_tier, plans.data)}</dd>
         </div>
         <div className="neu-pressed-sm rounded-2xl p-4">
           <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{status === 'expired' ? 'Ended on' : 'Valid through'}</dt>
