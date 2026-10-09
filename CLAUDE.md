@@ -42,22 +42,24 @@ No linter or formatter is configured; match the surrounding style.
   - `membership.ts`: `effectiveStatus` (an active membership past its expiry counts as expired). Plan entitlements come from `membership_plans[].categories`; an empty list means all categories.
   - `occurrences.ts`: classes are weekly templates; capacity is per date, and `booked_count` is computed from bookings, never stored.
   - `streak.ts` + `floor.ts`: count activity with `recordActivity`, or `creditSession` for back-dated days.
-  - `billing.ts`: pure activation maths (renewals, pro-rata credit, freeze days).
+  - `billing.ts`: pure activation maths (renewals, pro-rata credit, freeze credit = open days strictly between freeze and return).
+  - `hours.ts`: opening hours (Mon–Sat 06:00–22:00, closed Sundays). Calendar rules always apply (class slots, trials, streaks step over closed days); clock rules (`gymClosedNow`: no member check-in, floor clock-in or same-day trial while shut) only when `config.enforceOpeningHours` (`ENFORCE_OPENING_HOURS`, default on). Use `displayDate` (`dates.ts`) for dates inside messages.
   - `bookingRules.ts`: releases bookings when a freeze or a category/plan change makes them invalid.
 - **Payments**: the price comes from the plan, and tier and cycle are fixed on a server-side `PaymentOrder`. Verify and webhook are idempotent with each other. `server.ts` mounts `express.raw` for `/api/payment/webhook` so its HMAC sees the raw bytes.
 - **Seeding**: `db/seed.ts` writes the base data, then the domain extensions in `db/seed/*.ts` run in order (`seed/index.ts`). That file also adds missing check-ins and re-derives streaks. Demo data is relative to today. First start loads the demo gym only when `config.demoMode` is on; otherwise it loads the catalogue only, with no accounts.
 
 ### Server tests (`server/tests`)
 
-`tests/setup.ts` gives each test file its own temporary DB and sets `NODE_ENV=test`, `DEMO_MODE=true` and `TRUST_PROXY=1` (so tests can fake client IPs with `X-Forwarded-For`). Use `resetDb()` in `beforeEach` and `authHeader(personas.member | vip | trainer | admin | basic | expired)` from `helpers.ts`. When time matters, use `vi.useFakeTimers({ toFake: ['Date'] })` with `vi.setSystemTime`. External services are injectable: `setRazorpayClientForTests` (paymentController) and `setGoogleVerifierForTests` (`lib/google.ts`). Assert seed invariants instead of fixed seed values: several seed modules adjust the same users.
+`tests/setup.ts` gives each test file its own temporary DB and sets `NODE_ENV=test`, `DEMO_MODE=true`, `TRUST_PROXY=1` (so tests can fake client IPs with `X-Forwarded-For`) and `ENFORCE_OPENING_HOURS=false` (tests of the clock rules switch `config.enforceOpeningHours` back on with fake timers). Use `resetDb()` in `beforeEach` and `authHeader(personas.member | vip | trainer | admin | basic | expired)` from `helpers.ts`. When time matters, use `vi.useFakeTimers({ toFake: ['Date'] })` with `vi.setSystemTime`. External services are injectable: `setRazorpayClientForTests` (paymentController) and `setGoogleVerifierForTests` (`lib/google.ts`). Assert seed invariants instead of fixed seed values: several seed modules adjust the same users.
 
 ### Client (`client/src`)
 
 - There is no router library. `routes.ts` maps tab ids to URL paths and access rules. `context/NavigationContext.tsx` keeps the URL in sync. Pages navigate with `navigate(tab, params)` or the `setCurrentTab` prop. `App.tsx` enforces access (sign-in / not-for-your-role panels) and lazy-loads the member, coach and admin pages.
-- `api/client.ts` has one typed function per endpoint. Failures throw `ApiError` (status, `code`, `data`); a 401 fires an event that signs the user out. Shared types are in `types/index.ts`.
+- `api/client.ts` has one typed function per endpoint. Failures throw `ApiError` (status, `code`, `data`); a 401 fires an event that signs the user out. Calls whose side effects people must hear about (freeze/unfreeze, member, plan and class updates) return `WithMessage<T>` = `{ data, message? }`; show the message. Shared types are in `types/index.ts`.
+- Admin forms map server `VALIDATION_ERROR` issues with `formErrorsFrom(err, fields)` (`components/admin/ui.tsx`): issues for fields a form does not render go to the form-level error, never silently dropped.
 - `ConfigContext` reads `GET /api/config` (demo mode, Google client id, Razorpay key); the client holds no secrets or `VITE_` keys. `AuthContext` holds the session, `useRazorpay` runs checkout, `lib/format.ts` formats INR and IST dates, and `components/common` provides `States` (loading/error/empty), `ConfirmDialog` and `Modal`.
 - Show real data only: when there is nothing, render an empty state, never an invented number.
-- Tailwind theme colours are CSS variables (`var(--gym-950)`), so opacity modifiers such as `bg-gym-950/95` generate no CSS.
+- Gym theme colours are RGB channel variables (`--gym-950-rgb` etc. in `index.css`, `rgb(var(...) / <alpha-value>)` in `tailwind.config.js`), so opacity modifiers like `bg-gym-950/95` work. Add new theme colours the same way. Light theme remaps accent text shades in `index.css` for contrast.
 
 ### E2E (`e2e/`)
 
@@ -65,6 +67,6 @@ No linter or formatter is configured; match the surrounding style.
 
 ## Domain facts
 
-- Demo personas (demo mode only) all use password `pulse123`: `member@` (Zumba & Cardio pass), `vip@` (all access), `trainer@` (Coach Vikram, linked to `trn_vikram` via `trainers.user_id`) and `admin@pulsefit.com`.
+- Demo personas (demo mode only) all use password `pulse123`: `member@` (Zumba & Cardio pass), `vip@` (all access), `trainer@` (Coach Vikram, linked to `trn_vikram` via `trainers.user_id`) and `admin@pulsefit.com`. In demo mode they are locked (`isLockedDemoAccount`): password change/reset, admin reset, delete and role change answer 403 `DEMO_ACCOUNT_LOCKED`. Other coaches have no login; admins take their attendance from the coach view (`/trainer?trainer=<id>`).
 - Plans: `basic` = Workout & Strength, `pro` = Zumba & Cardio, `vip` = everything. The gym is open Mon–Sat 06:00–22:00 IST and closed on Sundays. Bookings open 14 days ahead.
 - `.gitattributes` forces LF; files edited on Windows may arrive as CRLF, so normalise before string-matching edits.
