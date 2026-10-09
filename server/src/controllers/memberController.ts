@@ -1,13 +1,16 @@
 import { Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import config from '../config.js';
 import db from '../db/database.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
-import { asyncHandler, badRequest, conflict, notFound, ok, parse } from '../lib/http.js';
-import { addDays, addMonths, daysBetween, gymDateTime, gymToday, isValidDate } from '../lib/dates.js';
+import { asyncHandler, badRequest, conflict, forbidden, notFound, ok, parse } from '../lib/http.js';
+import { addDays, addMonths, gymDateTime, gymToday, isValidDate } from '../lib/dates.js';
+import { unfreezeMembership } from '../lib/billing.js';
 import { effectiveStatus } from '../lib/membership.js';
 import { defaultAvatar, findUserByEmail, generateQrToken, generateTempPassword, newId, toSafeUser } from '../lib/users.js';
-import { closeOpenSession, releaseMemberBookings, releaseUnentitledBookings } from '../lib/bookingRules.js';
+import { closeOpenSession, releaseInvalidBookings } from '../lib/bookingRules.js';
+import { DEMO_PERSONAS } from './authController.js';
 import { MembershipStatus, MembershipTier, User, UserRole } from '../types/index.js';
 
 const ROLES = ['member', 'trainer', 'admin'] as const satisfies readonly UserRole[];
@@ -68,6 +71,20 @@ function emailTaken(): never {
 
 function adminCount(): number {
   return db.users.filter(u => u.role === 'admin').length;
+}
+
+// On a public demo every visitor signs in through the same four personas (POST /auth/demo-login),
+// so one visitor must not take them away from everyone else: no password reset, no delete, no
+// change of role.
+function isDemoPersona(user: User): boolean {
+  return config.demoMode && (Object.values(DEMO_PERSONAS) as string[]).includes(user.email);
+}
+
+function demoAccountLocked(what: string): never {
+  throw forbidden(
+    `This is one of the shared demo accounts that every visitor uses, so ${what}. Try it on another member.`,
+    'DEMO_ACCOUNT_LOCKED'
+  );
 }
 
 export const getMembers = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
@@ -170,6 +187,7 @@ export const updateMember = asyncHandler<AuthenticatedRequest>((req, res: Respon
     if (existing.role === 'admin' && adminCount() <= 1) {
       throw badRequest('This is the only admin account, so its role cannot be changed.', 'LAST_ADMIN');
     }
+    if (isDemoPersona(existing)) demoAccountLocked('its role cannot be changed');
   }
 
   const today = gymToday();
@@ -183,45 +201,48 @@ export const updateMember = asyncHandler<AuthenticatedRequest>((req, res: Respon
     next.membership_status = body.membership_status;
     // Keep frozen_since in step with the status so a later unfreeze computes the right extension.
     next.frozen_since = body.membership_status === 'frozen' ? today : null;
-    // Unfreezing here follows the same rule as POST /membership/unfreeze: the frozen days are
-    // given back. An expiry sent in the same request is the admin's explicit choice and wins.
-    if (
-      existing.membership_status === 'frozen' &&
-      body.membership_status === 'active' &&
-      body.membership_expiry === undefined &&
-      existing.frozen_since &&
-      existing.membership_expiry
-    ) {
-      const frozenDays = Math.max(0, daysBetween(existing.frozen_since, today));
-      next.membership_expiry = addDays(existing.membership_expiry, frozenDays);
+    // Unfreezing here follows the same rule as POST /membership/unfreeze (lib/billing): the open
+    // days missed are given back. An expiry sent in the same request is the admin's explicit choice and wins.
+    if (existing.membership_status === 'frozen' && body.membership_status === 'active' && body.membership_expiry === undefined) {
+      next.membership_expiry = unfreezeMembership(existing, today).membership_expiry;
     }
   }
 
-  const touchesMembership = body.membership_status !== undefined || body.membership_expiry !== undefined || body.membership_tier !== undefined;
-  if (touchesMembership && next.membership_status === 'active' && (!next.membership_expiry || next.membership_expiry < today)) {
+  // The expiry rule applies when this request makes or keeps the membership active: it sends
+  // status 'active', or a new expiry for a membership stored as active. A lapsed member (stored
+  // 'active' past the expiry, shown as 'expired') can have their plan, name or phone changed and
+  // stays lapsed.
+  const assertsActive =
+    body.membership_status === 'active' || (body.membership_expiry !== undefined && next.membership_status === 'active');
+  if (assertsActive && (!next.membership_expiry || next.membership_expiry < today)) {
     const message = 'An active membership needs an expiry date of today or later.';
     throw badRequest(`membership_expiry: ${message}`, 'VALIDATION_ERROR', {
       issues: [{ path: 'membership_expiry', message }]
     });
   }
 
-  if (touchesMembership && next.membership_status === 'active' && next.membership_tier === 'none') {
+  const touchesMembership = body.membership_status !== undefined || body.membership_expiry !== undefined || body.membership_tier !== undefined;
+  if (touchesMembership && effectiveStatus(next, today) === 'active' && next.membership_tier === 'none') {
     const message = 'Choose a plan for an active membership.';
     throw badRequest(`membership_tier: ${message}`, 'VALIDATION_ERROR', { issues: [{ path: 'membership_tier', message }] });
   }
 
   db.users = db.users.map(u => (u.id === existing.id ? next : u));
-  // Same consequences as a member freezing themselves, and a tier change may drop categories.
-  let released = 0;
-  if (next.membership_status === 'frozen' && existing.membership_status !== 'frozen') {
-    released += releaseMemberBookings(next.id);
-    closeOpenSession(next.id);
-  }
-  if (next.membership_tier !== existing.membership_tier) {
-    released += releaseUnentitledBookings({ tier: next.membership_tier });
-  }
+  const changed =
+    next.role !== existing.role ||
+    next.membership_status !== existing.membership_status ||
+    next.membership_expiry !== existing.membership_expiry ||
+    next.membership_tier !== existing.membership_tier;
+  // A member whose membership is no longer active (frozen, expired or pending) may not be on the
+  // gym floor (POST /time-tracking/clock-in), so an open session ends now, as when they freeze
+  // themselves. Staff skip that check and keep theirs.
+  if (changed && next.role === 'member' && effectiveStatus(next, today) !== 'active') closeOpenSession(next.id);
+  // Spots the booking rules would now refuse go back to others: a freeze, expiry or pending
+  // status, an earlier last day, a plan without the class's category, or a move to a staff role.
+  const released = changed ? releaseInvalidBookings(next.id) : 0;
   const message = released > 0 ? `Member updated. ${released} upcoming booking${released === 1 ? ' was' : 's were'} cancelled.` : undefined;
-  return ok(res, toSafeUser(next), message);
+  // Re-read: ending a floor session may have counted a streak day.
+  return ok(res, toSafeUser(db.users.find(u => u.id === next.id) ?? next), message);
 });
 
 export const deleteMember = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
@@ -232,6 +253,7 @@ export const deleteMember = asyncHandler<AuthenticatedRequest>((req, res: Respon
   if (existing.role === 'admin' && adminCount() <= 1) {
     throw badRequest('This is the only admin account, so it cannot be deleted.', 'LAST_ADMIN');
   }
+  if (isDemoPersona(existing)) demoAccountLocked('it cannot be deleted');
 
   const id = existing.id;
   const workoutIds = new Set(db.workouts.filter(w => w.user_id === id).map(w => w.id));
@@ -255,6 +277,7 @@ export const deleteMember = asyncHandler<AuthenticatedRequest>((req, res: Respon
 
 export const resetMemberPassword = asyncHandler<AuthenticatedRequest>(async (req, res: Response) => {
   const existing = findUserOr404(req.params.id);
+  if (isDemoPersona(existing)) demoAccountLocked('its password cannot be reset');
   const tempPassword = generateTempPassword();
   const password_hash = await bcrypt.hash(tempPassword, 10);
 

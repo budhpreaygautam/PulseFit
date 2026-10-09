@@ -94,12 +94,12 @@ Additional rules:
 | `GET /plans` | — | `MembershipPlan[]` sorted by monthly price | |
 | `PUT /plans/:id` (admin) | `{ name?, description?, price_monthly? (int 1–100000), price_annual? (int), features?: string[], categories?: ClassCategory[], is_popular?, badge? }` | `MembershipPlan` | 404 |
 | `POST /payment/create-order` | `{ tier: 'basic'\|'pro'\|'vip', billing_cycle: 'monthly'\|'annual' }` | `{ orderId, amount (paise), amount_inr, currency:'INR', keyId, tier, billing_cycle, plan_name, description }` | 503 `PAYMENTS_DISABLED` |
-| `POST /payment/verify` | `{ razorpay_order_id, razorpay_payment_id, razorpay_signature }` | `{ user, token, payment, message }` | 400 `INVALID_SIGNATURE`, 404 `ORDER_NOT_FOUND`, 403 `ORDER_NOT_YOURS`, 409 `ALREADY_PROCESSED` (`data.user` = current user) |
+| `POST /payment/verify` | `{ razorpay_order_id, razorpay_payment_id, razorpay_signature }` | `{ user, token, payment, message, cancelled_bookings }` | 400 `INVALID_SIGNATURE`, 404 `ORDER_NOT_FOUND`, 403 `ORDER_NOT_YOURS`, 409 `ALREADY_PROCESSED` (`data = { user, cancelled_bookings, message? }`: the current user and what the earlier activation did) |
 | `POST /payment/webhook` | raw Razorpay webhook, header `X-Razorpay-Signature` | `{ received: true }` | 400 bad signature, 503 no webhook secret |
 | `GET /payments/my` | — | `Payment[]` newest first (the member's invoices) | |
 | `GET /payments` (admin) | query `user_id?` | `Payment[]` newest first | |
-| `POST /membership/freeze` | `{}` | `SafeUser` (status `frozen`, `frozen_since` today) | 409 `NOT_ACTIVE` |
-| `POST /membership/unfreeze` | `{}` | `SafeUser` (status `active`, expiry pushed back by the days frozen) | 409 `NOT_FROZEN` |
+| `POST /membership/freeze` | `{}` | `SafeUser` (status `frozen`, `frozen_since` today); see the freeze rules below for `message` | 409 `NOT_ACTIVE` |
+| `POST /membership/unfreeze` | `{}` | `SafeUser` (status `active`, expiry moved forward by the open days missed; see the freeze rules below) | 409 `NOT_FROZEN` |
 
 The amount is always taken from the plan, never from the client. The tier and cycle are fixed on the server-side
 order record when it is created; verify reads them from that record. A signature can activate an order only once
@@ -118,13 +118,31 @@ Additional rules:
   logged for a manual refund; it activates nothing.
 - Buying a plan and freezing are open to any signed-in account.
 
+**Freeze rules.**
+- `POST /membership/freeze` cancels the member's upcoming confirmed bookings and ends an open floor session. `message` is
+  `Membership frozen.`, followed by `N upcoming class booking(s) was/were cancelled.` when any were and
+  `Your gym-floor session was ended.` when one was open.
+- Unfreezing (by the member, by an admin moving `frozen` to `active`, or by paying while frozen) gives back the open
+  days strictly between `frozen_since` and today: closed days (Sundays) never count, and neither do the day of the
+  freeze and the day of the return, because the member could still use the gym on both. The expiry moves forward by
+  that many open days, stepping over Sundays. So a freeze from 21:00 to the next morning, or from Saturday evening to
+  Monday, gives back nothing.
+- The unfreeze `message` names the new end date (`N gym day(s) added ... runs until 6 Nov 2026`), says the end date
+  stays the same when nothing was given back, and says the plan has ended when the new end date is already past.
+
 **Activation rules.** `months` = 1 (monthly) or 12 (annual), using calendar months.
 - Same tier, membership active: the new period starts the day after the current expiry.
 - Otherwise the period starts today. Any unused days of a still-active different plan are credited:
   `floor(remaining_days × old_price_monthly ÷ new_price_monthly)` extra days.
-- A frozen member who pays is unfrozen first (expiry extended by the frozen days).
+- A frozen member who pays is unfrozen first (expiry moved forward by the open days missed, as in the freeze rules).
 - Result: `membership_tier` = purchased tier, `membership_status` = `active`, `membership_expiry` = period end.
   A `Payment` is stored with invoice number `PF-<year>-<6-digit sequence>`.
+- A change of tier (through verify or the webhook) cancels the member's upcoming bookings in categories the new plan
+  does not include, as an admin's tier change does. Verify's `cancelled_bookings` is the count (0 when none), and its
+  `message` adds `N upcoming class booking(s) was/were cancelled because your new plan does not include ...` when any were.
+  The count is kept on the paid order, so when the webhook activated the order first, verify's 409 `ALREADY_PROCESSED`
+  carries the same `cancelled_bookings` and `message` in `data`.
+  Dates in `message` read like `30 Nov 2026`; `payment.period_end` stays `YYYY-MM-DD`.
 
 ---
 
@@ -164,7 +182,8 @@ status `confirmed` or `attended` for that date. Stored classes carry no counter.
 | `DELETE /trainer/notes/:id` | — (author or admin) | `{ deleted: true }` | |
 | `GET /notes/my` (member) | — | `TrainerNote[]` about me where `visible_to_member` | |
 
-When a booking is marked `attended`, it counts towards the member's streak for that day.
+When a booking is marked `attended`, it counts towards the member's streak for that day. Changing it back to `no_show`
+or `confirmed` takes the day back unless other activity on that day also counted it (the streak is rebuilt from history).
 
 Additional rules:
 - `GET /classes/:id?date=` and the roster answer 400 `DATE_MISMATCH` for a date that is not a session of the class
@@ -172,8 +191,11 @@ Additional rules:
 - `POST /bookings` checks `ALREADY_BOOKED` before `CLASS_FULL`, so a retry always gets the same answer.
 - Spots a member can no longer use are released automatically: freezing a membership (by the member or an admin)
   cancels their upcoming confirmed bookings and closes an open floor session; changing a class's category, a
-  member's tier, or a plan's categories cancels upcoming bookings the member's plan no longer covers. The response
-  `message` says how many were cancelled.
+  member's tier (by an admin or by buying another plan), or a plan's categories cancels upcoming bookings the
+  member's plan no longer covers; an admin edit that ends or shortens a membership or makes the account staff
+  cancels the bookings it no longer allows (see `PUT /members/:id`). The response `message` says how many were cancelled.
+- `MEMBERSHIP_ENDS_BEFORE_CLASS`: the error names the last day as people read it (`8 Oct 2026`); `data.membership_expiry`
+  is `YYYY-MM-DD`.
 - `PUT /classes/:id`: 409 `CAPACITY_BELOW_BOOKINGS` (`data.max_booked`) when the new capacity is below an occurrence's
   bookings; moving a class to another weekday cancels its upcoming confirmed bookings.
 - `POST/PUT /trainers`: 409 `EMAIL_TAKEN`, 400 `USER_NOT_TRAINER`, 409 `USER_ALREADY_LINKED`; `user_id: null` unlinks the account.
@@ -193,9 +215,9 @@ Additional rules:
 | `GET /members` (admin) | `search?, tier?, status?` (effective status), `role?` (default `member`; `all` = everyone) | `SafeUser[]` | |
 | `GET /members/:id` (admin) | — | `SafeUser & { bookings_count, attendance_count, workouts_count, upcoming_bookings, recent_attendance: AttendanceLog[] (10), payments: Payment[] }` | 404 |
 | `POST /members` (admin) | `{ name, email, phone?, role? = 'member', membership_tier? = 'none', expiry_months? = 0 (0–24) }`. Tier ≠ none and months > 0 ⇒ active until the day before today + months | 201 `{ member: SafeUser, tempPassword }` | 409 `EMAIL_TAKEN` |
-| `PUT /members/:id` (admin) | `{ name?, phone?, role?, membership_tier?, membership_status?, membership_expiry? (date \| null) }` | `SafeUser` | 400 `CANNOT_CHANGE_OWN_ROLE`, 400 `LAST_ADMIN` |
-| `DELETE /members/:id` (admin) | — | `{ deleted: true }`. Removes bookings, workouts, attendance, floor sessions, notes about them and reset tokens; keeps payments (financial records) | 400 `CANNOT_DELETE_SELF`, 400 `LAST_ADMIN` |
-| `POST /members/:id/reset-password` (admin) | — | `{ tempPassword }` (old tokens revoked) | |
+| `PUT /members/:id` (admin) | `{ name?, phone?, role?, membership_tier?, membership_status?, membership_expiry? (date \| null) }` | `SafeUser` | 400 `CANNOT_CHANGE_OWN_ROLE`, 400 `LAST_ADMIN`, 403 `DEMO_ACCOUNT_LOCKED` (role change of a demo persona in demo mode) |
+| `DELETE /members/:id` (admin) | — | `{ deleted: true }`. Removes bookings, workouts, attendance, floor sessions, notes about them and reset tokens; keeps payments (financial records) | 400 `CANNOT_DELETE_SELF`, 400 `LAST_ADMIN`, 403 `DEMO_ACCOUNT_LOCKED` (demo mode, one of the four demo personas) |
+| `POST /members/:id/reset-password` (admin) | — | `{ tempPassword }` (old tokens revoked) | 403 `DEMO_ACCOUNT_LOCKED` (demo mode, one of the four demo personas), 404 |
 | `POST /attendance/check-in` (admin, trainer) | `{ code, method?: 'qr'\|'manual'\|'kiosk'\|'camera' }` (`tokenOrId` accepted as an alias of `code`). `code` = QR token, member id, email, or trial code | `{ result: 'granted', already_checked_in: boolean, kind: 'member'\|'trial', member?: { id, name, email, avatar_url, membership_tier, membership_status, membership_expiry, streak_days }, trial?: TrialPass, log: AttendanceLog }`. A second scan on the same gym day lets the member through without a new log or streak day | 403 `MEMBERSHIP_EXPIRED` \| `MEMBERSHIP_FROZEN` \| `MEMBERSHIP_PENDING` \| `TRIAL_NOT_VALID_TODAY` \| `TRIAL_ALREADY_USED` (with `data.member` or `data.trial`), 404 `PASS_NOT_FOUND` |
 | `GET /attendance/logs` (admin) | `date?, user_id?, limit? (1–200, default 50), offset?, format? = 'json'\|'csv'` | `{ items: AttendanceLog[], total }`, or a `text/csv` download | |
 | `GET /attendance/my` | — | the caller's `AttendanceLog[]`, newest first (≤ 100) | |
@@ -203,8 +225,25 @@ Additional rules:
 | `GET /trials` (admin) | — | `TrialPass[]` newest first | |
 
 Additional rules:
-- `PUT /members/:id` refuses (400 `VALIDATION_ERROR` on `membership_expiry`) a change that would leave a member active
-  without a future expiry date, and (on `membership_tier`) an active membership with tier `none`. Moving from `frozen` to `active` gives back the frozen days, like `/membership/unfreeze`.
+- `PUT /members/:id` answers 400 `VALIDATION_ERROR` on `membership_expiry` when the request sends
+  `membership_status: 'active'`, or sends a `membership_expiry` while the stored status after the edit is `active`, and
+  the resulting expiry is missing or before today; and on `membership_tier` when the membership would be active today with tier `none`.
+  A lapsed member (stored `active` past the expiry, shown as `expired`) can have their plan, name or phone changed and
+  stays lapsed; sending `membership_status: 'expired'` with the change also works and stores the lapse. Both request
+  shapes (only the changed fields, or the changed fields plus the status the form shows) are accepted.
+- Moving from `frozen` to `active` gives back the open days missed, like `/membership/unfreeze`, unless the same request
+  sends an expiry (the admin's explicit choice).
+- After a change of role, status, expiry or tier, the member's upcoming confirmed bookings that `POST /bookings` would
+  now refuse are cancelled: all of them when the account becomes staff (staff cannot book) or the status is not
+  `active`, those dated after the expiry, and those in categories the plan does not include. When such a change leaves
+  a member's membership not active (`frozen`, `expired` or `pending`), their open floor session also ends, as clock-in
+  would now refuse them (staff keep theirs). `message` is `Member updated. N upcoming booking(s) was/were cancelled.`
+  when any were.
+- In demo mode the four demo personas (`member@`, `vip@`, `trainer@`, `admin@pulsefit.com`) cannot have their password
+  reset (`POST /members/:id/reset-password`), be deleted (`DELETE /members/:id`) or have their role changed
+  (`PUT /members/:id` with a different `role`): 403 `DEMO_ACCOUNT_LOCKED`, so a visitor of a public demo cannot lock everyone
+  else out of them or turn `POST /auth/demo-login` into a different account. Other edits (name, plan, status) still work.
+  The self and last-admin checks answer first.
 - A trial pass scanned again on the day it was redeemed is let through with `already_checked_in: true`.
 - A trial `preferred_date` outside today … today + 14 is 400 `VALIDATION_ERROR`. The CSV export ignores `limit`/`offset`.
 - Request bodies are strict: unknown keys are 400 `VALIDATION_ERROR`. Staff skip membership checks at check-in.
@@ -219,7 +258,7 @@ Additional rules:
 | `GET /workouts` | — | own `Workout[]` newest first | |
 | `GET /workouts/:id` | — | `Workout` (owner or admin) | 404, 403 |
 | `POST /workouts` | `{ title (1–100), date (not after today, not more than 365 days ago), duration_minutes (1–300), notes? (≤ 1000), sets: [{ exercise_id (must exist), set_number (1–50), weight_kg (0–500), reps (1–100), rpe? (1–10), is_warmup? }] (1–100 items) }` | 201 `Workout`; `set_number` is kept as sent (per exercise); volume = Σ weight × reps of working sets | 400 |
-| `DELETE /workouts/:id` | — | `{ deleted: true }` | |
+| `DELETE /workouts/:id` | — | `{ deleted: true }`. Deleting a workout logged on the day it was for takes that streak day back unless other activity counted it | |
 | `GET /workouts/analytics` | — | `{ volumeTimeline, personalRecords, muscleDistribution, … }` | |
 | `POST /time-tracking/clock-in` | `{ category: ClassCategory, notes? }` | 201 `TimeSession` | 403 `MEMBERSHIP_INACTIVE`, 403 `PLAN_EXCLUDES_CATEGORY`, 409 `ALREADY_CLOCKED_IN` |
 | `POST /time-tracking/clock-out` | `{ notes? }` (own active session; an admin may pass `session_id`) | `TimeSession` | 404 `NO_ACTIVE_SESSION` |
@@ -229,6 +268,11 @@ Additional rules:
 
 Sessions still open 4 hours after clock-in are closed automatically at clock-in + 4 h (`auto_closed: true`).
 A completed session counts towards the streak; so does a workout logged for today.
+
+**Streak.** The number of consecutive open gym days with activity (check-in, completed floor session, attended class,
+workout logged for its own day). Closed days (Sundays) never break a run, and activity on one still counts as a day, so
+a Saturday run continues on Monday. `streak_days` shows 0 once an open day before today went by without activity; today
+itself never breaks it. Withdrawing a counted day (attendance corrected, workout deleted) rebuilds the streak from history.
 
 Additional rules:
 - `GET /workouts/analytics` returns `{ totalWorkouts, totalVolumeKg, avgDurationMinutes, volumeTimeline, personalRecords,

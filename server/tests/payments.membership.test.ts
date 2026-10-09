@@ -66,14 +66,15 @@ describe('POST /membership/freeze', () => {
 });
 
 describe('POST /membership/unfreeze', () => {
-  it('reactivates and pushes the expiry back by the days frozen', async () => {
+  it('reactivates and moves the expiry forward by the open days missed', async () => {
     at('2026-10-02T06:30:00.000Z');
     await freeze(personas.basic);
     at(NOW.toISOString());
     const res = await unfreeze(personas.basic);
     expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ membership_status: 'active', membership_expiry: '2026-11-05', frozen_since: null });
-    expect(res.body.message).toMatch(/5 days/);
+    // Fri 2 Oct to Wed 7 Oct: Sat 3, Mon 5, Tue 6 missed (Sunday is closed) => Sat 31 Oct + 3 open days.
+    expect(res.body.data).toMatchObject({ membership_status: 'active', membership_expiry: '2026-11-04', frozen_since: null });
+    expect(res.body.message).toBe('Welcome back! 3 gym days added to your membership, so it now runs until 4 Nov 2026.');
   });
 
   it('adds nothing when unfrozen the same day', async () => {
@@ -84,11 +85,11 @@ describe('POST /membership/unfreeze', () => {
 
   it('keeps a member frozen past their old expiry, then gives back the unused days', async () => {
     at('2026-10-25T06:30:00.000Z');
-    await freeze(personas.basic); // 7 days left: 25 .. 31 Oct
+    await freeze(personas.basic); // Sunday 25 Oct: 6 open days left, 26 .. 31 Oct
     at('2026-12-01T06:30:00.000Z');
     expect((await api().get('/api/payments/my').set(authHeader(personas.basic))).status).toBe(200);
     const res = await unfreeze(personas.basic);
-    // frozen 37 days: 10-31 + 37 = 12-07, so 1 .. 7 Dec are still to use
+    // 31 open days missed: 10-31 + 31 open days = 12-07, so 1 .. 7 Dec (6 open days) are still to use
     expect(res.body.data).toMatchObject({ membership_status: 'active', membership_expiry: '2026-12-07' });
   });
 

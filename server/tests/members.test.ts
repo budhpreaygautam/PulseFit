@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import config from '../src/config.js';
 import { api, authHeader, db, personas, resetDb, userByEmail } from './helpers.js';
 
 // Wednesday 7 Oct 2026, 10:00 at the gym (IST).
 const NOW = new Date('2026-10-07T04:30:00.000Z');
+const DEMO_MODE = config.demoMode;
 
 describe('members admin API', () => {
   beforeEach(() => {
@@ -10,7 +12,10 @@ describe('members admin API', () => {
     vi.setSystemTime(NOW);
     resetDb();
   });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    config.demoMode = DEMO_MODE;
+  });
 
   describe('GET /members', () => {
     it('requires a token and the admin role', async () => {
@@ -248,6 +253,7 @@ describe('members admin API', () => {
     });
 
     it('lets an admin promote and demote other users', async () => {
+      config.demoMode = false; // on a public demo the shared personas cannot be deleted or re-roled (fix-membership.test.ts)
       const trainerId = userByEmail(personas.trainer).id;
       const promoted = await api().put(`/api/members/${trainerId}`).set(authHeader(personas.admin)).send({ role: 'admin' });
       expect(promoted.body.data.role).toBe('admin');
@@ -316,7 +322,7 @@ describe('members admin API', () => {
       freeze();
       const res = await api().put(`/api/members/${rohan.id}`).set(authHeader(personas.admin)).send({ membership_status: 'active' });
       expect(res.status).toBe(200);
-      // Frozen 27 Sep to 7 Oct: 10 days added to 20 Nov.
+      // Frozen Sun 27 Sep to Wed 7 Oct: 8 open days missed, added to Fri 20 Nov stepping over Sundays.
       expect(res.body.data).toMatchObject({ membership_status: 'active', membership_expiry: '2026-11-30', frozen_since: null });
 
       // An expiry sent with the unfreeze is the admin's explicit choice.
@@ -331,6 +337,7 @@ describe('members admin API', () => {
 
   describe('DELETE /members/:id', () => {
     it('removes the member and their personal records but keeps payments', async () => {
+      config.demoMode = false; // on a public demo the shared personas cannot be deleted or re-roled (fix-membership.test.ts)
       const id = userByEmail(personas.member).id;
       const now = new Date().toISOString();
       db.trainer_notes = [
@@ -374,6 +381,7 @@ describe('members admin API', () => {
     });
 
     it('unlinks a deleted trainer account from its trainer profile', async () => {
+      config.demoMode = false; // on a public demo the shared personas cannot be deleted or re-roled (fix-membership.test.ts)
       const id = userByEmail(personas.trainer).id;
       const res = await api().delete(`/api/members/${id}`).set(authHeader(personas.admin));
       expect(res.status).toBe(200);
@@ -389,6 +397,7 @@ describe('members admin API', () => {
     });
 
     it('lets an admin delete another admin while one remains', async () => {
+      config.demoMode = false; // on a public demo the shared personas cannot be deleted or re-roled (fix-membership.test.ts)
       const trainerId = userByEmail(personas.trainer).id;
       await api().put(`/api/members/${trainerId}`).set(authHeader(personas.admin)).send({ role: 'admin' });
       const res = await api().delete(`/api/members/${trainerId}`).set(authHeader(personas.admin));
@@ -406,8 +415,9 @@ describe('members admin API', () => {
 
   describe('POST /members/:id/reset-password', () => {
     it('sets a new temp password and revokes old tokens', async () => {
-      const id = userByEmail(personas.vip).id;
-      const oldHeader = authHeader(personas.vip);
+      // Not a demo persona: in demo mode those are locked (fix-membership.test.ts).
+      const id = userByEmail(personas.basic).id;
+      const oldHeader = authHeader(personas.basic);
       expect((await api().get('/api/auth/me').set(oldHeader)).status).toBe(200);
 
       const res = await api().post(`/api/members/${id}/reset-password`).set(authHeader(personas.admin));
@@ -417,8 +427,8 @@ describe('members admin API', () => {
       expect(tempPassword.length).toBeGreaterThanOrEqual(10);
 
       expect((await api().get('/api/auth/me').set(oldHeader)).status).toBe(401);
-      expect((await api().post('/api/auth/login').send({ email: personas.vip, password: 'pulse123' })).status).toBe(401);
-      expect((await api().post('/api/auth/login').send({ email: personas.vip, password: tempPassword })).status).toBe(200);
+      expect((await api().post('/api/auth/login').send({ email: personas.basic, password: 'pulse123' })).status).toBe(401);
+      expect((await api().post('/api/auth/login').send({ email: personas.basic, password: tempPassword })).status).toBe(200);
     });
 
     it('is admin only and 404s for an unknown id', async () => {

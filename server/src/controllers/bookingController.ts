@@ -3,9 +3,10 @@ import { z } from 'zod';
 import db from '../db/database.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler, badRequest, conflict, forbidden, notFound, ok, parse } from '../lib/http.js';
-import { addDays, dayOfWeek, gymToday } from '../lib/dates.js';
+import { addDays, dayOfWeek, displayDate, gymToday } from '../lib/dates.js';
 import { effectiveStatus, tierAllowsCategory } from '../lib/membership.js';
-import { creditSession } from '../lib/floor.js';
+import { closeStaleSessions, creditSession } from '../lib/floor.js';
+import { recomputeStreak } from '../lib/streak.js';
 import { newId } from '../lib/users.js';
 import {
   ATTENDANCE_OPENS_MINUTES,
@@ -122,7 +123,7 @@ export const createBooking = asyncHandler<AuthenticatedRequest>((req, res: Respo
   // A spot held past the last paid day would be refused at the turnstile on the day itself.
   if (user.membership_expiry && booking_date > user.membership_expiry) {
     throw forbidden(
-      `Your membership ends on ${user.membership_expiry}, before this class. Renew your plan to book it.`,
+      `Your membership ends on ${displayDate(user.membership_expiry)}, before this class. Renew your plan to book it.`,
       'MEMBERSHIP_ENDS_BEFORE_CLASS',
       { membership_expiry: user.membership_expiry }
     );
@@ -200,8 +201,15 @@ export const markAttendance = asyncHandler<AuthenticatedRequest>((req, res: Resp
   const updated: Booking = { ...booking, status };
   db.bookings = db.bookings.map(b => (b.id === booking.id ? updated : b));
   // Attendance is often marked after the member has been back since; creditSession rebuilds the
-  // run so a back-dated day can still bridge it.
-  if (status === 'attended') creditSession(booking.user_id, booking.booking_date);
+  // run so a back-dated day can still bridge it. Correcting an 'attended' mark takes the day back
+  // unless something else (a check-in, floor session or workout) also counted it; a forgotten
+  // floor session is closed first so the rebuilt history includes it.
+  if (status === 'attended') {
+    creditSession(booking.user_id, booking.booking_date);
+  } else if (booking.status === 'attended') {
+    closeStaleSessions();
+    recomputeStreak(booking.user_id);
+  }
   ok(res, updated, 'Attendance saved.');
 });
 

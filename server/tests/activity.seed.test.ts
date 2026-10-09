@@ -108,8 +108,15 @@ describe('activity seed', () => {
       for (const b of db.bookings) if (b.user_id === u.id && b.status === 'attended') days.add(b.booking_date);
       for (const w of db.workouts) if (w.user_id === u.id && toGymDate(w.created_at!) === w.date) days.add(w.date);
       const last = [...days].filter(d => d <= today).sort().pop() ?? null;
+      // Closed days (Sundays) without activity are stepped over, not a break in the run.
       let run = 0;
-      if (last && last >= addDays(today, -1)) for (let d = last; days.has(d); d = addDays(d, -1)) run++;
+      if (last && last >= addDays(today, -1)) {
+        for (let d = last; days.has(d); ) {
+          run++;
+          d = addDays(d, -1);
+          while (!days.has(d) && dayOfWeek(d) === 0) d = addDays(d, -1);
+        }
+      }
       expect(u.last_active_date ?? null, u.name).toBe(last);
       expect(u.streak_days, u.name).toBe(run);
     }

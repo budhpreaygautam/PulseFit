@@ -272,8 +272,8 @@ describe('POST /payment/verify', () => {
     vi.setSystemTime(NOW);
     const orderId = await createOrder(personas.basic, 'basic', 'monthly');
     const res = await verify(personas.basic, orderId);
-    // 5 frozen days push 10-31 to 11-05; the new month runs 11-06 .. 12-05
-    expect(res.body.data.user).toMatchObject({ membership_status: 'active', membership_expiry: '2026-12-05', frozen_since: null });
+    // 3 open days missed (Sat 3, Mon 5, Tue 6 Oct) push 10-31 to 11-04; the new month runs 11-05 .. 12-04
+    expect(res.body.data.user).toMatchObject({ membership_status: 'active', membership_expiry: '2026-12-04', frozen_since: null });
   });
 
   it('activates an order only once (409 ALREADY_PROCESSED with the current user)', async () => {
