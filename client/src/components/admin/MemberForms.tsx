@@ -352,7 +352,7 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, curren
             No expiry date (no plan bought yet)
           </label>
           {expiredWithAccessDate ? (
-            <div id="edit-expiry-hint" className="mt-2 space-y-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs font-semibold text-amber-800 dark:text-amber-300" role="note">
+            <div id="edit-expiry-hint" className="glass-tint mt-2 space-y-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs font-semibold text-amber-800 dark:text-amber-300" role="note">
               <p>The status is Expired, so {member.name} cannot check in or book, even with this date.</p>
               <button
                 type="button"

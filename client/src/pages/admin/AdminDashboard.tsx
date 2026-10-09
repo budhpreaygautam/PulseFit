@@ -315,7 +315,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
                 <p className="text-xs text-slate-400">
                   {cls.trainer ?? 'No coach assigned'} · {cls.category}
                 </p>
-                <div className="w-full h-1.5 bg-slate-700/40 rounded-full overflow-hidden" aria-hidden="true">
+                <div className="w-full h-1.5 neu-pressed-sm rounded-full overflow-hidden" aria-hidden="true">
                   <div className="h-full bg-lime-500 rounded-full" style={{ width: `${Math.min(100, cls.occupancy)}%` }} />
                 </div>
               </li>

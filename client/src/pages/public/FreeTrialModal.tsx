@@ -284,7 +284,7 @@ export const FreeTrialModal: React.FC<FreeTrialModalProps> = ({ isOpen, onClose,
           </fieldset>
 
           {formError && (
-            <div role="alert" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs font-semibold text-rose-300 space-y-2">
+            <div role="alert" className="glass-tint p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs font-semibold text-rose-300 space-y-2">
               <p>{formError}</p>
               {alreadyClaimed && (
                 <button type="button" onClick={onRegisterInstead} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold">

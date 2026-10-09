@@ -120,7 +120,7 @@ export const TrialLeads: React.FC = () => {
           </ul>
 
           <div className="hidden md:block neu-flat rounded-3xl border border-slate-800/80 overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="neu-table w-full text-left text-xs">
               <caption className="sr-only">Free-trial passes, newest first</caption>
               <thead className="border-b border-slate-800/80 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                 <tr>

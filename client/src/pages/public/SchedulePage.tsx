@@ -425,7 +425,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
       </div>
 
       {membershipNotice && (
-        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm text-slate-200">
+        <div className="glass-tint p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm text-slate-200">
           <p className="flex items-start gap-2">
             <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
             {membershipNotice.text}
@@ -597,10 +597,10 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
                       <img src={c.image_url} alt="" className="w-full h-full object-cover brightness-[.85]" loading="lazy" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
                       <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5">
-                        <span className="px-2 py-0.5 rounded-md bg-black/70 text-[10px] font-bold uppercase tracking-wider text-zinc-100">{c.intensity}</span>
-                        <span className="px-2 py-0.5 rounded-md bg-black/70 text-[10px] font-bold uppercase tracking-wider text-zinc-100">{c.category}</span>
+                        <span className="px-2 py-0.5 rounded-md glass-dark text-[10px] font-bold uppercase tracking-wider text-zinc-100">{c.intensity}</span>
+                        <span className="px-2 py-0.5 rounded-md glass-dark text-[10px] font-bold uppercase tracking-wider text-zinc-100">{c.category}</span>
                       </div>
-                      <span className="absolute top-3 right-3 font-mono text-xs font-black bg-black/80 px-2.5 py-1 rounded-lg text-lime-300 border border-lime-400/30">
+                      <span className="absolute top-3 right-3 font-mono text-xs font-black bg-black/55 backdrop-blur-md px-2.5 py-1 rounded-lg text-lime-300 border border-lime-400/30">
                         {formatClock(c.start_time)}
                       </span>
                       <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-xs text-zinc-100 font-semibold">
@@ -662,7 +662,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
                     </div>
 
                     {issue && (
-                      <div role="alert" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-slate-200 space-y-2">
+                      <div role="alert" className="glass-tint p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-slate-200 space-y-2">
                         <p>{issue.message}</p>
                         {issue.action && (
                           <button type="button" onClick={() => navigate(issue.action!.tab, issue.action!.params)} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold">

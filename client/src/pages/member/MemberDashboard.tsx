@@ -130,7 +130,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
       {notice && (
         <div
           role="status"
-          className={`rounded-2xl p-4 border flex flex-col sm:flex-row sm:items-center gap-3 text-sm ${
+          className={`glass-tint rounded-2xl p-4 border flex flex-col sm:flex-row sm:items-center gap-3 text-sm ${
             notice.tone === 'warn'
               ? 'border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200'
               : 'border-cyan-500/40 bg-cyan-500/10 text-cyan-800 dark:text-cyan-200'

@@ -198,7 +198,7 @@ export const ExerciseLibraryView: React.FC<ExerciseLibraryViewProps> = ({ setCur
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Muscles worked</h3>
               <ul className="flex flex-wrap gap-2">
                 {selected.target_muscles.map(m => (
-                  <li key={m} className="px-3 py-1 rounded-xl text-xs font-bold bg-lime-500/10 border border-lime-500/30 text-lime-700 dark:text-lime-400">
+                  <li key={m} className="glass-tint px-3 py-1 rounded-xl text-xs font-bold bg-lime-500/10 border border-lime-500/30 text-lime-700 dark:text-lime-400">
                     {m}
                   </li>
                 ))}

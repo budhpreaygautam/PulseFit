@@ -63,7 +63,7 @@ function useFloorStatus() {
   return { status, updatedAt, failed };
 }
 
-const photoChip = 'px-2 py-0.5 rounded-lg bg-black/70 backdrop-blur-md text-[11px] font-bold';
+const photoChip = 'px-2 py-0.5 rounded-lg glass-dark text-[11px] font-bold';
 
 export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenFreeTrialModal, onOpenAuthModal }) => {
   const { user } = useAuth();
@@ -172,14 +172,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
             </div>
 
             <div className="lg:col-span-5 relative mt-4 lg:mt-0">
-              <div className="relative rounded-3xl overflow-hidden border border-slate-800 shadow-2xl bg-black">
+              <div className="relative rounded-3xl overflow-hidden neu-flat">
                 <img
                   src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&auto=format&fit=crop&q=80"
                   alt="Barbells and racks on a strength training floor"
                   className="w-full h-[300px] sm:h-[420px] object-cover object-center opacity-90"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-                <div className="absolute top-4 left-4 px-3 py-2 rounded-2xl bg-black/70 backdrop-blur-md border border-white/10 flex items-center gap-2.5">
+                <div className="absolute top-4 left-4 px-3 py-2 rounded-2xl glass-dark flex items-center gap-2.5">
                   <Clock className="w-4 h-4 text-lime-300" aria-hidden="true" />
                   <div>
                     <div className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">{isOpen ? 'Open now' : 'Closed now'}</div>
@@ -188,7 +188,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
                     </div>
                   </div>
                 </div>
-                <div className="absolute bottom-4 right-4 left-4 px-3 py-3 rounded-2xl bg-black/70 backdrop-blur-md border border-white/10 flex items-center justify-between gap-2">
+                <div className="absolute bottom-4 right-4 left-4 px-3 py-3 rounded-2xl glass-dark flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <QrCode className="w-5 h-5 text-lime-300 shrink-0" aria-hidden="true" />
                     <div className="min-w-0">

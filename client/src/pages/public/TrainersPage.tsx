@@ -42,7 +42,7 @@ export const TrainersPage: React.FC<TrainersPageProps> = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
 
                     {trainer.reviews_count > 0 && (
-                      <div className="absolute top-4 right-4 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-amber-300 font-extrabold text-xs flex items-center gap-1.5">
+                      <div className="absolute top-4 right-4 glass-dark px-3 py-1.5 rounded-xl text-amber-300 font-extrabold text-xs flex items-center gap-1.5">
                         <Star className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
                         <span>
                           {trainer.rating}

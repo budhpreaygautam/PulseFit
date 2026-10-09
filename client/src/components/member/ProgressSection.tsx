@@ -123,7 +123,7 @@ export const ProgressSection: React.FC<ProgressSectionProps> = ({ analytics, onL
             <p className="text-xs text-slate-400">No weighted working sets yet.</p>
           ) : (
             <div>
-              <table className="w-full text-xs">
+              <table className="neu-table w-full text-xs">
                 <thead>
                   <tr className="text-left text-[10px] uppercase tracking-wider text-slate-400">
                     <th scope="col" className="py-2 px-1 font-bold">Exercise</th>

@@ -36,7 +36,7 @@ const Notice: React.FC<{ notice: NoticeMessage | null; onDismiss: () => void }> 
     <div
       key={`${notice.tone}:${notice.text}`}
       ref={ref}
-      className={`flex items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold scroll-mt-32 ${
+      className={`glass-tint flex items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold scroll-mt-32 ${
         notice.tone === 'error' ? 'border-rose-500/40 bg-rose-500/10 text-rose-300 [.light_&]:text-rose-700' : 'border-lime-500/40 bg-lime-500/10 text-slate-100'
       }`}
       role={notice.tone === 'error' ? 'alert' : 'status'}

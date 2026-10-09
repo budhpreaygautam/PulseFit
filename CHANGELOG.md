@@ -60,6 +60,10 @@ money and access rules are enforced on the server, and the features the README a
 - The JSON database writes atomically, refuses to start on a corrupt file instead of wiping it,
   migrates v2.0 files on load, and is no longer tracked in git (seeded on first start).
 - `docs/API.md` documents the whole API.
+- One neumorphic and glass look across the app: every button is raised (with a red variant for destructive
+  actions and round icon buttons), checkboxes are raised and press in when ticked, the navbar and mobile menu
+  are frosted glass, alerts and icon tiles are tinted glass, tables have a sunken header band, and the footer
+  sits on a raised card.
 
 ### Removed
 

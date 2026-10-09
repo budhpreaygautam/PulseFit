@@ -204,7 +204,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
         </div>
       )}
 
-      <header className="sticky top-0 z-40 bg-gym-950 border-b border-slate-800/80 shadow-[0_4px_16px_var(--neu-shadow-dark)] transition-colors">
+      <header className="sticky top-0 z-40 glass-bar border-b border-slate-800/60 shadow-[0_4px_16px_var(--neu-shadow-dark)] transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
           <TabLink
             tab="home"
@@ -339,7 +339,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
         )}
 
         {isMobileMenuOpen && (
-          <div id="mobile-menu" className="xl:hidden border-t border-slate-800/80 bg-gym-950 px-4 py-4 shadow-2xl max-h-[80vh] overflow-y-auto">
+          <div id="mobile-menu" className="xl:hidden border-t border-slate-800/80 glass-bar px-4 py-4 shadow-2xl max-h-[80vh] overflow-y-auto">
             <nav aria-label="Main" className="space-y-1.5">
               <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 px-3 py-1 font-bold">Explore PulseFit</div>
               {PUBLIC_LINKS.map(link => (

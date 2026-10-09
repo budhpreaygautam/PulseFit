@@ -50,7 +50,7 @@ export const TempPasswordModal: React.FC<TempPasswordModalProps> = ({ credential
       maxWidth="md"
     >
       <div className="space-y-5">
-        <div className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm font-medium text-amber-800 dark:text-amber-300" role="note">
+        <div className="glass-tint flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm font-medium text-amber-800 dark:text-amber-300" role="note">
           <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
           <p>
             This password is shown only once. Hand it to {credentials.name} in person and ask them to change it after signing in.
