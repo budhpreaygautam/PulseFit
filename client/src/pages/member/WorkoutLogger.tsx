@@ -1,555 +1,744 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Dumbbell,
-  Plus,
-  Trash2,
-  Save,
-  Clock,
-  Flame,
-  Sparkles,
-  Play,
-  Pause,
-  RotateCcw,
-  CheckCircle2,
-  Layers,
-  ChevronRight,
-  TrendingUp,
-  AlertCircle,
-  Trophy
-} from 'lucide-react';
-import { Exercise, WorkoutSet } from '../../types/index.js';
-import { api } from '../../api/client.js';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { CheckCircle2, Clock, Dumbbell, History, Pause, Play, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
+import { Exercise, NewWorkout, Workout, WorkoutSet } from '../../types/index.js';
+import { api, isApiError } from '../../api/client.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useToast } from '../../context/ToastContext.js';
-import { Badge } from '../../components/common/Badge.js';
+import { useNavigation } from '../../context/NavigationContext.js';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog.js';
+import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
+import { useApiResource } from '../../components/member/useApiResource.js';
+import { addDays, formatDate, gymToday } from '../../lib/format.js';
 
 interface WorkoutLoggerProps {
   setCurrentTab: (tab: string) => void;
 }
 
+// Server limits for POST /workouts (docs/API.md).
+const LIMITS = { title: 100, notes: 1000, duration: 300, weight: 500, reps: 100, rpe: 10, setsTotal: 100, setsPerExercise: 50, daysBack: 365 };
+
+interface DraftSet {
+  key: string;
+  weight: string;
+  reps: string;
+  rpe: string;
+  warmup: boolean;
+}
+
+interface DraftExercise {
+  key: string;
+  exercise_id: string;
+  exercise_name: string;
+  sets: DraftSet[];
+}
+
+type FieldErrors = Record<string, string>;
+
+const SERVER_SET_FIELDS: Record<string, string> = { weight_kg: 'weight', reps: 'reps', rpe: 'rpe' };
+
+const TEMPLATES: { id: string; label: string; title: string; exerciseIds: string[] }[] = [
+  { id: 'push', label: 'Push', title: 'Push day', exerciseIds: ['ex_bench_press', 'ex_incline_db_press', 'ex_overhead_press', 'ex_tricep_rope_pushdown'] },
+  { id: 'pull', label: 'Pull', title: 'Pull day', exerciseIds: ['ex_deadlift', 'ex_pullup', 'ex_barbell_curl'] },
+  { id: 'legs', label: 'Legs', title: 'Leg day', exerciseIds: ['ex_barbell_squat', 'ex_romanian_deadlift', 'ex_bulgarian_split_squat'] }
+];
+
+let keySeq = 0;
+const nextKey = () => `k${++keySeq}`;
+const emptySet = (from?: DraftSet): DraftSet => ({ key: nextKey(), weight: from?.weight ?? '', reps: from?.reps ?? '', rpe: from?.rpe ?? '', warmup: false });
+
+const kg = (n: number) => `${n.toLocaleString('en-IN', { maximumFractionDigits: 1 })} kg`;
+
+/** Parse a decimal within [min, max]; null when blank or out of range. */
+function inRange(value: string, min: number, max: number, integer = false): number | null {
+  if (value.trim() === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < min || n > max || (integer && !Number.isInteger(n))) return null;
+  return n;
+}
+
+function groupSets(sets: WorkoutSet[] = []): { name: string; sets: WorkoutSet[] }[] {
+  const groups = new Map<string, { name: string; sets: WorkoutSet[] }>();
+  for (const s of sets) {
+    const g = groups.get(s.exercise_id) ?? { name: s.exercise_name || s.exercise_id, sets: [] };
+    g.sets.push(s);
+    groups.set(s.exercise_id, g);
+  }
+  return [...groups.values()];
+}
+
+const FieldError: React.FC<{ id: string; message?: string }> = ({ id, message }) =>
+  message ? (
+    <p id={id} className="text-[11px] text-rose-600 dark:text-rose-300 mt-1">
+      {message}
+    </p>
+  ) : null;
+
 export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) => {
-  const { user, triggerCelebration } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { showToast } = useToast();
+  const { params } = useNavigation();
 
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [title, setTitle] = useState<string>('Upper Body Strength & Hypertrophy');
-  const [date, setDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
-  const [durationMinutes, setDurationMinutes] = useState<number>(60);
-  const [notes, setNotes] = useState<string>('');
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string>('');
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const catalogue = useApiResource(() => api.getExercises());
+  const history = useApiResource(() => api.getWorkouts());
 
-  // Active workout sets state
-  const [sets, setSets] = useState<WorkoutSet[]>([
-    { exercise_id: 'ex_bench_press', exercise_name: 'Barbell Flat Bench Press', set_number: 1, weight_kg: 60, reps: 10, rpe: 6, is_warmup: true },
-    { exercise_id: 'ex_bench_press', exercise_name: 'Barbell Flat Bench Press', set_number: 2, weight_kg: 80, reps: 8, rpe: 7.5, is_warmup: false },
-    { exercise_id: 'ex_bench_press', exercise_name: 'Barbell Flat Bench Press', set_number: 3, weight_kg: 95, reps: 6, rpe: 8.5, is_warmup: false },
-    { exercise_id: 'ex_incline_db_press', exercise_name: 'Incline Dumbbell Press', set_number: 1, weight_kg: 32, reps: 10, rpe: 8, is_warmup: false },
-    { exercise_id: 'ex_incline_db_press', exercise_name: 'Incline Dumbbell Press', set_number: 2, weight_kg: 34, reps: 8, rpe: 8.5, is_warmup: false }
-  ]);
+  const today = gymToday();
+  const earliest = addDays(today, -LIMITS.daysBack);
 
-  // --- Rest Stopwatch Timer State ---
-  const [timerDuration, setTimerDuration] = useState<number>(90);
-  const [timeLeft, setTimeLeft] = useState<number>(90);
-  const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
+  const [title, setTitle] = useState('');
+  const [date, setDate] = useState(today);
+  const [duration, setDuration] = useState('');
+  const [notes, setNotes] = useState('');
+  const [exercises, setExercises] = useState<DraftExercise[]>([]);
+  const [selectedExerciseId, setSelectedExerciseId] = useState('');
+  const [errors, setErrors] = useState<FieldErrors>({});
+  // `fromFields`: the banner only sums up the field errors, so it goes once they are all fixed.
+  const [formError, setFormError] = useState<{ message: string; fromFields: boolean } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [saved, setSaved] = useState<Workout | null>(null);
+  const [toDelete, setToDelete] = useState<Workout | null>(null);
+
+  const catalogueById = useMemo(() => new Map((catalogue.data ?? []).map(e => [e.id, e])), [catalogue.data]);
+  const totalSets = exercises.reduce((sum, e) => sum + e.sets.length, 0);
 
   useEffect(() => {
-    api.getExercises().then(data => {
-      setExercises(data);
-      if (data.length > 0 && !selectedExerciseId) {
-        setSelectedExerciseId(data[0].id);
+    if (catalogue.data?.length && !selectedExerciseId) setSelectedExerciseId(catalogue.data[0].id);
+  }, [catalogue.data, selectedExerciseId]);
+
+  // /log-workout?exercise=<id> (from the exercise library) starts with that exercise.
+  const appliedParam = useRef(false);
+  useEffect(() => {
+    const wanted = params.get('exercise');
+    if (appliedParam.current || !wanted || !catalogue.data) return;
+    appliedParam.current = true;
+    const ex = catalogueById.get(wanted);
+    if (ex) {
+      addExercise(ex);
+      setSelectedExerciseId(ex.id);
+    }
+  }, [catalogue.data]);
+
+  const clearError = (key: string) => {
+    if (errors[key]) setErrors(prev => ({ ...prev, [key]: '' }));
+  };
+
+  /** Drop the errors of sets that are no longer on the form. */
+  const forgetErrorsOf = (setKeys: string[]) =>
+    setErrors(prev => Object.fromEntries(Object.entries(prev).filter(([key]) => !setKeys.some(k => key.startsWith(`${k}.`)))));
+
+  useEffect(() => {
+    if (formError?.fromFields && !Object.values(errors).some(Boolean)) setFormError(null);
+  }, [errors, formError]);
+
+  function addExercise(ex: Exercise) {
+    setExercises(prev => {
+      if (prev.reduce((sum, e) => sum + e.sets.length, 0) >= LIMITS.setsTotal) return prev;
+      const existing = prev.find(e => e.exercise_id === ex.id);
+      if (existing) {
+        if (existing.sets.length >= LIMITS.setsPerExercise) return prev;
+        const last = existing.sets[existing.sets.length - 1];
+        return prev.map(e => (e === existing ? { ...e, sets: [...e.sets, emptySet(last)] } : e));
       }
-    }).catch(console.error);
-  }, []);
+      return [...prev, { key: nextKey(), exercise_id: ex.id, exercise_name: ex.name, sets: [emptySet()] }];
+    });
+    clearError('sets');
+  }
 
-  // Timer Tick Hook
-  useEffect(() => {
-    let interval: any = null;
-    if (isTimerRunning && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft(prev => prev - 1);
-      }, 1000);
-    } else if (timeLeft === 0 && isTimerRunning) {
-      setIsTimerRunning(false);
-      showToast('⏰ Rest period complete! Time for the next set.', 'success', 'Rest Timer');
+  const addSet = (group: DraftExercise) => {
+    const ex = catalogueById.get(group.exercise_id);
+    if (ex) addExercise(ex);
+  };
+
+  const updateSet = (groupKey: string, setKey: string, fields: Partial<DraftSet>) => {
+    clearError(`${setKey}.row`);
+    setExercises(prev => prev.map(g => (g.key === groupKey ? { ...g, sets: g.sets.map(s => (s.key === setKey ? { ...s, ...fields } : s)) } : g)));
+  };
+
+  const removeSet = (groupKey: string, setKey: string) => {
+    forgetErrorsOf([setKey]);
+    setExercises(prev =>
+      prev.map(g => (g.key === groupKey ? { ...g, sets: g.sets.filter(s => s.key !== setKey) } : g)).filter(g => g.sets.length > 0)
+    );
+  };
+
+  const removeExercise = (groupKey: string) => {
+    forgetErrorsOf(exercises.find(g => g.key === groupKey)?.sets.map(s => s.key) ?? []);
+    setExercises(prev => prev.filter(g => g.key !== groupKey));
+  };
+
+  const applyTemplate = (template: (typeof TEMPLATES)[number]) => {
+    const available = template.exerciseIds.map(id => catalogueById.get(id)).filter((e): e is Exercise => Boolean(e));
+    available.forEach(addExercise);
+    if (!title.trim()) setTitle(template.title);
+  };
+
+  const resetForm = () => {
+    setTitle('');
+    setDate(gymToday());
+    setDuration('');
+    setNotes('');
+    setExercises([]);
+    setErrors({});
+    setFormError(null);
+  };
+
+  const liveVolume = exercises.reduce(
+    (sum, g) => sum + g.sets.reduce((s, set) => (set.warmup ? s : s + (inRange(set.weight, 0, LIMITS.weight) ?? 0) * (inRange(set.reps, 1, LIMITS.reps, true) ?? 0)), 0),
+    0
+  );
+
+  /** Validate the form and build the request body; null (with errors set) when something is wrong. */
+  const buildPayload = (): NewWorkout | null => {
+    const next: FieldErrors = {};
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) next.title = 'Give the workout a title.';
+    else if (trimmedTitle.length > LIMITS.title) next.title = `Use at most ${LIMITS.title} characters.`;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) next.date = 'Choose a date.';
+    else if (date > today) next.date = 'A workout cannot be logged for a future date.';
+    else if (date < earliest) next.date = `A workout cannot be logged more than ${LIMITS.daysBack} days back.`;
+
+    const minutes = inRange(duration, 1, LIMITS.duration, true);
+    if (minutes === null) next.duration = `Enter whole minutes from 1 to ${LIMITS.duration}.`;
+    if (notes.trim().length > LIMITS.notes) next.notes = `Use at most ${LIMITS.notes} characters.`;
+
+    if (totalSets === 0) next.sets = 'Add at least one set.';
+    else if (totalSets > LIMITS.setsTotal) next.sets = `A workout can have at most ${LIMITS.setsTotal} sets.`;
+
+    const sets: NewWorkout['sets'] = [];
+    for (const g of exercises) {
+      g.sets.forEach((s, i) => {
+        const weight = inRange(s.weight, 0, LIMITS.weight);
+        const reps = inRange(s.reps, 1, LIMITS.reps, true);
+        const rpe = s.rpe.trim() === '' ? undefined : inRange(s.rpe, 1, LIMITS.rpe);
+        if (weight === null) next[`${s.key}.weight`] = `0–${LIMITS.weight} kg`;
+        if (reps === null) next[`${s.key}.reps`] = `Whole number 1–${LIMITS.reps}`;
+        if (rpe === null) next[`${s.key}.rpe`] = `1–${LIMITS.rpe}`;
+        sets.push({ exercise_id: g.exercise_id, set_number: i + 1, weight_kg: weight ?? 0, reps: reps ?? 0, ...(rpe != null ? { rpe } : {}), is_warmup: s.warmup });
+      });
     }
-    return () => clearInterval(interval);
-  }, [isTimerRunning, timeLeft, showToast]);
 
-  const startTimer = (seconds: number) => {
-    setTimerDuration(seconds);
-    setTimeLeft(seconds);
-    setIsTimerRunning(true);
-  };
-
-  // Routine Presets
-  const applyPreset = (presetName: string) => {
-    if (presetName === 'push') {
-      setTitle('Push Day: Chest, Shoulders & Triceps');
-      setSets([
-        { exercise_id: 'ex_bench_press', exercise_name: 'Barbell Flat Bench Press', set_number: 1, weight_kg: 60, reps: 10, rpe: 6, is_warmup: true },
-        { exercise_id: 'ex_bench_press', exercise_name: 'Barbell Flat Bench Press', set_number: 2, weight_kg: 85, reps: 6, rpe: 8, is_warmup: false },
-        { exercise_id: 'ex_incline_db_press', exercise_name: 'Incline Dumbbell Press', set_number: 1, weight_kg: 30, reps: 10, rpe: 8, is_warmup: false },
-        { exercise_id: 'ex_overhead_press', exercise_name: 'Barbell Overhead Military Press', set_number: 1, weight_kg: 50, reps: 8, rpe: 8, is_warmup: false },
-        { exercise_id: 'ex_tricep_rope_pushdown', exercise_name: 'Tricep Rope Pushdown', set_number: 1, weight_kg: 25, reps: 15, rpe: 8, is_warmup: false }
-      ]);
-    } else if (presetName === 'pull') {
-      setTitle('Pull Day: Back, Rear Delts & Biceps');
-      setSets([
-        { exercise_id: 'ex_deadlift', exercise_name: 'Conventional Barbell Deadlift', set_number: 1, weight_kg: 100, reps: 8, rpe: 6, is_warmup: true },
-        { exercise_id: 'ex_deadlift', exercise_name: 'Conventional Barbell Deadlift', set_number: 2, weight_kg: 150, reps: 5, rpe: 8.5, is_warmup: false },
-        { exercise_id: 'ex_pullup', exercise_name: 'Weighted / Bodyweight Pull-Up', set_number: 1, weight_kg: 0, reps: 10, rpe: 8, is_warmup: false },
-        { exercise_id: 'ex_barbell_curl', exercise_name: 'EZ-Bar Bicep Curl', set_number: 1, weight_kg: 35, reps: 12, rpe: 8.5, is_warmup: false }
-      ]);
-    } else if (presetName === 'legs') {
-      setTitle('Leg Day: Quad, Hamstring & Glute Focus');
-      setSets([
-        { exercise_id: 'ex_barbell_squat', exercise_name: 'Barbell Back Squat', set_number: 1, weight_kg: 80, reps: 10, rpe: 6, is_warmup: true },
-        { exercise_id: 'ex_barbell_squat', exercise_name: 'Barbell Back Squat', set_number: 2, weight_kg: 120, reps: 6, rpe: 8.5, is_warmup: false },
-        { exercise_id: 'ex_romanian_deadlift', exercise_name: 'Romanian Deadlift (RDL)', set_number: 1, weight_kg: 90, reps: 10, rpe: 8, is_warmup: false },
-        { exercise_id: 'ex_bulgarian_split_squat', exercise_name: 'Bulgarian Split Squat', set_number: 1, weight_kg: 20, reps: 12, rpe: 8.5, is_warmup: false }
-      ]);
+    setErrors(next);
+    if (Object.values(next).some(Boolean)) {
+      setFormError({ message: 'Some fields need fixing before the workout can be saved.', fromFields: true });
+      return null;
     }
-    showToast(`Loaded "${presetName.toUpperCase()}" template!`, 'info');
+    setFormError(null);
+    return { title: trimmedTitle, date, duration_minutes: minutes!, ...(notes.trim() ? { notes: notes.trim() } : {}), sets };
   };
 
-  const addSetForExercise = (exerciseId: string) => {
-    const ex = exercises.find(e => e.id === exerciseId);
-    const exName = ex ? ex.name : 'Exercise';
-    const exerciseSets = sets.filter(s => s.exercise_id === exerciseId);
-    const lastSet = exerciseSets[exerciseSets.length - 1];
-
-    const newSet: WorkoutSet = {
-      exercise_id: exerciseId,
-      exercise_name: exName,
-      set_number: exerciseSets.length + 1,
-      weight_kg: lastSet ? lastSet.weight_kg : 50,
-      reps: lastSet ? lastSet.reps : 10,
-      rpe: 8,
-      is_warmup: false
-    };
-
-    setSets(prev => [...prev, newSet]);
-  };
-
-  const updateSet = (index: number, fields: Partial<WorkoutSet>) => {
-    setSets(prev => prev.map((s, idx) => (idx === index ? { ...s, ...fields } : s)));
-  };
-
-  const removeSet = (index: number) => {
-    setSets(prev => prev.filter((_, idx) => idx !== index));
-  };
-
-  // Compute live volume
-  const totalVolume = sets.reduce((sum, s) => {
-    if (!s.is_warmup && s.weight_kg > 0 && s.reps > 0) {
-      return sum + s.weight_kg * s.reps;
+  /** Map server-side issue paths (title, sets.3.reps…) back onto the form fields; false when none of them matched a field. */
+  const applyServerIssues = (issues: { path: string; message: string }[]): boolean => {
+    const flat = exercises.flatMap(g => g.sets);
+    const next: FieldErrors = {};
+    for (const issue of issues) {
+      const [head, index, field] = issue.path.split('.');
+      if (head === 'sets' && index !== undefined && flat[Number(index)]) {
+        // exercise_id / set_number / whole-set issues belong to the set, not to one of its inputs.
+        const key = flat[Number(index)].key;
+        next[`${key}.${SERVER_SET_FIELDS[field] ?? 'row'}`] = issue.message;
+      } else if (head === 'duration_minutes') next.duration = issue.message;
+      else if (head === 'title' || head === 'date' || head === 'notes' || head === 'sets') next[head] = issue.message;
     }
-    return sum;
-  }, 0);
+    setErrors(next);
+    return Object.values(next).some(Boolean);
+  };
 
-  const handleSubmitWorkout = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (sets.length === 0) {
-      showToast('Please add at least 1 exercise set before saving', 'warning');
-      return;
-    }
-
+    const payload = buildPayload();
+    if (!payload) return;
     setIsSubmitting(true);
     try {
-      await api.createWorkout({
-        title,
-        date,
-        duration_minutes: Number(durationMinutes),
-        notes,
-        sets
-      });
-
-      triggerCelebration();
-      showToast('Workout successfully recorded & streak updated!', 'success', 'Session Saved');
-      setCurrentTab('member-dashboard');
-    } catch (err: any) {
-      showToast(err.message || 'Failed to save workout', 'error');
+      const workout = await api.createWorkout(payload);
+      setSaved(workout);
+      resetForm();
+      showToast(`"${workout.title}" saved.`, 'success', 'Workout logged');
+      history.reload();
+      refreshUser();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      if (isApiError(err) && err.code === 'VALIDATION_ERROR') {
+        const issues = (err.data as { issues?: { path: string; message: string }[] } | undefined)?.issues ?? [];
+        setFormError({ message: err.message, fromFields: applyServerIssues(issues) });
+      } else {
+        setFormError({ message: isApiError(err) ? err.message : 'The workout could not be saved. Please try again.', fromFields: false });
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8 sm:space-y-10 pb-28 lg:pb-12">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-800/80 pb-6">
-        <div>
-          <Badge variant="amber">PERFORMANCE TRACKER</Badge>
-          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight mt-2 font-['Outfit']">
-            LIVE WORKOUT LOGGER
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl font-medium">
-            Log set-by-set weights, reps, and RPE. Real-time tonnage calculation and integrated rest interval timer.
-          </p>
-        </div>
+  const deleteWorkout = async () => {
+    if (!toDelete) return;
+    try {
+      await api.deleteWorkout(toDelete.id);
+      showToast('Workout deleted.', 'info');
+      if (saved?.id === toDelete.id) setSaved(null);
+    } catch (err) {
+      showToast(isApiError(err) ? err.message : 'The workout could not be deleted.', 'error');
+    }
+    history.reload();
+  };
 
-        {/* Live Volume Counter Pill */}
-        <div className="neu-flat p-3.5 sm:p-4 rounded-2xl flex items-center gap-3.5 shadow-glow-lime shrink-0">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl neu-pressed-sm text-lime-400 flex items-center justify-center font-black shrink-0">
-            <Trophy className="w-5 h-5 sm:w-6 sm:h-6" />
-          </div>
-          <div>
-            <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Total Lifted Volume</div>
-            <div className="text-xl sm:text-2xl font-black text-lime-400 font-mono">
-              {totalVolume.toLocaleString()} <span className="text-xs text-slate-300 font-sans">kg</span>
-            </div>
-          </div>
+  // --- Rest timer ---
+  // A running timer keeps its end time on the wall clock and works out what is left from it.
+  // Phones pause timers while the screen is locked and browsers slow them in background tabs,
+  // so counting ticks would fall behind.
+  const [timerDuration, setTimerDuration] = useState(90);
+  const [timeLeft, setTimeLeft] = useState(90);
+  const [endsAt, setEndsAt] = useState<number | null>(null);
+  const isTimerRunning = endsAt !== null;
+  const secondsUntil = (end: number) => Math.max(0, Math.ceil((end - Date.now()) / 1000));
+
+  useEffect(() => {
+    if (endsAt === null) return;
+    const tick = () => setTimeLeft(secondsUntil(endsAt));
+    tick();
+    const interval = setInterval(tick, 250);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [endsAt]);
+
+  useEffect(() => {
+    if (endsAt !== null && timeLeft === 0) {
+      setEndsAt(null);
+      showToast('Rest is over. Time for your next set.', 'success', 'Rest timer');
+    }
+  }, [endsAt, timeLeft, showToast]);
+
+  const toggleTimer = () => {
+    if (endsAt !== null) {
+      setTimeLeft(secondsUntil(endsAt));
+      setEndsAt(null);
+      return;
+    }
+    const seconds = timeLeft === 0 ? timerDuration : timeLeft;
+    setTimeLeft(seconds);
+    setEndsAt(Date.now() + seconds * 1000);
+  };
+
+  const startPreset = (seconds: number) => {
+    setTimerDuration(seconds);
+    setTimeLeft(seconds);
+    setEndsAt(Date.now() + seconds * 1000);
+  };
+
+  const inputErr = (key: string) => (errors[key] ? 'outline outline-2 outline-rose-500/80' : '');
+  const describedBy = (key: string) => (errors[key] ? `${key}-error` : undefined);
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6 sm:space-y-8">
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-4xl font-black text-slate-100 tracking-tight font-['Outfit']">Log a workout</h1>
+          <p className="text-sm text-slate-400 mt-1 max-w-xl">Record each set's weight, reps and effort. Volume counts working sets only (weight × reps).</p>
         </div>
-      </div>
+        <div className="neu-flat px-4 py-3 rounded-2xl shrink-0 self-start md:self-auto">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Volume so far</div>
+          <div className="text-xl font-black text-lime-700 dark:text-lime-400 font-mono">{kg(liveVolume)}</div>
+        </div>
+      </header>
+
+      {saved && (
+        <section aria-labelledby="saved-heading" className="neu-flat rounded-3xl p-5 sm:p-6 border border-lime-500/40 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 id="saved-heading" className="text-lg font-black text-slate-100 font-['Outfit'] flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-lime-700 dark:text-lime-400" aria-hidden="true" /> Saved: {saved.title}
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">
+                {formatDate(saved.date)} · {saved.duration_minutes} min · {kg(saved.total_volume_kg ?? 0)} volume
+              </p>
+            </div>
+            <button type="button" onClick={() => setSaved(null)} aria-label="Dismiss saved workout" className="neu-btn p-2 rounded-xl">
+              <X className="w-4 h-4" aria-hidden="true" />
+            </button>
+          </div>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            {groupSets(saved.sets).map(g => (
+              <li key={g.name} className="neu-pressed-sm rounded-xl p-3">
+                <p className="font-bold text-slate-200">{g.name}</p>
+                <p className="text-slate-400 mt-0.5">
+                  {g.sets.map(s => `${s.weight_kg} kg × ${s.reps}${s.is_warmup ? ' (warm-up)' : ''}`).join(', ')}
+                </p>
+              </li>
+            ))}
+          </ul>
+          {saved.notes && <p className="text-xs text-slate-400 whitespace-pre-line">{saved.notes}</p>}
+          {/* Progress charts live on the member dashboard; coaches and admins see their workouts under Recent workouts here. */}
+          {user?.role === 'member' && (
+            <button type="button" onClick={() => setCurrentTab('member-dashboard')} className="neu-btn px-4 py-2 rounded-xl text-xs font-bold">
+              See my progress
+            </button>
+          )}
+        </section>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-        {/* Left Col: Main Workout Form & Sets (8 cols) */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* Quick Routine Presets Bar */}
-          <div className="neu-flat p-4 rounded-2xl space-y-2">
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5 font-mono">
-              <Layers className="w-4 h-4 text-lime-400" /> Quick Split Templates:
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={() => applyPreset('push')}
-                className="px-3 py-1.5 neu-btn text-slate-200 text-xs font-bold rounded-xl transition-all"
-              >
-                PPL — Push
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPreset('pull')}
-                className="px-3 py-1.5 neu-btn text-slate-200 text-xs font-bold rounded-xl transition-all"
-              >
-                PPL — Pull
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPreset('legs')}
-                className="px-3 py-1.5 neu-btn text-slate-200 text-xs font-bold rounded-xl transition-all"
-              >
-                PPL — Legs
-              </button>
-            </div>
-          </div>
-
-          {/* Session Metadata Inputs */}
+        <form onSubmit={handleSubmit} noValidate className="lg:col-span-8 space-y-6" aria-label="New workout">
           <div className="neu-flat p-4 sm:p-6 rounded-2xl space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="sm:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">
-                  Workout Session Title
-                </label>
+                <label htmlFor="wk-title" className="block text-xs font-bold text-slate-300 mb-1.5">Title</label>
                 <input
+                  id="wk-title"
                   type="text"
                   value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  placeholder="e.g. Chest & Shoulder Hypertrophy"
-                  className="w-full px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 font-semibold"
+                  maxLength={LIMITS.title}
+                  onChange={e => {
+                    setTitle(e.target.value);
+                    clearError('title');
+                  }}
+                  placeholder="e.g. Upper body"
+                  aria-invalid={Boolean(errors.title)}
+                  aria-describedby={describedBy('title')}
+                  className={`w-full px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 ${inputErr('title')}`}
                 />
+                <FieldError id="title-error" message={errors.title} />
               </div>
-
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">
-                  Date
-                </label>
+                <label htmlFor="wk-date" className="block text-xs font-bold text-slate-300 mb-1.5">Date</label>
                 <input
+                  id="wk-date"
                   type="date"
                   value={date}
-                  onChange={e => setDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 font-mono"
+                  min={earliest}
+                  max={today}
+                  onChange={e => {
+                    setDate(e.target.value);
+                    clearError('date');
+                  }}
+                  aria-invalid={Boolean(errors.date)}
+                  aria-describedby={describedBy('date')}
+                  className={`w-full px-3.5 py-2.5 text-sm text-slate-100 ${inputErr('date')}`}
                 />
+                <FieldError id="date-error" message={errors.date} />
               </div>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">
-                  Duration (Minutes)
-                </label>
+                <label htmlFor="wk-duration" className="block text-xs font-bold text-slate-300 mb-1.5">Duration (minutes)</label>
                 <input
+                  id="wk-duration"
                   type="number"
-                  min="5"
-                  max="300"
-                  value={durationMinutes}
-                  onChange={e => setDurationMinutes(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 font-mono"
+                  inputMode="numeric"
+                  min={1}
+                  max={LIMITS.duration}
+                  step={1}
+                  value={duration}
+                  onChange={e => {
+                    setDuration(e.target.value);
+                    clearError('duration');
+                  }}
+                  aria-invalid={Boolean(errors.duration)}
+                  aria-describedby={describedBy('duration')}
+                  className={`w-full px-3.5 py-2.5 text-sm text-slate-100 ${inputErr('duration')}`}
                 />
+                <FieldError id="duration-error" message={errors.duration} />
               </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">
-                  Session Notes / Cues
-                </label>
-                <input
-                  type="text"
+              <div className="sm:col-span-2">
+                <label htmlFor="wk-notes" className="block text-xs font-bold text-slate-300 mb-1.5">Notes (optional)</label>
+                <textarea
+                  id="wk-notes"
+                  rows={1}
                   value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="e.g. Focused on slow eccentric tempo."
-                  className="w-full px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500"
+                  maxLength={LIMITS.notes}
+                  onChange={e => {
+                    setNotes(e.target.value);
+                    clearError('notes');
+                  }}
+                  aria-invalid={Boolean(errors.notes)}
+                  aria-describedby={describedBy('notes')}
+                  className={`w-full px-3.5 py-2.5 text-sm text-slate-100 resize-y ${inputErr('notes')}`}
                 />
+                <FieldError id="notes-error" message={errors.notes} />
               </div>
             </div>
           </div>
 
-          {/* Add Exercise Bar */}
-          <div className="p-4 rounded-2xl neu-flat flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="flex-1">
-              <label className="block text-[11px] sm:text-xs font-bold text-slate-300 mb-1 font-mono">
-                Select Exercise:
-              </label>
-              <select
-                value={selectedExerciseId}
-                onChange={e => setSelectedExerciseId(e.target.value)}
-                className="w-full text-xs sm:text-sm text-slate-100 px-3.5 py-2.5"
-              >
-                {exercises.map(ex => (
-                  <option key={ex.id} value={ex.id}>
-                    {ex.name} ({ex.category} • {ex.equipment})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (selectedExerciseId) {
-                  addSetForExercise(selectedExerciseId);
-                  showToast('Set added to workout!', 'info');
-                }
-              }}
-              className="px-5 py-2.5 neu-btn-lime text-black font-extrabold text-xs rounded-xl shadow-glow-lime flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
-            >
-              <Plus className="w-4 h-4" /> Add Set
-            </button>
-          </div>
-
-          {/* Sets Table */}
           <div className="neu-flat p-4 sm:p-6 rounded-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2 font-['Outfit']">
-                <Dumbbell className="w-4 h-4 sm:w-5 sm:h-5 text-lime-400" />
-                Sets ({sets.length})
-              </h3>
-              <span className="text-[10px] sm:text-xs text-slate-400 font-medium">Warmups excluded from volume</span>
-            </div>
-
-            {sets.length > 0 ? (
-              <div className="space-y-3">
-                {sets.map((set, index) => (
-                  <div
-                    key={index}
-                    className={`p-3.5 sm:p-4 rounded-xl flex flex-col gap-3 transition-all ${
-                      set.is_warmup
-                        ? 'neu-pressed-sm text-slate-400 opacity-80'
-                        : 'neu-pressed-sm'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="w-5 h-5 rounded-full bg-slate-800 text-[10px] font-mono flex items-center justify-center text-slate-300 shrink-0">
-                          {set.set_number}
-                        </span>
-                        <span className="font-bold text-xs sm:text-sm text-white truncate max-w-[200px] sm:max-w-none">
-                          {set.exercise_name}
-                        </span>
-                        <span className="text-[10px] text-slate-500">
-                          {set.is_warmup ? '(Warmup)' : '(Working)'}
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => removeSet(index)}
-                        className="p-1 text-slate-500 hover:text-rose-400 rounded-lg transition-colors"
-                        title="Remove Set"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {/* Inputs Row */}
-                    <div className="flex items-center gap-2.5 sm:gap-4 flex-wrap text-xs">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[11px] text-slate-400">Weight:</span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          value={set.weight_kg}
-                          onChange={e => updateSet(index, { weight_kg: Number(e.target.value) })}
-                          className="w-16 sm:w-20 px-2 py-1 text-xs text-center font-bold text-white font-mono"
-                        />
-                        <span className="text-[11px] text-slate-400">kg</span>
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        <span className="text-[11px] text-slate-400">Reps:</span>
-                        <input
-                          type="number"
-                          min="1"
-                          max="100"
-                          value={set.reps}
-                          onChange={e => updateSet(index, { reps: Number(e.target.value) })}
-                          className="w-14 sm:w-16 px-2 py-1 text-xs text-center font-bold text-white font-mono"
-                        />
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        <span className="text-[11px] text-slate-400">RPE:</span>
-                        <select
-                          value={set.rpe || 8}
-                          onChange={e => updateSet(index, { rpe: Number(e.target.value) })}
-                          className="px-2 py-1 text-xs text-slate-200"
-                        >
-                          {[6, 7, 7.5, 8, 8.5, 9, 9.5, 10].map(v => (
-                            <option key={v} value={v}>
-                              @{v}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Warmup Checkbox */}
-                      <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none ml-auto">
-                        <input
-                          type="checkbox"
-                          checked={set.is_warmup || false}
-                          onChange={e => updateSet(index, { is_warmup: e.target.checked })}
-                          className="rounded text-lime-500 bg-slate-900 border-slate-700 focus:ring-0"
-                        />
-                        <span className="text-[11px]">Warmup</span>
-                      </label>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            {!catalogue.data && catalogue.error ? (
+              <ErrorState message={`The exercise list could not be loaded. ${catalogue.error}`} onRetry={catalogue.reload} />
+            ) : !catalogue.data ? (
+              <LoadingState label="Loading exercises…" className="py-6" />
+            ) : catalogue.data.length === 0 ? (
+              <EmptyState title="No exercises available" body="The gym has not added any exercises yet." />
             ) : (
-              <div className="text-center py-8 text-slate-500 text-xs">
-                No sets in this session. Choose an exercise above to begin.
-              </div>
+              <>
+                <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                  <div className="flex-1 min-w-0">
+                    <label htmlFor="wk-exercise" className="block text-xs font-bold text-slate-300 mb-1.5">Exercise</label>
+                    <select id="wk-exercise" value={selectedExerciseId} onChange={e => setSelectedExerciseId(e.target.value)} className="w-full text-sm text-slate-100 px-3.5 py-2.5">
+                      {catalogue.data.map(ex => (
+                        <option key={ex.id} value={ex.id}>
+                          {ex.name} ({ex.category}, {ex.equipment})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ex = catalogueById.get(selectedExerciseId);
+                      if (ex) addExercise(ex);
+                    }}
+                    disabled={!selectedExerciseId || totalSets >= LIMITS.setsTotal}
+                    className="neu-btn-lime px-5 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Plus className="w-4 h-4" aria-hidden="true" /> Add set
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-bold text-slate-400">Quick start:</span>
+                  {TEMPLATES.map(t => (
+                    <button key={t.id} type="button" onClick={() => applyTemplate(t)} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold">
+                      {t.label}
+                    </button>
+                  ))}
+                  <span className="text-[11px] text-slate-500">adds the exercises; you fill in the numbers</span>
+                </div>
+              </>
             )}
           </div>
 
-          {/* Submit Workout Button */}
+          <section aria-labelledby="sets-heading" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 id="sets-heading" className="text-base font-black text-slate-100 font-['Outfit'] flex items-center gap-2">
+                <Dumbbell className="w-5 h-5 text-lime-700 dark:text-lime-400" aria-hidden="true" /> Sets ({totalSets}/{LIMITS.setsTotal})
+              </h2>
+              <span className="text-[11px] text-slate-400">Warm-ups are not counted in volume</span>
+            </div>
+            {errors.sets && (
+              <p className="text-xs text-rose-600 dark:text-rose-300" role="alert">
+                {errors.sets}
+              </p>
+            )}
+
+            {exercises.length === 0 ? (
+              <div className="neu-pressed-sm rounded-2xl p-8 text-center text-xs text-slate-400">No sets yet. Choose an exercise above and add your first set.</div>
+            ) : (
+              exercises.map(group => (
+                <div key={group.key} className="neu-flat rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-extrabold text-sm text-slate-100 min-w-0 break-words">{group.exercise_name}</h3>
+                    <button
+                      type="button"
+                      onClick={() => removeExercise(group.key)}
+                      aria-label={`Remove ${group.exercise_name} and its sets`}
+                      className="neu-icon-btn neu-icon-btn-danger w-8 h-8 shrink-0"
+                    >
+                      <Trash2 className="w-4 h-4" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <ol className="space-y-2">
+                    {group.sets.map((s, i) => {
+                      const id = `set-${s.key}`;
+                      const setLabel = `${group.exercise_name}, set ${i + 1}`;
+                      return (
+                        <li key={s.key} className="neu-pressed-sm rounded-xl p-3">
+                          <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+                            <span className="w-full sm:w-12 text-xs font-bold text-slate-300 sm:pt-6">Set {i + 1}</span>
+                            <div className="w-[calc(33%-0.5rem)] sm:w-24">
+                              <label htmlFor={`${id}-w`} className="block text-[11px] text-slate-400 mb-1">Weight (kg)</label>
+                              <input
+                                id={`${id}-w`}
+                                type="number"
+                                inputMode="decimal"
+                                min={0}
+                                max={LIMITS.weight}
+                                step={0.5}
+                                value={s.weight}
+                                onChange={e => {
+                                  updateSet(group.key, s.key, { weight: e.target.value });
+                                  clearError(`${s.key}.weight`);
+                                }}
+                                aria-invalid={Boolean(errors[`${s.key}.weight`])}
+                                aria-describedby={describedBy(`${s.key}.weight`)}
+                                aria-label={`${setLabel}: weight in kg`}
+                                className={`w-full px-2 py-1.5 text-sm text-center font-bold text-slate-100 font-mono ${inputErr(`${s.key}.weight`)}`}
+                              />
+                              <FieldError id={`${s.key}.weight-error`} message={errors[`${s.key}.weight`]} />
+                            </div>
+                            <div className="w-[calc(33%-0.5rem)] sm:w-20">
+                              <label htmlFor={`${id}-r`} className="block text-[11px] text-slate-400 mb-1">Reps</label>
+                              <input
+                                id={`${id}-r`}
+                                type="number"
+                                inputMode="numeric"
+                                min={1}
+                                max={LIMITS.reps}
+                                step={1}
+                                value={s.reps}
+                                onChange={e => {
+                                  updateSet(group.key, s.key, { reps: e.target.value });
+                                  clearError(`${s.key}.reps`);
+                                }}
+                                aria-invalid={Boolean(errors[`${s.key}.reps`])}
+                                aria-describedby={describedBy(`${s.key}.reps`)}
+                                aria-label={`${setLabel}: reps`}
+                                className={`w-full px-2 py-1.5 text-sm text-center font-bold text-slate-100 font-mono ${inputErr(`${s.key}.reps`)}`}
+                              />
+                              <FieldError id={`${s.key}.reps-error`} message={errors[`${s.key}.reps`]} />
+                            </div>
+                            <div className="w-[calc(33%-0.5rem)] sm:w-20">
+                              <label htmlFor={`${id}-rpe`} className="block text-[11px] text-slate-400 mb-1">RPE (opt.)</label>
+                              <input
+                                id={`${id}-rpe`}
+                                type="number"
+                                inputMode="decimal"
+                                min={1}
+                                max={LIMITS.rpe}
+                                step={0.5}
+                                value={s.rpe}
+                                onChange={e => {
+                                  updateSet(group.key, s.key, { rpe: e.target.value });
+                                  clearError(`${s.key}.rpe`);
+                                }}
+                                aria-invalid={Boolean(errors[`${s.key}.rpe`])}
+                                aria-describedby={describedBy(`${s.key}.rpe`)}
+                                aria-label={`${setLabel}: effort, RPE 1 to 10`}
+                                className={`w-full px-2 py-1.5 text-sm text-center font-bold text-slate-100 font-mono ${inputErr(`${s.key}.rpe`)}`}
+                              />
+                              <FieldError id={`${s.key}.rpe-error`} message={errors[`${s.key}.rpe`]} />
+                            </div>
+                            <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none sm:pt-6">
+                              <input type="checkbox" checked={s.warmup} onChange={e => updateSet(group.key, s.key, { warmup: e.target.checked })} className="w-4 h-4 accent-lime-500" />
+                              Warm-up
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => removeSet(group.key, s.key)}
+                              aria-label={`Remove ${setLabel}`}
+                              className="neu-icon-btn neu-icon-btn-danger ml-auto w-8 h-8 shrink-0 sm:mt-5"
+                            >
+                              <X className="w-4 h-4" aria-hidden="true" />
+                            </button>
+                          </div>
+                          {errors[`${s.key}.row`] && (
+                            <p className="text-[11px] text-rose-600 dark:text-rose-300 mt-2" role="alert">
+                              {setLabel}: {errors[`${s.key}.row`]}
+                            </p>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ol>
+                  <button
+                    type="button"
+                    onClick={() => addSet(group)}
+                    disabled={group.sets.length >= LIMITS.setsPerExercise || totalSets >= LIMITS.setsTotal}
+                    className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Plus className="w-3.5 h-3.5" aria-hidden="true" /> Add set {group.sets.length + 1}
+                  </button>
+                </div>
+              ))
+            )}
+          </section>
+
+          {formError && (
+            <p role="alert" className="rounded-xl p-3 text-sm border border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200">
+              {formError.message}
+            </p>
+          )}
+
           <button
-            type="button"
-            onClick={handleSubmitWorkout}
-            disabled={isSubmitting || sets.length === 0}
-            className="w-full py-3.5 sm:py-4 neu-btn-lime text-black font-black text-xs sm:text-sm rounded-2xl shadow-glow-lime transition-all active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full py-3.5 neu-btn-lime rounded-2xl text-sm font-black flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            <Sparkles className="w-4 h-4" />
-            {isSubmitting ? 'Saving Session...' : 'Complete & Save Workout'}
+            <Save className="w-4 h-4" aria-hidden="true" /> {isSubmitting ? 'Saving…' : 'Save workout'}
           </button>
-        </div>
+        </form>
 
-        {/* Right Col: Interactive Rest Timer Widget & Tools (4 cols) */}
-        <div className="lg:col-span-4 space-y-6">
-          {/* Rest Stopwatch Widget */}
-          <div className="neu-flat p-5 sm:p-6 rounded-3xl space-y-5 sm:space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-              <h3 className="text-xs sm:text-sm font-extrabold text-white flex items-center gap-2 font-['Outfit']">
-                <Clock className="w-4 h-4 text-lime-400" />
-                Inter-Set Rest Timer
-              </h3>
-              <Badge variant={isTimerRunning ? 'lime' : 'slate'} size="sm">
-                {isTimerRunning ? 'RUNNING' : 'IDLE'}
-              </Badge>
-            </div>
-
-            {/* Circular Countdown Display */}
-            <div className="text-center py-2 space-y-2">
-              <div className="text-5xl sm:text-6xl font-black font-mono text-lime-400 tracking-tight">
-                {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+        <aside className="lg:col-span-4 space-y-6">
+          <section aria-labelledby="timer-heading" className="neu-flat p-5 sm:p-6 rounded-3xl space-y-4">
+            <h2 id="timer-heading" className="text-sm font-extrabold text-slate-100 flex items-center gap-2 font-['Outfit']">
+              <Clock className="w-4 h-4 text-lime-700 dark:text-lime-400" aria-hidden="true" /> Rest timer
+            </h2>
+            <div className="text-center">
+              <div role="timer" aria-live="off" className="text-5xl font-black font-mono text-lime-700 dark:text-lime-400 tracking-tight">
+                {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
               </div>
-              <p className="text-xs text-slate-400 font-medium">Target Rest: {timerDuration}s</p>
-
-              {/* Progress Bar */}
-              <div className="w-full h-2 neu-pressed-sm rounded-full overflow-hidden mt-3">
-                <div
-                  className="h-full bg-lime-400 transition-all duration-1000 rounded-full"
-                  style={{ width: `${(timeLeft / timerDuration) * 100}%` }}
-                />
+              <div className="w-full h-2 neu-pressed-sm rounded-full overflow-hidden mt-3" aria-hidden="true">
+                <div className="h-full bg-lime-500 transition-all duration-1000 rounded-full" style={{ width: `${(timeLeft / timerDuration) * 100}%` }} />
               </div>
             </div>
-
-            {/* Timer Control Buttons */}
             <div className="flex items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => setIsTimerRunning(!isTimerRunning)}
-                className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
-                  isTimerRunning
-                    ? 'neu-btn text-amber-400 shadow-glow-amber'
-                    : 'neu-btn-lime text-black shadow-glow-lime'
-                }`}
-              >
-                {isTimerRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              <button type="button" onClick={toggleTimer} className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 ${isTimerRunning ? 'neu-btn' : 'neu-btn-lime'}`}>
+                {isTimerRunning ? <Pause className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
                 {isTimerRunning ? 'Pause' : 'Start'}
               </button>
-
               <button
                 type="button"
                 onClick={() => {
-                  setIsTimerRunning(false);
+                  setEndsAt(null);
                   setTimeLeft(timerDuration);
                 }}
-                className="p-2.5 neu-btn text-slate-200 rounded-xl transition-all"
-                title="Reset Timer"
+                aria-label="Reset timer"
+                className="neu-btn p-2.5 rounded-xl"
               >
-                <RotateCcw className="w-4 h-4" />
+                <RotateCcw className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
-
-            {/* Preset Buttons */}
-            <div className="space-y-2 pt-2 border-t border-slate-800/80">
-              <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">
-                Rest Presets:
-              </div>
-              <div className="grid grid-cols-4 gap-1.5">
-                {[45, 60, 90, 180].map(s => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => startTimer(s)}
-                    className="py-1.5 neu-btn rounded-lg text-xs font-bold transition-all"
-                  >
-                    {s}s
-                  </button>
-                ))}
-              </div>
+            <div className="grid grid-cols-4 gap-1.5" role="group" aria-label="Rest length">
+              {[45, 60, 90, 180].map(sec => (
+                <button key={sec} type="button" aria-pressed={timerDuration === sec} onClick={() => startPreset(sec)} className={`py-1.5 rounded-lg text-xs font-bold ${timerDuration === sec ? 'neu-btn-lime' : 'neu-btn'}`}>
+                  {sec}s
+                </button>
+              ))}
             </div>
-          </div>
+          </section>
 
-          {/* Muscle Target Breakdown Card */}
-          <div className="neu-flat p-5 sm:p-6 rounded-3xl space-y-3">
-            <h3 className="text-xs sm:text-sm font-extrabold text-white flex items-center gap-2 font-['Outfit']">
-              <TrendingUp className="w-4 h-4 text-cyan-400" />
-              Session Muscle Hits
-            </h3>
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between text-slate-300">
-                <span>Working Sets:</span>
-                <strong className="text-white font-mono">{sets.filter(s => !s.is_warmup).length} sets</strong>
-              </div>
-              <div className="flex items-center justify-between text-slate-300">
-                <span>Warmup Sets:</span>
-                <strong className="text-slate-400 font-mono">{sets.filter(s => s.is_warmup).length} sets</strong>
-              </div>
-              <div className="flex items-center justify-between text-slate-300">
-                <span>Unique Movements:</span>
-                <strong className="text-lime-400 font-mono">
-                  {new Set(sets.map(s => s.exercise_id)).size} exercises
-                </strong>
-              </div>
-            </div>
-          </div>
-        </div>
+          <section aria-labelledby="history-heading" className="neu-flat p-5 sm:p-6 rounded-3xl space-y-3">
+            <h2 id="history-heading" className="text-sm font-extrabold text-slate-100 flex items-center gap-2 font-['Outfit']">
+              <History className="w-4 h-4 text-lime-700 dark:text-lime-400" aria-hidden="true" /> Recent workouts
+            </h2>
+            {!history.data && history.error ? (
+              <ErrorState message={history.error} onRetry={history.reload} />
+            ) : !history.data ? (
+              <LoadingState className="py-6" />
+            ) : history.data.length === 0 ? (
+              <p className="text-xs text-slate-400">Nothing logged yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {history.data.slice(0, 5).map(w => {
+                  const groups = groupSets(w.sets);
+                  return (
+                    <li key={w.id} className="neu-pressed-sm rounded-xl p-3 text-xs flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-200 break-words">{w.title}</p>
+                        <p className="text-slate-400 mt-0.5">
+                          {formatDate(w.date, { day: 'numeric', month: 'short', year: 'numeric' })} · {w.duration_minutes} min · {kg(w.total_volume_kg ?? 0)}
+                        </p>
+                        <p className="text-slate-500 mt-0.5">
+                          {groups.length} {groups.length === 1 ? 'exercise' : 'exercises'}, {w.sets?.length ?? 0} sets
+                        </p>
+                      </div>
+                      <button type="button" onClick={() => setToDelete(w)} aria-label={`Delete workout ${w.title}`} className="neu-icon-btn neu-icon-btn-danger w-8 h-8 shrink-0">
+                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </aside>
       </div>
+
+      <ConfirmDialog
+        isOpen={toDelete !== null}
+        title="Delete this workout?"
+        message={toDelete ? `"${toDelete.title}" from ${formatDate(toDelete.date)} and all its sets will be removed. This cannot be undone.` : null}
+        confirmLabel="Delete workout"
+        tone="danger"
+        onConfirm={deleteWorkout}
+        onClose={() => setToDelete(null)}
+      />
     </div>
   );
 };

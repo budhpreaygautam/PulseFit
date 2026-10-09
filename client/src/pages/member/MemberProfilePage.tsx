@@ -1,309 +1,650 @@
-import React, { useState, useRef } from 'react';
-import {
-  User,
-  CreditCard,
-  QrCode,
-  CheckCircle2,
-  Copy,
-  Check,
-  Award,
-  KeyRound,
-  Download,
-  Upload,
-  Image as ImageIcon
-} from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Award, Check, Copy, CreditCard, FileText, KeyRound, QrCode, Upload, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { useToast } from '../../context/ToastContext.js';
-import { api } from '../../api/client.js';
-import { Badge } from '../../components/common/Badge.js';
-import { MembershipTier, MembershipStatus } from '../../types/index.js';
+import { useNavigation } from '../../context/NavigationContext.js';
+import { api, isApiError } from '../../api/client.js';
+import { Payment, User } from '../../types/index.js';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog.js';
+import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
 import { DigitalQrPassModal } from '../../components/qr/DigitalQrPassModal.js';
+import { MembershipStatusBadge } from '../../components/member/MembershipStatusBadge.js';
+import { InvoiceModal } from '../../components/member/InvoiceModal.js';
+import { useApiResource } from '../../components/member/useApiResource.js';
+import { resizeAvatar } from '../../components/member/avatarImage.js';
+import { copyText } from '../../components/member/clipboard.js';
+import { formatDate, formatDateTime, formatINR, TIER_LABELS, tierLabel } from '../../lib/format.js';
 
 interface MemberProfilePageProps {
   setCurrentTab: (tab: string) => void;
 }
 
-export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrentTab }) => {
-  const { user, refreshUser, triggerCelebration } = useAuth();
+type TabId = 'details' | 'membership' | 'billing' | 'security';
+
+const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+  { id: 'details', label: 'Profile', icon: <UserIcon className="w-4 h-4" aria-hidden="true" /> },
+  { id: 'membership', label: 'Membership', icon: <Award className="w-4 h-4" aria-hidden="true" /> },
+  { id: 'billing', label: 'Invoices & billing', icon: <CreditCard className="w-4 h-4" aria-hidden="true" /> },
+  { id: 'security', label: 'Password', icon: <KeyRound className="w-4 h-4" aria-hidden="true" /> }
+];
+
+const CYCLE_LABELS: Record<string, string> = { monthly: 'Monthly', annual: 'Annual' };
+const PHONE_PATTERN = /^\+?[0-9][0-9\s()-]{6,19}$/;
+type Issues = { path: string; message: string }[];
+const issuesOf = (err: unknown): Issues => (isApiError(err) ? ((err.data as { issues?: Issues } | undefined)?.issues ?? []) : []);
+
+/** Same rules as the server: 8–72 characters, at most 72 UTF-8 bytes, a letter and a digit. */
+function passwordProblem(password: string): string | null {
+  if (password.length < 8) return 'Use at least 8 characters.';
+  if (new TextEncoder().encode(password).length > 72) return 'Your password is too long. Use fewer or simpler characters.';
+  if (!/[A-Za-z]/.test(password)) return 'Include at least one letter.';
+  if (!/\d/.test(password)) return 'Include at least one digit.';
+  return null;
+}
+
+const inputClass = (invalid: boolean) =>
+  `w-full px-4 py-2.5 rounded-xl text-sm text-slate-100 placeholder-slate-500 ${invalid ? 'outline outline-2 outline-rose-500/80' : ''}`;
+
+const FieldError: React.FC<{ id: string; message?: string | null }> = ({ id, message }) =>
+  message ? (
+    <p id={id} className="text-xs text-rose-600 dark:text-rose-300 mt-1">
+      {message}
+    </p>
+  ) : null;
+
+// ---------------------------------------------------------------------------------------------
+
+const ProfileDetails: React.FC<{ user: User; onOpenPass: () => void }> = ({ user, onOpenPass }) => {
+  const { updateUser } = useAuth();
   const { showToast } = useToast();
-
-  const [activeTab, setActiveTab] = useState<'details' | 'membership' | 'billing' | 'security'>('details');
-  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
-  const [copiedToken, setCopiedToken] = useState(false);
-
-  // Profile Edit State
-  const [name, setName] = useState(user?.name || '');
-  const [phone, setPhone] = useState(user?.phone || '');
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || '');
+  const [name, setName] = useState(user.name);
+  const [phone, setPhone] = useState(user.phone ?? '');
+  const [errors, setErrors] = useState<{ name?: string; phone?: string; form?: string }>({});
   const [isSaving, setIsSaving] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [customUrlInput, setCustomUrlInput] = useState('');
-  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  // Hidden File Input Ref
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    setName(user.name);
+    setPhone(user.phone ?? '');
+  }, [user.name, user.phone]);
 
-  // Password Edit State
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(t);
+  }, [copied]);
 
-  // Avatar presets
-  const avatarPresets = [
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=300&auto=format&fit=crop&q=80'
-  ];
-
-  if (!user) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center space-y-4">
-        <h3 className="text-2xl font-bold text-white font-['Outfit']">Please sign in to manage your profile.</h3>
-        <button
-          onClick={() => setCurrentTab('home')}
-          className="px-6 py-2.5 neu-btn-lime text-black font-extrabold text-xs rounded-xl shadow-glow-lime"
-        >
-          Return Home
-        </button>
-      </div>
-    );
-  }
-
-  // Handle Local Image File Upload
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      showToast('Please select a valid image file (PNG, JPG, WebP, GIF)', 'warning');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      showToast('Image size exceeds 5MB limit', 'warning');
-      return;
-    }
-
-    setIsUploading(true);
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const base64 = reader.result as string;
-      setAvatarUrl(base64);
-      setIsUploading(false);
-      showToast('Profile picture loaded! Click "Save Profile Details" to save changes.', 'success');
-    };
-
-    reader.onerror = () => {
-      setIsUploading(false);
-      showToast('Failed to read image file', 'error');
-    };
-
-    reader.readAsDataURL(file);
-  };
-
-  const handleApplyCustomUrl = () => {
-    if (!customUrlInput.trim()) return;
-    setAvatarUrl(customUrlInput.trim());
-    setCustomUrlInput('');
-    setShowUrlInput(false);
-    showToast('Custom image URL applied!', 'info');
-  };
-
-  const handleResetToDicebear = () => {
-    const defaultAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`;
-    setAvatarUrl(defaultAvatar);
-    showToast('Reset to default generated avatar.', 'info');
-  };
-
-  const handleSaveProfile = async (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
+    const changes: { name?: string; phone?: string } = {};
+    const next: typeof errors = {};
+    const trimmedName = name.trim();
+    const trimmedPhone = phone.trim();
+    if (trimmedName.length < 2 || trimmedName.length > 60) next.name = 'Your name needs 2 to 60 characters.';
+    if (trimmedPhone && (trimmedPhone.length > 20 || !PHONE_PATTERN.test(trimmedPhone))) next.phone = 'Enter a valid phone number, for example +91 98110 12345.';
+    setErrors(next);
+    if (next.name || next.phone) return;
+
+    if (trimmedName !== user.name) changes.name = trimmedName;
+    if (trimmedPhone !== (user.phone ?? '')) changes.phone = trimmedPhone;
+    if (Object.keys(changes).length === 0) {
+      showToast('Nothing has changed.', 'info');
+      return;
+    }
+
     setIsSaving(true);
     try {
-      await api.updateProfile({
-        name,
-        phone,
-        avatar_url: avatarUrl
+      updateUser(await api.updateProfile(changes));
+      showToast('Your profile was updated.', 'success');
+    } catch (err) {
+      const issues = issuesOf(err);
+      setErrors({
+        name: issues.find(i => i.path === 'name')?.message,
+        phone: issues.find(i => i.path === 'phone')?.message,
+        form: issues.length ? undefined : isApiError(err) ? err.message : 'Your profile could not be saved.'
       });
-      await refreshUser();
-      showToast('Profile information and picture updated successfully!', 'success');
-    } catch (err: any) {
-      showToast(err.message || 'Failed to update profile', 'error');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleChangeTier = async (newTier: MembershipTier) => {
-    if (newTier === user.membership_tier) return;
-    try {
-      await api.updateProfile({ membership_tier: newTier });
-      await refreshUser();
-      triggerCelebration();
-      showToast(`Membership successfully updated to ${newTier.toUpperCase()}!`, 'success', 'Plan Changed');
-    } catch (err: any) {
-      showToast(err.message || 'Failed to update membership plan', 'error');
+  const copyPass = async () => {
+    if (await copyText(user.qr_code_token)) {
+      setCopied(true);
+      showToast('Pass code copied.', 'success');
+    } else {
+      showToast('Your browser blocked copying. Select the code and copy it by hand.', 'error');
     }
   };
-
-  const handleToggleFreeze = async () => {
-    const nextStatus: MembershipStatus = user.membership_status === 'frozen' ? 'active' : 'frozen';
-    try {
-      await api.updateProfile({ membership_status: nextStatus });
-      await refreshUser();
-      showToast(
-        nextStatus === 'frozen'
-          ? 'Membership frozen. Turnstile access is paused.'
-          : 'Membership reactivated! Welcome back.',
-        'info'
-      );
-    } catch (err: any) {
-      showToast(err.message || 'Failed to update status', 'error');
-    }
-  };
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newPassword.length < 6) {
-      showToast('New password must be at least 6 characters', 'warning');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      showToast('New passwords do not match', 'warning');
-      return;
-    }
-
-    setIsChangingPassword(true);
-    try {
-      await api.updateProfile({
-        currentPassword,
-        newPassword
-      });
-      showToast('Password changed successfully!', 'success');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    } catch (err: any) {
-      showToast(err.message || 'Failed to change password', 'error');
-    } finally {
-      setIsChangingPassword(false);
-    }
-  };
-
-  const handleCopyPass = () => {
-    navigator.clipboard.writeText(user.qr_code_token);
-    setCopiedToken(true);
-    showToast('Pass token copied to clipboard', 'info');
-    setTimeout(() => setCopiedToken(false), 2000);
-  };
-
-  const getTierPrice = () => {
-    if (user.membership_tier === 'vip') return '₹1,999.00';
-    if (user.membership_tier === 'pro') return '₹1,499.00';
-    return '₹1,199.00';
-  };
-
-  const mockInvoices = [
-    { id: 'INV-2026-0901', date: 'Sep 01, 2026', amount: getTierPrice(), status: 'Paid', method: 'UPI (GPay/PhonePe)', plan: `${user.membership_tier.toUpperCase()} Monthly Pass` },
-    { id: 'INV-2026-0801', date: 'Aug 01, 2026', amount: getTierPrice(), status: 'Paid', method: 'Razorpay •••• 4242', plan: `${user.membership_tier.toUpperCase()} Monthly Pass` },
-    { id: 'INV-2026-0701', date: 'Jul 01, 2026', amount: getTierPrice(), status: 'Paid', method: 'Razorpay •••• 4242', plan: `${user.membership_tier.toUpperCase()} Monthly Pass` }
-  ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8 sm:space-y-10">
-      {/* Hidden File Input for Image Upload */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileUpload}
-        accept="image/png, image/jpeg, image/webp, image/gif"
-        className="hidden"
-      />
-
-      {/* 1. Header Profile Banner */}
-      <div className="relative rounded-3xl overflow-hidden neu-flat border border-slate-800/80 p-6 sm:p-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div className="flex items-center gap-4 sm:gap-5">
-            {/* Avatar with Interactive Upload */}
-            <div className="relative group/avatar shrink-0">
-              <img
-                src={avatarUrl || user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`}
-                alt={user.name}
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover bg-slate-800 border-2 border-lime-500/50 shadow-glow-lime group-hover/avatar:brightness-75 transition-all"
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity bg-black/60 rounded-2xl text-lime-400 font-bold text-[10px]"
-                title="Upload Photo"
-              >
-                <Upload className="w-5 h-5 mb-0.5" />
-                <span>Upload</span>
-              </button>
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl sm:text-3xl font-black text-white font-['Outfit']">{user.name}</h1>
-                <Badge
-                  variant={user.membership_tier === 'vip' ? 'amber' : user.membership_tier === 'pro' ? 'lime' : 'cyan'}
-                >
-                  {user.membership_tier.toUpperCase()} ATHLETE
-                </Badge>
-                {user.membership_status === 'active' ? (
-                  <span className="text-xs bg-lime-500/10 text-lime-400 font-bold px-2.5 py-0.5 rounded-full border border-lime-500/30 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-lime-400 animate-pulse-dot" /> Active Access
-                  </span>
-                ) : (
-                  <span className="text-xs bg-amber-500/10 text-amber-400 font-bold px-2.5 py-0.5 rounded-full border border-amber-500/30">
-                    {user.membership_status.toUpperCase()}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-400 font-medium">
-                {user.email} • Phone: {user.phone || 'Not set'} • Turnstile Pass: <strong className="text-slate-200 font-mono">{user.qr_code_token}</strong>
-              </p>
-            </div>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <form onSubmit={save} noValidate className="lg:col-span-8 neu-flat p-5 sm:p-8 rounded-3xl space-y-5">
+        <h2 className="text-lg font-black text-slate-100 font-['Outfit']">Personal details</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="profile-name" className="block text-xs font-bold text-slate-300 mb-1.5">Full name</label>
+            <input
+              id="profile-name"
+              type="text"
+              autoComplete="name"
+              value={name}
+              maxLength={60}
+              onChange={e => setName(e.target.value)}
+              aria-invalid={Boolean(errors.name)}
+              aria-describedby={errors.name ? 'profile-name-error' : undefined}
+              className={inputClass(Boolean(errors.name))}
+            />
+            <FieldError id="profile-name-error" message={errors.name} />
           </div>
-
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2.5 neu-btn text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center gap-2"
-            >
-              <Upload className="w-3.5 h-3.5 text-lime-400" />
-              Upload Photo
-            </button>
-
-            <button
-              onClick={() => setIsQrModalOpen(true)}
-              className="px-5 py-2.5 neu-btn-lime text-black font-extrabold text-xs rounded-xl transition-all flex items-center gap-2 shadow-glow-lime"
-            >
-              <QrCode className="w-3.5 h-3.5" />
-              Digital Pass
-            </button>
+          <div>
+            <label htmlFor="profile-phone" className="block text-xs font-bold text-slate-300 mb-1.5">Phone (optional)</label>
+            <input
+              id="profile-phone"
+              type="tel"
+              autoComplete="tel"
+              value={phone}
+              maxLength={20}
+              onChange={e => setPhone(e.target.value)}
+              placeholder="+91 98110 12345"
+              aria-invalid={Boolean(errors.phone)}
+              aria-describedby={errors.phone ? 'profile-phone-error' : undefined}
+              className={inputClass(Boolean(errors.phone))}
+            />
+            <FieldError id="profile-phone-error" message={errors.phone} />
           </div>
         </div>
+        <div>
+          <label htmlFor="profile-email" className="block text-xs font-bold text-slate-300 mb-1.5">Email</label>
+          <input id="profile-email" type="email" value={user.email} readOnly aria-describedby="profile-email-hint" className="w-full px-4 py-2.5 rounded-xl text-sm text-slate-400" />
+          <p id="profile-email-hint" className="text-[11px] text-slate-500 mt-1">Your sign-in email. Ask the front desk to change it.</p>
+        </div>
+        {errors.form && (
+          <p role="alert" className="text-sm text-rose-600 dark:text-rose-300">
+            {errors.form}
+          </p>
+        )}
+        <button type="submit" disabled={isSaving} className="neu-btn-lime px-6 py-3 rounded-xl text-xs font-extrabold disabled:opacity-50">
+          {isSaving ? 'Saving…' : 'Save changes'}
+        </button>
+      </form>
+
+      <section aria-labelledby="pass-heading" className="lg:col-span-4 neu-flat p-5 sm:p-6 rounded-3xl space-y-4">
+        <h2 id="pass-heading" className="text-sm font-extrabold text-slate-100 font-['Outfit'] flex items-center gap-2">
+          <QrCode className="w-4 h-4 text-lime-700 dark:text-lime-400" aria-hidden="true" /> Check-in pass
+        </h2>
+        <p className="text-xs text-slate-400">The front desk scans this code (or types it in) to check you in.</p>
+        <div className="p-3 neu-pressed-sm rounded-xl flex items-center justify-between gap-2">
+          <code className="font-mono text-xs font-bold text-slate-200 break-all select-all">{user.qr_code_token}</code>
+          <button type="button" onClick={copyPass} aria-label="Copy pass code" className="neu-btn p-2 rounded-lg shrink-0">
+            {copied ? <Check className="w-4 h-4 text-lime-700 dark:text-lime-400" aria-hidden="true" /> : <Copy className="w-4 h-4" aria-hidden="true" />}
+          </button>
+        </div>
+        <button type="button" onClick={onOpenPass} className="w-full neu-btn py-2.5 rounded-xl text-xs font-bold">
+          Show QR code
+        </button>
+      </section>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------------------------
+
+const MembershipPanel: React.FC<{ user: User; onOpenPricing: () => void }> = ({ user, onOpenPricing }) => {
+  const { updateUser, refreshUser } = useAuth();
+  const { showToast } = useToast();
+  const plans = useApiResource(() => api.getPlans());
+  const [confirm, setConfirm] = useState<'freeze' | 'unfreeze' | null>(null);
+  // Freezing cancels every upcoming class booking, so the dialog counts them first.
+  // null while counting; 'unknown' when they could not be loaded.
+  const [upcomingCount, setUpcomingCount] = useState<number | 'unknown' | null>(null);
+
+  const plan = plans.data?.find(p => p.tier === user.membership_tier);
+  const status = user.membership_status;
+
+  useEffect(() => {
+    if (confirm !== 'freeze') return;
+    let cancelled = false;
+    setUpcomingCount(null);
+    api
+      .getMyBookings('upcoming')
+      .then(list => !cancelled && setUpcomingCount(list.length))
+      .catch(() => !cancelled && setUpcomingCount('unknown'));
+    return () => {
+      cancelled = true;
+    };
+  }, [confirm]);
+
+  const run = async () => {
+    try {
+      // The server's message says what else changed (how many bookings were cancelled, how many days were added).
+      if (confirm === 'freeze') {
+        const { data: next, message } = await api.freezeMembership();
+        updateUser(next);
+        showToast(message || 'Your membership is frozen. Unfreeze it whenever you are ready to train again.', 'success');
+      } else {
+        const { data: next, message } = await api.unfreezeMembership();
+        updateUser(next);
+        showToast(message || `Welcome back. Your membership now runs until ${formatDate(next.membership_expiry)}.`, 'success');
+      }
+    } catch (err) {
+      if (isApiError(err) && (err.code === 'NOT_ACTIVE' || err.code === 'NOT_FROZEN')) {
+        showToast(err.message, 'warning');
+        refreshUser();
+      } else {
+        showToast(isApiError(err) ? err.message : 'Your membership could not be changed.', 'error');
+      }
+    }
+  };
+
+  const planAction = status === 'expired' ? 'Renew membership' : status === 'pending' || user.membership_tier === 'none' ? 'Choose a plan' : 'Change plan';
+
+  const bookingsLine =
+    upcomingCount === null ? (
+      'Checking your upcoming class bookings…'
+    ) : upcomingCount === 'unknown' ? (
+      <strong className="text-slate-100">All your upcoming class bookings will be cancelled.</strong>
+    ) : upcomingCount === 0 ? (
+      'You have no upcoming class bookings, so none will be cancelled.'
+    ) : (
+      <>
+        <strong className="text-slate-100">
+          Your {upcomingCount} upcoming class {upcomingCount === 1 ? 'booking' : 'bookings'} will be cancelled
+        </strong>{' '}
+        and the {upcomingCount === 1 ? 'spot goes' : 'spots go'} to other members. Unfreezing does not bring {upcomingCount === 1 ? 'it' : 'them'} back.
+      </>
+    );
+
+  return (
+    <section aria-labelledby="membership-heading" className="neu-flat p-5 sm:p-8 rounded-3xl space-y-6 max-w-3xl">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+        <div>
+          <h2 id="membership-heading" className="text-lg font-black text-slate-100 font-['Outfit']">
+            {plan?.name ?? TIER_LABELS[user.membership_tier] ?? user.membership_tier}
+          </h2>
+          {plan?.description && <p className="text-xs text-slate-400 mt-1">{plan.description}</p>}
+        </div>
+        <MembershipStatusBadge status={status} className="self-start" />
       </div>
 
-      {/* 2. Profile Management Tabs */}
-      <div className="flex items-center gap-2 p-1.5 rounded-2xl neu-pressed-sm border border-slate-800/80 overflow-x-auto">
-        {[
-          { id: 'details', label: 'Personal Information & Picture', icon: <User className="w-4 h-4" /> },
-          { id: 'membership', label: 'Plan & Subscription', icon: <Award className="w-4 h-4" /> },
-          { id: 'billing', label: 'Invoices & Billing', icon: <CreditCard className="w-4 h-4" /> },
-          { id: 'security', label: 'Security & Password', icon: <KeyRound className="w-4 h-4" /> }
-        ].map(tab => (
+      <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="neu-pressed-sm rounded-2xl p-4">
+          <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Plan</dt>
+          <dd className="text-sm font-bold text-slate-100 mt-1">{tierLabel(user.membership_tier, plans.data)}</dd>
+        </div>
+        <div className="neu-pressed-sm rounded-2xl p-4">
+          <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{status === 'expired' ? 'Ended on' : 'Valid through'}</dt>
+          <dd className="text-sm font-bold text-slate-100 mt-1">{user.membership_expiry ? formatDate(user.membership_expiry) : 'No paid period yet'}</dd>
+        </div>
+        <div className="neu-pressed-sm rounded-2xl p-4">
+          <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{status === 'frozen' ? 'Frozen since' : 'Includes'}</dt>
+          <dd className="text-sm font-bold text-slate-100 mt-1">
+            {status === 'frozen'
+              ? formatDate(user.frozen_since ?? null)
+              : plan
+                ? plan.categories.length === 0
+                  ? 'All classes and floors'
+                  : plan.categories.join(', ')
+                : plans.error
+                  ? 'Could not load plan details'
+                  : user.membership_tier === 'none'
+                    ? 'Nothing yet'
+                    : '…'}
+          </dd>
+        </div>
+      </dl>
+
+      {status === 'frozen' && (
+        <p className="text-sm text-slate-300">
+          While frozen you cannot check in, book classes or clock in. When you unfreeze, the days the gym was open while you were frozen are added to the end of your
+          membership (the day you froze, the day you come back and Sundays are not counted).
+        </p>
+      )}
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <button type="button" onClick={onOpenPricing} className="neu-btn-lime px-5 py-3 rounded-xl text-xs font-extrabold">
+          {planAction}
+        </button>
+        {status === 'active' && (
+          <button type="button" onClick={() => setConfirm('freeze')} className="neu-btn px-5 py-3 rounded-xl text-xs font-bold">
+            Freeze membership
+          </button>
+        )}
+        {status === 'frozen' && (
+          <button type="button" onClick={() => setConfirm('unfreeze')} className="neu-btn px-5 py-3 rounded-xl text-xs font-bold">
+            Unfreeze membership
+          </button>
+        )}
+      </div>
+
+      <ConfirmDialog
+        isOpen={confirm !== null}
+        title={confirm === 'freeze' ? 'Freeze your membership?' : 'Unfreeze your membership?'}
+        message={
+          confirm === 'freeze' ? (
+            <div className="space-y-3">
+              <p>From today you will not be able to check in, book classes or clock in on the gym floor until you unfreeze.</p>
+              <ul className="list-disc pl-5 space-y-1.5">
+                <li aria-live="polite">{bookingsLine}</li>
+                <li>If you are clocked in on the gym floor, that session will be ended.</li>
+                <li>
+                  When you unfreeze, the days the gym was open while you were frozen are added to your end date. The day you freeze, the day you come back and Sundays are not
+                  counted.
+                </li>
+              </ul>
+            </div>
+          ) : (
+            <>
+              Your membership becomes active again today. The days the gym was open while it was frozen{user.frozen_since ? ` (since ${formatDate(user.frozen_since)})` : ''} are
+              added to your end date; the day you froze, today and Sundays are not counted.
+            </>
+          )
+        }
+        confirmLabel={confirm === 'freeze' ? 'Freeze membership' : 'Unfreeze'}
+        onConfirm={run}
+        onClose={() => setConfirm(null)}
+      />
+    </section>
+  );
+};
+
+// ---------------------------------------------------------------------------------------------
+
+const BillingPanel: React.FC<{ onOpenPricing: () => void }> = ({ onOpenPricing }) => {
+  const payments = useApiResource(() => api.getMyPayments());
+  const [open, setOpen] = useState<Payment | null>(null);
+
+  let body: React.ReactNode;
+  if (!payments.data && payments.error) body = <ErrorState message={payments.error} onRetry={payments.reload} />;
+  else if (!payments.data) body = <LoadingState label="Loading your invoices…" />;
+  else if (payments.data.length === 0)
+    body = (
+      <EmptyState
+        title="No payments yet"
+        body="Invoices appear here after you buy or renew a membership online."
+        action={
+          <button type="button" onClick={onOpenPricing} className="neu-btn-lime px-4 py-2 rounded-xl text-xs font-extrabold">
+            See memberships
+          </button>
+        }
+      />
+    );
+  else
+    body = (
+      <ul className="space-y-3">
+        {payments.data.map(p => (
+          <li key={p.id} className="neu-pressed-sm rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-xs font-bold text-slate-200">{p.invoice_number}</span>
+                {p.status === 'refunded' && <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300">Refunded</span>}
+              </div>
+              <p className="text-sm font-bold text-slate-100">
+                {p.plan_name} · {CYCLE_LABELS[p.billing_cycle] ?? p.billing_cycle}
+              </p>
+              <p className="text-xs text-slate-400">
+                {formatDate(p.period_start)} – {formatDate(p.period_end)} · paid {formatDateTime(p.created_at)}
+              </p>
+            </div>
+            <div className="flex items-center justify-between sm:justify-end gap-4">
+              <span className="font-mono text-base font-black text-slate-100">{formatINR(p.amount_inr)}</span>
+              <button
+                type="button"
+                onClick={() => setOpen(p)}
+                aria-label={`View invoice ${p.invoice_number}`}
+                className="neu-btn px-3 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5"
+              >
+                <FileText className="w-3.5 h-3.5" aria-hidden="true" /> Invoice
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    );
+
+  return (
+    <section aria-labelledby="billing-heading" className="neu-flat p-5 sm:p-8 rounded-3xl space-y-5">
+      <div>
+        <h2 id="billing-heading" className="text-lg font-black text-slate-100 font-['Outfit']">Invoices & billing</h2>
+        <p className="text-xs text-slate-400 mt-1">Every membership payment, newest first. Open one to print it or save it as a PDF.</p>
+      </div>
+      {body}
+      <InvoiceModal payment={open} onClose={() => setOpen(null)} />
+    </section>
+  );
+};
+
+// ---------------------------------------------------------------------------------------------
+
+const PasswordPanel: React.FC = () => {
+  const { changePassword } = useAuth();
+  const { showToast } = useToast();
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirmValue, setConfirmValue] = useState('');
+  const [errors, setErrors] = useState<{ current?: string; next?: string; confirm?: string; form?: string }>({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const found: typeof errors = {};
+    const problem = passwordProblem(next);
+    if (problem) found.next = problem;
+    else if (current && next === current) found.next = 'Choose a password different from your current one.';
+    if (next !== confirmValue) found.confirm = 'The two new passwords do not match.';
+    setErrors(found);
+    if (Object.values(found).some(Boolean)) return;
+
+    setIsSaving(true);
+    try {
+      await changePassword(current || undefined, next);
+      setCurrent('');
+      setNext('');
+      setConfirmValue('');
+      showToast('Password changed. Other devices have been signed out.', 'success');
+    } catch (err) {
+      if (isApiError(err) && err.code === 'WRONG_PASSWORD') {
+        setErrors({ current: err.message });
+      } else if (isApiError(err) && err.code === 'VALIDATION_ERROR') {
+        const issues = issuesOf(err);
+        setErrors({
+          current: issues.find(i => i.path === 'currentPassword')?.message,
+          next: issues.find(i => i.path === 'newPassword')?.message,
+          form: issues.length ? undefined : err.message
+        });
+      } else {
+        setErrors({ form: isApiError(err) ? err.message : 'Your password could not be changed.' });
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} noValidate aria-labelledby="password-heading" className="max-w-2xl neu-flat p-5 sm:p-8 rounded-3xl space-y-5">
+      <div>
+        <h2 id="password-heading" className="text-lg font-black text-slate-100 font-['Outfit']">Change password</h2>
+        <p className="text-xs text-slate-400 mt-1">Changing your password signs you out on every other device.</p>
+      </div>
+      <div>
+        <label htmlFor="pw-current" className="block text-xs font-bold text-slate-300 mb-1.5">Current password</label>
+        <input
+          id="pw-current"
+          type="password"
+          autoComplete="current-password"
+          value={current}
+          onChange={e => setCurrent(e.target.value)}
+          aria-invalid={Boolean(errors.current)}
+          aria-describedby={`pw-current-hint${errors.current ? ' pw-current-error' : ''}`}
+          className={inputClass(Boolean(errors.current))}
+        />
+        <p id="pw-current-hint" className="text-[11px] text-slate-500 mt-1">
+          Leave this empty only if you have always signed in with Google and never set a password.
+        </p>
+        <FieldError id="pw-current-error" message={errors.current} />
+      </div>
+      <div>
+        <label htmlFor="pw-new" className="block text-xs font-bold text-slate-300 mb-1.5">New password</label>
+        <input
+          id="pw-new"
+          type="password"
+          autoComplete="new-password"
+          value={next}
+          onChange={e => setNext(e.target.value)}
+          aria-invalid={Boolean(errors.next)}
+          aria-describedby={`pw-new-hint${errors.next ? ' pw-new-error' : ''}`}
+          className={inputClass(Boolean(errors.next))}
+        />
+        <p id="pw-new-hint" className="text-[11px] text-slate-500 mt-1">
+          8 to 72 characters, with at least one letter and one digit.
+        </p>
+        <FieldError id="pw-new-error" message={errors.next} />
+      </div>
+      <div>
+        <label htmlFor="pw-confirm" className="block text-xs font-bold text-slate-300 mb-1.5">Repeat new password</label>
+        <input
+          id="pw-confirm"
+          type="password"
+          autoComplete="new-password"
+          value={confirmValue}
+          onChange={e => setConfirmValue(e.target.value)}
+          aria-invalid={Boolean(errors.confirm)}
+          aria-describedby={errors.confirm ? 'pw-confirm-error' : undefined}
+          className={inputClass(Boolean(errors.confirm))}
+        />
+        <FieldError id="pw-confirm-error" message={errors.confirm} />
+      </div>
+      {errors.form && (
+        <p role="alert" className="text-sm text-rose-600 dark:text-rose-300">
+          {errors.form}
+        </p>
+      )}
+      {(errors.current || errors.next || errors.confirm) && (
+        <p role="alert" className="sr-only">
+          Please fix the highlighted fields.
+        </p>
+      )}
+      <button type="submit" disabled={isSaving} className="neu-btn-lime px-6 py-3 rounded-xl text-xs font-extrabold disabled:opacity-50">
+        {isSaving ? 'Changing…' : 'Change password'}
+      </button>
+    </form>
+  );
+};
+
+// ---------------------------------------------------------------------------------------------
+
+export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrentTab }) => {
+  const { user, updateUser, refreshUser } = useAuth();
+  const { showToast } = useToast();
+  const { params, navigate } = useNavigation();
+  // The URL is the single source of truth, so Navbar links and back/forward switch the panel too.
+  const requested = params.get('tab');
+  const activeTab: TabId = TABS.find(t => t.id === requested)?.id ?? 'details';
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Membership status and expiry can change on the server (expiry, admin edits); start fresh.
+  useEffect(() => {
+    refreshUser();
+  }, [refreshUser]);
+
+  if (!user) return null;
+
+  const selectTab = (id: TabId) => {
+    navigate('profile', id === 'details' ? undefined : { tab: id }, { replace: true });
+  };
+
+  const onTabKeyDown = (e: React.KeyboardEvent) => {
+    const index = TABS.findIndex(t => t.id === activeTab);
+    let nextIndex = index;
+    if (e.key === 'ArrowRight') nextIndex = (index + 1) % TABS.length;
+    else if (e.key === 'ArrowLeft') nextIndex = (index - 1 + TABS.length) % TABS.length;
+    else if (e.key === 'Home') nextIndex = 0;
+    else if (e.key === 'End') nextIndex = TABS.length - 1;
+    else return;
+    e.preventDefault();
+    selectTab(TABS[nextIndex].id);
+    document.getElementById(`profile-tab-${TABS[nextIndex].id}`)?.focus();
+  };
+
+  const onPhotoChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPhotoError(null);
+    setIsUploading(true);
+    try {
+      const avatar = await resizeAvatar(file);
+      updateUser(await api.updateProfile({ avatar_url: avatar }));
+      showToast('Your photo was updated.', 'success');
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : 'Your photo could not be uploaded.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const openPricing = () => setCurrentTab('pricing');
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6 sm:space-y-8">
+      <section className="neu-flat rounded-3xl p-5 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-5">
+        <div className="flex items-center gap-4 min-w-0">
+          <img
+            src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`}
+            alt="Your profile photo"
+            className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover bg-slate-800 border-2 border-lime-500/50 shrink-0"
+          />
+          <div className="min-w-0 space-y-1">
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit'] break-words">{user.name}</h1>
+            <p className="text-xs text-slate-400 break-all">{user.email}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-slate-300">{TIER_LABELS[user.membership_tier] ?? user.membership_tier}</span>
+              <MembershipStatusBadge status={user.membership_status} />
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <input ref={fileInputRef} id="profile-photo" type="file" accept="image/png,image/jpeg,image/webp" onChange={onPhotoChosen} className="sr-only" tabIndex={-1} aria-hidden="true" />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            aria-describedby="profile-photo-hint"
+            className="neu-btn px-5 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            <Upload className="w-4 h-4" aria-hidden="true" /> {isUploading ? 'Uploading…' : 'Change photo'}
+          </button>
+          <button type="button" onClick={() => setIsQrModalOpen(true)} className="neu-btn-lime px-5 py-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2">
+            <QrCode className="w-4 h-4" aria-hidden="true" /> Check-in pass
+          </button>
+        </div>
+      </section>
+      <p id="profile-photo-hint" className="sr-only">
+        PNG, JPEG or WebP. Large photos are shrunk to 256 by 256 pixels before upload.
+      </p>
+      {photoError && (
+        <p role="alert" className="rounded-xl p-3 text-sm border border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200">
+          {photoError}
+        </p>
+      )}
+
+      <div role="tablist" aria-label="Account sections" className="grid grid-cols-2 sm:flex gap-1 p-1.5 rounded-2xl neu-pressed-sm">
+        {TABS.map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 whitespace-nowrap transition-all ${
-              activeTab === tab.id
-                ? 'neu-btn-lime text-black font-extrabold shadow-glow-lime'
-                : 'text-slate-400 hover:text-slate-200'
+            id={`profile-tab-${tab.id}`}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            aria-controls={`profile-panel-${tab.id}`}
+            tabIndex={activeTab === tab.id ? 0 : -1}
+            onClick={() => selectTab(tab.id)}
+            onKeyDown={onTabKeyDown}
+            className={`px-3 sm:px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center sm:justify-start gap-2 whitespace-nowrap transition-all ${
+              activeTab === tab.id ? 'neu-btn-lime' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             {tab.icon}
@@ -312,412 +653,14 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
         ))}
       </div>
 
-      {/* 3. Tab Contents */}
-      {/* Tab 1: Personal Details & Picture Upload */}
-      {activeTab === 'details' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-8 neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-6">
-            <div className="border-b border-slate-800/80 pb-4">
-              <h3 className="text-lg font-black text-white font-['Outfit']">Personal Profile & Picture</h3>
-              <p className="text-xs text-slate-400 mt-0.5 font-medium">Upload your own photo or choose from preset avatars.</p>
-            </div>
+      <div id={`profile-panel-${activeTab}`} role="tabpanel" aria-labelledby={`profile-tab-${activeTab}`}>
+        {activeTab === 'details' && <ProfileDetails user={user} onOpenPass={() => setIsQrModalOpen(true)} />}
+        {activeTab === 'membership' && <MembershipPanel user={user} onOpenPricing={openPricing} />}
+        {activeTab === 'billing' && <BillingPanel onOpenPricing={openPricing} />}
+        {activeTab === 'security' && <PasswordPanel />}
+      </div>
 
-            <form onSubmit={handleSaveProfile} className="space-y-6">
-              {/* Profile Photo Uploader Card */}
-              <div className="p-4 sm:p-5 rounded-2xl neu-pressed-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4 text-lime-400" /> Profile Picture
-                  </label>
-                  <span className="text-[11px] text-slate-400 font-medium">PNG, JPG, WebP, GIF (Max 5MB)</span>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
-                  <img
-                    src={avatarUrl || user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`}
-                    alt="Current Avatar"
-                    className="w-20 h-20 rounded-2xl object-cover border-2 border-lime-500/60 bg-slate-800 shrink-0 shadow-lg"
-                  />
-
-                  <div className="flex-1 space-y-2 text-center sm:text-left w-full">
-                    <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploading}
-                        className="px-4 py-2 neu-btn-lime text-black font-extrabold text-xs rounded-xl shadow-glow-lime transition-all flex items-center gap-1.5"
-                      >
-                        <Upload className="w-3.5 h-3.5" />
-                        {isUploading ? 'Uploading...' : 'Upload Image'}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setShowUrlInput(!showUrlInput)}
-                        className="px-3.5 py-2 neu-btn text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5"
-                      >
-                        URL
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleResetToDicebear}
-                        className="px-3.5 py-2 neu-btn text-slate-400 hover:text-slate-200 font-bold text-xs rounded-xl transition-all"
-                        title="Reset Avatar"
-                      >
-                        Reset
-                      </button>
-                    </div>
-
-                    {showUrlInput && (
-                      <div className="flex items-center gap-2 pt-2 animate-in fade-in">
-                        <input
-                          type="url"
-                          value={customUrlInput}
-                          onChange={e => setCustomUrlInput(e.target.value)}
-                          placeholder="https://example.com/photo.jpg"
-                          className="flex-1 px-3 py-2 neu-pressed-sm rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-lime-500 font-medium"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleApplyCustomUrl}
-                          className="px-4 py-2 neu-btn-lime text-black text-xs font-bold rounded-xl shrink-0"
-                        >
-                          Apply
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Presets */}
-                <div className="pt-3 border-t border-slate-800/80 space-y-2">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    Or Choose an Athletic Preset:
-                  </span>
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    {avatarPresets.map((url, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setAvatarUrl(url)}
-                        className={`w-11 h-11 rounded-xl overflow-hidden border-2 transition-all ${
-                          avatarUrl === url
-                            ? 'border-lime-400 scale-105 shadow-glow-lime'
-                            : 'border-slate-700/60 opacity-60 hover:opacity-100'
-                        }`}
-                      >
-                        <img src={url} alt={`Avatar preset ${idx}`} className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Form Inputs */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    className="w-full px-4 py-2.5 neu-pressed-sm rounded-xl text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-lime-500 font-semibold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    placeholder="+91 98110 12345"
-                    className="w-full px-4 py-2.5 neu-pressed-sm rounded-xl text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-lime-500 font-medium"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                  Email Address (Primary Login)
-                </label>
-                <input
-                  type="email"
-                  disabled
-                  value={user.email}
-                  className="w-full px-4 py-2.5 neu-pressed-sm rounded-xl text-sm text-slate-400 cursor-not-allowed opacity-75 font-medium"
-                />
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">To change your primary email, contact member support.</p>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="px-6 py-3 neu-btn-lime text-black font-extrabold text-xs rounded-xl shadow-glow-lime transition-all active:scale-95 disabled:opacity-50"
-              >
-                {isSaving ? 'Saving Changes...' : 'Save Profile Details'}
-              </button>
-            </form>
-          </div>
-
-          {/* Quick Turnstile Pass Card */}
-          <div className="lg:col-span-4 neu-flat p-6 rounded-3xl border border-slate-800/80 space-y-4">
-            <h3 className="text-sm font-extrabold text-white font-['Outfit'] flex items-center gap-2">
-              <QrCode className="w-4 h-4 text-lime-400" />
-              Turnstile Access Token
-            </h3>
-            <p className="text-xs text-slate-400 leading-relaxed font-medium">
-              Your turnstile pass code is encrypted and tied to your active membership.
-            </p>
-
-            <div className="p-3.5 neu-pressed-sm rounded-xl flex items-center justify-between font-mono text-xs text-slate-200">
-              <span className="truncate font-bold">{user.qr_code_token}</span>
-              <button
-                onClick={handleCopyPass}
-                className="p-1 text-slate-400 hover:text-slate-100 transition-colors ml-2"
-                title="Copy Pass"
-              >
-                {copiedToken ? <Check className="w-4 h-4 text-lime-400" /> : <Copy className="w-4 h-4" />}
-              </button>
-            </div>
-
-            <button
-              onClick={() => setIsQrModalOpen(true)}
-              className="w-full py-2.5 neu-btn text-slate-200 text-xs font-bold rounded-xl transition-all"
-            >
-              Open Full Digital Badge
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 2: Plan & Subscription Management */}
-      {activeTab === 'membership' && (
-        <div className="space-y-8">
-          <div className="neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
-              <div>
-                <h3 className="text-lg font-black text-white font-['Outfit']">Manage Membership Tier</h3>
-                <p className="text-xs text-slate-400 mt-0.5 font-medium">
-                  Upgrade or switch your pass anytime. Changes take effect immediately.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleToggleFreeze}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    user.membership_status === 'frozen'
-                      ? 'neu-btn-lime text-black shadow-glow-lime font-extrabold'
-                      : 'neu-btn'
-                  }`}
-                >
-                  {user.membership_status === 'frozen' ? 'Reactivate Membership' : 'Freeze Membership (60 Days)'}
-                </button>
-              </div>
-            </div>
-
-            {/* Tier Selector Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                {
-                  id: 'basic' as MembershipTier,
-                  name: 'Workout & Strength Pass',
-                  price: '₹1,199/mo',
-                  desc: 'Full Gym floor, free weights, and strength workout sessions.',
-                  features: ['Full Gym Floor & Strength Training', 'Barbells, Racks & Dumbbells', 'Daily Workout Set Logger & Time Tracker', 'Digital QR Turnstile Pass']
-                },
-                {
-                  id: 'pro' as MembershipTier,
-                  name: 'Zumba & Cardio Pass',
-                  price: '₹1,499/mo',
-                  desc: 'Unlimited high-energy Zumba dance and cardio classes.',
-                  features: ['Unlimited Zumba & Cardio Sessions', 'Dance Studio & Aerobic Floor', 'Locker Room & Showers', 'Digital QR Turnstile Pass']
-                },
-                {
-                  id: 'vip' as MembershipTier,
-                  name: 'Dual All-Access Pass',
-                  price: '₹1,999/mo',
-                  desc: 'Unlimited Strength Training AND Zumba Cardio sessions.',
-                  features: ['Unlimited Strength & Free Weights Floor', 'Unlimited Zumba & Cardio Dance Classes', '1 Monthly Coach Form Assessment', 'Priority Spot Reservation']
-                }
-              ].map(plan => {
-                const isCurrent = user.membership_tier === plan.id;
-                return (
-                  <div
-                    key={plan.id}
-                    className={`p-6 rounded-3xl neu-flat flex flex-col justify-between transition-all ${
-                      isCurrent
-                        ? 'border-2 border-lime-500 shadow-glow-lime'
-                        : 'border border-slate-800/80 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-sm text-white font-['Outfit']">{plan.name}</span>
-                        {isCurrent && (
-                          <Badge variant="lime" size="sm">
-                            ACTIVE PLAN
-                          </Badge>
-                        )}
-                      </div>
-
-                      <div className="text-3xl font-black text-white font-['Outfit']">{plan.price}</div>
-                      <p className="text-xs text-slate-400 leading-relaxed font-medium">{plan.desc}</p>
-
-                      <div className="space-y-2 pt-3 border-t border-slate-800/80 text-xs text-slate-300 font-medium">
-                        {plan.features.map((f, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-lime-400 shrink-0" />
-                            <span>{f}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleChangeTier(plan.id)}
-                      disabled={isCurrent}
-                      className={`w-full mt-6 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
-                        isCurrent
-                          ? 'neu-pressed-sm text-slate-500 cursor-default font-bold'
-                          : 'neu-btn-lime text-black shadow-glow-lime active:scale-95'
-                      }`}
-                    >
-                      {isCurrent ? 'Current Selection' : `Switch to ${plan.name}`}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 3: Billing & Invoices */}
-      {activeTab === 'billing' && (
-        <div className="neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-6">
-          <div className="border-b border-slate-800/80 pb-4 flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-black text-white font-['Outfit']">Payment & Billing History</h3>
-              <p className="text-xs text-slate-400 mt-0.5 font-medium">Download automated GST tax invoices.</p>
-            </div>
-            <Badge variant="lime" size="sm">AUTO-RENEW ON</Badge>
-          </div>
-
-          <div className="overflow-x-auto rounded-2xl neu-pressed-sm p-1">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-800/80 text-slate-400 font-bold uppercase text-[10px]">
-                <tr>
-                  <th className="p-4 pl-6">Invoice #</th>
-                  <th className="p-4">Billing Date</th>
-                  <th className="p-4">Plan Description</th>
-                  <th className="p-4">Amount</th>
-                  <th className="p-4">Payment Method</th>
-                  <th className="p-4 pr-6 text-right">Receipt</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {mockInvoices.map(inv => (
-                  <tr key={inv.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="p-4 pl-6 font-mono font-bold text-slate-200">{inv.id}</td>
-                    <td className="p-4 text-slate-400">{inv.date}</td>
-                    <td className="p-4 text-white font-semibold">{inv.plan}</td>
-                    <td className="p-4 font-mono font-bold text-lime-400">{inv.amount}</td>
-                    <td className="p-4 text-slate-400">{inv.method}</td>
-                    <td className="p-4 pr-6 text-right">
-                      <button
-                        onClick={() => showToast(`Receipt ${inv.id} downloaded!`, 'success')}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 neu-btn text-slate-200 rounded-lg text-xs font-semibold transition-all"
-                      >
-                        <Download className="w-3.5 h-3.5 text-lime-400" />
-                        PDF
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 4: Security & Password */}
-      {activeTab === 'security' && (
-        <div className="max-w-2xl neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-6">
-          <div className="border-b border-slate-800/80 pb-4">
-            <h3 className="text-lg font-black text-white font-['Outfit']">Account Security</h3>
-            <p className="text-xs text-slate-400 mt-0.5 font-medium">Update your password to keep your member account secure.</p>
-          </div>
-
-          <form onSubmit={handleChangePassword} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                Current Password
-              </label>
-              <input
-                type="password"
-                required
-                value={currentPassword}
-                onChange={e => setCurrentPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-4 py-2.5 neu-pressed-sm rounded-xl text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-lime-500 font-medium"
-              />
-              <p className="text-[10px] text-slate-500 mt-1 font-medium">Default demo password is: <strong className="text-slate-300 font-mono">pulse123</strong></p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                New Password
-              </label>
-              <input
-                type="password"
-                required
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-4 py-2.5 neu-pressed-sm rounded-xl text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-lime-500 font-medium"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                Confirm New Password
-              </label>
-              <input
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-4 py-2.5 neu-pressed-sm rounded-xl text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-lime-500 font-medium"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isChangingPassword}
-              className="px-6 py-3 neu-btn-lime text-black font-extrabold text-xs rounded-xl shadow-glow-lime transition-all active:scale-95 disabled:opacity-50"
-            >
-              {isChangingPassword ? 'Updating Password...' : 'Change Password'}
-            </button>
-          </form>
-        </div>
-      )}
-
-      {/* Digital QR Pass Modal */}
-      <DigitalQrPassModal
-        isOpen={isQrModalOpen}
-        onClose={() => setIsQrModalOpen(false)}
-        user={user}
-      />
+      <DigitalQrPassModal isOpen={isQrModalOpen} onClose={() => setIsQrModalOpen(false)} user={user} />
     </div>
   );
 };

@@ -1,10 +1,19 @@
 import db from './database.js';
+import { runSeedExtensions } from './seed/index.js';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { User, Trainer, GymClass, Exercise, MembershipPlan, Booking, AttendanceLog, Workout, WorkoutSet, TimeSession } from '../types/index.js';
 
-export function seedDatabase() {
-  console.log('🌱 Seeding PulseFit Gym Gurugram database with Mon-Sat Schedule, 1000-2000 INR Pricing & Time Tracking...');
+/**
+ * Wipe the database and load data.
+ * - demo (default): the full demo gym, including the four demo personas whose password
+ *   (pulse123) is published in the README, members, bookings, payments and activity.
+ * - demo: false: only the catalogue a real gym starts from (plans, exercises, coaches and the
+ *   weekly timetable), with no accounts at all. Create the first admin with `npm run create-admin`.
+ */
+export function seedDatabase(options: { demo?: boolean } = {}) {
+  const demo = options.demo ?? true;
+  if (!process.env.VITEST) console.log(demo ? '🌱 Seeding the PulseFit demo database...' : '🌱 Writing the starting catalogue (plans, exercises, coaches, timetable)...');
 
   db.reset();
 
@@ -127,7 +136,8 @@ export function seedDatabase() {
       id: 'trn_vikram',
       user_id: 'usr_trainer_1',
       name: 'Coach Vikram Rathore',
-      email: 'vikram@pulsefit.com',
+      // The same address he signs in with (trainer@pulsefit.com), so the coach and the account match.
+      email: 'trainer@pulsefit.com',
       phone: '+91 98112 45678',
       specialties: ['Workout & Strength Training', 'Barbell Compound Movements', 'Progressive Muscle Building'],
       bio: 'Certified Strength & Conditioning specialist with 10+ years experience mentoring gym-goers in compound lifting, hypertrophy, and proper lifting form.',
@@ -151,9 +161,10 @@ export function seedDatabase() {
       instagram: '@kavya.zumbafit'
     },
     {
+      // The id predates the name: the coach was renamed so nobody confuses him with member Rohan Mehra.
       id: 'trn_rohan',
-      name: 'Rohan Mehta',
-      email: 'rohan@pulsefit.com',
+      name: 'Karan Joshi',
+      email: 'karan@pulsefit.com',
       phone: '+91 98118 78998',
       specialties: ['Functional Strength Training', 'Core Strengthening', 'Free Weight Workouts'],
       bio: 'Dedicated strength coach focusing on foundational weight training, functional lifting, dumbbell routines, and injury prevention.',
@@ -161,7 +172,7 @@ export function seedDatabase() {
       rating: 4.91,
       reviews_count: 96,
       avatar_url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
-      instagram: '@rohan.strength'
+      instagram: '@karan.strength'
     },
     {
       id: 'trn_simran',
@@ -173,7 +184,7 @@ export function seedDatabase() {
       experience_years: 6,
       rating: 4.93,
       reviews_count: 110,
-      avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+      avatar_url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80',
       instagram: '@simran_cardiozumba'
     }
   ];
@@ -223,7 +234,7 @@ export function seedDatabase() {
       title: 'Functional Full-Body Strength',
       category: 'Workout & Strength',
       trainer_id: 'trn_rohan',
-      trainer_name: 'Rohan Mehta',
+      trainer_name: 'Karan Joshi',
       trainer_avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
       day_of_week: 2, // Tue
       start_time: '07:00',
@@ -242,7 +253,7 @@ export function seedDatabase() {
       category: 'Zumba & Cardio',
       trainer_id: 'trn_simran',
       trainer_name: 'Simran Kaur',
-      trainer_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+      trainer_avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80',
       day_of_week: 2, // Tue
       start_time: '17:30',
       duration_minutes: 45,
@@ -296,7 +307,7 @@ export function seedDatabase() {
       category: 'Zumba & Cardio',
       trainer_id: 'trn_simran',
       trainer_name: 'Simran Kaur',
-      trainer_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+      trainer_avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80',
       day_of_week: 4, // Thu
       start_time: '08:00',
       duration_minutes: 45,
@@ -313,7 +324,7 @@ export function seedDatabase() {
       title: 'Lower Body & Squat Mechanics',
       category: 'Workout & Strength',
       trainer_id: 'trn_rohan',
-      trainer_name: 'Rohan Mehta',
+      trainer_name: 'Karan Joshi',
       trainer_avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
       day_of_week: 4, // Thu
       start_time: '18:00',
@@ -368,7 +379,7 @@ export function seedDatabase() {
       category: 'Zumba & Cardio',
       trainer_id: 'trn_simran',
       trainer_name: 'Simran Kaur',
-      trainer_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+      trainer_avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80',
       day_of_week: 6, // Sat
       start_time: '09:00',
       duration_minutes: 60,
@@ -583,14 +594,15 @@ export function seedDatabase() {
 
   db.exercises = exercises;
 
-  // 5. Plans (₹1,000 - ₹2,000 INR Pricing)
+  // 5. Plans: pocket-friendly INR pricing (admins can change it on the Plans page)
   const plans: MembershipPlan[] = [
     {
       id: 'plan_basic',
       name: 'Workout & Strength Pass',
       tier: 'basic',
-      price_monthly: 1199,
-      price_annual: 11988, // ₹999/month billed annually (₹11,988/yr)
+      categories: ['Workout & Strength'],
+      price_monthly: 699,
+      price_annual: 7188, // ₹599/month billed annually (₹7,188/yr)
       description: 'Complete access to the gym floor, free weights & strength workout sessions.',
       features: [
         'Full Gym Floor & Free Weights Access',
@@ -605,8 +617,9 @@ export function seedDatabase() {
       id: 'plan_pro',
       name: 'Zumba & Cardio Pass',
       tier: 'pro',
-      price_monthly: 1499,
-      price_annual: 14388, // ₹1,199/month billed annually (₹14,388/yr)
+      categories: ['Zumba & Cardio'],
+      price_monthly: 799,
+      price_annual: 8388, // ₹699/month billed annually (₹8,388/yr)
       description: 'Unlimited high-energy Zumba dance and cardio conditioning classes.',
       features: [
         'Unlimited Zumba & Cardio Sessions',
@@ -621,8 +634,9 @@ export function seedDatabase() {
       id: 'plan_vip',
       name: 'Dual All-Access Pass (Strength + Zumba)',
       tier: 'vip',
-      price_monthly: 1999,
-      price_annual: 19188, // ₹1,599/month billed annually (₹19,188/yr)
+      categories: [], // empty = every category
+      price_monthly: 999,
+      price_annual: 10188, // ₹849/month billed annually (₹10,188/yr)
       description: 'The best value: unlimited access to BOTH Strength Training & Zumba Cardio sessions.',
       features: [
         'Unlimited Workout & Strength Training Sessions',
@@ -897,10 +911,47 @@ export function seedDatabase() {
 
   db.time_sessions = timeSessions;
 
+  // Domain-specific demo data (payments, bookings, trials, ...), see db/seed/.
+  runSeedExtensions();
+
+  if (!demo) {
+    db.users = [];
+    db.trainers = db.trainers.map(({ user_id: _unlinked, ...trainer }) => trainer);
+    db.bookings = [];
+    db.attendance_logs = [];
+    db.workouts = [];
+    db.workout_sets = [];
+    db.time_sessions = [];
+    db.payment_orders = [];
+    db.payments = [];
+    db.trial_passes = [];
+    db.trainer_notes = [];
+    db.password_resets = [];
+  }
+
   db.saveSync();
 
-  console.log('✅ PulseFit Gurugram database seeded and saved to disk with Mon-Sat Schedule, 1000-2000 INR Pricing & Time Tracking!');
+  if (!process.env.VITEST) console.log(`✅ ${demo ? 'Demo data' : 'Catalogue'} written to ${db.filePath}`);
 }
 
-// Auto-run if executed directly
-seedDatabase();
+/**
+ * Give a database without a catalogue (no plans and no classes) the starting catalogue, keeping
+ * everything already stored. That happens when `npm run create-admin` runs before the first
+ * server start: the file then holds only the admin, and the gym would have nothing to sell or book.
+ * Returns whether the catalogue was added.
+ */
+export function addCatalogueIfMissing(): boolean {
+  if (!db.lacksCatalogue()) return false;
+  const kept = db.snapshot();
+  seedDatabase({ demo: false });
+  const keptTrainerIds = new Set(kept.trainers.map(t => t.id));
+  db.restore({
+    ...kept,
+    trainers: [...kept.trainers, ...db.trainers.filter(t => !keptTrainerIds.has(t.id))],
+    classes: db.classes,
+    membership_plans: db.membership_plans,
+    exercises: kept.exercises.length > 0 ? kept.exercises : db.exercises
+  });
+  return true;
+}
+

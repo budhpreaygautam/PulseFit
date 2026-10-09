@@ -1,215 +1,162 @@
-import { Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
+import { Response } from 'express';
+import { z } from 'zod';
 import db from '../db/database.js';
-import { TimeSession, TimeSessionCategory, ActiveFloorStatus, UserTimeTrackingStats } from '../types/index.js';
+import { AuthenticatedRequest } from '../middleware/auth.js';
+import { asyncHandler, conflict, forbidden, notFound, ok, parse } from '../lib/http.js';
+import { newId } from '../lib/users.js';
+import { effectiveStatus, isStaff, tierAllowsCategory } from '../lib/membership.js';
+import { gymToday, startOfWeek, toGymDate } from '../lib/dates.js';
+import { closeStaleSessions, creditSession, elapsedMinutes, MAX_SESSION_MINUTES, toFloorPresence } from '../lib/floor.js';
+import { gymClosedError, gymClosedNow } from '../lib/hours.js';
+import { ActiveFloorStatus, TimeSession, UserTimeTrackingStats } from '../types/index.js';
 
-export const clockIn = async (req: any, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: 'Unauthorized' });
-    }
+const CATEGORIES = ['Workout & Strength', 'Zumba & Cardio'] as const;
 
-    const user = db.users.find(u => u.id === userId);
-    if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found' });
-    }
+const clockInSchema = z.object({
+  category: z.enum(CATEGORIES, { error: `Choose a floor: ${CATEGORIES.join(' or ')}.` }),
+  notes: z.string().trim().max(500).optional()
+}).strict();
 
-    const { category = 'Workout & Strength', notes = '' } = req.body;
-    const validCategory: TimeSessionCategory =
-      category === 'Zumba & Cardio' ? 'Zumba & Cardio' : 'Workout & Strength';
+const clockOutSchema = z.object({
+  notes: z.string().trim().max(500).optional(),
+  session_id: z.string().min(1).optional()
+}).strict();
 
-    // Check if user already has an active session
-    const existingActive = db.time_sessions.find(
-      s => s.user_id === userId && s.status === 'active'
-    );
+const byClockInDesc = (a: TimeSession, b: TimeSession) => b.clock_in_time.localeCompare(a.clock_in_time);
 
-    if (existingActive) {
-      return res.status(400).json({
-        success: false,
-        error: `You are already clocked in to ${existingActive.category}. Please clock out before starting a new session.`,
-        data: existingActive
-      });
-    }
+export const clockIn = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
+  const user = req.user!;
+  const body = parse(clockInSchema, req.body);
+  const now = new Date();
+  closeStaleSessions(now);
 
-    const newSession: TimeSession = {
-      id: `ses_${uuidv4().substring(0, 8)}`,
-      user_id: user.id,
-      user_name: user.name,
-      user_email: user.email,
-      user_avatar: user.avatar_url,
-      user_tier: user.membership_tier,
-      category: validCategory,
-      clock_in_time: new Date().toISOString(),
-      clock_out_time: null,
-      duration_minutes: 0,
-      status: 'active',
-      notes: notes || undefined
-    };
-
-    db.time_sessions = [newSession, ...db.time_sessions];
-
-    res.status(201).json({
-      success: true,
-      message: `Clocked in to ${validCategory} floor successfully!`,
-      data: newSession
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
-
-export const clockOut = async (req: any, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: 'Unauthorized' });
-    }
-
-    const { sessionId, notes } = req.body;
-
-    // Find active session for user or by sessionId
-    const session = db.time_sessions.find(
-      s => (sessionId ? s.id === sessionId : s.user_id === userId) && s.status === 'active'
-    );
-
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        error: 'No active session found to clock out.'
-      });
-    }
-
-    const clockOutTime = new Date();
-    const clockInTime = new Date(session.clock_in_time);
-    const durationMinutes = Math.max(
-      1,
-      Math.round((clockOutTime.getTime() - clockInTime.getTime()) / 60000)
-    );
-
-    const updatedSessions = db.time_sessions.map(s => {
-      if (s.id === session.id) {
-        return {
-          ...s,
-          clock_out_time: clockOutTime.toISOString(),
-          duration_minutes: durationMinutes,
-          status: 'completed' as const,
-          notes: notes !== undefined ? notes : s.notes
-        };
-      }
-      return s;
-    });
-
-    db.time_sessions = updatedSessions;
-    const completedSession = updatedSessions.find(s => s.id === session.id)!;
-
-    // Auto increment user streak if not already updated today
-    const user = db.users.find(u => u.id === userId);
-    if (user) {
-      db.users = db.users.map(u => {
-        if (u.id === userId) {
-          return { ...u, streak_days: (u.streak_days || 0) + 1 };
-        }
-        return u;
-      });
-    }
-
-    res.json({
-      success: true,
-      message: `Clocked out successfully! Great session on the ${completedSession.category} floor (${durationMinutes} min).`,
-      data: completedSession
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
-
-export const getActiveFloorStatus = async (_req: Request, res: Response) => {
-  try {
-    const activeSessions = db.time_sessions.filter(s => s.status === 'active');
-    const now = Date.now();
-
-    // Map sessions with live duration
-    const enrichedSessions = activeSessions.map(s => {
-      const elapsedMin = Math.max(
-        0,
-        Math.round((now - new Date(s.clock_in_time).getTime()) / 60000)
+  if (!isStaff(user)) {
+    // Clocking out stays possible at any hour; only starting a session needs the gym to be open.
+    if (gymClosedNow(now)) throw gymClosedError();
+    const status = effectiveStatus(user);
+    if (status !== 'active') {
+      throw forbidden(
+        status === 'frozen'
+          ? 'Your membership is frozen. Unfreeze it to use the gym floor.'
+          : 'You need an active membership to use the gym floor.',
+        'MEMBERSHIP_INACTIVE',
+        { status }
       );
-      return {
-        ...s,
-        duration_minutes: elapsedMin
-      };
-    });
-
-    const workoutUsers = enrichedSessions.filter(
-      s => s.category === 'Workout & Strength'
-    );
-    const zumbaUsers = enrichedSessions.filter(
-      s => s.category === 'Zumba & Cardio'
-    );
-
-    const responseData: ActiveFloorStatus = {
-      totalActive: enrichedSessions.length,
-      workoutActive: workoutUsers.length,
-      zumbaActive: zumbaUsers.length,
-      workoutUsers,
-      zumbaUsers
-    };
-
-    res.json({
-      success: true,
-      data: responseData
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
-
-export const getMyTimeTrackingStats = async (req: any, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
-
-    const userSessions = db.time_sessions.filter(s => s.user_id === userId);
-    const activeSession = userSessions.find(s => s.status === 'active') || null;
-
-    if (activeSession) {
-      const elapsedMin = Math.max(
-        0,
-        Math.round((Date.now() - new Date(activeSession.clock_in_time).getTime()) / 60000)
+    if (!tierAllowsCategory(user.membership_tier, body.category)) {
+      throw forbidden(
+        `Your plan does not include the ${body.category} floor. Upgrade your plan to use it.`,
+        'PLAN_EXCLUDES_CATEGORY',
+        { category: body.category, tier: user.membership_tier }
       );
-      activeSession.duration_minutes = elapsedMin;
     }
-
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-    const completed = userSessions.filter(s => s.status === 'completed');
-
-    const totalTimeMinutesThisWeek = completed
-      .filter(s => new Date(s.clock_in_time) >= sevenDaysAgo)
-      .reduce((acc, s) => acc + (s.duration_minutes || 0), 0);
-
-    const totalTimeMinutesThisMonth = completed
-      .filter(s => new Date(s.clock_in_time) >= thirtyDaysAgo)
-      .reduce((acc, s) => acc + (s.duration_minutes || 0), 0);
-
-    const stats: UserTimeTrackingStats = {
-      activeSession,
-      totalTimeMinutesThisWeek,
-      totalTimeMinutesThisMonth,
-      totalSessionsCompleted: completed.length,
-      recentSessions: completed.slice(0, 15)
-    };
-
-    res.json({
-      success: true,
-      data: stats
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
   }
-};
+
+  const open = db.time_sessions.find(s => s.user_id === user.id && s.status === 'active');
+  if (open) {
+    throw conflict(
+      `You are already clocked in to the ${open.category} floor. Clock out before starting a new session.`,
+      'ALREADY_CLOCKED_IN',
+      open
+    );
+  }
+
+  const session: TimeSession = {
+    id: newId('ses'),
+    user_id: user.id,
+    user_name: user.name,
+    user_email: user.email,
+    // Uploaded photos are data: URLs of up to 350 kB; copying one into every session would let a
+    // member grow the database without limit. Staff views resolve the current photo instead.
+    user_avatar: user.avatar_url.startsWith('data:') ? '' : user.avatar_url,
+    user_tier: user.membership_tier,
+    category: body.category,
+    clock_in_time: now.toISOString(),
+    clock_out_time: null,
+    duration_minutes: 0,
+    status: 'active',
+    ...(body.notes ? { notes: body.notes } : {})
+  };
+  db.time_sessions = [session, ...db.time_sessions];
+
+  return ok(res, session, `Clocked in to the ${session.category} floor.`, 201);
+});
+
+export const clockOut = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
+  const user = req.user!;
+  const body = parse(clockOutSchema, req.body);
+  const now = new Date();
+  closeStaleSessions(now);
+
+  let session: TimeSession | undefined;
+  if (body.session_id) {
+    session = db.time_sessions.find(s => s.id === body.session_id && s.status === 'active');
+    if (session && session.user_id !== user.id && user.role !== 'admin') {
+      throw forbidden('You can only clock out your own session.');
+    }
+  } else {
+    session = db.time_sessions.find(s => s.user_id === user.id && s.status === 'active');
+  }
+  if (!session) throw notFound('There is no active session to clock out of.', 'NO_ACTIVE_SESSION');
+
+  const target = session;
+  const completed: TimeSession = {
+    ...target,
+    status: 'completed',
+    clock_out_time: now.toISOString(),
+    duration_minutes: Math.max(1, Math.min(MAX_SESSION_MINUTES, elapsedMinutes(target, now))),
+    ...(body.notes !== undefined ? { notes: body.notes } : {})
+  };
+  db.time_sessions = db.time_sessions.map(s => (s.id === target.id ? completed : s));
+  creditSession(target.user_id, toGymDate(target.clock_in_time));
+
+  return ok(res, completed, `Clocked out after ${completed.duration_minutes} min on the ${completed.category} floor.`);
+});
+
+export const getActiveFloorStatus = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
+  const now = new Date();
+  closeStaleSessions(now);
+
+  const active = db.time_sessions
+    .filter(s => s.status === 'active')
+    .sort((a, b) => a.clock_in_time.localeCompare(b.clock_in_time));
+  const workout = active.filter(s => s.category === 'Workout & Strength');
+  const zumba = active.filter(s => s.category === 'Zumba & Cardio');
+
+  const status: ActiveFloorStatus = {
+    totalActive: active.length,
+    workoutActive: workout.length,
+    zumbaActive: zumba.length
+  };
+  if (req.user && isStaff(req.user)) {
+    status.workoutUsers = workout.map(s => toFloorPresence(s, now));
+    status.zumbaUsers = zumba.map(s => toFloorPresence(s, now));
+  }
+  return ok(res, status);
+});
+
+export const getMyTimeTrackingStats = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
+  const userId = req.user!.id;
+  const now = new Date();
+  closeStaleSessions(now);
+
+  const mine = db.time_sessions.filter(s => s.user_id === userId);
+  const open = mine.find(s => s.status === 'active');
+  const completed = mine.filter(s => s.status === 'completed').sort(byClockInDesc);
+
+  const today = gymToday(now);
+  const weekStart = startOfWeek(today);
+  const monthPrefix = today.slice(0, 7);
+  const minutesSince = (pred: (date: string) => boolean) =>
+    completed.filter(s => pred(toGymDate(s.clock_in_time))).reduce((sum, s) => sum + (s.duration_minutes || 0), 0);
+
+  const stats: UserTimeTrackingStats = {
+    // A copy: the live duration must never be written back into the stored session.
+    activeSession: open ? { ...open, duration_minutes: elapsedMinutes(open, now) } : null,
+    totalTimeMinutesThisWeek: minutesSince(d => d >= weekStart && d <= today),
+    totalTimeMinutesThisMonth: minutesSince(d => d.startsWith(monthPrefix)),
+    totalSessionsCompleted: completed.length,
+    recentSessions: completed.slice(0, 15)
+  };
+  return ok(res, stats);
+});

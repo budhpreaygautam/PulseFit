@@ -15,13 +15,15 @@ export const Badge: React.FC<BadgeProps> = ({
   className = '',
   icon
 }) => {
+  // Each tint gets a dark text shade in light theme (at least 4.5:1 on the light surfaces) and the
+  // bright one in dark theme.
   const variantStyles = {
-    lime: 'text-lime-400 bg-lime-500/10 border-lime-500/30 shadow-[inset_1px_1px_3px_var(--neu-shadow-dark),inset_-1px_-1px_3px_var(--neu-shadow-light)]',
-    amber: 'text-amber-400 bg-amber-500/10 border-amber-500/30 shadow-[inset_1px_1px_3px_var(--neu-shadow-dark),inset_-1px_-1px_3px_var(--neu-shadow-light)]',
-    crimson: 'text-rose-400 bg-rose-500/10 border-rose-500/30 shadow-[inset_1px_1px_3px_var(--neu-shadow-dark),inset_-1px_-1px_3px_var(--neu-shadow-light)]',
-    cyan: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30 shadow-[inset_1px_1px_3px_var(--neu-shadow-dark),inset_-1px_-1px_3px_var(--neu-shadow-light)]',
+    lime: 'text-lime-800 dark:text-lime-400 bg-lime-500/10 border-lime-500/30 shadow-[inset_1px_1px_3px_var(--neu-shadow-dark),inset_-1px_-1px_3px_var(--neu-shadow-light)]',
+    amber: 'text-amber-800 dark:text-amber-400 bg-amber-500/10 border-amber-500/30 shadow-[inset_1px_1px_3px_var(--neu-shadow-dark),inset_-1px_-1px_3px_var(--neu-shadow-light)]',
+    crimson: 'text-rose-700 dark:text-rose-400 bg-rose-500/10 border-rose-500/30 shadow-[inset_1px_1px_3px_var(--neu-shadow-dark),inset_-1px_-1px_3px_var(--neu-shadow-light)]',
+    cyan: 'text-cyan-800 dark:text-cyan-400 bg-cyan-500/10 border-cyan-500/30 shadow-[inset_1px_1px_3px_var(--neu-shadow-dark),inset_-1px_-1px_3px_var(--neu-shadow-light)]',
     slate: 'text-slate-300 bg-gym-900 border-slate-700/60 shadow-[2px_2px_5px_var(--neu-shadow-dark),-2px_-2px_5px_var(--neu-shadow-light)]',
-    purple: 'text-purple-400 bg-purple-500/10 border-purple-500/30 shadow-[inset_1px_1px_3px_var(--neu-shadow-dark),inset_-1px_-1px_3px_var(--neu-shadow-light)]'
+    purple: 'text-purple-700 dark:text-purple-400 bg-purple-500/10 border-purple-500/30 shadow-[inset_1px_1px_3px_var(--neu-shadow-dark),inset_-1px_-1px_3px_var(--neu-shadow-light)]'
   };
 
   const sizeStyles = {
@@ -32,7 +34,7 @@ export const Badge: React.FC<BadgeProps> = ({
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border transition-all ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border backdrop-blur-sm transition-all ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
     >
       {icon && <span className="shrink-0">{icon}</span>}
       {children}
