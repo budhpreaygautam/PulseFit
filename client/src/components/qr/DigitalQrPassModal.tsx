@@ -79,7 +79,7 @@ async function renderPassPng(user: User, qrDataUrl: string, gymName: string): Pr
     ctx.fillText(STAFF_LABELS[user.role] ?? 'Staff', width / 2, 628);
     ctx.fillText('No membership needed to check in', width / 2, 660);
   } else {
-    ctx.fillText(TIER_LABELS[user.membership_tier] ?? user.membership_tier, width / 2, 628);
+    ctx.fillText(TIER_LABELS[user.membership_tier] ?? user.membership_tier, width / 2, 628, width - 60);
     if (user.membership_expiry) ctx.fillText(`Valid through ${formatDate(user.membership_expiry)}`, width / 2, 660);
   }
   ctx.font = 'bold 22px ui-monospace, Consolas, monospace';

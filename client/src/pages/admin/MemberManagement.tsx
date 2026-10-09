@@ -13,7 +13,7 @@ import { statusVariant } from '../../components/admin/memberStatus.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { useToast } from '../../context/ToastContext.js';
-import { STATUS_LABELS, TIER_LABELS, formatDate, gymToday } from '../../lib/format.js';
+import { STATUS_LABELS, TIER_LABELS, TIER_SHORT_LABELS, formatDate, gymToday } from '../../lib/format.js';
 
 type RoleFilter = UserRole | 'all';
 const STATUS_FILTERS = ['all', 'active', 'frozen', 'expired', 'pending'];
@@ -284,7 +284,7 @@ export const MemberManagement: React.FC = () => {
                   <tr key={m.id}>
                     <td className="p-4 pl-6 max-w-[280px]">{nameCell(m)}</td>
                     <td className="p-4 whitespace-nowrap">{m.phone || '—'}</td>
-                    <td className="p-4 whitespace-nowrap font-semibold">{TIER_LABELS[m.membership_tier]}</td>
+                    <td className="p-4 whitespace-nowrap font-semibold">{TIER_SHORT_LABELS[m.membership_tier]}</td>
                     <td className="p-4">
                       <Badge size="sm" variant={statusVariant(m.membership_status)}>{STATUS_LABELS[m.membership_status]}</Badge>
                     </td>

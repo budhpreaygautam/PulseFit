@@ -12,7 +12,7 @@ import { BookingCard, CancelBookingDialog } from '../../components/member/Bookin
 import { FloorClockCard } from '../../components/member/FloorClockCard.js';
 import { ProgressSection } from '../../components/member/ProgressSection.js';
 import { useApiResource } from '../../components/member/useApiResource.js';
-import { formatDate, formatDateTime, gymToday, TIER_LABELS } from '../../lib/format.js';
+import { formatDate, formatDateTime, gymToday, tierLabel } from '../../lib/format.js';
 
 interface MemberDashboardProps {
   setCurrentTab: (tab: string) => void;
@@ -102,7 +102,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
           <div className="min-w-0 space-y-1">
             <h1 className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit'] break-words">Hi, {user.name.split(' ')[0]}</h1>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-slate-300">{TIER_LABELS[user.membership_tier] ?? user.membership_tier}</span>
+              <span className="text-xs font-bold text-slate-300">{tierLabel(user.membership_tier, plans.data)}</span>
               <MembershipStatusBadge status={user.membership_status} />
             </div>
             <p className="text-xs text-slate-400">

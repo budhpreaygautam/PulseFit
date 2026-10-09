@@ -4,7 +4,7 @@ import { ClassCategory, MembershipPlan } from '../../types/index.js';
 import { ApiError, api } from '../../api/client.js';
 import { Badge } from '../common/Badge.js';
 import { ConfirmDialog } from '../common/ConfirmDialog.js';
-import { TIER_LABELS, formatINR } from '../../lib/format.js';
+import { TIER_SHORT_LABELS, formatINR } from '../../lib/format.js';
 import { FieldError, FormError, focusRing, formErrorsFrom, hintClass, inputClass, labelClass, sideEffectsOf } from './ui.js';
 
 const CATEGORIES: ClassCategory[] = ['Workout & Strength', 'Zumba & Cardio'];
@@ -145,7 +145,7 @@ export const PlanEditor: React.FC<PlanEditorProps> = ({ plan, onSaved, onStale }
             {plan.name}
           </h2>
           <div className="flex gap-2">
-            <Badge size="sm" variant="cyan">{TIER_LABELS[plan.tier]}</Badge>
+            <Badge size="sm" variant="cyan">{TIER_SHORT_LABELS[plan.tier]}</Badge>
             {isDirty && <Badge size="sm" variant="amber">Unsaved changes</Badge>}
           </div>
         </div>
