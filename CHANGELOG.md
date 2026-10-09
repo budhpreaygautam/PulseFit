@@ -73,6 +73,25 @@ money and access rules are enforced on the server, and the features the README a
 - Every successful turnstile scan was shown as "Access denied"; new members' temporary passwords
   showed as "undefined"; "Join" buttons opened the sign-in form; bookings landed on the wrong day
   between midnight and 05:30 IST; and about 150 other defects found in the v2.0 audit.
+- A second bug hunt before release confirmed about 80 more defects; all are fixed:
+  - **Membership and billing:** freezing overnight no longer adds a free day. Unfreezing gives back only the
+    open gym days missed (not the freeze day, the return day or Sundays) and states the new end date.
+    Freezing says how many class bookings were cancelled. A plan change at checkout, and admin edits that end,
+    shorten or pause a membership, release the class spots that person can no longer use, and say how many.
+  - **Streaks:** Sundays, when the gym is closed, no longer reset every streak; correcting an "Attended" mark
+    or deleting today's workout takes the day back.
+  - **Opening hours:** members and trial visitors are turned away while the gym is closed (staff are not), no
+    same-day trial after closing, and classes can only be scheduled inside opening hours.
+  - **Accounts:** password reset links use the real site address (`PUBLIC_URL`) instead of localhost; on a
+    public demo the shared demo accounts cannot be locked, deleted or re-roled by visitors; pass codes ignore case.
+  - **Coaches:** admins can open any coach's dashboard and take attendance for coaches without a login;
+    attendance can be taken for any session of the last 14 days; roster counts and buttons stay correct.
+  - **Admin screens:** form errors are always shown, edits say how many bookings they cancelled, the
+    temporary password cannot be lost to a stray click, and the check-in box clears after every scan.
+  - **Member and public pages:** the freeze dialog tells the truth about cancelled bookings, the rest and
+    floor timers keep correct time, the timetable shows Sunday classes and plan limits without flicker,
+    free trials hide today after closing, and payment confirmations say what the payment did.
+  - Messages show dates as "8 Oct 2026" instead of "2026-10-08"; demo data is consistent.
 
 ## [2.0.0] — 2026-10-05
 

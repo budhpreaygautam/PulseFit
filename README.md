@@ -87,7 +87,7 @@ ships with:
 | **Dual All-Access Pass** ⭐ | Everything | **₹999** | **₹10,188** (₹849/mo) |
 
 Renewing extends from the current expiry. Switching plans credits the unused days of the old plan.
-A freeze pauses the plan and gives the frozen days back.
+A freeze pauses the plan and gives back the open gym days missed while frozen (not the freeze day, the return day or Sundays).
 
 ---
 
@@ -120,7 +120,7 @@ A freeze pauses the plan and gives the frozen days back.
     <td width="50%">
       <h3>🥋 Coaches</h3>
       <ul>
-        <li>Coach dashboard: upcoming classes and booking numbers</li>
+        <li>Coach dashboard: upcoming classes, booked sessions of the last 14 days with attendance, clients and notes; admins can open any coach's dashboard</li>
         <li>Rosters per class and date, with attended / no-show marking</li>
         <li>Client list and assessment notes, optionally shared with the member</li>
         <li>Front-desk check-in scanner</li>
@@ -227,6 +227,8 @@ Copy `server/.env.example` to `server/.env`. Every setting is optional for local
 | `CLIENT_ORIGIN` | Browser origins allowed to call the API (comma-separated). |
 | `TRUST_PROXY` | Number of reverse proxies in front of the API (e.g. `1` on Render/Railway/nginx). |
 | `GYM_TIMEZONE` | Default `Asia/Kolkata`. |
+| `PUBLIC_URL` | The address people open the app at (e.g. `https://gym.example.com`); password reset links are built on it. Set it in production. |
+| `ENFORCE_OPENING_HOURS` | Default `true`: members cannot check in, clock in or book a same-day trial while the gym is closed. The test suites turn it off. |
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | Enable checkout ([Razorpay dashboard → API keys](https://dashboard.razorpay.com/app/keys); use test-mode keys first). |
 | `RAZORPAY_WEBHOOK_SECRET` | Enables `POST /api/payment/webhook`, so a payment still activates if the member closes the tab. |
 | `GOOGLE_CLIENT_ID` | Enables "Continue with Google" (an OAuth web client id; add your site as an authorised JavaScript origin). |
@@ -269,7 +271,8 @@ npm run create-admin -- --email you@example.com --name "Your Name"   # prints a 
 ```
 
 The database is a single JSON file, so run one instance, keep `server/data/` on a persistent disk, and back
-it up. Behind a proxy, set `TRUST_PROXY`. For checkout, set the Razorpay keys and webhook secret.
+it up. Behind a proxy, set `TRUST_PROXY`. Set `PUBLIC_URL` to your site's address so password reset links work.
+For checkout, set the Razorpay keys and webhook secret.
 
 ---
 
