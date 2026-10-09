@@ -64,6 +64,8 @@ money and access rules are enforced on the server, and the features the README a
   actions and round icon buttons), checkboxes are raised and press in when ticked, the navbar and mobile menu
   are frosted glass, alerts and icon tiles are tinted glass, tables have a sunken header band, and the footer
   sits on a raised card.
+- The class timetable has a compact month calendar (this month and next) instead of a week strip: dots show
+  each day's classes, grey dots mark days whose booking has not opened yet, and arrow keys move between days.
 
 ### Removed
 

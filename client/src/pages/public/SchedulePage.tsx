@@ -23,6 +23,20 @@ const BOOKING_WINDOW_DAYS = 14;
 const INTENSITY_ORDER = ['Low', 'Medium', 'High', 'Extreme'];
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+/** First day ('YYYY-MM-01') of the month a date is in. */
+const monthOf = (date: string) => `${date.slice(0, 7)}-01`;
+/** First day of the month n months after the given first day. */
+const addMonths = (first: string, n: number) => {
+  const [y, m] = first.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 10);
+};
+const lastDayOfMonth = (first: string) => addDays(addMonths(first, 1), -1);
+/**
+ * The calendar shows this month and next. Classes repeat every week, so dates beyond the booking
+ * window show the timetable with booking not open yet.
+ */
+const lastViewableDate = (today: string) => lastDayOfMonth(addMonths(monthOf(today), 1));
+
 interface CardIssue {
   message: string;
   action?: { label: string; tab: string; params?: Record<string, string> };
@@ -30,27 +44,29 @@ interface CardIssue {
 
 const occurrenceKey = (c: ClassOccurrence) => `${c.id}:${c.occurrence_date}`;
 
-/** Initial week (a Monday) and day index (0 = Monday) from ?week= and ?day=, clamped to what can be shown. */
-function initialView(params: URLSearchParams): { weekStart: string; dayIndex: number } {
+/**
+ * The date to open on, from ?week= (a Monday) and ?day= (0 = Sunday), kept between today and the last
+ * date the calendar shows. Without them: today, or Monday when today is a Sunday (the gym is closed).
+ */
+function initialDate(params: URLSearchParams): string {
   const today = gymToday();
-  const thisMonday = mondayOf(today);
-  const lastMonday = addDays(thisMonday, BOOKING_WINDOW_DAYS);
   const requestedWeek = params.get('week');
   const requestedDay = params.get('day');
 
-  let weekStart = thisMonday;
+  let weekStart = mondayOf(today);
   let dayIndex = (weekdayOf(today) + 6) % 7;
-  // On a Sunday the rest of this week is over, so open on next week's Monday.
   if (weekdayOf(today) === 0) {
-    weekStart = addDays(thisMonday, 7);
+    weekStart = addDays(weekStart, 7);
     dayIndex = 0;
   }
-  if (requestedWeek && /^\d{4}-\d{2}-\d{2}$/.test(requestedWeek) && mondayOf(requestedWeek) === requestedWeek && requestedWeek >= thisMonday && requestedWeek <= lastMonday) {
+  if (requestedWeek && /^\d{4}-\d{2}-\d{2}$/.test(requestedWeek) && mondayOf(requestedWeek) === requestedWeek) {
+    if (requestedWeek !== weekStart) dayIndex = 0;
     weekStart = requestedWeek;
-    if (requestedWeek !== thisMonday) dayIndex = 0;
   }
   if (requestedDay !== null && /^[0-6]$/.test(requestedDay)) dayIndex = (Number(requestedDay) + 6) % 7;
-  return { weekStart, dayIndex };
+  const date = addDays(weekStart, dayIndex);
+  const last = lastViewableDate(today);
+  return date < today ? today : date > last ? last : date;
 }
 
 function categoryFrom(params: URLSearchParams): string {
@@ -64,7 +80,9 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
   const { config } = useAppConfig();
   const { showToast } = useToast();
 
-  const [view, setView] = useState(() => initialView(params));
+  const [selectedDate, setSelectedDate] = useState(() => initialDate(params));
+  // The month on show; it can differ from the selected date's month while browsing.
+  const [month, setMonth] = useState(() => monthOf(initialDate(params)));
   const [trainerId, setTrainerId] = useState(() => params.get('trainer') ?? '');
   const [category, setCategory] = useState(() => categoryFrom(params));
   const [intensity, setIntensity] = useState('All');
@@ -79,15 +97,18 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
 
   // A new navigation to the timetable (e.g. "View classes" on a coach) re-reads the query string.
   useEffect(() => {
-    setView(initialView(params));
+    const date = initialDate(params);
+    setSelectedDate(date);
+    setMonth(monthOf(date));
     setTrainerId(params.get('trainer') ?? '');
     setCategory(categoryFrom(params));
   }, [params]);
 
   const today = gymToday();
-  const thisMonday = mondayOf(today);
   const lastBookable = addDays(today, BOOKING_WINDOW_DAYS);
-  const { weekStart, dayIndex } = view;
+  const lastViewable = lastViewableDate(today);
+  // The API lists one week at a time: the week of the selected date.
+  const weekStart = mondayOf(selectedDate);
 
   const classesState = useApiData(() => api.getClasses({ week_start: weekStart, trainerId: trainerId || undefined }), [weekStart, trainerId, user?.id]);
   const trainersState = useApiData(() => api.getTrainers());
@@ -136,40 +157,78 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
   }, [user?.role]);
   const memberPlan = user?.role === 'member' ? plans?.find(p => p.tier === user.membership_tier) : undefined;
 
+  // Classes repeat every week, so the loaded week gives each weekday's count for the whole month.
+  const scheduledByWeekday = new Map<number, number>();
+  const shownByWeekday = new Map<number, number>();
+  for (const c of classes) {
+    const wd = weekdayOf(c.occurrence_date);
+    scheduledByWeekday.set(wd, (scheduledByWeekday.get(wd) ?? 0) + 1);
+    if (matchesFilters(c)) shownByWeekday.set(wd, (shownByWeekday.get(wd) ?? 0) + 1);
+  }
   // A closed day (Sunday) shows as closed only when nothing is scheduled on it: classes the
   // timetable lists are always shown, so they can be seen, booked and cancelled here. With a coach
   // filter the API lists only that coach's classes, so an empty day is just an empty filter result.
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const date = addDays(weekStart, i);
-    const scheduled = classes.filter(c => c.occurrence_date === date).length;
-    const isClosed =
-      config.gym.hours.closedWeekdays.includes(weekdayOf(date)) && trainerId === '' && classesState.data !== null && scheduled === 0;
-    return { index: i, date, label: DAY_LABELS[i], isClosed, count: classes.filter(c => c.occurrence_date === date && matchesFilters(c)).length };
-  });
-  const selectedDay = days[dayIndex];
-  const selectedDate = selectedDay.date;
+  const isClosedDate = (date: string) =>
+    config.gym.hours.closedWeekdays.includes(weekdayOf(date)) &&
+    trainerId === '' &&
+    classesState.data !== null &&
+    (scheduledByWeekday.get(weekdayOf(date)) ?? 0) === 0;
+  const countOn = (date: string) => shownByWeekday.get(weekdayOf(date)) ?? 0;
+  const isViewable = (date: string) => date >= today && date <= lastViewable;
+
+  const selectedIsClosed = isClosedDate(selectedDate);
   const dayClasses = classes.filter(c => c.occurrence_date === selectedDate && matchesFilters(c)).map(withJustBooked);
   const filtersActive = category !== 'All' || intensity !== 'All' || search.trim() !== '' || trainerId !== '';
 
-  const weekLabel = weekStart === thisMonday ? 'This week' : weekStart === addDays(thisMonday, 7) ? 'Next week' : `Week of ${formatDate(weekStart, { day: 'numeric', month: 'short' })}`;
-  const weekRange = `${formatDate(weekStart, { day: 'numeric', month: 'short' })} – ${formatDate(addDays(weekStart, 5), { day: 'numeric', month: 'short' })}`;
-
-  // WAI-ARIA tabs: arrow keys (and Home/End) move between the days; only the selected day is a Tab stop.
-  const onDayTabKeyDown = (e: React.KeyboardEvent) => {
-    let next: number;
-    if (e.key === 'ArrowRight') next = (dayIndex + 1) % 7;
-    else if (e.key === 'ArrowLeft') next = (dayIndex + 6) % 7;
-    else if (e.key === 'Home') next = 0;
-    else if (e.key === 'End') next = 6;
-    else return;
-    e.preventDefault();
-    setView(v => ({ ...v, dayIndex: next }));
-    document.getElementById(`day-tab-${next}`)?.focus();
+  const selectDate = (date: string) => {
+    const clamped = date < today ? today : date > lastViewable ? lastViewable : date;
+    if (mondayOf(clamped) !== weekStart) setIssues({});
+    setSelectedDate(clamped);
+    setMonth(monthOf(clamped));
+    return clamped;
   };
 
-  const changeWeek = (delta: number) => {
-    setView(v => ({ weekStart: addDays(v.weekStart, delta * 7), dayIndex: v.dayIndex }));
-    setIssues({});
+  /** The first date of a month worth opening: viewable, and an open day when there is one. */
+  const firstDateIn = (first: string) => {
+    const end = lastDayOfMonth(first) < lastViewable ? lastDayOfMonth(first) : lastViewable;
+    let fallback: string | null = null;
+    for (let d = first < today ? today : first; d <= end; d = addDays(d, 1)) {
+      if (!config.gym.hours.closedWeekdays.includes(weekdayOf(d))) return d;
+      fallback = fallback ?? d;
+    }
+    return fallback;
+  };
+
+  const changeMonth = (delta: number) => {
+    const next = addMonths(month, delta);
+    const date = firstDateIn(next);
+    if (date) selectDate(date);
+    else setMonth(next);
+  };
+
+  // Calendar weeks (Monday first) covering the month on show.
+  const calendarWeeks: string[][] = [];
+  for (let d = mondayOf(month); d <= lastDayOfMonth(month); d = addDays(d, 7)) {
+    calendarWeeks.push(Array.from({ length: 7 }, (_, i) => addDays(d, i)));
+  }
+  // One Tab stop in the grid (roving tabindex): the selected day, or the first one worth opening.
+  const focusDate = monthOf(selectedDate) === month ? selectedDate : firstDateIn(month);
+
+  // Grid keyboard: arrows move a day or a week, Home/End go to the week's ends, Page Up/Down change month.
+  const onDayKeyDown = (e: React.KeyboardEvent, date: string) => {
+    const steps: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 7, ArrowUp: -7 };
+    let next: string;
+    if (e.key in steps) next = addDays(date, steps[e.key]);
+    else if (e.key === 'Home') next = mondayOf(date);
+    else if (e.key === 'End') next = addDays(mondayOf(date), 6);
+    else if (e.key === 'PageUp' || e.key === 'PageDown') {
+      const first = addMonths(monthOf(date), e.key === 'PageUp' ? -1 : 1);
+      const day = Math.min(Number(date.slice(8, 10)), Number(lastDayOfMonth(first).slice(8, 10)));
+      next = `${first.slice(0, 8)}${String(day).padStart(2, '0')}`;
+    } else return;
+    e.preventDefault();
+    const target = selectDate(next);
+    requestAnimationFrame(() => document.getElementById(`day-${target}`)?.focus());
   };
 
   const clearFilters = () => {
@@ -436,249 +495,308 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={() => changeWeek(-1)}
-          disabled={weekStart <= thisMonday}
-          className="neu-btn p-2.5 rounded-xl text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
-          aria-label="Previous week"
-        >
-          <ChevronLeft className="w-4 h-4" aria-hidden="true" />
-        </button>
-        <div className="text-center" aria-live="polite">
-          <div className="text-sm font-black text-slate-100 font-['Outfit']">{weekLabel}</div>
-          <div className="text-xs text-slate-400">{weekRange}</div>
-        </div>
-        <button
-          type="button"
-          onClick={() => changeWeek(1)}
-          disabled={weekStart >= addDays(thisMonday, BOOKING_WINDOW_DAYS)}
-          className="neu-btn p-2.5 rounded-xl text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
-          aria-label="Next week"
-        >
-          <ChevronRight className="w-4 h-4" aria-hidden="true" />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-4 sm:grid-cols-7 gap-2" role="tablist" aria-label="Day of the week">
-        {days.map(d => {
-          const isSelected = dayIndex === d.index;
-          const isPast = d.date < today;
-          return (
+      <div className="grid gap-8 lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start">
+        {/* A compact month calendar: beside the classes on large screens (and stays in view), on top on phones. */}
+        <section className="neu-flat rounded-3xl p-4 space-y-3 w-full max-w-sm mx-auto lg:max-w-none lg:sticky lg:top-28" aria-labelledby="calendar-month">
+          <div className="flex items-center justify-between gap-2">
             <button
-              key={d.date}
               type="button"
-              role="tab"
-              id={`day-tab-${d.index}`}
-              aria-selected={isSelected}
-              aria-controls="day-panel"
-              tabIndex={isSelected ? 0 : -1}
-              onClick={() => setView(v => ({ ...v, dayIndex: d.index }))}
-              onKeyDown={onDayTabKeyDown}
-              className={`p-2.5 sm:p-3 rounded-2xl text-center transition-all ${
-                isSelected ? 'neu-pressed-sm border border-lime-500/50 text-lime-400' : 'neu-flat text-slate-400 border border-slate-800/80'
-              } ${isPast && !isSelected ? 'opacity-60' : ''}`}
+              onClick={() => changeMonth(-1)}
+              disabled={month <= monthOf(today)}
+              className="neu-icon-btn w-8 h-8 shrink-0 disabled:opacity-40"
+              aria-label="Previous month"
             >
-              <div className="text-xs font-bold uppercase tracking-wider">{d.label}</div>
-              <div className="text-sm sm:text-base font-extrabold text-slate-100 mt-0.5 font-['Outfit']">{formatDate(d.date, { day: 'numeric', month: 'short' })}</div>
-              <div className="text-[10px] mt-1 font-medium">{d.isClosed ? 'Closed' : !classesState.data ? '…' : `${d.count} ${d.count === 1 ? 'class' : 'classes'}`}</div>
+              <ChevronLeft className="w-4 h-4" aria-hidden="true" />
             </button>
-          );
-        })}
-      </div>
-
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 neu-flat p-4 rounded-2xl border border-slate-800/80">
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Category">
-          <span className="text-xs font-bold text-slate-400 mr-2 flex items-center gap-1">
-            <Filter className="w-3.5 h-3.5 text-lime-400" aria-hidden="true" /> Category:
-          </span>
-          {['All', ...CATEGORIES].map(cat => (
-            <button
-              key={cat}
-              type="button"
-              aria-pressed={category === cat}
-              onClick={() => setCategory(cat)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs transition-all ${category === cat ? 'neu-btn-lime font-extrabold' : 'neu-btn text-slate-300 font-semibold'}`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <label htmlFor="schedule-intensity" className="text-xs font-bold text-slate-400">
-              Intensity
-            </label>
-            <select
-              id="schedule-intensity"
-              value={intensity}
-              onChange={e => setIntensity(e.target.value)}
-              className="text-xs text-slate-200 rounded-xl px-3 py-1.5 font-medium cursor-pointer"
-            >
-              <option value="All">All</option>
-              {intensityOptions.map(level => (
-                <option key={level} value={level}>
-                  {level}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <label htmlFor="schedule-coach" className="text-xs font-bold text-slate-400">
-              Coach
-            </label>
-            <select
-              id="schedule-coach"
-              value={trainerId}
-              onChange={e => setTrainerId(e.target.value)}
-              className="text-xs text-slate-200 rounded-xl px-3 py-1.5 font-medium cursor-pointer max-w-[12rem]"
-            >
-              <option value="">All coaches</option>
-              {coachOptions.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          {filtersActive && (
-            <button type="button" onClick={clearFilters} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold">
-              Clear filters
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div id="day-panel" role="tabpanel" aria-labelledby={`day-tab-${dayIndex}`}>
-        {classesState.isLoading && !classesState.data ? (
-          <LoadingState label="Loading the timetable…" />
-        ) : classesState.error ? (
-          <ErrorState message={classesState.error} onRetry={classesState.reload} />
-        ) : selectedDay.isClosed ? (
-          <div className="neu-flat p-10 sm:p-14 rounded-3xl text-center border border-slate-800/80 space-y-4 max-w-2xl mx-auto">
-            <Moon className="w-10 h-10 text-amber-600 dark:text-amber-400 mx-auto" aria-hidden="true" />
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit']">Closed on {DAY_NAMES[weekdayOf(selectedDate)]}s</h2>
-            <p className="text-sm text-slate-300 max-w-md mx-auto">
-              The gym is open {HOURS_DAYS}, {HOURS_TIME}. There are no classes on this day.
-            </p>
-            {dayIndex === 6 && (
+            <h2 id="calendar-month" className="text-base font-black text-slate-100 font-['Outfit'] truncate" aria-live="polite">
+              {formatDate(month, { month: 'long', year: 'numeric' })}
+            </h2>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {(selectedDate !== today || month !== monthOf(today)) && (
+                <button type="button" onClick={() => selectDate(firstDateIn(monthOf(today)) ?? today)} className="neu-btn px-2.5 py-1 rounded-lg text-[11px] font-bold">
+                  Today
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => (weekStart < addDays(thisMonday, BOOKING_WINDOW_DAYS) ? setView({ weekStart: addDays(weekStart, 7), dayIndex: 0 }) : setView(v => ({ ...v, dayIndex: 0 })))}
-                className="px-6 py-3 neu-btn-lime font-extrabold text-xs rounded-xl"
+                onClick={() => changeMonth(1)}
+                disabled={addMonths(month, 1) > lastViewable}
+                className="neu-icon-btn w-8 h-8 disabled:opacity-40"
+                aria-label="Next month"
               >
-                {weekStart < addDays(thisMonday, BOOKING_WINDOW_DAYS) ? "See next Monday's classes" : "See Monday's classes"}
+                <ChevronRight className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          <div role="grid" aria-labelledby="calendar-month" className="space-y-1">
+            <div role="row" className="grid grid-cols-7 gap-1">
+              {DAY_LABELS.map(label => (
+                <div key={label} role="columnheader" aria-label={label} className="text-center text-[10px] font-bold uppercase text-slate-400 py-1">
+                  {label.slice(0, 2)}
+                </div>
+              ))}
+            </div>
+            {calendarWeeks.map(week => (
+              <div key={week[0]} role="row" className="grid grid-cols-7 gap-1">
+                {week.map(date => {
+                  if (monthOf(date) !== month) return <div key={date} role="gridcell" aria-hidden="true" />;
+                  const viewable = isViewable(date);
+                  const isSelected = date === selectedDate;
+                  const isToday = date === today;
+                  const closed = viewable && isClosedDate(date);
+                  const count = countOn(date);
+                  const notOpenYet = date > lastBookable;
+                  const longDate = formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' });
+                  const summary = !viewable
+                    ? date < today ? 'past' : 'not shown yet'
+                    : closed ? 'closed' : !classesState.data ? 'loading' : `${count} ${count === 1 ? 'class' : 'classes'}`;
+                  return (
+                    <div key={date} role="gridcell" aria-selected={isSelected}>
+                      <button
+                        type="button"
+                        id={`day-${date}`}
+                        disabled={!viewable}
+                        tabIndex={date === focusDate ? 0 : -1}
+                        aria-current={isToday ? 'date' : undefined}
+                        aria-controls="day-panel"
+                        aria-label={`${longDate}${isToday ? ', today' : ''}: ${summary}${viewable && notOpenYet && !closed ? `, booking opens ${formatDate(addDays(date, -BOOKING_WINDOW_DAYS), { day: 'numeric', month: 'short' })}` : ''}`}
+                        onClick={() => selectDate(date)}
+                        onKeyDown={e => onDayKeyDown(e, date)}
+                        className={`relative w-full aspect-square max-h-11 mx-auto rounded-xl flex flex-col items-center justify-center gap-0.5 ${
+                          isSelected ? 'neu-pressed-sm border border-lime-500/60' : viewable ? 'neu-btn' : 'opacity-35 cursor-not-allowed'
+                        }`}
+                      >
+                        <span
+                          className={`text-[13px] font-extrabold leading-none ${
+                            isSelected ? 'text-lime-700 dark:text-lime-400' : closed ? 'text-slate-500' : 'text-slate-100'
+                          }`}
+                        >
+                          {Number(date.slice(8, 10))}
+                        </span>
+                        {/* A dot per class, up to three; grey while booking has not opened yet. */}
+                        <span className="flex gap-0.5 h-1" aria-hidden="true">
+                          {viewable &&
+                            !closed &&
+                            Array.from({ length: Math.min(count, 3) }, (_, i) => (
+                              <span key={i} className={`w-1 h-1 rounded-full ${notOpenYet ? 'bg-slate-500' : 'bg-lime-500'}`} />
+                            ))}
+                        </span>
+                        {isToday && !isSelected && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-lime-500" aria-hidden="true" />}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+
+          <ul className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400" aria-label="Calendar key">
+            <li className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-lime-500" aria-hidden="true" /> Classes you can book
+            </li>
+            <li className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-500" aria-hidden="true" /> Booking opens {BOOKING_WINDOW_DAYS} days before
+            </li>
+            <li>Grey date: closed</li>
+          </ul>
+        </section>
+
+        <div className="space-y-6 min-w-0">
+
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 neu-flat p-4 rounded-2xl border border-slate-800/80">
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Category">
+            <span className="text-xs font-bold text-slate-400 mr-2 flex items-center gap-1">
+              <Filter className="w-3.5 h-3.5 text-lime-400" aria-hidden="true" /> Category:
+            </span>
+            {['All', ...CATEGORIES].map(cat => (
+              <button
+                key={cat}
+                type="button"
+                aria-pressed={category === cat}
+                onClick={() => setCategory(cat)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs transition-all ${category === cat ? 'neu-btn-lime font-extrabold' : 'neu-btn text-slate-300 font-semibold'}`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label htmlFor="schedule-intensity" className="text-xs font-bold text-slate-400">
+                Intensity
+              </label>
+              <select
+                id="schedule-intensity"
+                value={intensity}
+                onChange={e => setIntensity(e.target.value)}
+                className="text-xs text-slate-200 rounded-xl px-3 py-1.5 font-medium cursor-pointer"
+              >
+                <option value="All">All</option>
+                {intensityOptions.map(level => (
+                  <option key={level} value={level}>
+                    {level}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label htmlFor="schedule-coach" className="text-xs font-bold text-slate-400">
+                Coach
+              </label>
+              <select
+                id="schedule-coach"
+                value={trainerId}
+                onChange={e => setTrainerId(e.target.value)}
+                className="text-xs text-slate-200 rounded-xl px-3 py-1.5 font-medium cursor-pointer max-w-[12rem]"
+              >
+                <option value="">All coaches</option>
+                {coachOptions.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {filtersActive && (
+              <button type="button" onClick={clearFilters} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold">
+                Clear filters
               </button>
             )}
           </div>
-        ) : dayClasses.length === 0 ? (
-          <EmptyState
-            title={filtersActive ? 'No classes match your filters on this day' : 'No classes on this day'}
-            body={filtersActive ? 'Try another day, or clear the filters.' : 'Pick another day to see what is on.'}
-            action={
-              filtersActive ? (
-                <button type="button" onClick={clearFilters} className="px-4 py-2 neu-btn text-xs font-bold text-slate-200 rounded-xl">
-                  Clear filters
+        </div>
+
+        <section id="day-panel" aria-labelledby="day-heading" className="space-y-4">
+          <h2 id="day-heading" className="text-lg sm:text-xl font-black text-slate-100 font-['Outfit']">
+            {formatDate(selectedDate, { weekday: 'long', day: 'numeric', month: 'long' })}
+            {selectedDate === today && <span className="ml-2 text-xs font-bold text-lime-700 dark:text-lime-400 align-middle">Today</span>}
+          </h2>
+          {classesState.isLoading && !classesState.data ? (
+            <LoadingState label="Loading the timetable…" />
+          ) : classesState.error ? (
+            <ErrorState message={classesState.error} onRetry={classesState.reload} />
+          ) : selectedIsClosed ? (
+            <div className="neu-flat p-10 sm:p-14 rounded-3xl text-center border border-slate-800/80 space-y-4 max-w-2xl mx-auto">
+              <Moon className="w-10 h-10 text-amber-600 dark:text-amber-400 mx-auto" aria-hidden="true" />
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit']">Closed on {DAY_NAMES[weekdayOf(selectedDate)]}s</h2>
+              <p className="text-sm text-slate-300 max-w-md mx-auto">
+                The gym is open {HOURS_DAYS}, {HOURS_TIME}. There are no classes on this day.
+              </p>
+              {weekdayOf(selectedDate) === 0 && addDays(selectedDate, 1) <= lastViewable && (
+                <button type="button" onClick={() => selectDate(addDays(selectedDate, 1))} className="px-6 py-3 neu-btn-lime font-extrabold text-xs rounded-xl">
+                  See Monday's classes
                 </button>
-              ) : undefined
-            }
-          />
-        ) : (
-          <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {dayClasses.map(c => {
-              const occupancy = c.capacity > 0 ? Math.min(100, Math.round((c.booked_count / c.capacity) * 100)) : 0;
-              const issue = issues[occurrenceKey(c)];
-              return (
-                <li key={occurrenceKey(c)} className="neu-flat rounded-3xl border border-slate-800/80 overflow-hidden flex flex-col justify-between">
-                  <div>
-                    <div className="relative h-40 overflow-hidden bg-slate-900">
-                      <img src={c.image_url} alt="" className="w-full h-full object-cover brightness-[.85]" loading="lazy" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
-                      <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5">
-                        <span className="px-2 py-0.5 rounded-md glass-dark text-[10px] font-bold uppercase tracking-wider text-zinc-100">{c.intensity}</span>
-                        <span className="px-2 py-0.5 rounded-md glass-dark text-[10px] font-bold uppercase tracking-wider text-zinc-100">{c.category}</span>
-                      </div>
-                      <span className="absolute top-3 right-3 font-mono text-xs font-black bg-black/55 backdrop-blur-md px-2.5 py-1 rounded-lg text-lime-300 border border-lime-400/30">
-                        {formatClock(c.start_time)}
-                      </span>
-                      <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-xs text-zinc-100 font-semibold">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" aria-hidden="true" /> {c.duration_minutes} min
-                        </span>
-                        {c.calories_burn_est > 0 && (
-                          <span className="flex items-center gap-1 text-rose-300">
-                            <Flame className="w-3.5 h-3.5" aria-hidden="true" /> ~{c.calories_burn_est} kcal (estimate)
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="p-5 space-y-4">
-                      <div>
-                        <h2 className="text-lg font-black text-slate-100 font-['Outfit']">{c.title}</h2>
-                        <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">{c.description}</p>
-                      </div>
-                      <div className="flex items-center justify-between pt-2 text-xs border-t border-slate-800/80 gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          {c.trainer_avatar && <img src={c.trainer_avatar} alt="" className="w-7 h-7 rounded-full object-cover border border-slate-700 shrink-0" />}
-                          <div className="min-w-0">
-                            <div className="font-bold text-slate-200 truncate">{c.trainer_name ?? 'Coach to be confirmed'}</div>
-                            <div className="text-[10px] text-slate-400 truncate">{c.room}</div>
-                          </div>
+              )}
+            </div>
+          ) : dayClasses.length === 0 ? (
+            <EmptyState
+              title={filtersActive ? 'No classes match your filters on this day' : 'No classes on this day'}
+              body={filtersActive ? 'Try another day, or clear the filters.' : 'Pick another day to see what is on.'}
+              action={
+                filtersActive ? (
+                  <button type="button" onClick={clearFilters} className="px-4 py-2 neu-btn text-xs font-bold text-slate-200 rounded-xl">
+                    Clear filters
+                  </button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {dayClasses.map(c => {
+                const occupancy = c.capacity > 0 ? Math.min(100, Math.round((c.booked_count / c.capacity) * 100)) : 0;
+                const issue = issues[occurrenceKey(c)];
+                return (
+                  <li key={occurrenceKey(c)} className="neu-flat rounded-3xl border border-slate-800/80 overflow-hidden flex flex-col justify-between">
+                    <div>
+                      <div className="relative h-40 overflow-hidden bg-slate-900">
+                        <img src={c.image_url} alt="" className="w-full h-full object-cover brightness-[.85]" loading="lazy" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+                        <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded-md glass-dark text-[10px] font-bold uppercase tracking-wider text-zinc-100">{c.intensity}</span>
+                          <span className="px-2 py-0.5 rounded-md glass-dark text-[10px] font-bold uppercase tracking-wider text-zinc-100">{c.category}</span>
                         </div>
-                        <button type="button" onClick={() => setDetail(c)} className="text-slate-300 p-1.5 rounded-lg neu-btn text-xs flex items-center gap-1 shrink-0">
-                          <Info className="w-3.5 h-3.5" aria-hidden="true" /> Details<span className="sr-only"> about {c.title}</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-5 pt-0 space-y-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-400 font-medium flex items-center gap-1">
-                          <Users className="w-3.5 h-3.5" aria-hidden="true" />
-                          {c.booked_count} of {c.capacity} booked
+                        <span className="absolute top-3 right-3 font-mono text-xs font-black bg-black/55 backdrop-blur-md px-2.5 py-1 rounded-lg text-lime-300 border border-lime-400/30">
+                          {formatClock(c.start_time)}
                         </span>
-                        <span className={`font-bold ${c.is_full ? 'text-rose-400' : c.spots_left <= 3 ? 'text-amber-600 dark:text-amber-400' : 'text-lime-400'}`}>
-                          {c.is_full ? 'Class full' : `${c.spots_left} ${c.spots_left === 1 ? 'spot' : 'spots'} left`}
-                        </span>
+                        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-xs text-zinc-100 font-semibold">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" aria-hidden="true" /> {c.duration_minutes} min
+                          </span>
+                          {c.calories_burn_est > 0 && (
+                            <span className="flex items-center gap-1 text-rose-300">
+                              <Flame className="w-3.5 h-3.5" aria-hidden="true" /> ~{c.calories_burn_est} kcal (estimate)
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div
-                        className="w-full h-1.5 neu-pressed-sm rounded-full overflow-hidden"
-                        role="progressbar"
-                        aria-label={`${c.title} occupancy`}
-                        aria-valuemin={0}
-                        aria-valuemax={c.capacity}
-                        aria-valuenow={c.booked_count}
-                      >
-                        <div
-                          className={`h-full rounded-full ${occupancy >= 90 ? 'bg-rose-500' : occupancy >= 60 ? 'bg-amber-400' : 'bg-lime-400'}`}
-                          style={{ width: `${occupancy}%` }}
-                        />
-                      </div>
-                    </div>
 
-                    {issue && (
-                      <div role="alert" className="glass-tint p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-slate-200 space-y-2">
-                        <p>{issue.message}</p>
-                        {issue.action && (
-                          <button type="button" onClick={() => navigate(issue.action!.tab, issue.action!.params)} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold">
-                            {issue.action.label}
+                      <div className="p-5 space-y-4">
+                        <div>
+                          <h2 className="text-lg font-black text-slate-100 font-['Outfit']">{c.title}</h2>
+                          <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">{c.description}</p>
+                        </div>
+                        <div className="flex items-center justify-between pt-2 text-xs border-t border-slate-800/80 gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {c.trainer_avatar && <img src={c.trainer_avatar} alt="" className="w-7 h-7 rounded-full object-cover border border-slate-700 shrink-0" />}
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-200 truncate">{c.trainer_name ?? 'Coach to be confirmed'}</div>
+                              <div className="text-[10px] text-slate-400 truncate">{c.room}</div>
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => setDetail(c)} className="text-slate-300 p-1.5 rounded-lg neu-btn text-xs flex items-center gap-1 shrink-0">
+                            <Info className="w-3.5 h-3.5" aria-hidden="true" /> Details<span className="sr-only"> about {c.title}</span>
                           </button>
-                        )}
+                        </div>
                       </div>
-                    )}
+                    </div>
 
-                    {renderAction(c)}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+                    <div className="p-5 pt-0 space-y-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-400 font-medium flex items-center gap-1">
+                            <Users className="w-3.5 h-3.5" aria-hidden="true" />
+                            {c.booked_count} of {c.capacity} booked
+                          </span>
+                          <span className={`font-bold ${c.is_full ? 'text-rose-400' : c.spots_left <= 3 ? 'text-amber-600 dark:text-amber-400' : 'text-lime-400'}`}>
+                            {c.is_full ? 'Class full' : `${c.spots_left} ${c.spots_left === 1 ? 'spot' : 'spots'} left`}
+                          </span>
+                        </div>
+                        <div
+                          className="w-full h-1.5 neu-pressed-sm rounded-full overflow-hidden"
+                          role="progressbar"
+                          aria-label={`${c.title} occupancy`}
+                          aria-valuemin={0}
+                          aria-valuemax={c.capacity}
+                          aria-valuenow={c.booked_count}
+                        >
+                          <div
+                            className={`h-full rounded-full ${occupancy >= 90 ? 'bg-rose-500' : occupancy >= 60 ? 'bg-amber-400' : 'bg-lime-400'}`}
+                            style={{ width: `${occupancy}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {issue && (
+                        <div role="alert" className="glass-tint p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-slate-200 space-y-2">
+                          <p>{issue.message}</p>
+                          {issue.action && (
+                            <button type="button" onClick={() => navigate(issue.action!.tab, issue.action!.params)} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold">
+                              {issue.action.label}
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {renderAction(c)}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+        </div>
       </div>
 
       {detail && (
