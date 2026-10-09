@@ -195,20 +195,38 @@ const MembershipPanel: React.FC<{ user: User; onOpenPricing: () => void }> = ({ 
   const { showToast } = useToast();
   const plans = useApiResource(() => api.getPlans());
   const [confirm, setConfirm] = useState<'freeze' | 'unfreeze' | null>(null);
+  // Freezing cancels every upcoming class booking, so the dialog counts them first.
+  // null while counting; 'unknown' when they could not be loaded.
+  const [upcomingCount, setUpcomingCount] = useState<number | 'unknown' | null>(null);
 
   const plan = plans.data?.find(p => p.tier === user.membership_tier);
   const status = user.membership_status;
 
+  useEffect(() => {
+    if (confirm !== 'freeze') return;
+    let cancelled = false;
+    setUpcomingCount(null);
+    api
+      .getMyBookings('upcoming')
+      .then(list => !cancelled && setUpcomingCount(list.length))
+      .catch(() => !cancelled && setUpcomingCount('unknown'));
+    return () => {
+      cancelled = true;
+    };
+  }, [confirm]);
+
   const run = async () => {
     try {
-      const { data: next } = confirm === 'freeze' ? await api.freezeMembership() : await api.unfreezeMembership();
-      updateUser(next);
-      showToast(
-        confirm === 'freeze'
-          ? 'Your membership is frozen. Unfreeze it whenever you are ready to train again.'
-          : `Welcome back. Your membership now runs until ${formatDate(next.membership_expiry)}.`,
-        'success'
-      );
+      // The server's message says what else changed (how many bookings were cancelled, how many days were added).
+      if (confirm === 'freeze') {
+        const { data: next, message } = await api.freezeMembership();
+        updateUser(next);
+        showToast(message || 'Your membership is frozen. Unfreeze it whenever you are ready to train again.', 'success');
+      } else {
+        const { data: next, message } = await api.unfreezeMembership();
+        updateUser(next);
+        showToast(message || `Welcome back. Your membership now runs until ${formatDate(next.membership_expiry)}.`, 'success');
+      }
     } catch (err) {
       if (isApiError(err) && (err.code === 'NOT_ACTIVE' || err.code === 'NOT_FROZEN')) {
         showToast(err.message, 'warning');
@@ -220,6 +238,22 @@ const MembershipPanel: React.FC<{ user: User; onOpenPricing: () => void }> = ({ 
   };
 
   const planAction = status === 'expired' ? 'Renew membership' : status === 'pending' || user.membership_tier === 'none' ? 'Choose a plan' : 'Change plan';
+
+  const bookingsLine =
+    upcomingCount === null ? (
+      'Checking your upcoming class bookings…'
+    ) : upcomingCount === 'unknown' ? (
+      <strong className="text-slate-100">All your upcoming class bookings will be cancelled.</strong>
+    ) : upcomingCount === 0 ? (
+      'You have no upcoming class bookings, so none will be cancelled.'
+    ) : (
+      <>
+        <strong className="text-slate-100">
+          Your {upcomingCount} upcoming class {upcomingCount === 1 ? 'booking' : 'bookings'} will be cancelled
+        </strong>{' '}
+        and the {upcomingCount === 1 ? 'spot goes' : 'spots go'} to other members. Unfreezing does not bring {upcomingCount === 1 ? 'it' : 'them'} back.
+      </>
+    );
 
   return (
     <section aria-labelledby="membership-heading" className="neu-flat p-5 sm:p-8 rounded-3xl space-y-6 max-w-3xl">
@@ -262,7 +296,8 @@ const MembershipPanel: React.FC<{ user: User; onOpenPricing: () => void }> = ({ 
 
       {status === 'frozen' && (
         <p className="text-sm text-slate-300">
-          While frozen you cannot check in, book classes or clock in. When you unfreeze, the days spent frozen are added to the end of your membership.
+          While frozen you cannot check in, book classes or clock in. When you unfreeze, the days the gym was open while you were frozen are added to the end of your
+          membership (the day you froze, the day you come back and Sundays are not counted).
         </p>
       )}
 
@@ -287,13 +322,21 @@ const MembershipPanel: React.FC<{ user: User; onOpenPricing: () => void }> = ({ 
         title={confirm === 'freeze' ? 'Freeze your membership?' : 'Unfreeze your membership?'}
         message={
           confirm === 'freeze' ? (
-            <>
-              From today you will not be able to check in, book classes or clock in until you unfreeze. Nothing is lost: when you unfreeze, every day spent frozen is added back to
-              your membership, so your end date moves later by that many days.
-            </>
+            <div className="space-y-3">
+              <p>From today you will not be able to check in, book classes or clock in on the gym floor until you unfreeze.</p>
+              <ul className="list-disc pl-5 space-y-1.5">
+                <li aria-live="polite">{bookingsLine}</li>
+                <li>If you are clocked in on the gym floor, that session will be ended.</li>
+                <li>
+                  When you unfreeze, the days the gym was open while you were frozen are added to your end date. The day you freeze, the day you come back and Sundays are not
+                  counted.
+                </li>
+              </ul>
+            </div>
           ) : (
             <>
-              Your membership becomes active again today. The days it was frozen{user.frozen_since ? ` (since ${formatDate(user.frozen_since)})` : ''} are added to your end date.
+              Your membership becomes active again today. The days the gym was open while it was frozen{user.frozen_since ? ` (since ${formatDate(user.frozen_since)})` : ''} are
+              added to your end date; the day you froze, today and Sundays are not counted.
             </>
           )
         }

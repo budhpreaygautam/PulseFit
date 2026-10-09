@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { useAuth } from '../context/AuthContext.js';
 import { useAppConfig } from '../context/ConfigContext.js';
 import { api, ApiError, errorMessage } from '../api/client.js';
+import { GYM_EMAIL, GYM_PHONE_DISPLAY } from '../components/public/gymInfo.js';
 import { BillingCycle, PaidTier, Payment, User } from '../types/index.js';
 
 const RAZORPAY_CHECKOUT_URL = 'https://checkout.razorpay.com/v1/checkout.js';
@@ -21,7 +22,8 @@ function loadRazorpayScript(): Promise<void> {
 export interface CheckoutParams {
   tier: PaidTier;
   billingCycle: BillingCycle;
-  onSuccess?: (result: { user: User; payment?: Payment }) => void;
+  /** `message` is the server's own account of what the payment did (for example, class bookings a plan change cancelled). */
+  onSuccess?: (result: { user: User; payment?: Payment; message?: string }) => void;
 }
 
 /**
@@ -72,13 +74,29 @@ export const useRazorpay = () => {
               });
               setSession({ token: result.token, user: result.user });
               triggerCelebration();
-              onSuccess?.({ user: result.user, payment: result.payment });
+              onSuccess?.({ user: result.user, payment: result.payment, message: result.message || undefined });
             } catch (err) {
-              // The webhook may have activated the order first; that is still a success.
-              if (err instanceof ApiError && err.code === 'ALREADY_PROCESSED' && (err.data as { user?: User })?.user) {
-                updateUser((err.data as { user: User }).user);
-                onSuccess?.({ user: (err.data as { user: User }).user });
+              const code = err instanceof ApiError ? err.code : undefined;
+              const data = err instanceof ApiError ? (err.data as { user?: User; message?: string } | undefined) : undefined;
+              const current = data?.user;
+              const paymentRef = `payment id ${response.razorpay_payment_id}`;
+              // The webhook may have activated the order first; that is still a success, and the
+              // server still says what that activation did (for example, cancelled bookings).
+              if (code === 'ALREADY_PROCESSED' && current) {
+                updateUser(current);
+                onSuccess?.({ user: current, message: data?.message || undefined });
+              } else if (code === 'ORDER_REJECTED') {
+                // Razorpay reported a wrong amount or currency for this order: it can never activate a membership.
+                setError(
+                  'This payment could not be applied: Razorpay reported a different amount or currency from this order, so nothing was activated on your membership. ' +
+                    `If money was taken, contact the front desk at ${GYM_PHONE_DISPLAY} or ${GYM_EMAIL} with your ${paymentRef}. ` +
+                    'Under our refund policy we then activate the plan you paid for or refund the money in full.'
+                );
+              } else if (code === 'ORDER_NOT_FOUND' || code === 'ORDER_NOT_YOURS') {
+                // No webhook will activate this order for this account either.
+                setError(`${errorMessage(err)} Nothing was activated. If money was taken, contact the front desk at ${GYM_PHONE_DISPLAY} or ${GYM_EMAIL} with your ${paymentRef}.`);
               } else {
+                // A lost connection or an unconfirmed signature: Razorpay's webhook can still activate the order.
                 setError(`${errorMessage(err)} If money was taken, your membership will be activated automatically or by the front desk.`);
               }
             } finally {

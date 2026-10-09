@@ -15,6 +15,23 @@ interface DigitalQrPassModalProps {
   user: User | null;
 }
 
+const STAFF_PASS_NOTE = 'Staff pass: no membership is needed to check in.';
+const STAFF_LABELS: Record<string, string> = { trainer: 'Coach', admin: 'Admin' };
+
+/**
+ * Staff skip the membership check at the front desk, so their own plan says nothing about the
+ * pass. Mention it in neutral words, if they have one.
+ */
+function staffPlanNote(user: User): string | null {
+  if (user.membership_tier === 'none') return null;
+  const plan = TIER_LABELS[user.membership_tier] ?? user.membership_tier;
+  if (user.membership_status === 'frozen') return `Your own ${plan} is frozen.`;
+  if (!user.membership_expiry) return null;
+  if (user.membership_status === 'expired') return `Your own ${plan} ended on ${formatDate(user.membership_expiry)}.`;
+  if (user.membership_status === 'active') return `Your own ${plan} runs until ${formatDate(user.membership_expiry)}.`;
+  return null;
+}
+
 const NOT_ACTIVE_NOTE: Record<string, string> = {
   frozen: 'Your membership is frozen, so the front desk will not let this pass in until you unfreeze it.',
   expired: 'Your membership has expired, so the front desk will not let this pass in until you renew.',
@@ -42,7 +59,8 @@ async function renderPassPng(user: User, qrDataUrl: string, gymName: string): Pr
   ctx.fillText(gymName, width / 2, 70);
   ctx.font = '600 18px Inter, system-ui, sans-serif';
   ctx.fillStyle = '#475569';
-  ctx.fillText('Member access pass', width / 2, 100);
+  const isStaff = user.role !== 'member';
+  ctx.fillText(isStaff ? 'Staff access pass' : 'Member access pass', width / 2, 100);
 
   const qr = new Image();
   await new Promise<void>((resolve, reject) => {
@@ -57,8 +75,13 @@ async function renderPassPng(user: User, qrDataUrl: string, gymName: string): Pr
   ctx.fillText(user.name, width / 2, 590, width - 60);
   ctx.font = '20px Inter, system-ui, sans-serif';
   ctx.fillStyle = '#334155';
-  ctx.fillText(TIER_LABELS[user.membership_tier] ?? user.membership_tier, width / 2, 628);
-  if (user.membership_expiry) ctx.fillText(`Valid through ${formatDate(user.membership_expiry)}`, width / 2, 660);
+  if (isStaff) {
+    ctx.fillText(STAFF_LABELS[user.role] ?? 'Staff', width / 2, 628);
+    ctx.fillText('No membership needed to check in', width / 2, 660);
+  } else {
+    ctx.fillText(TIER_LABELS[user.membership_tier] ?? user.membership_tier, width / 2, 628);
+    if (user.membership_expiry) ctx.fillText(`Valid through ${formatDate(user.membership_expiry)}`, width / 2, 660);
+  }
   ctx.font = 'bold 22px ui-monospace, Consolas, monospace';
   ctx.fillStyle = '#0f172a';
   ctx.fillText(user.qr_code_token, width / 2, 720, width - 60);
@@ -125,7 +148,11 @@ export const DigitalQrPassModal: React.FC<DigitalQrPassModalProps> = ({ isOpen, 
     }
   };
 
-  const isActive = user.membership_status === 'active';
+  // Staff skip the membership check at the front desk: only members are warned, and a staff pass
+  // never shows a plan status or end date that would read as the pass having stopped working.
+  const isStaff = user.role !== 'member';
+  const showNotActiveNote = !isStaff && user.membership_status !== 'active';
+  const ownPlanNote = isStaff ? staffPlanNote(user) : null;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Digital access pass" description="Show this QR code at the front desk to check in." maxWidth="md">
@@ -139,13 +166,19 @@ export const DigitalQrPassModal: React.FC<DigitalQrPassModalProps> = ({ isOpen, 
           <div className="min-w-0">
             <p className="font-black text-slate-100 font-['Outfit'] truncate">{user.name}</p>
             <div className="flex items-center gap-2 flex-wrap mt-0.5">
-              <span className="text-xs text-slate-400">{TIER_LABELS[user.membership_tier] ?? user.membership_tier}</span>
-              <MembershipStatusBadge status={user.membership_status} />
+              {isStaff ? (
+                <span className="text-xs text-slate-400">{STAFF_LABELS[user.role] ?? 'Staff'} · staff pass</span>
+              ) : (
+                <>
+                  <span className="text-xs text-slate-400">{TIER_LABELS[user.membership_tier] ?? user.membership_tier}</span>
+                  <MembershipStatusBadge status={user.membership_status} />
+                </>
+              )}
             </div>
           </div>
         </div>
 
-        {!isActive && (
+        {showNotActiveNote && (
           <p role="status" className="flex items-start gap-2 text-xs rounded-xl p-3 border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
             {NOT_ACTIVE_NOTE[user.membership_status]}
@@ -162,15 +195,22 @@ export const DigitalQrPassModal: React.FC<DigitalQrPassModalProps> = ({ isOpen, 
           )}
         </div>
 
-        <p className="text-center text-xs text-slate-400">
-          {user.membership_expiry ? (
-            <>
-              Valid through <strong className="text-slate-200">{formatDate(user.membership_expiry)}</strong>
-            </>
-          ) : (
-            'No paid period yet'
-          )}
-        </p>
+        {isStaff ? (
+          <div className="text-center text-xs text-slate-400 space-y-1">
+            <p>{STAFF_PASS_NOTE}</p>
+            {ownPlanNote && <p className="text-[11px] text-slate-500">{ownPlanNote}</p>}
+          </div>
+        ) : (
+          <p className="text-center text-xs text-slate-400">
+            {user.membership_expiry ? (
+              <>
+                Valid through <strong className="text-slate-200">{formatDate(user.membership_expiry)}</strong>
+              </>
+            ) : (
+              'No paid period yet'
+            )}
+          </p>
+        )}
 
         <div className="flex items-center justify-between gap-3 neu-pressed-sm p-3 rounded-2xl">
           <code className="font-mono text-xs sm:text-sm font-bold text-slate-200 break-all select-all">{user.qr_code_token}</code>

@@ -5,7 +5,8 @@ interface ApiData<T> {
   data: T | null;
   error: string | null;
   isLoading: boolean;
-  reload: () => void;
+  /** Load again; resolves once the new answer (or error) is on screen. */
+  reload: () => Promise<void>;
 }
 
 /** Load something from the API once (and again on reload), with loading and error state. */
@@ -16,6 +17,8 @@ export function useApiData<T>(load: () => Promise<T>, deps: DependencyList = [])
   const [attempt, setAttempt] = useState(0);
   const loadRef = useRef(load);
   loadRef.current = load;
+  // Callers of reload() waiting for the next load to finish.
+  const waiting = useRef<(() => void)[]>([]);
 
   // New inputs (another week, another filter) must not show the previous answer while loading;
   // a plain reload keeps it on screen.
@@ -26,6 +29,7 @@ export function useApiData<T>(load: () => Promise<T>, deps: DependencyList = [])
 
   useEffect(() => {
     let cancelled = false;
+    const answers = waiting.current.splice(0);
     setIsLoading(true);
     setError(null);
     loadRef
@@ -37,14 +41,29 @@ export function useApiData<T>(load: () => Promise<T>, deps: DependencyList = [])
         if (!cancelled) setError(errorMessage(err));
       })
       .finally(() => {
-        if (!cancelled) setIsLoading(false);
+        if (cancelled) return;
+        setIsLoading(false);
+        // Emptied as they are answered, so a later cleanup has nobody to hand on.
+        answers.splice(0).forEach(done => done());
       });
     return () => {
       cancelled = true;
+      // A newer load replaces this one: whoever waited on it waits for that one instead.
+      waiting.current.unshift(...answers);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt, ...deps]);
 
-  const reload = useCallback(() => setAttempt(n => n + 1), []);
+  // Nothing will load after unmount; let anyone still waiting carry on.
+  useEffect(() => () => waiting.current.splice(0).forEach(done => done()), []);
+
+  const reload = useCallback(
+    () =>
+      new Promise<void>(resolve => {
+        waiting.current.push(resolve);
+        setAttempt(n => n + 1);
+      }),
+    []
+  );
   return { data, error, isLoading, reload };
 }

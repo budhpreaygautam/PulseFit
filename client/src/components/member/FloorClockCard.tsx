@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Dumbbell, Music2, Play, Square, Timer } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Dumbbell, Music2, Play, RotateCcw, Square, Timer } from 'lucide-react';
 import { api, isApiError } from '../../api/client.js';
 import { ClassCategory, MembershipPlan, User, UserTimeTrackingStats } from '../../types/index.js';
 import { formatDateTime, formatTime } from '../../lib/format.js';
@@ -14,10 +14,29 @@ const CATEGORIES: { id: ClassCategory; hint: string; icon: React.ReactNode }[] =
 
 const hours = (minutes: number) => `${(Math.round((minutes / 60) * 10) / 10).toLocaleString('en-IN')} h`;
 
-function elapsedSince(iso: string, now: number): string {
-  const total = Math.max(0, Math.floor((now - new Date(iso).getTime()) / 1000));
+const MINUTE = 60_000;
+/** The server closes a session left open at clock-in + 4 hours (server/src/lib/floor.ts). */
+const MAX_SESSION_MINUTES = 4 * 60;
+
+/** HH:MM:SS for a duration in milliseconds. */
+function formatElapsed(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
+}
+
+/**
+ * How far the device clock is behind the server's, in ms, for an open session that just arrived.
+ * The server sends its own elapsed time (duration_minutes, rounded to the minute), so the session
+ * is really between duration - 0.5 and duration + 0.5 minutes old. A device clock that puts it
+ * outside that window is wrong (a phone set a few minutes off); move it to the nearest edge.
+ */
+function clockOffsetFor(session: { clock_in_time: string; duration_minutes: number }): number {
+  const deviceElapsed = Date.now() - Date.parse(session.clock_in_time);
+  const earliest = Math.max(0, (session.duration_minutes - 0.5) * MINUTE);
+  const latest = Math.min(MAX_SESSION_MINUTES, session.duration_minutes + 0.5) * MINUTE;
+  if (!Number.isFinite(deviceElapsed) || earliest > latest) return 0;
+  return Math.min(Math.max(deviceElapsed, earliest), latest) - deviceElapsed;
 }
 
 interface FloorClockCardProps {
@@ -53,11 +72,42 @@ export const FloorClockCard: React.FC<FloorClockCardProps> = ({ user, stats, pla
     if (!category || !allowed.includes(category)) setCategory(allowed[0] ?? null);
   }, [allowed, category]);
 
+  // Worked out once per stats load: the session's age by the server's clock, not the device's.
+  const clockOffset = useMemo(() => (active ? clockOffsetFor(active) : 0), [active]);
+  const elapsedMs = active ? Math.max(0, now + clockOffset - Date.parse(active.clock_in_time)) : 0;
+  // The server closes a forgotten session at exactly 4 hours; the timer stops there too.
+  const autoClosed = elapsedMs >= MAX_SESSION_MINUTES * MINUTE;
+
   useEffect(() => {
-    if (!active) return;
+    if (!active || autoClosed) return;
     setNow(Date.now());
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
+  }, [active, autoClosed]);
+
+  // Once the 4 hours are up, fetch the closed session (it counts towards the streak). The server
+  // closes a session when it next reads it, so a card that gets there a few seconds early (a device
+  // clock inside the +/-30 s the offset allows, or a request just before the deadline) still gets
+  // it back open. Keep asking, at most every 10 s, until it comes back closed.
+  const lastAutoCloseReload = useRef(0);
+  const awaitingAutoClose = useRef(false);
+  useEffect(() => {
+    if (!autoClosed || stats.isLoading) return;
+    awaitingAutoClose.current = true;
+    const timer = setTimeout(() => {
+      lastAutoCloseReload.current = Date.now();
+      stats.reload();
+    }, Math.max(0, lastAutoCloseReload.current + 10_000 - Date.now()));
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoClosed, active, stats.isLoading]);
+
+  // The closed session has arrived: refresh what depends on it (streak, progress).
+  useEffect(() => {
+    if (active || !awaitingAutoClose.current) return;
+    awaitingAutoClose.current = false;
+    onSessionChange();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
   const explain = (err: unknown) => {
@@ -137,23 +187,47 @@ export const FloorClockCard: React.FC<FloorClockCardProps> = ({ user, stats, pla
       <div className="neu-pressed-sm rounded-2xl p-4 sm:p-5 border border-lime-500/40 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Clocked in · {active.category}</p>
-            <p className="font-mono text-3xl font-black text-lime-700 dark:text-lime-400" aria-live="off">{elapsedSince(active.clock_in_time, now)}</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              {autoClosed ? 'Closed automatically' : 'Clocked in'} · {active.category}
+            </p>
+            <p className="font-mono text-3xl font-black text-lime-700 dark:text-lime-400" aria-live="off" data-testid="floor-timer">
+              {formatElapsed(Math.min(elapsedMs, MAX_SESSION_MINUTES * MINUTE))}
+            </p>
             <p className="text-xs text-slate-400">Since {formatTime(active.clock_in_time)}{active.notes ? ` · ${active.notes}` : ''}</p>
           </div>
-          <button
-            type="button"
-            onClick={clockOut}
-            disabled={isWorking}
-            className="px-5 py-3 bg-rose-500 hover:bg-rose-400 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 disabled:opacity-60"
-          >
-            <Square className="w-4 h-4 fill-current" aria-hidden="true" /> {isWorking ? 'Clocking out…' : 'Clock out'}
-          </button>
+          {autoClosed ? (
+            <button
+              type="button"
+              onClick={() => {
+                lastAutoCloseReload.current = Date.now();
+                stats.reload();
+              }}
+              disabled={stats.isLoading}
+              className="neu-btn px-5 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              <RotateCcw className="w-4 h-4" aria-hidden="true" /> {stats.isLoading ? 'Refreshing…' : 'Refresh'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={clockOut}
+              disabled={isWorking}
+              className="px-5 py-3 bg-rose-500 hover:bg-rose-400 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              <Square className="w-4 h-4 fill-current" aria-hidden="true" /> {isWorking ? 'Clocking out…' : 'Clock out'}
+            </button>
+          )}
         </div>
-        <div>
-          <label htmlFor="floor-notes-out" className="block text-[11px] font-bold text-slate-400 mb-1">Note for this session (optional)</label>
-          <input id="floor-notes-out" type="text" maxLength={500} value={notes} onChange={e => setNotes(e.target.value)} className="w-full px-3.5 py-2.5 text-sm text-slate-100" />
-        </div>
+        {autoClosed ? (
+          <p role="status" className="text-xs text-slate-300">
+            Sessions close automatically after 4 hours, so this one was saved as 4 hours. Clock out when you leave next time.
+          </p>
+        ) : (
+          <div>
+            <label htmlFor="floor-notes-out" className="block text-[11px] font-bold text-slate-400 mb-1">Note for this session (optional)</label>
+            <input id="floor-notes-out" type="text" maxLength={500} value={notes} onChange={e => setNotes(e.target.value)} className="w-full px-3.5 py-2.5 text-sm text-slate-100" />
+          </div>
+        )}
       </div>
     );
   } else if (!canClockIn) {

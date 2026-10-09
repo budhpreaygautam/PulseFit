@@ -74,7 +74,7 @@ const FieldError: React.FC<{ id: string; message?: string }> = ({ id, message })
   ) : null;
 
 export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) => {
-  const { refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { showToast } = useToast();
   const { params } = useNavigation();
 
@@ -91,7 +91,8 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
   const [exercises, setExercises] = useState<DraftExercise[]>([]);
   const [selectedExerciseId, setSelectedExerciseId] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [formError, setFormError] = useState<string | null>(null);
+  // `fromFields`: the banner only sums up the field errors, so it goes once they are all fixed.
+  const [formError, setFormError] = useState<{ message: string; fromFields: boolean } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saved, setSaved] = useState<Workout | null>(null);
   const [toDelete, setToDelete] = useState<Workout | null>(null);
@@ -120,6 +121,14 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
     if (errors[key]) setErrors(prev => ({ ...prev, [key]: '' }));
   };
 
+  /** Drop the errors of sets that are no longer on the form. */
+  const forgetErrorsOf = (setKeys: string[]) =>
+    setErrors(prev => Object.fromEntries(Object.entries(prev).filter(([key]) => !setKeys.some(k => key.startsWith(`${k}.`)))));
+
+  useEffect(() => {
+    if (formError?.fromFields && !Object.values(errors).some(Boolean)) setFormError(null);
+  }, [errors, formError]);
+
   function addExercise(ex: Exercise) {
     setExercises(prev => {
       if (prev.reduce((sum, e) => sum + e.sets.length, 0) >= LIMITS.setsTotal) return prev;
@@ -145,12 +154,16 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
   };
 
   const removeSet = (groupKey: string, setKey: string) => {
+    forgetErrorsOf([setKey]);
     setExercises(prev =>
       prev.map(g => (g.key === groupKey ? { ...g, sets: g.sets.filter(s => s.key !== setKey) } : g)).filter(g => g.sets.length > 0)
     );
   };
 
-  const removeExercise = (groupKey: string) => setExercises(prev => prev.filter(g => g.key !== groupKey));
+  const removeExercise = (groupKey: string) => {
+    forgetErrorsOf(exercises.find(g => g.key === groupKey)?.sets.map(s => s.key) ?? []);
+    setExercises(prev => prev.filter(g => g.key !== groupKey));
+  };
 
   const applyTemplate = (template: (typeof TEMPLATES)[number]) => {
     const available = template.exerciseIds.map(id => catalogueById.get(id)).filter((e): e is Exercise => Boolean(e));
@@ -206,15 +219,15 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
 
     setErrors(next);
     if (Object.values(next).some(Boolean)) {
-      setFormError('Some fields need fixing before the workout can be saved.');
+      setFormError({ message: 'Some fields need fixing before the workout can be saved.', fromFields: true });
       return null;
     }
     setFormError(null);
     return { title: trimmedTitle, date, duration_minutes: minutes!, ...(notes.trim() ? { notes: notes.trim() } : {}), sets };
   };
 
-  /** Map server-side issue paths (title, sets.3.reps…) back onto the form fields. */
-  const applyServerIssues = (issues: { path: string; message: string }[]) => {
+  /** Map server-side issue paths (title, sets.3.reps…) back onto the form fields; false when none of them matched a field. */
+  const applyServerIssues = (issues: { path: string; message: string }[]): boolean => {
     const flat = exercises.flatMap(g => g.sets);
     const next: FieldErrors = {};
     for (const issue of issues) {
@@ -227,6 +240,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
       else if (head === 'title' || head === 'date' || head === 'notes' || head === 'sets') next[head] = issue.message;
     }
     setErrors(next);
+    return Object.values(next).some(Boolean);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -245,10 +259,9 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
     } catch (err) {
       if (isApiError(err) && err.code === 'VALIDATION_ERROR') {
         const issues = (err.data as { issues?: { path: string; message: string }[] } | undefined)?.issues ?? [];
-        applyServerIssues(issues);
-        setFormError(err.message);
+        setFormError({ message: err.message, fromFields: applyServerIssues(issues) });
       } else {
-        setFormError(isApiError(err) ? err.message : 'The workout could not be saved. Please try again.');
+        setFormError({ message: isApiError(err) ? err.message : 'The workout could not be saved. Please try again.', fromFields: false });
       }
     } finally {
       setIsSubmitting(false);
@@ -268,36 +281,49 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
   };
 
   // --- Rest timer ---
+  // A running timer keeps its end time on the wall clock and works out what is left from it.
+  // Phones pause timers while the screen is locked and browsers slow them in background tabs,
+  // so counting ticks would fall behind.
   const [timerDuration, setTimerDuration] = useState(90);
   const [timeLeft, setTimeLeft] = useState(90);
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [endsAt, setEndsAt] = useState<number | null>(null);
+  const isTimerRunning = endsAt !== null;
+  const secondsUntil = (end: number) => Math.max(0, Math.ceil((end - Date.now()) / 1000));
 
   useEffect(() => {
-    if (!isTimerRunning) return;
-    const interval = setInterval(() => setTimeLeft(t => Math.max(0, t - 1)), 1000);
-    return () => clearInterval(interval);
-  }, [isTimerRunning]);
+    if (endsAt === null) return;
+    const tick = () => setTimeLeft(secondsUntil(endsAt));
+    tick();
+    const interval = setInterval(tick, 250);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [endsAt]);
 
   useEffect(() => {
-    if (isTimerRunning && timeLeft === 0) {
-      setIsTimerRunning(false);
+    if (endsAt !== null && timeLeft === 0) {
+      setEndsAt(null);
       showToast('Rest is over. Time for your next set.', 'success', 'Rest timer');
     }
-  }, [isTimerRunning, timeLeft, showToast]);
+  }, [endsAt, timeLeft, showToast]);
 
   const toggleTimer = () => {
-    if (isTimerRunning) {
-      setIsTimerRunning(false);
+    if (endsAt !== null) {
+      setTimeLeft(secondsUntil(endsAt));
+      setEndsAt(null);
       return;
     }
-    if (timeLeft === 0) setTimeLeft(timerDuration);
-    setIsTimerRunning(true);
+    const seconds = timeLeft === 0 ? timerDuration : timeLeft;
+    setTimeLeft(seconds);
+    setEndsAt(Date.now() + seconds * 1000);
   };
 
   const startPreset = (seconds: number) => {
     setTimerDuration(seconds);
     setTimeLeft(seconds);
-    setIsTimerRunning(true);
+    setEndsAt(Date.now() + seconds * 1000);
   };
 
   const inputErr = (key: string) => (errors[key] ? 'outline outline-2 outline-rose-500/80' : '');
@@ -342,9 +368,12 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
             ))}
           </ul>
           {saved.notes && <p className="text-xs text-slate-400 whitespace-pre-line">{saved.notes}</p>}
-          <button type="button" onClick={() => setCurrentTab('member-dashboard')} className="neu-btn px-4 py-2 rounded-xl text-xs font-bold">
-            See my progress
-          </button>
+          {/* Progress charts live on the member dashboard; coaches and admins see their workouts under Recent workouts here. */}
+          {user?.role === 'member' && (
+            <button type="button" onClick={() => setCurrentTab('member-dashboard')} className="neu-btn px-4 py-2 rounded-xl text-xs font-bold">
+              See my progress
+            </button>
+          )}
         </section>
       )}
 
@@ -612,7 +641,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
 
           {formError && (
             <p role="alert" className="rounded-xl p-3 text-sm border border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200">
-              {formError}
+              {formError.message}
             </p>
           )}
 
@@ -646,7 +675,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
               <button
                 type="button"
                 onClick={() => {
-                  setIsTimerRunning(false);
+                  setEndsAt(null);
                   setTimeLeft(timerDuration);
                 }}
                 aria-label="Reset timer"

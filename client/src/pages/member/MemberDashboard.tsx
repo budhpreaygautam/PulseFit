@@ -45,7 +45,7 @@ function membershipNotice(user: User): { tone: 'warn' | 'info'; text: string; ac
     case 'frozen':
       return {
         tone: 'info',
-        text: `Your membership is frozen${user.frozen_since ? ` since ${formatDate(user.frozen_since)}` : ''}. The frozen days are added back when you unfreeze.`,
+        text: `Your membership is frozen${user.frozen_since ? ` since ${formatDate(user.frozen_since)}` : ''}. When you unfreeze, the days the gym was open while you were frozen are added to your end date.`,
         action: 'Manage membership',
         tab: 'profile',
         params: { tab: 'membership' }

@@ -5,13 +5,14 @@ import { Modal } from '../../components/common/Modal.js';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
 import { useApiData } from '../../components/public/useApiData.js';
-import { cheapestPlanFor } from '../../components/public/plans.js';
+import { cheapestPlanFor, planCovers } from '../../components/public/plans.js';
 import { CATEGORIES, HOURS_DAYS, HOURS_TIME, mondayOf, weekdayOf } from '../../components/public/gymInfo.js';
 import { useAuth } from '../../context/AuthContext.js';
+import { useAppConfig } from '../../context/ConfigContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { useToast } from '../../context/ToastContext.js';
 import { api, errorMessage, isApiError } from '../../api/client.js';
-import { addDays, formatClock, formatDate, formatINR, gymToday, STATUS_LABELS } from '../../lib/format.js';
+import { addDays, DAY_NAMES, formatClock, formatDate, formatINR, gymToday, STATUS_LABELS } from '../../lib/format.js';
 import { ClassOccurrence, MembershipPlan } from '../../types/index.js';
 
 interface SchedulePageProps {
@@ -60,6 +61,7 @@ function categoryFrom(params: URLSearchParams): string {
 export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) => {
   const { params, navigate } = useNavigation();
   const { user } = useAuth();
+  const { config } = useAppConfig();
   const { showToast } = useToast();
 
   const [view, setView] = useState(() => initialView(params));
@@ -72,6 +74,8 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [issues, setIssues] = useState<Record<string, CardIssue>>({});
   const [plans, setPlans] = useState<MembershipPlan[] | null>(null);
+  // Bookings made here whose timetable refresh has not arrived yet (occurrence key -> booking id).
+  const [justBooked, setJustBooked] = useState<Record<string, string>>({});
 
   // A new navigation to the timetable (e.g. "View classes" on a coach) re-reads the query string.
   useEffect(() => {
@@ -117,16 +121,51 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
     );
   };
 
+  /** A class as it is after a booking just made here, until the refreshed timetable arrives. */
+  const withJustBooked = (c: ClassOccurrence): ClassOccurrence => {
+    const bookingId = justBooked[occurrenceKey(c)];
+    if (!bookingId || c.my_booking_id) return c;
+    const booked = c.booked_count + 1;
+    return { ...c, my_booking_id: bookingId, booked_count: booked, spots_left: Math.max(0, c.capacity - booked), is_full: booked >= c.capacity };
+  };
+
+  // Members see straight away which classes their plan does not cover.
+  useEffect(() => {
+    if (user?.role === 'member') loadPlans();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role]);
+  const memberPlan = user?.role === 'member' ? plans?.find(p => p.tier === user.membership_tier) : undefined;
+
+  // A closed day (Sunday) shows as closed only when nothing is scheduled on it: classes the
+  // timetable lists are always shown, so they can be seen, booked and cancelled here. With a coach
+  // filter the API lists only that coach's classes, so an empty day is just an empty filter result.
   const days = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(weekStart, i);
-    return { index: i, date, label: DAY_LABELS[i], count: classes.filter(c => c.occurrence_date === date && matchesFilters(c)).length };
+    const scheduled = classes.filter(c => c.occurrence_date === date).length;
+    const isClosed =
+      config.gym.hours.closedWeekdays.includes(weekdayOf(date)) && trainerId === '' && classesState.data !== null && scheduled === 0;
+    return { index: i, date, label: DAY_LABELS[i], isClosed, count: classes.filter(c => c.occurrence_date === date && matchesFilters(c)).length };
   });
-  const selectedDate = days[dayIndex].date;
-  const dayClasses = classes.filter(c => c.occurrence_date === selectedDate && matchesFilters(c));
+  const selectedDay = days[dayIndex];
+  const selectedDate = selectedDay.date;
+  const dayClasses = classes.filter(c => c.occurrence_date === selectedDate && matchesFilters(c)).map(withJustBooked);
   const filtersActive = category !== 'All' || intensity !== 'All' || search.trim() !== '' || trainerId !== '';
 
   const weekLabel = weekStart === thisMonday ? 'This week' : weekStart === addDays(thisMonday, 7) ? 'Next week' : `Week of ${formatDate(weekStart, { day: 'numeric', month: 'short' })}`;
   const weekRange = `${formatDate(weekStart, { day: 'numeric', month: 'short' })} – ${formatDate(addDays(weekStart, 5), { day: 'numeric', month: 'short' })}`;
+
+  // WAI-ARIA tabs: arrow keys (and Home/End) move between the days; only the selected day is a Tab stop.
+  const onDayTabKeyDown = (e: React.KeyboardEvent) => {
+    let next: number;
+    if (e.key === 'ArrowRight') next = (dayIndex + 1) % 7;
+    else if (e.key === 'ArrowLeft') next = (dayIndex + 6) % 7;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = 6;
+    else return;
+    e.preventDefault();
+    setView(v => ({ ...v, dayIndex: next }));
+    document.getElementById(`day-tab-${next}`)?.focus();
+  };
 
   const changeWeek = (delta: number) => {
     setView(v => ({ weekStart: addDays(v.weekStart, delta * 7), dayIndex: v.dayIndex }));
@@ -186,6 +225,16 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
           action: { label: status === 'expired' ? 'Renew my plan' : 'Choose a plan', tab: 'pricing' }
         };
       }
+      case 'MEMBERSHIP_ENDS_BEFORE_CLASS': {
+        const expiry = isApiError(err) ? (err.data as { membership_expiry?: string } | undefined)?.membership_expiry : undefined;
+        const tier = user?.membership_tier;
+        return {
+          message: expiry
+            ? `Your membership ends on ${formatDate(expiry)}, before this class on ${formatDate(c.occurrence_date)}. Renew your plan to book it.`
+            : errorMessage(err),
+          action: { label: 'Renew my plan', tab: 'pricing', params: tier && tier !== 'none' ? { plan: tier } : undefined }
+        };
+      }
       case 'MEMBERS_ONLY':
         return { message: 'Only member accounts can book classes. Staff accounts can view the timetable.' };
       case 'CLASS_FULL':
@@ -207,17 +256,25 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
       onOpenAuthModal('login');
       return;
     }
+    const key = occurrenceKey(c);
     setIssue(c, null);
-    setBusyKey(occurrenceKey(c));
+    setBusyKey(key);
     try {
       // occurrence_date comes from the server, which works in gym time; never derive it here.
-      await api.createBooking({ class_id: c.id, booking_date: c.occurrence_date });
+      const booking = await api.createBooking({ class_id: c.id, booking_date: c.occurrence_date });
+      // Show it as booked right away; the refresh below brings the server's own numbers.
+      setJustBooked(prev => ({ ...prev, [key]: booking.id }));
       showToast(`${c.title}, ${formatDate(c.occurrence_date)} at ${formatClock(c.start_time)}.`, 'success', 'Class booked');
     } catch (err) {
       setIssue(c, await explainBookingError(c, err));
     } finally {
       setBusyKey(null);
-      classesState.reload();
+      await classesState.reload();
+      setJustBooked(prev => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
     }
   };
 
@@ -226,8 +283,10 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
     if (!c?.my_booking_id) return;
     try {
       await api.cancelBooking(c.my_booking_id);
-      showToast(`Your booking for ${c.title} on ${formatDate(c.occurrence_date)} is cancelled.`, 'info', 'Booking cancelled');
       setIssue(c, null);
+      // Keep the dialog busy until the card shows the spot as free again.
+      await classesState.reload();
+      showToast(`Your booking for ${c.title} on ${formatDate(c.occurrence_date)} is cancelled.`, 'info', 'Booking cancelled');
     } catch (err) {
       const code = isApiError(err) ? err.code : undefined;
       setIssue(c, {
@@ -238,7 +297,6 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
               ? 'This booking was already cancelled.'
               : errorMessage(err)
       });
-    } finally {
       classesState.reload();
     }
   };
@@ -266,6 +324,32 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
               Cancel
             </button>
           )}
+        </div>
+      );
+    }
+
+    // A plan that does not cover the category can never book it: say so instead of offering the button.
+    if (!started && memberPlan && plans && !planCovers(memberPlan, c.category)) {
+      const cover = cheapestPlanFor(plans, c.category, memberPlan);
+      const noteId = `plan-note-${c.id}-${c.occurrence_date}`;
+      return (
+        <div className="space-y-2">
+          <button type="button" disabled aria-describedby={noteId} className="w-full py-3 rounded-xl text-xs font-bold neu-pressed-sm text-slate-400 cursor-not-allowed">
+            Not in your plan<span className="sr-only">: {c.title}</span>
+          </button>
+          <p id={noteId} className="text-[11px] text-slate-400 text-center">
+            Your {memberPlan.name} doesn't include {c.category} classes.{' '}
+            <button
+              type="button"
+              onClick={() => {
+                onDone?.();
+                navigate('pricing', cover ? { plan: cover.tier } : undefined);
+              }}
+              className="font-bold text-lime-400 hover:underline"
+            >
+              {cover ? `Upgrade to the ${cover.name}` : 'See plans'}
+            </button>
+          </p>
         </div>
       );
     }
@@ -389,14 +473,16 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
               id={`day-tab-${d.index}`}
               aria-selected={isSelected}
               aria-controls="day-panel"
+              tabIndex={isSelected ? 0 : -1}
               onClick={() => setView(v => ({ ...v, dayIndex: d.index }))}
+              onKeyDown={onDayTabKeyDown}
               className={`p-2.5 sm:p-3 rounded-2xl text-center transition-all ${
                 isSelected ? 'neu-pressed-sm border border-lime-500/50 text-lime-400' : 'neu-flat text-slate-400 border border-slate-800/80'
               } ${isPast && !isSelected ? 'opacity-60' : ''}`}
             >
               <div className="text-xs font-bold uppercase tracking-wider">{d.label}</div>
               <div className="text-sm sm:text-base font-extrabold text-slate-100 mt-0.5 font-['Outfit']">{formatDate(d.date, { day: 'numeric', month: 'short' })}</div>
-              <div className="text-[10px] mt-1 font-medium">{d.index === 6 ? 'Closed' : classesState.isLoading ? '…' : `${d.count} ${d.count === 1 ? 'class' : 'classes'}`}</div>
+              <div className="text-[10px] mt-1 font-medium">{d.isClosed ? 'Closed' : !classesState.data ? '…' : `${d.count} ${d.count === 1 ? 'class' : 'classes'}`}</div>
             </button>
           );
         })}
@@ -466,25 +552,27 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
       </div>
 
       <div id="day-panel" role="tabpanel" aria-labelledby={`day-tab-${dayIndex}`}>
-        {dayIndex === 6 ? (
-          <div className="neu-flat p-10 sm:p-14 rounded-3xl text-center border border-slate-800/80 space-y-4 max-w-2xl mx-auto">
-            <Moon className="w-10 h-10 text-amber-600 dark:text-amber-400 mx-auto" aria-hidden="true" />
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit']">Closed on Sundays</h2>
-            <p className="text-sm text-slate-300 max-w-md mx-auto">
-              The gym is open {HOURS_DAYS}, {HOURS_TIME}. There are no classes on Sundays.
-            </p>
-            <button
-              type="button"
-              onClick={() => (weekStart < addDays(thisMonday, BOOKING_WINDOW_DAYS) ? setView({ weekStart: addDays(weekStart, 7), dayIndex: 0 }) : setView(v => ({ ...v, dayIndex: 0 })))}
-              className="px-6 py-3 neu-btn-lime font-extrabold text-xs rounded-xl"
-            >
-              {weekStart < addDays(thisMonday, BOOKING_WINDOW_DAYS) ? "See next Monday's classes" : "See Monday's classes"}
-            </button>
-          </div>
-        ) : classesState.isLoading && !classesState.data ? (
+        {classesState.isLoading && !classesState.data ? (
           <LoadingState label="Loading the timetable…" />
         ) : classesState.error ? (
           <ErrorState message={classesState.error} onRetry={classesState.reload} />
+        ) : selectedDay.isClosed ? (
+          <div className="neu-flat p-10 sm:p-14 rounded-3xl text-center border border-slate-800/80 space-y-4 max-w-2xl mx-auto">
+            <Moon className="w-10 h-10 text-amber-600 dark:text-amber-400 mx-auto" aria-hidden="true" />
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit']">Closed on {DAY_NAMES[weekdayOf(selectedDate)]}s</h2>
+            <p className="text-sm text-slate-300 max-w-md mx-auto">
+              The gym is open {HOURS_DAYS}, {HOURS_TIME}. There are no classes on this day.
+            </p>
+            {dayIndex === 6 && (
+              <button
+                type="button"
+                onClick={() => (weekStart < addDays(thisMonday, BOOKING_WINDOW_DAYS) ? setView({ weekStart: addDays(weekStart, 7), dayIndex: 0 }) : setView(v => ({ ...v, dayIndex: 0 })))}
+                className="px-6 py-3 neu-btn-lime font-extrabold text-xs rounded-xl"
+              >
+                {weekStart < addDays(thisMonday, BOOKING_WINDOW_DAYS) ? "See next Monday's classes" : "See Monday's classes"}
+              </button>
+            )}
+          </div>
         ) : dayClasses.length === 0 ? (
           <EmptyState
             title={filtersActive ? 'No classes match your filters on this day' : 'No classes on this day'}
@@ -626,7 +714,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
                   <div className="text-sm font-bold text-slate-100">{detail.trainer_name ?? 'To be confirmed'}</div>
                 </div>
               </div>
-              <div className="sm:w-56">{renderAction(detail, () => setDetail(null))}</div>
+              <div className="sm:w-56">{renderAction(withJustBooked(detail), () => setDetail(null))}</div>
             </div>
           </div>
         </Modal>
