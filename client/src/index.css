@@ -35,6 +35,8 @@
   --neu-inset-bg: #0c1017;
   --neu-border: rgba(255, 255, 255, 0.04);
   --neu-border-hover: rgba(132, 204, 22, 0.4);
+  --neu-glass-edge: rgba(255, 255, 255, 0.07);
+  --neu-glass-highlight: rgba(255, 255, 255, 0.07);
 }
 
 .light {
@@ -60,6 +62,8 @@
   --neu-inset-bg: #dfe5ee;
   --neu-border: rgba(255, 255, 255, 0.7);
   --neu-border-hover: rgba(132, 204, 22, 0.7);
+  --neu-glass-edge: rgba(255, 255, 255, 0.85);
+  --neu-glass-highlight: rgba(255, 255, 255, 0.95);
 }
 
 /* ------------------------------------------------------------------ */
@@ -310,125 +314,307 @@ main h1[tabindex='-1']:focus {
   border-radius: 0.75rem;
 }
 
-/* 4. Neumorphic Buttons */
-.neu-btn {
-  background-color: var(--gym-900);
-  box-shadow: 5px 5px 12px var(--neu-shadow-dark), -5px -5px 12px var(--neu-shadow-light);
-  border: 1px solid var(--neu-border);
-  border-radius: 0.875rem;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+/* 4. Glass-neumorphic buttons
+   Every raised button shares one anatomy: soft dual shadows (neumorphism), a base colour under a glossy
+   top-left highlight and a bright edge (glass), and a sheen that sweeps across on hover. On hover the
+   button lifts, glows and swaps colours (secondary -> lime, lime/pink -> dark glass, danger -> white),
+   with its text and icons recoloured to stay readable; pressing sinks it in. The colour is a plain
+   background-color, so the swap fades instead of jumping. */
+.neu-btn,
+.neu-btn-lime,
+.neu-btn-pink,
+.neu-btn-danger,
+.neu-icon-btn {
+  --btn-sheen: rgba(255, 255, 255, 0.2);
+  --btn-gloss: linear-gradient(145deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 60%);
+  background-image:
+    linear-gradient(115deg, transparent 35%, var(--btn-sheen) 50%, transparent 65%),
+    var(--btn-gloss) !important;
+  background-size: 250% 100%, 100% 100% !important;
+  background-position: 130% 0, 0 0 !important;
+  background-repeat: no-repeat !important;
   cursor: pointer;
+  transition:
+    transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.28s ease,
+    background-color 0.3s ease,
+    background-position 0.7s ease,
+    border-color 0.25s ease,
+    color 0.25s ease,
+    filter 0.2s ease;
 }
 
-.neu-btn:hover {
-  box-shadow: 7px 7px 16px var(--neu-shadow-dark), -7px -7px 16px var(--neu-shadow-light);
-  transform: translateY(-1px);
+/* In light theme the page-coloured buttons need a stronger highlight to read as convex. */
+.light .neu-btn,
+.light .neu-icon-btn {
+  --btn-gloss: linear-gradient(145deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 65%);
 }
 
-.neu-btn:active {
-  box-shadow: inset 3px 3px 6px var(--neu-shadow-dark), inset -3px -3px 6px var(--neu-shadow-light);
-  transform: translateY(1px);
+.neu-btn svg,
+.neu-btn-lime svg,
+.neu-btn-pink svg,
+.neu-btn-danger svg,
+.neu-icon-btn svg {
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.25s ease;
 }
 
-/* 5. Neumorphic Brand Buttons (Lime, Pink, Amber, Cyan) */
-.neu-btn-lime {
-  background: linear-gradient(135deg, #a3e635 0%, #84cc16 100%) !important;
-  color: #090c10 !important;
-  font-weight: 800;
-  box-shadow: 5px 5px 14px var(--neu-shadow-dark), -5px -5px 14px var(--neu-shadow-light), 0 0 16px rgba(132, 204, 22, 0.35) !important;
+.neu-btn:hover:not(:disabled) svg,
+.neu-btn-lime:hover:not(:disabled) svg,
+.neu-btn-pink:hover:not(:disabled) svg,
+.neu-btn-danger:hover:not(:disabled) svg,
+.neu-icon-btn:hover:not(:disabled) svg {
+  transform: scale(1.12);
+}
+
+.neu-btn:hover:not(:disabled),
+.neu-btn-lime:hover:not(:disabled),
+.neu-btn-pink:hover:not(:disabled),
+.neu-btn-danger:hover:not(:disabled),
+.neu-icon-btn:hover:not(:disabled) {
+  background-position: -30% 0, 0 0 !important;
+  transform: translateY(-2px);
+}
+
+.neu-btn:active:not(:disabled),
+.neu-btn-lime:active:not(:disabled),
+.neu-btn-pink:active:not(:disabled),
+.neu-btn-danger:active:not(:disabled),
+.neu-icon-btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+  transition-duration: 0.08s;
+}
+
+.neu-btn:focus-visible,
+.neu-btn-lime:focus-visible,
+.neu-btn-pink:focus-visible,
+.neu-btn-danger:focus-visible,
+.neu-icon-btn:focus-visible {
+  outline: 2px solid #84cc16;
+  outline-offset: 3px;
+}
+
+/* Secondary: frosted page-coloured pebble; turns lime on hover. */
+.neu-btn {
+  background-color: rgb(var(--gym-900-rgb) / 0.78);
+  border: 1px solid var(--neu-glass-edge);
   border-radius: 0.875rem;
-  transition: all 0.2s ease;
+  box-shadow: 5px 5px 12px var(--neu-shadow-dark), -5px -5px 12px var(--neu-shadow-light), inset 1px 1px 0 var(--neu-glass-highlight);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
 }
 
-.neu-btn-lime:hover {
-  background: linear-gradient(135deg, #bef264 0%, #84cc16 100%) !important;
-  box-shadow: 7px 7px 18px var(--neu-shadow-dark), -7px -7px 18px var(--neu-shadow-light), 0 0 24px rgba(132, 204, 22, 0.5) !important;
-  transform: translateY(-1px);
+.neu-btn:hover:not(:disabled) {
+  background-color: #a3e635;
+  border-color: rgba(217, 249, 157, 0.9);
+  box-shadow:
+    8px 8px 18px var(--neu-shadow-dark),
+    -8px -8px 18px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 10px 24px -8px rgba(132, 204, 22, 0.6);
 }
 
-.neu-btn-lime:active {
-  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.6), inset -3px -3px 6px rgba(255, 255, 255, 0.3) !important;
-  transform: translateY(1px);
+.neu-btn:active:not(:disabled) {
+  box-shadow: inset 3px 3px 7px var(--neu-shadow-dark), inset -3px -3px 7px var(--neu-shadow-light);
+}
+
+/* 5. Brand buttons: glossy coloured glass with a bright top edge, a darker lower lip and a coloured glow.
+   Lime and pink turn into dark glass with coloured text on hover; danger turns white with rose text. */
+.neu-btn-lime,
+.neu-btn-pink,
+.neu-btn-danger {
+  --btn-gloss: linear-gradient(145deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 55%);
+  --btn-sheen: rgba(255, 255, 255, 0.5);
+  font-weight: 800;
+  border-radius: 0.875rem;
+}
+
+.neu-btn-lime {
+  background-color: #84cc16 !important;
+  color: #090c10 !important;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow:
+    5px 5px 14px var(--neu-shadow-dark),
+    -5px -5px 14px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -3px 6px rgba(63, 98, 18, 0.3),
+    0 0 16px rgba(132, 204, 22, 0.3) !important;
+}
+
+.neu-btn-lime:hover:not(:disabled) {
+  background-color: #0f172a !important;
+  border-color: rgba(163, 230, 53, 0.7);
+  box-shadow:
+    8px 8px 20px var(--neu-shadow-dark),
+    -8px -8px 20px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 28px rgba(132, 204, 22, 0.5) !important;
+}
+
+.neu-btn-lime:active:not(:disabled) {
+  box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.55), inset -3px -3px 7px rgba(255, 255, 255, 0.12) !important;
 }
 
 .neu-btn-pink {
-  background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%) !important;
+  background-color: #ec4899 !important;
   color: #ffffff !important;
-  font-weight: 800;
-  box-shadow: 5px 5px 14px var(--neu-shadow-dark), -5px -5px 14px var(--neu-shadow-light), 0 0 16px rgba(236, 72, 153, 0.35) !important;
-  border-radius: 0.875rem;
-  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow:
+    5px 5px 14px var(--neu-shadow-dark),
+    -5px -5px 14px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -3px 6px rgba(131, 24, 67, 0.3),
+    0 0 16px rgba(236, 72, 153, 0.3) !important;
 }
 
-.neu-btn-pink:hover {
-  box-shadow: 7px 7px 18px var(--neu-shadow-dark), -7px -7px 18px var(--neu-shadow-light), 0 0 24px rgba(236, 72, 153, 0.5) !important;
-  transform: translateY(-1px);
+.neu-btn-pink:hover:not(:disabled) {
+  background-color: #0f172a !important;
+  border-color: rgba(244, 114, 182, 0.7);
+  box-shadow:
+    8px 8px 20px var(--neu-shadow-dark),
+    -8px -8px 20px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 28px rgba(236, 72, 153, 0.5) !important;
 }
 
-.neu-btn-pink:active {
-  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.6), inset -3px -3px 6px rgba(255, 255, 255, 0.3) !important;
-  transform: translateY(1px);
+.neu-btn-pink:active:not(:disabled) {
+  box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.55), inset -3px -3px 7px rgba(255, 255, 255, 0.12) !important;
 }
 
-/* Destructive actions (clock out, delete, remove): raised rose button, white text >= 4.5:1 on both stops. */
+/* Destructive actions (clock out, delete, remove): rose glass with white text (>= 4.5:1 across the gloss). */
 .neu-btn-danger {
-  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%) !important;
+  --btn-gloss: linear-gradient(145deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 55%);
+  background-color: #c81b45 !important;
   color: #ffffff !important;
-  font-weight: 800;
-  box-shadow: 5px 5px 14px var(--neu-shadow-dark), -5px -5px 14px var(--neu-shadow-light), 0 0 14px rgba(225, 29, 72, 0.3) !important;
-  border-radius: 0.875rem;
-  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow:
+    5px 5px 14px var(--neu-shadow-dark),
+    -5px -5px 14px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -3px 6px rgba(76, 5, 25, 0.35),
+    0 0 14px rgba(225, 29, 72, 0.3) !important;
 }
 
-.neu-btn-danger:hover {
-  background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%) !important;
-  box-shadow: 7px 7px 18px var(--neu-shadow-dark), -7px -7px 18px var(--neu-shadow-light), 0 0 22px rgba(225, 29, 72, 0.45) !important;
-  transform: translateY(-1px);
+.neu-btn-danger:hover:not(:disabled) {
+  background-color: #ffffff !important;
+  border-color: rgba(225, 29, 72, 0.6);
+  box-shadow:
+    8px 8px 20px var(--neu-shadow-dark),
+    -8px -8px 20px var(--neu-shadow-light),
+    inset 0 -3px 6px rgba(225, 29, 72, 0.12),
+    0 0 26px rgba(225, 29, 72, 0.45) !important;
 }
 
-.neu-btn-danger:active {
-  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.55), inset -3px -3px 6px rgba(255, 255, 255, 0.25) !important;
-  transform: translateY(1px);
+.neu-btn-danger:active:not(:disabled) {
+  box-shadow: inset 3px 3px 7px rgba(76, 5, 25, 0.35), inset -3px -3px 7px rgba(255, 255, 255, 0.6) !important;
 }
 
-/* 6. Neumorphic Circular Icon Buttons */
+/* 6. Round icon buttons: the secondary glass surface as a circle; lime on hover, rose for delete icons. */
 .neu-icon-btn {
-  background-color: var(--gym-900);
-  box-shadow: 4px 4px 9px var(--neu-shadow-dark), -4px -4px 9px var(--neu-shadow-light);
-  border: 1px solid var(--neu-border);
+  background-color: rgb(var(--gym-900-rgb) / 0.78);
+  border: 1px solid var(--neu-glass-edge);
   border-radius: 9999px;
+  box-shadow: 4px 4px 9px var(--neu-shadow-dark), -4px -4px 9px var(--neu-shadow-light), inset 1px 1px 0 var(--neu-glass-highlight);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
 }
 
-.neu-icon-btn:hover {
-  box-shadow: 6px 6px 12px var(--neu-shadow-dark), -6px -6px 12px var(--neu-shadow-light);
-  transform: translateY(-1px);
+.neu-icon-btn:hover:not(:disabled) {
+  background-color: #a3e635;
+  border-color: rgba(217, 249, 157, 0.9);
+  box-shadow:
+    6px 6px 13px var(--neu-shadow-dark),
+    -6px -6px 13px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 0 18px rgba(132, 204, 22, 0.45);
 }
 
-.neu-icon-btn:active {
+.neu-icon-btn.neu-icon-btn-danger:hover:not(:disabled) {
+  background-color: #e11d48;
+  border-color: rgba(253, 164, 175, 0.8);
+  box-shadow:
+    6px 6px 13px var(--neu-shadow-dark),
+    -6px -6px 13px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 18px rgba(225, 29, 72, 0.45);
+}
+
+.neu-icon-btn:active:not(:disabled) {
   box-shadow: inset 3px 3px 6px var(--neu-shadow-dark), inset -3px -3px 6px var(--neu-shadow-light);
-  transform: translateY(1px);
 }
 
-/* Icon buttons that delete or remove something turn rose on hover (after the theme hover colours). */
-.dark .neu-icon-btn.neu-icon-btn-danger:hover {
-  color: #fb7185 !important;
+/* Hover text and icon colours. Doubled classes and !important outrank the theme colour rules above
+   (including the ones that recolour every child), so text stays readable on the new fill. */
+html .neu-btn.neu-btn:not(.neu-btn-lime):not(.neu-btn-pink):not(.neu-btn-danger):hover:not(:disabled),
+html .neu-btn.neu-btn:not(.neu-btn-lime):not(.neu-btn-pink):not(.neu-btn-danger):hover:not(:disabled) *,
+html .neu-icon-btn.neu-icon-btn:not(.neu-icon-btn-danger):hover:not(:disabled),
+html .neu-icon-btn.neu-icon-btn:not(.neu-icon-btn-danger):hover:not(:disabled) * {
+  color: #1a2e05 !important;
 }
-.light .neu-icon-btn.neu-icon-btn-danger:hover {
+html .neu-btn-lime.neu-btn-lime:hover:not(:disabled),
+html .neu-btn-lime.neu-btn-lime:hover:not(:disabled) * {
+  color: #bef264 !important;
+}
+html .neu-btn-pink.neu-btn-pink:hover:not(:disabled),
+html .neu-btn-pink.neu-btn-pink:hover:not(:disabled) * {
+  color: #f9a8d4 !important;
+}
+html .neu-btn-danger.neu-btn-danger:hover:not(:disabled),
+html .neu-btn-danger.neu-btn-danger:hover:not(:disabled) * {
   color: #be123c !important;
 }
+html .neu-icon-btn.neu-icon-btn-danger.neu-icon-btn-danger:hover:not(:disabled),
+html .neu-icon-btn.neu-icon-btn-danger.neu-icon-btn-danger:hover:not(:disabled) * {
+  color: #ffffff !important;
+}
 
-/* Raised buttons do not lift or press while disabled. */
+/* Disabled buttons stay put. */
 .neu-btn:disabled,
 .neu-btn-lime:disabled,
 .neu-btn-pink:disabled,
 .neu-btn-danger:disabled,
 .neu-icon-btn:disabled {
   transform: none;
+  filter: none;
   cursor: not-allowed;
+}
+
+/* No lift, bounce or sweep for people who ask for less motion; the colour swap remains. */
+@media (prefers-reduced-motion: reduce) {
+  .neu-btn,
+  .neu-btn-lime,
+  .neu-btn-pink,
+  .neu-btn-danger,
+  .neu-icon-btn,
+  .neu-btn svg,
+  .neu-btn-lime svg,
+  .neu-btn-pink svg,
+  .neu-btn-danger svg,
+  .neu-icon-btn svg {
+    transition: box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+  .neu-btn:hover,
+  .neu-btn-lime:hover,
+  .neu-btn-pink:hover,
+  .neu-btn-danger:hover,
+  .neu-icon-btn:hover,
+  .neu-btn:active,
+  .neu-btn-lime:active,
+  .neu-btn-pink:active,
+  .neu-btn-danger:active,
+  .neu-icon-btn:active {
+    transform: none !important;
+    background-position: 130% 0, 0 0 !important;
+  }
+  .neu-btn:hover svg,
+  .neu-btn-lime:hover svg,
+  .neu-btn-pink:hover svg,
+  .neu-btn-danger:hover svg,
+  .neu-icon-btn:hover svg {
+    transform: none !important;
+  }
 }
 
 /* 8. Glassmorphism */
