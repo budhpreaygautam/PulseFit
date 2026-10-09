@@ -121,6 +121,22 @@ class GymDatabase {
     return this.data.users.length === 0 && this.data.classes.length === 0;
   }
 
+  /** True when the gym has no catalogue yet: no plans and no classes (plans cannot be deleted). */
+  lacksCatalogue(): boolean {
+    return this.data.membership_plans.length === 0 && this.data.classes.length === 0;
+  }
+
+  /** A copy of everything stored, to hand back to restore() later. */
+  snapshot(): DatabaseSchema {
+    return structuredClone(this.data);
+  }
+
+  /** Replace everything stored and write it at once. */
+  restore(data: DatabaseSchema): void {
+    this.data = migrate({ ...emptySchema(), ...structuredClone(data) });
+    this.saveSync();
+  }
+
   saveSync(): void {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);

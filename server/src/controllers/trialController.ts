@@ -1,9 +1,11 @@
 import crypto from 'crypto';
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import config from '../config.js';
 import db from '../db/database.js';
 import { ApiError, asyncHandler, badRequest, conflict, ok, parse } from '../lib/http.js';
-import { addDays, dayOfWeek, gymToday, isValidDate } from '../lib/dates.js';
+import { addDays, displayDate, gymToday, isValidDate } from '../lib/dates.js';
+import { closedForTheDay, isOpenDay } from '../lib/hours.js';
 import { newId } from '../lib/users.js';
 import { TrialPass } from '../types/index.js';
 
@@ -49,17 +51,23 @@ function newTrialCode(): string {
 
 export const createTrial = asyncHandler((req: Request, res: Response) => {
   const body = parse(trialBody, req.body);
-  const today = gymToday();
+  const now = new Date();
+  const today = gymToday(now);
   const lastDay = addDays(today, TRIAL_WINDOW_DAYS);
 
   if (body.preferred_date < today || body.preferred_date > lastDay) {
-    const message = `Pick a day between ${today} and ${lastDay}.`;
+    const message = `Pick a day between ${displayDate(today)} and ${displayDate(lastDay)}.`;
     throw new ApiError(400, `preferred_date: ${message}`, 'VALIDATION_ERROR', {
       issues: [{ path: 'preferred_date', message }]
     });
   }
-  if (dayOfWeek(body.preferred_date) === 0) {
+  if (!isOpenDay(body.preferred_date)) {
     throw badRequest('The gym is closed on Sundays. Please pick another day.', 'GYM_CLOSED');
+  }
+  // The pass works only on its day, and each person gets one: a pass for today issued after
+  // closing time could never be used.
+  if (config.enforceOpeningHours && body.preferred_date === today && closedForTheDay(now)) {
+    throw badRequest('The gym has closed for today. Please pick another day.', 'GYM_CLOSED');
   }
   if (db.trial_passes.some(t => t.email.toLowerCase() === body.email || samePhone(t.phone, body.phone))) {
     throw conflict('A free trial has already been claimed with this email or phone number.', 'TRIAL_ALREADY_CLAIMED');
@@ -74,11 +82,11 @@ export const createTrial = asyncHandler((req: Request, res: Response) => {
     interest: body.interest,
     valid_on: body.preferred_date,
     status: 'issued',
-    created_at: new Date().toISOString()
+    created_at: now.toISOString()
   };
   db.trial_passes = [trial, ...db.trial_passes];
 
-  return ok(res, trial, `Your free trial pass is ready for ${trial.valid_on}.`, 201);
+  return ok(res, trial, `Your free trial pass is ready for ${displayDate(trial.valid_on)}.`, 201);
 });
 
 export const listTrials = asyncHandler((_req: Request, res: Response) => {

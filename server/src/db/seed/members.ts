@@ -24,6 +24,11 @@ const PATTERNS: Record<string, VisitPattern> = {
 };
 const DEFAULT_PATTERN: VisitPattern = { visitsPerWeek: 3, window: [17 * 60, 21 * 60] };
 
+/** When a demo member usually comes in, in gym-local minutes after midnight. Floor sessions use it too. */
+export function visitWindow(userId: string): [number, number] {
+  return (PATTERNS[userId] ?? DEFAULT_PATTERN).window;
+}
+
 const OPEN = 6 * 60;
 const LAST_ENTRY = 21 * 60 + 45;
 
@@ -89,9 +94,9 @@ function seedAttendance(today: string, now: Date): AttendanceLog[] {
 }
 
 /**
- * seed.ts gives members fixed streak numbers that the generated history cannot back up
- * (21 days in a row is impossible with Sundays closed). Replay each member's visit days
- * through recordActivity instead, so the streak follows whatever rule lib/streak applies.
+ * seed.ts gives members fixed streak numbers that the generated history cannot back up.
+ * Replay each member's visit days through recordActivity instead, so the streak follows
+ * whatever rule lib/streak applies.
  */
 function syncStreaks(logs: AttendanceLog[]): void {
   const visitDays = new Map<string, Set<string>>();

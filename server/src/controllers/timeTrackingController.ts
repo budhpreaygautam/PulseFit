@@ -7,6 +7,7 @@ import { newId } from '../lib/users.js';
 import { effectiveStatus, isStaff, tierAllowsCategory } from '../lib/membership.js';
 import { gymToday, startOfWeek, toGymDate } from '../lib/dates.js';
 import { closeStaleSessions, creditSession, elapsedMinutes, MAX_SESSION_MINUTES, toFloorPresence } from '../lib/floor.js';
+import { gymClosedError, gymClosedNow } from './attendanceController.js';
 import { ActiveFloorStatus, TimeSession, UserTimeTrackingStats } from '../types/index.js';
 
 const CATEGORIES = ['Workout & Strength', 'Zumba & Cardio'] as const;
@@ -30,6 +31,8 @@ export const clockIn = asyncHandler<AuthenticatedRequest>((req, res: Response) =
   closeStaleSessions(now);
 
   if (!isStaff(user)) {
+    // Clocking out stays possible at any hour; only starting a session needs the gym to be open.
+    if (gymClosedNow(now)) throw gymClosedError();
     const status = effectiveStatus(user);
     if (status !== 'active') {
       throw forbidden(

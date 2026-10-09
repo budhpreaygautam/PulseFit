@@ -102,7 +102,7 @@ describe('classes: trainers and trainer portal', () => {
     });
 
     it('refuses a duplicate email and links only trainer accounts', async () => {
-      const dup = await api().post('/api/trainers').set(authHeader(personas.admin)).send({ ...newTrainer, email: 'VIKRAM@pulsefit.com' });
+      const dup = await api().post('/api/trainers').set(authHeader(personas.admin)).send({ ...newTrainer, email: 'TRAINER@pulsefit.com' });
       expect(dup.status).toBe(409);
       expect(dup.body.code).toBe('EMAIL_TAKEN');
       const member = await api().post('/api/trainers').set(authHeader(personas.admin)).send({ ...newTrainer, user_id: 'usr_member_1' });

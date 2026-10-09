@@ -73,6 +73,10 @@ export const config = {
     .map(o => o.trim())
     .filter(Boolean),
 
+  // The address people open the app at (e.g. https://gym.example.com), used to build password
+  // reset links. Empty: the request's own address when the API serves the client, else CLIENT_ORIGIN.
+  publicUrl: (env.PUBLIC_URL || '').trim().replace(/\/+$/, ''),
+
   // Absolute path of the JSON database file. Tests point this at a temporary file.
   dbPath: path.resolve(env.PULSEFIT_DB_PATH || path.resolve(__dirname, '../data/gym-db.json')),
 

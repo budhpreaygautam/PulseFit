@@ -5,9 +5,17 @@ import { z } from 'zod';
 import config from '../config.js';
 import db from '../db/database.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
-import { ApiError, asyncHandler, badRequest, ok, parse, unauthorized } from '../lib/http.js';
+import { ApiError, asyncHandler, badRequest, forbidden, ok, parse, unauthorized } from '../lib/http.js';
 import { findUserByEmail, newId } from '../lib/users.js';
-import { BCRYPT_ROUNDS, DEMO_PERSONAS, emailSchema, newPasswordSchema, retireResetLinks, session } from './authController.js';
+import {
+  BCRYPT_ROUNDS,
+  DEMO_ACCOUNT_LOCKED_MESSAGE,
+  emailSchema,
+  isLockedDemoAccount,
+  newPasswordSchema,
+  retireResetLinks,
+  session
+} from './authController.js';
 import { User } from '../types/index.js';
 
 const RESET_TTL_MS = 30 * 60_000;
@@ -48,6 +56,7 @@ export const changePassword = asyncHandler(async (req: AuthenticatedRequest, res
   const { currentPassword, newPassword } = parse(changePasswordSchema, req.body);
   const user = db.users.find(u => u.id === req.user!.id);
   if (!user) throw unauthorized();
+  if (isLockedDemoAccount(user.email)) throw forbidden(DEMO_ACCOUNT_LOCKED_MESSAGE, 'DEMO_ACCOUNT_LOCKED');
 
   // Accounts created through Google have no password yet and may set one without it.
   if (user.password_hash) {
@@ -65,20 +74,33 @@ export const changePassword = asyncHandler(async (req: AuthenticatedRequest, res
   return ok(res, session(updated), 'Password changed. You have been signed out on your other devices.');
 });
 
-function resetOrigin(req: Request): string {
-  const origin = req.get('origin');
-  if (origin && config.corsOrigins.includes(origin)) return origin;
-  return config.corsOrigins[0] ?? '';
+// A bare host name or IP address with an optional port; anything else in a Host header is ignored.
+const HOST_PATTERN = /^(?:[a-z0-9-]+(?:\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])(?::\d{1,5})?$/i;
+
+/**
+ * The address this request was sent to. Behind a trusted reverse proxy (TRUST_PROXY) that is
+ * X-Forwarded-Host, because Host then names the proxy's upstream, such as 127.0.0.1:5004.
+ */
+function requestHost(req: Request): string | undefined {
+  const forwarded = config.trustProxy ? req.get('x-forwarded-host')?.split(',')[0].trim() : undefined;
+  const host = forwarded || req.get('host');
+  return host && HOST_PATTERN.test(host) ? host : undefined;
 }
 
 /**
- * Whether the response itself may carry the reset link. In local development it is the developer's
- * shortcut. A public demo (production + DEMO_MODE) shows it only for the shared demo personas, which
- * anyone can enter through demo-login anyway; every real account there goes through staff instead.
+ * Where the reset link points: PUBLIC_URL when it is set; otherwise the address this request came
+ * in on when the API serves the client itself (req.protocol follows TRUST_PROXY); otherwise, in
+ * local development with Vite, the request's allowed origin or the first CLIENT_ORIGIN.
+ * `fromRequest` marks an address taken from the request's headers, which anyone can set.
  */
-function mayShowResetLink(email: string): boolean {
-  if (config.isLocal) return true;
-  return config.demoMode && (Object.values(DEMO_PERSONAS) as string[]).includes(email);
+function resetOrigin(req: Request): { origin: string; fromRequest: boolean } {
+  if (config.publicUrl) return { origin: config.publicUrl, fromRequest: false };
+  const host = requestHost(req);
+  if (config.serveClient && host) return { origin: `${req.protocol}://${host}`, fromRequest: true };
+  // Only an allowed origin is used, so this one cannot point anywhere unexpected.
+  const origin = req.get('origin');
+  if (origin && config.corsOrigins.includes(origin)) return { origin, fromRequest: false };
+  return { origin: config.corsOrigins[0] ?? '', fromRequest: false };
 }
 
 export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
@@ -87,6 +109,11 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
   const message = config.isLocal ? FORGOT_MESSAGE : FORGOT_MESSAGE_STAFF;
   const user = findUserByEmail(email);
   if (!user) return ok(res, { message });
+  // A shared demo account gets no link, and the same answer as anyone else.
+  if (isLockedDemoAccount(user.email)) {
+    console.log(`🔒 No password reset link for ${user.email}: demo accounts are locked while DEMO_MODE is on.`);
+    return ok(res, { message });
+  }
 
   const token = crypto.randomBytes(32).toString('base64url');
   const now = new Date();
@@ -103,11 +130,15 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
     }
   ];
 
-  const resetUrl = `${resetOrigin(req)}/reset-password?token=${token}`;
+  const { origin, fromRequest } = resetOrigin(req);
+  const resetUrl = `${origin}/reset-password?token=${token}`;
   // Always logged, in production too: with no email delivery the console is how staff get the link.
-  console.log(`🔑 Password reset link for ${user.email} (valid 30 minutes): ${resetUrl}`);
+  // Without PUBLIC_URL the address may come from the request, so staff are asked to check it.
+  const caution = fromRequest ? ' (address taken from the request; check it before handing it out)' : '';
+  console.log(`🔑 Password reset link for ${user.email} (valid 30 minutes)${caution}: ${resetUrl}`);
 
-  return ok(res, mayShowResetLink(user.email) ? { message, resetUrl } : { message });
+  // Only local development returns the link itself; everywhere else it reaches people through staff.
+  return ok(res, config.isLocal ? { message, resetUrl } : { message });
 });
 
 export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
@@ -120,6 +151,7 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
   if (!reset || !user || reset.used_at || Date.parse(reset.expires_at) <= now) {
     throw new ApiError(400, 'This reset link is invalid or has expired. Please request a new one.', 'INVALID_RESET_TOKEN');
   }
+  if (isLockedDemoAccount(user.email)) throw forbidden(DEMO_ACCOUNT_LOCKED_MESSAGE, 'DEMO_ACCOUNT_LOCKED');
 
   // Mark it used before the (async) hashing so the same link cannot be redeemed twice.
   db.password_resets = db.password_resets.map(r => (r.id === reset.id ? { ...r, used_at: new Date(now).toISOString() } : r));

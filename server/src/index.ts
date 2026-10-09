@@ -1,6 +1,6 @@
 import config from './config.js';
 import db from './db/database.js';
-import { seedDatabase } from './db/seed.js';
+import { addCatalogueIfMissing, seedDatabase } from './db/seed.js';
 import app from './server.js';
 
 // First start (or a deleted database file). The demo gym includes staff accounts whose password
@@ -15,6 +15,20 @@ if (db.isEmpty()) {
     seedDatabase({ demo: false });
     console.log('   Create the first admin: npm run create-admin -- --email you@example.com --name "Your Name"');
   }
+} else if (addCatalogueIfMissing()) {
+  // Accounts but no plans or classes: an admin created before the first start by an older create-admin.
+  console.log(`📦 ${db.filePath} had accounts but no plans or classes; loaded the starting catalogue.`);
+}
+
+// Reset links are handed to members by staff, so they must carry the gym's real address.
+if (config.isProduction && !config.publicUrl) {
+  const fallback = config.serveClient ? 'the address each request came in on' : `the first CLIENT_ORIGIN (${config.corsOrigins[0] ?? 'not set'})`;
+  console.warn(
+    `⚠️  PUBLIC_URL is not set, so password reset links use ${fallback}. ` +
+      'Set PUBLIC_URL in server/.env to the address people open the app at, e.g. https://gym.example.com.'
+  );
+} else if (config.publicUrl && !/^https?:\/\/[^/]/.test(config.publicUrl)) {
+  console.warn(`⚠️  PUBLIC_URL (${config.publicUrl}) should start with https:// or http://, or password reset links will not open.`);
 }
 
 const server = app.listen(config.port, () => {

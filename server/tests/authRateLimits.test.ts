@@ -45,15 +45,16 @@ describe('auth rate limits', () => {
   });
 
   it('regression: password change is limited to 10 attempts per 15 minutes per account', async () => {
+    // Regular seeded accounts: the shared demo personas cannot change their password in demo mode.
     for (let i = 0; i < 10; i++) {
-      const res = await api().put('/api/auth/password').set(authHeader(personas.member)).send({ currentPassword: `guess${i}x`, newPassword: 'Stronger2026' });
+      const res = await api().put('/api/auth/password').set(authHeader(personas.basic)).send({ currentPassword: `guess${i}x`, newPassword: 'Stronger2026' });
       expect(res.body.code).toBe('WRONG_PASSWORD');
     }
     expectLimited(
-      await api().put('/api/auth/password').set(authHeader(personas.member)).send({ currentPassword: 'pulse123', newPassword: 'Stronger2026' })
+      await api().put('/api/auth/password').set(authHeader(personas.basic)).send({ currentPassword: 'pulse123', newPassword: 'Stronger2026' })
     );
     // Another account on the same IP is not affected.
-    const other = await api().put('/api/auth/password').set(authHeader(personas.vip)).send({ currentPassword: 'pulse123', newPassword: 'Stronger2026' });
+    const other = await api().put('/api/auth/password').set(authHeader('maya.patel@example.com')).send({ currentPassword: 'pulse123', newPassword: 'Stronger2026' });
     expect(other.status).toBe(200);
   });
 

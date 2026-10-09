@@ -159,7 +159,7 @@ describe('classes: timetable and class admin', () => {
     it('creates a class for an admin', async () => {
       const res = await api().post('/api/classes').set(authHeader(personas.admin)).send(valid);
       expect(res.status).toBe(201);
-      expect(res.body.data).toMatchObject({ ...valid, trainer_name: 'Rohan Mehta' });
+      expect(res.body.data).toMatchObject({ ...valid, trainer_name: 'Karan Joshi' });
       expect(res.body.data.id).toMatch(/^cls_/);
       expect(res.body.data.booked_count).toBeUndefined();
       expect(db.classes.some(c => c.id === res.body.data.id)).toBe(true);
