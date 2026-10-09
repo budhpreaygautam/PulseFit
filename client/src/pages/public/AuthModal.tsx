@@ -4,7 +4,7 @@ import { Modal } from '../../components/common/Modal.js';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton.js';
 import { FormField, issuesByField } from '../../components/public/FormField.js';
 import { emailError, nameError, normalizeIndianPhone, passwordError, PHONE_HINT } from '../../components/public/validation.js';
-import { takePendingPlan } from '../../components/public/pendingPlan.js';
+import { clearPendingPlan, takePendingPlan } from '../../components/public/pendingPlan.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
@@ -13,13 +13,13 @@ import { errorMessage, isApiError } from '../../api/client.js';
 import { homeTabFor } from '../../routes.js';
 import { User } from '../../types/index.js';
 
+type Mode = 'login' | 'register' | 'forgot';
+
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialMode?: 'login' | 'register';
+  initialMode?: Mode;
 }
-
-type Mode = 'login' | 'register' | 'forgot';
 type DemoRole = 'member' | 'vip' | 'trainer' | 'admin';
 type Field = 'name' | 'email' | 'password' | 'phone';
 
@@ -61,6 +61,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
   // Every open starts clean in the mode the caller asked for; closing wipes what was typed.
   useEffect(() => {
+    // A plan picked as a guest belongs to the sign-in this dialog was opened for. Closed without
+    // signing in (or on first load, after a refresh), it is dropped.
+    if (!isOpen) clearPendingPlan();
     setMode(initialMode);
     setName('');
     setEmail('');
@@ -174,6 +177,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setBusy(role);
     try {
       const user = await demoLogin(role);
+      // A demo account is not the account the guest picked a plan for.
+      clearPendingPlan();
       onClose();
       showToast(`Signed in as the demo ${DEMO_PERSONAS.find(p => p.role === role)?.label.toLowerCase()}.`, 'success');
       navigate(homeTabFor(user.role));

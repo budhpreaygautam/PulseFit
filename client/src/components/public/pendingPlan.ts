@@ -2,6 +2,8 @@ import { BillingCycle, PaidTier } from '../../types/index.js';
 
 // A guest who picks a plan is asked to create an account first. The choice is kept for this tab
 // only, so that after registering they land back on the pricing page with that plan in view.
+// It belongs to the sign-in dialog opened for it: AuthModal clears it when that dialog closes
+// without a sign-in, and on a demo sign-in, so it never steers a later, unrelated sign-in.
 
 const KEY = 'pulsefit_pending_plan';
 
@@ -15,6 +17,14 @@ export function rememberPendingPlan(plan: PendingPlan): void {
     window.sessionStorage.setItem(KEY, JSON.stringify(plan));
   } catch {
     /* storage blocked: the visitor just picks the plan again */
+  }
+}
+
+export function clearPendingPlan(): void {
+  try {
+    window.sessionStorage.removeItem(KEY);
+  } catch {
+    /* storage blocked: nothing was kept */
   }
 }
 

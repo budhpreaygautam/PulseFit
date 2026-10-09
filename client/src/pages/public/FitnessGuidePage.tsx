@@ -24,6 +24,20 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
   const [selectedPlanIdx, setSelectedPlanIdx] = useState<number>(0);
   const [selectedDietIdx, setSelectedDietIdx] = useState<number>(0);
 
+  // WAI-ARIA tabs: arrow keys (and Home/End) move between sections; only the selected one is a Tab stop.
+  const onTabKeyDown = (e: React.KeyboardEvent) => {
+    const index = GUIDE_TABS.findIndex(t => t.id === activeCategory);
+    let next: number;
+    if (e.key === 'ArrowRight') next = (index + 1) % GUIDE_TABS.length;
+    else if (e.key === 'ArrowLeft') next = (index - 1 + GUIDE_TABS.length) % GUIDE_TABS.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = GUIDE_TABS.length - 1;
+    else return;
+    e.preventDefault();
+    setActiveCategory(GUIDE_TABS[next].id);
+    document.getElementById(`guide-tab-${GUIDE_TABS[next].id}`)?.focus();
+  };
+
   // 1. Workout Plans Data
   const workoutPlans = [
     {
@@ -400,7 +414,9 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
               id={`guide-tab-${t.id}`}
               aria-selected={activeCategory === t.id}
               aria-controls={`guide-panel-${t.id}`}
+              tabIndex={activeCategory === t.id ? 0 : -1}
               onClick={() => setActiveCategory(t.id)}
+              onKeyDown={onTabKeyDown}
               className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center gap-2 whitespace-nowrap ${
                 activeCategory === t.id ? 'neu-btn-lime' : 'text-slate-300'
               }`}

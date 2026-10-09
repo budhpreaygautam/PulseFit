@@ -5,7 +5,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/common/St
 import { useApiData } from '../../components/public/useApiData.js';
 import { annualPerMonth, annualSavingPercent, planCovers } from '../../components/public/plans.js';
 import { rememberPendingPlan } from '../../components/public/pendingPlan.js';
-import { CATEGORIES } from '../../components/public/gymInfo.js';
+import { CATEGORIES, weekdayOf } from '../../components/public/gymInfo.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
@@ -28,23 +28,36 @@ interface PlanAction {
   isCurrent: boolean;
 }
 
-/** The plan's last day once any freeze is lifted: the server adds the frozen days back before it applies a payment. */
-function endAfterUnfreeze(user: User): string | null {
+/**
+ * The plan's last day once any freeze is lifted. Before it applies a payment the server gives back
+ * the days the gym was open while frozen (not the day of the freeze, today or closed days) and moves
+ * the end date forward by that many open days, stepping over closed days (lib/billing.ts).
+ */
+function endAfterUnfreeze(user: User, closedWeekdays: number[]): string | null {
   if (!user.membership_expiry) return null;
   if (user.membership_status !== 'frozen' || !user.frozen_since) return user.membership_expiry;
-  const frozenDays = Math.max(0, Math.round((Date.parse(`${gymToday()}T00:00:00Z`) - Date.parse(`${user.frozen_since}T00:00:00Z`)) / 86_400_000));
-  return addDays(user.membership_expiry, frozenDays);
+  // A week with no open day would never end; the config never says that, but do not hang on it.
+  if (closedWeekdays.length >= 7) return user.membership_expiry;
+  const isOpen = (date: string) => !closedWeekdays.includes(weekdayOf(date));
+  let openDays = 0;
+  for (let d = addDays(user.frozen_since, 1); d < gymToday(); d = addDays(d, 1)) if (isOpen(d)) openDays++;
+  let end = user.membership_expiry;
+  for (let i = 0; i < openDays; i++) {
+    end = addDays(end, 1);
+    while (!isOpen(end)) end = addDays(end, 1);
+  }
+  return end;
 }
 
 /** What buying this plan would do for the signed-in account, following the server's activation rules. */
-function planAction(plan: MembershipPlan, user: User | null, plans: MembershipPlan[]): PlanAction {
+function planAction(plan: MembershipPlan, user: User | null, plans: MembershipPlan[], closedWeekdays: number[]): PlanAction {
   if (!user || user.membership_tier === 'none') return { label: `Choose ${plan.name}`, isCurrent: false };
 
   const status = user.membership_status;
-  const lastDay = status === 'active' || status === 'frozen' ? endAfterUnfreeze(user) : null;
+  const lastDay = status === 'active' || status === 'frozen' ? endAfterUnfreeze(user, closedWeekdays) : null;
   const hasRunningPlan = !!lastDay && lastDay >= gymToday();
   const current = plans.find(p => p.tier === user.membership_tier);
-  const frozenNote = status === 'frozen' ? ' Paying unfreezes your membership first and adds the frozen days back.' : '';
+  const frozenNote = status === 'frozen' ? ' Paying unfreezes your membership first and adds back the days the gym was open while it was frozen.' : '';
 
   if (plan.tier === user.membership_tier) {
     if (hasRunningPlan && lastDay) {
@@ -71,7 +84,8 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
   const { params } = useNavigation();
   const requestedTier = params.get('plan') as PaidTier | null;
   const [billingCycle, setBillingCycle] = useState<BillingCycle>(params.get('cycle') === 'annual' ? 'annual' : 'monthly');
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  // Keyed by the question's id: the plans answer appears once plans load, which shifts positions.
+  const [openFaq, setOpenFaq] = useState<string | null>(null);
   const [payingTier, setPayingTier] = useState<PaidTier | null>(null);
   const { user } = useAuth();
   const { config, isConfigLoaded } = useAppConfig();
@@ -100,7 +114,13 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
     await checkout({
       tier: plan.tier,
       billingCycle,
-      onSuccess: ({ payment, user: updated }) => {
+      onSuccess: ({ payment, user: updated, message }) => {
+        // The server's message says everything the payment did, including class bookings a plan change
+        // cancelled. It opens with the toast's own title, so that part is not said twice.
+        if (message) {
+          showToast(message.replace(/^Payment received\.\s*/, '') || message, 'success', 'Payment received');
+          return;
+        }
         const until = payment?.period_end ?? updated.membership_expiry;
         showToast(`${plan.name} is paid${until ? `. Your membership now runs until ${formatDate(until)}` : ''}.`, 'success', 'Payment received');
       }
@@ -109,28 +129,34 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
 
   const faqs = [
     {
+      id: 'classes',
       q: 'Which classes can I book with each plan?',
       a: (plans ?? [])
         .map(p => `${p.name}: ${p.categories.length === 0 ? 'every class on the timetable' : `${p.categories.join(' and ')} classes`}.`)
         .join(' ')
     },
     {
+      id: 'fees',
       q: 'Are there sign-up fees, or does my plan renew automatically?',
       a: 'There is no sign-up fee: you pay the plan price shown here, in rupees. Plans never renew on their own. When a period ends you decide whether to buy another one.'
     },
     {
+      id: 'switch',
       q: 'Can I switch plans later?',
       a: 'Yes. A different plan starts the day you pay for it, and the unused days of your current plan are credited pro-rata as extra days on the new one. Renewing the same plan adds the new period after your current one ends, so you never lose days.'
     },
     {
+      id: 'freeze',
       q: 'Can I pause my membership if I travel?',
-      a: 'Yes. Freezing pauses your plan, and when you unfreeze, the days it was frozen are added back to your expiry date. See the refund & cancellation policy for details.'
+      a: 'Yes. Freezing pauses your plan and cancels your upcoming class bookings. When you unfreeze, the days the gym was open while you were frozen are added to your expiry date (the day you freeze, the day you come back and Sundays are not counted). See the refund & cancellation policy for details.'
     },
     {
+      id: 'entry',
       q: 'How do I get in?',
       a: 'Every account has a personal QR entry pass. Show it at the front desk and staff scan it to check you in.'
     },
     {
+      id: 'trial',
       q: 'Can I try the gym first?',
       a: 'Yes. Claim a free 1-day pass for a day in the next two weeks (Monday to Saturday). There is one free pass per person.'
     }
@@ -204,7 +230,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
             const PlanIcon = PLAN_ICONS[plan.tier];
             const saving = annualSavingPercent(plan);
             const amount = billingCycle === 'annual' ? plan.price_annual : plan.price_monthly;
-            const action = planAction(plan, user, plans);
+            const action = planAction(plan, user, plans, config.gym.hours.closedWeekdays);
             const highlighted = plan.is_popular || action.isCurrent;
             const isRequested = requestedTier === plan.tier;
             const excluded = plan.categories.length === 0 ? [] : CATEGORIES.filter(c => !planCovers(plan, c));
@@ -344,17 +370,17 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
         <div className="space-y-3">
           {faqs
             .filter(faq => faq.a)
-            .map((faq, idx) => {
-              const isOpen = openFaq === idx;
+            .map(faq => {
+              const isOpen = openFaq === faq.id;
               return (
-                <div key={faq.q} className="rounded-2xl neu-flat p-1 overflow-hidden">
+                <div key={faq.id} className="rounded-2xl neu-flat p-1 overflow-hidden">
                   <h3>
                     <button
                       type="button"
-                      id={`faq-${idx}-button`}
+                      id={`faq-${faq.id}-button`}
                       aria-expanded={isOpen}
-                      aria-controls={`faq-${idx}-panel`}
-                      onClick={() => setOpenFaq(isOpen ? null : idx)}
+                      aria-controls={`faq-${faq.id}-panel`}
+                      onClick={() => setOpenFaq(isOpen ? null : faq.id)}
                       className="w-full p-4 sm:p-5 text-left flex items-center justify-between gap-4 font-bold text-sm text-slate-100 hover:text-lime-400 transition-colors rounded-xl"
                     >
                       <span>{faq.q}</span>
@@ -363,9 +389,9 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
                   </h3>
                   {isOpen && (
                     <div
-                      id={`faq-${idx}-panel`}
+                      id={`faq-${faq.id}-panel`}
                       role="region"
-                      aria-labelledby={`faq-${idx}-button`}
+                      aria-labelledby={`faq-${faq.id}-button`}
                       className="px-4 sm:px-5 py-4 text-sm text-slate-300 leading-relaxed neu-pressed-sm m-2 rounded-xl"
                     >
                       {faq.a}

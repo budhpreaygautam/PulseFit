@@ -5,8 +5,9 @@ import { FormField, issuesByField } from '../../components/public/FormField.js';
 import { emailError, nameError, normalizeIndianPhone, PHONE_HINT } from '../../components/public/validation.js';
 import { CATEGORIES, HOURS_TIME, weekdayOf } from '../../components/public/gymInfo.js';
 import { useAuth } from '../../context/AuthContext.js';
+import { useAppConfig } from '../../context/ConfigContext.js';
 import { api, errorMessage, isApiError } from '../../api/client.js';
-import { addDays, formatDate, gymToday } from '../../lib/format.js';
+import { addDays, formatClock, formatDate, GYM_TIMEZONE, gymToday } from '../../lib/format.js';
 import { ClassCategory, TrialPass } from '../../types/index.js';
 
 interface FreeTrialModalProps {
@@ -16,6 +17,11 @@ interface FreeTrialModalProps {
 }
 
 const TRIAL_WINDOW_DAYS = 14;
+
+/** The time at the gym (IST) as 'HH:MM', whatever the device's timezone. */
+function gymClockNow(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: GYM_TIMEZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
+}
 
 type Field = 'name' | 'email' | 'phone' | 'interest' | 'preferred_date';
 
@@ -32,15 +38,22 @@ export const FreeTrialModal: React.FC<FreeTrialModalProps> = ({ isOpen, onClose,
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
   const { triggerCelebration } = useAuth();
+  const { config } = useAppConfig();
+  const hours = config.gym.hours;
 
   // The selectable days are computed at the gym (IST), recomputed each time the dialog opens.
-  const days = useMemo(() => {
+  // A pass is good for one day only, so today is offered only while the gym is still to close.
+  const { days, todayOver } = useMemo(() => {
     const today = gymToday();
-    return Array.from({ length: TRIAL_WINDOW_DAYS + 1 }, (_, i) => {
+    const closedToday = hours.closedWeekdays.includes(weekdayOf(today));
+    const todayOver = !closedToday && hours.enforced && gymClockNow() >= hours.closesAt;
+    const days = Array.from({ length: TRIAL_WINDOW_DAYS + 1 }, (_, i) => {
       const date = addDays(today, i);
-      return { date, isSunday: weekdayOf(date) === 0, isToday: i === 0 };
+      const isClosedDay = hours.closedWeekdays.includes(weekdayOf(date));
+      return { date, isClosedDay, unavailable: isClosedDay || (i === 0 && todayOver), isToday: i === 0 };
     });
-  }, [isOpen]);
+    return { days, todayOver };
+  }, [isOpen, hours]);
 
   useEffect(() => {
     setName('');
@@ -91,7 +104,8 @@ export const FreeTrialModal: React.FC<FreeTrialModalProps> = ({ isOpen, onClose,
         setAlreadyClaimed(true);
         setFormError('A free trial has already been claimed with this email or phone number. Each person can have one free pass.');
       } else if (isApiError(err) && err.code === 'GYM_CLOSED') {
-        setFieldErrors({ preferred_date: 'The gym is closed on Sundays. Please pick another day.' });
+        // Closed that day, or already closed for today: the server says which.
+        setFieldErrors({ preferred_date: err.message });
       } else if (isApiError(err) && err.code === 'RATE_LIMITED') {
         setFormError('Too many free-pass requests from this connection. Please try again in an hour, or ask at the front desk.');
       } else if (isApiError(err) && err.code === 'VALIDATION_ERROR' && Object.keys(issuesByField(err.data)).length > 0) {
@@ -226,6 +240,7 @@ export const FreeTrialModal: React.FC<FreeTrialModalProps> = ({ isOpen, onClose,
             </legend>
             <p id="trial-date-hint" className="text-[11px] text-slate-500 mb-2">
               Any day in the next two weeks. The gym is closed on Sundays.
+              {todayOver && ` Today is not available: the gym closed at ${formatClock(hours.closesAt)}, and a pass is valid only on its day.`}
             </p>
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
               {days.map(day => {
@@ -234,7 +249,7 @@ export const FreeTrialModal: React.FC<FreeTrialModalProps> = ({ isOpen, onClose,
                   <label
                     key={day.date}
                     className={`relative px-2 py-2 rounded-xl text-center text-[11px] leading-tight transition-all has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-lime-500 ${
-                      day.isSunday
+                      day.unavailable
                         ? 'neu-pressed-sm text-slate-500 opacity-60 cursor-not-allowed'
                         : selected
                           ? 'neu-pressed-sm text-lime-400 border border-lime-500/50 font-black cursor-pointer'
@@ -245,14 +260,18 @@ export const FreeTrialModal: React.FC<FreeTrialModalProps> = ({ isOpen, onClose,
                       type="radio"
                       name="trial-date"
                       value={day.date}
-                      disabled={day.isSunday}
+                      disabled={day.unavailable}
                       checked={selected}
                       onChange={() => setPreferredDate(day.date)}
                       className="sr-only"
                     />
                     <span className="block font-bold">{day.isToday ? 'Today' : formatDate(day.date, { weekday: 'short' })}</span>
                     <span className="block">{formatDate(day.date, { day: 'numeric', month: 'short' })}</span>
-                    {day.isSunday && <span className="block text-[9px] uppercase">Closed</span>}
+                    {day.isClosedDay ? (
+                      <span className="block text-[9px] uppercase">Closed</span>
+                    ) : (
+                      day.unavailable && <span className="block text-[9px] uppercase">Closed now</span>
+                    )}
                   </label>
                 );
               })}
