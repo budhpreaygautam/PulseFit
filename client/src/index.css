@@ -154,7 +154,9 @@
 .light .bg-lime-500.text-white,
 .light .bg-black.text-white,
 .light .neu-btn-pink,
-.light .neu-btn-pink * {
+.light .neu-btn-pink *,
+.light .neu-btn-danger,
+.light .neu-btn-danger * {
   color: #ffffff !important;
 }
 .light .neu-btn-lime,
@@ -366,6 +368,27 @@ main h1[tabindex='-1']:focus {
   transform: translateY(1px);
 }
 
+/* Destructive actions (clock out, delete, remove): raised rose button, white text >= 4.5:1 on both stops. */
+.neu-btn-danger {
+  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%) !important;
+  color: #ffffff !important;
+  font-weight: 800;
+  box-shadow: 5px 5px 14px var(--neu-shadow-dark), -5px -5px 14px var(--neu-shadow-light), 0 0 14px rgba(225, 29, 72, 0.3) !important;
+  border-radius: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.neu-btn-danger:hover {
+  background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%) !important;
+  box-shadow: 7px 7px 18px var(--neu-shadow-dark), -7px -7px 18px var(--neu-shadow-light), 0 0 22px rgba(225, 29, 72, 0.45) !important;
+  transform: translateY(-1px);
+}
+
+.neu-btn-danger:active {
+  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.55), inset -3px -3px 6px rgba(255, 255, 255, 0.25) !important;
+  transform: translateY(1px);
+}
+
 /* 6. Neumorphic Circular Icon Buttons */
 .neu-icon-btn {
   background-color: var(--gym-900);
@@ -386,6 +409,24 @@ main h1[tabindex='-1']:focus {
 .neu-icon-btn:active {
   box-shadow: inset 3px 3px 6px var(--neu-shadow-dark), inset -3px -3px 6px var(--neu-shadow-light);
   transform: translateY(1px);
+}
+
+/* Icon buttons that delete or remove something turn rose on hover (after the theme hover colours). */
+.dark .neu-icon-btn.neu-icon-btn-danger:hover {
+  color: #fb7185 !important;
+}
+.light .neu-icon-btn.neu-icon-btn-danger:hover {
+  color: #be123c !important;
+}
+
+/* Raised buttons do not lift or press while disabled. */
+.neu-btn:disabled,
+.neu-btn-lime:disabled,
+.neu-btn-pink:disabled,
+.neu-btn-danger:disabled,
+.neu-icon-btn:disabled {
+  transform: none;
+  cursor: not-allowed;
 }
 
 /* 7. Custom Neumorphic Scrollbars */

@@ -77,7 +77,7 @@ const ToastCard: React.FC<{ toast: Toast; paused: boolean; onDismiss: (id: strin
         // A click from Enter or Space has no click count; a mouse click or a tap has one.
         onClick={e => onDismiss(t.id, e.detail === 0)}
         aria-label="Dismiss notification"
-        className="toast-close pointer-events-auto shrink-0 p-1.5 rounded-lg transition-colors"
+        className="toast-close neu-icon-btn pointer-events-auto shrink-0 w-7 h-7"
       >
         <X className="w-4 h-4" aria-hidden="true" />
       </button>

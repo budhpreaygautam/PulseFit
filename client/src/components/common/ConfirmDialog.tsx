@@ -48,7 +48,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           onClick={confirm}
           disabled={isWorking}
           className={`px-5 py-2.5 rounded-xl text-sm font-black flex items-center justify-center gap-2 disabled:opacity-60 ${
-            tone === 'danger' ? 'bg-rose-500 hover:bg-rose-400 text-white' : 'neu-btn-lime text-black'
+            tone === 'danger' ? 'neu-btn-danger' : 'neu-btn-lime text-black'
           }`}
         >
           {isWorking && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}

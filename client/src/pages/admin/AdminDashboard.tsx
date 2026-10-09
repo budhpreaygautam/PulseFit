@@ -144,7 +144,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
           title="Free trials this month"
           value={kpis.trialsThisMonth}
           detail={
-            <button type="button" onClick={() => setCurrentTab('admin-trials')} className={`text-lime-400 font-bold hover:underline rounded ${focusRing}`}>
+            <button type="button" onClick={() => setCurrentTab('admin-trials')} className={`neu-btn px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center ${focusRing}`}>
               View trial leads
             </button>
           }
@@ -296,7 +296,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
         icon={<Award className="w-4 h-4 text-amber-400" aria-hidden="true" />}
         description="This week's sessions with the most bookings."
         actions={
-          <button type="button" onClick={() => setCurrentTab('admin-classes')} className={`text-xs font-bold text-lime-400 hover:underline rounded ${focusRing}`}>
+          <button type="button" onClick={() => setCurrentTab('admin-classes')} className={`neu-btn px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center shrink-0 ${focusRing}`}>
             Manage classes
           </button>
         }

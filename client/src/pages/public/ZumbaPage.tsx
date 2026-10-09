@@ -99,7 +99,7 @@ export const ZumbaPage: React.FC<ZumbaPageProps> = ({ onOpenFreeTrialModal }) =>
             <button
               type="button"
               onClick={onOpenFreeTrialModal}
-              className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/20 text-zinc-50 font-bold text-sm flex items-center justify-center gap-2"
+              className="neu-btn w-full sm:w-auto px-8 py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2"
             >
               <Sparkles className="w-4 h-4 text-pink-300" aria-hidden="true" />
               Claim a free 1-day pass
@@ -124,7 +124,7 @@ export const ZumbaPage: React.FC<ZumbaPageProps> = ({ onOpenFreeTrialModal }) =>
             <h2 className="text-2xl sm:text-4xl font-black text-slate-100 font-['Outfit'] mt-2">ZUMBA & CARDIO EVERY WEEK</h2>
             <p className="text-sm text-slate-400 mt-1">Spots shown are for each class's next session.</p>
           </div>
-          <button type="button" onClick={() => navigate('schedule', { category: CATEGORY })} className="text-xs font-bold text-lime-400 hover:underline flex items-center gap-1 shrink-0">
+          <button type="button" onClick={() => navigate('schedule', { category: CATEGORY })} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1 shrink-0 self-start sm:self-auto">
             Full timetable <ArrowRight className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>

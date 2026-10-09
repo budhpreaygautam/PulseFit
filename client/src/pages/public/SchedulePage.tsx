@@ -544,7 +544,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
             </select>
           </div>
           {filtersActive && (
-            <button type="button" onClick={clearFilters} className="text-xs font-bold text-lime-400 hover:underline">
+            <button type="button" onClick={clearFilters} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold">
               Clear filters
             </button>
           )}
@@ -665,7 +665,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
                       <div role="alert" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-slate-200 space-y-2">
                         <p>{issue.message}</p>
                         {issue.action && (
-                          <button type="button" onClick={() => navigate(issue.action!.tab, issue.action!.params)} className="font-bold text-lime-400 hover:underline">
+                          <button type="button" onClick={() => navigate(issue.action!.tab, issue.action!.params)} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold">
                             {issue.action.label}
                           </button>
                         )}

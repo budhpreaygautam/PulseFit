@@ -212,7 +212,7 @@ export const FloorClockCard: React.FC<FloorClockCardProps> = ({ user, stats, pla
               type="button"
               onClick={clockOut}
               disabled={isWorking}
-              className="px-5 py-3 bg-rose-500 hover:bg-rose-400 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 disabled:opacity-60"
+              className="neu-btn-danger px-5 py-3 font-black text-xs rounded-xl flex items-center justify-center gap-2 disabled:opacity-60"
             >
               <Square className="w-4 h-4 fill-current" aria-hidden="true" /> {isWorking ? 'Clocking out…' : 'Clock out'}
             </button>

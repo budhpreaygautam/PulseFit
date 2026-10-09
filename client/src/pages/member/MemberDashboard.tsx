@@ -191,7 +191,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
             <h2 id="upcoming-heading" className="text-lg font-black text-slate-100 font-['Outfit'] flex items-center gap-2">
               <Calendar className="w-5 h-5 text-lime-700 dark:text-lime-400" aria-hidden="true" /> Upcoming classes
             </h2>
-            <button type="button" onClick={() => setCurrentTab('my-bookings')} className="text-xs font-bold text-lime-700 dark:text-lime-400 hover:underline inline-flex items-center gap-1">
+            <button type="button" onClick={() => setCurrentTab('my-bookings')} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1 shrink-0">
               All my bookings <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>

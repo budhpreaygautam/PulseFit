@@ -37,7 +37,7 @@ export const KpiTile: React.FC<KpiTileProps> = ({ title, value, detail, icon, ac
                 aria-expanded={showDefinition}
                 aria-controls={definitionId}
                 aria-label={`How ${title.toLowerCase()} is calculated`}
-                className={`p-0.5 rounded-md text-slate-400 hover:text-lime-400 ${focusRing}`}
+                className={`neu-icon-btn w-6 h-6 shrink-0 ${focusRing}`}
               >
                 <Info className="w-3.5 h-3.5" aria-hidden="true" />
               </button>

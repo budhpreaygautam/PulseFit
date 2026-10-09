@@ -356,7 +356,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               <div role="alert" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs font-semibold text-rose-300 space-y-2">
                 <p>{formError}</p>
                 {suggestLogin && (
-                  <button type="button" onClick={() => switchMode('login')} className="text-lime-400 font-bold hover:underline">
+                  <button type="button" onClick={() => switchMode('login')} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold">
                     Sign in with this email instead
                   </button>
                 )}
