@@ -307,8 +307,10 @@ test('member, class and class-delete edits say how many bookings they cancelled'
     const deleted = page.getByRole('status').filter({ hasText: `${title} was deleted.` });
     await expect(deleted).toHaveText(`${title} was deleted. 1 upcoming booking was cancelled.`);
     await expect(toasts(page)).toContainText(/1 upcoming booking was cancelled\./);
-    // After the toasts have gone, the count is still on the page.
-    await expect(toasts(page).getByText(/upcoming booking was cancelled/)).toHaveCount(0, { timeout: 10_000 });
+    // Warning toasts stay until they are read (at least 10 s), so dismiss them: the count is still on the page.
+    const dismiss = toasts(page).getByRole('button', { name: 'Dismiss notification' });
+    while ((await dismiss.count()) > 0) await dismiss.first().click();
+    await expect(toasts(page).getByText(/upcoming booking was cancelled/)).toHaveCount(0);
     await expect(deleted).toHaveText(`${title} was deleted. 1 upcoming booking was cancelled.`);
   } finally {
     await request.delete(`/api/classes/${classId}`, { headers: auth(admin) });

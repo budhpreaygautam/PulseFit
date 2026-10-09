@@ -234,7 +234,7 @@ test('a coach whose own plan has ended still sees a working staff pass', async (
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText('Staff pass: no membership is needed to check in.');
     await expect(dialog).toContainText('Coach · staff pass');
-    await expect(dialog).toContainText('Your own Zumba Pass ended on');
+    await expect(dialog).toContainText('Your own Zumba & Cardio Pass ended on');
     await expect(dialog).not.toContainText('Valid through');
     await expect(dialog).not.toContainText('Expired');
     await expect(dialog).not.toContainText('front desk will not let this pass in');
