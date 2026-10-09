@@ -1,5 +1,6 @@
 import config from '../config.js';
 import { addDays, dayOfWeek, gymDateTime, gymToday } from './dates.js';
+import { ApiError, forbidden } from './http.js';
 
 // The gym's opening hours, in gym time: Monday to Saturday 06:00-22:00, closed on Sundays.
 // Calendar rules (no classes or trials on a closed day, streaks step over closed days) always
@@ -28,6 +29,22 @@ export function isOpenAt(now: Date = new Date()): boolean {
   if (!isOpenDay(today)) return false;
   const t = now.getTime();
   return t >= gymDateTime(today, OPENS_AT).getTime() && t < gymDateTime(today, CLOSES_AT).getTime();
+}
+
+/**
+ * Members (and free-trial visitors) cannot come in or start a floor session while the gym is shut.
+ * A clock rule, so it applies only when config.enforceOpeningHours is on; staff are never refused.
+ */
+export function gymClosedNow(now: Date = new Date()): boolean {
+  return config.enforceOpeningHours && !isOpenAt(now);
+}
+
+export function gymClosedError(data?: unknown): ApiError {
+  return forbidden(
+    `The gym is closed right now. Opening hours are Monday to Saturday, ${OPENS_AT} to ${CLOSES_AT}.`,
+    'GYM_CLOSED',
+    data
+  );
 }
 
 /** Whether the gym has already closed for the day at an instant (also true all day on a closed day). */

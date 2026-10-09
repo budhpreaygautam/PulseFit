@@ -7,7 +7,7 @@ import { newId } from '../lib/users.js';
 import { effectiveStatus, isStaff, tierAllowsCategory } from '../lib/membership.js';
 import { gymToday, startOfWeek, toGymDate } from '../lib/dates.js';
 import { closeStaleSessions, creditSession, elapsedMinutes, MAX_SESSION_MINUTES, toFloorPresence } from '../lib/floor.js';
-import { gymClosedError, gymClosedNow } from './attendanceController.js';
+import { gymClosedError, gymClosedNow } from '../lib/hours.js';
 import { ActiveFloorStatus, TimeSession, UserTimeTrackingStats } from '../types/index.js';
 
 const CATEGORIES = ['Workout & Strength', 'Zumba & Cardio'] as const;
