@@ -1,34 +1,42 @@
 import React, { useState } from 'react';
-import {
-  Dumbbell,
-  Apple,
-  Pill,
-  Sparkles,
-  Flame,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  Target,
-  ArrowRight,
-  Info,
-  Heart,
-  Droplets,
-  Zap,
-  Coffee,
-  ShieldCheck,
-  ChevronDown,
-  ChevronUp
-} from 'lucide-react';
+import { Apple, CheckCircle2, Clock, Dumbbell, Info, Pill, Sparkles, Target } from 'lucide-react';
 import { Badge } from '../../components/common/Badge.js';
+import { useAuth } from '../../context/AuthContext.js';
+
+type GuideTab = 'workout-plans' | 'diet-charts' | 'supplements';
+
+const GUIDE_TABS: { id: GuideTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: 'workout-plans', label: 'Workout plans', icon: Dumbbell },
+  { id: 'diet-charts', label: 'Diet & meal charts', icon: Apple },
+  { id: 'supplements', label: 'Supplements guide', icon: Pill }
+];
+
+/** Total of a day's meals, from the per-meal figures ('650 kcal'). */
+const dayTotalKcal = (meals: { calories: string }[]) => meals.reduce((sum, m) => sum + (parseInt(m.calories.replace(/\D/g, ''), 10) || 0), 0);
 
 interface FitnessGuidePageProps {
   setCurrentTab: (tab: string) => void;
 }
 
 export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTab }) => {
-  const [activeCategory, setActiveCategory] = useState<'workout-plans' | 'diet-charts' | 'supplements'>('workout-plans');
+  const [activeCategory, setActiveCategory] = useState<GuideTab>('workout-plans');
+  const { user } = useAuth();
   const [selectedPlanIdx, setSelectedPlanIdx] = useState<number>(0);
   const [selectedDietIdx, setSelectedDietIdx] = useState<number>(0);
+
+  // WAI-ARIA tabs: arrow keys (and Home/End) move between sections; only the selected one is a Tab stop.
+  const onTabKeyDown = (e: React.KeyboardEvent) => {
+    const index = GUIDE_TABS.findIndex(t => t.id === activeCategory);
+    let next: number;
+    if (e.key === 'ArrowRight') next = (index + 1) % GUIDE_TABS.length;
+    else if (e.key === 'ArrowLeft') next = (index - 1 + GUIDE_TABS.length) % GUIDE_TABS.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = GUIDE_TABS.length - 1;
+    else return;
+    e.preventDefault();
+    setActiveCategory(GUIDE_TABS[next].id);
+    document.getElementById(`guide-tab-${GUIDE_TABS[next].id}`)?.focus();
+  };
 
   // 1. Workout Plans Data
   const workoutPlans = [
@@ -96,7 +104,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
       level: 'Beginner - Intermediate',
       goal: 'Strength Foundation & Lean Muscle Density',
       frequency: '4 Days / Week • 50-60 Mins',
-      desc: 'Ideal for busy professionals in Cyber Hub wanting maximum results with 4 high-yield training days per week.',
+      desc: 'Ideal for busy schedules: four focused training days per week.',
       days: [
         {
           name: 'Day 1: Upper Body Strength A',
@@ -154,9 +162,9 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
           ]
         },
         {
-          name: 'Tuesday: High-Energy Zumba Dance Party',
+          name: 'Tuesday: Zumba & Cardio class',
           exercises: [
-            { name: 'Zumba Classic Class with Coach Kavya', sets: '1 Session', reps: '55 Mins', rest: 'Active Drink Breaks', tip: 'Follow choreography and keep feet moving.' }
+            { name: 'Any Zumba & Cardio class on the timetable', sets: '1 Session', reps: 'Full class', rest: 'Water breaks between songs', tip: 'Follow the choreography and keep your feet moving.' }
           ]
         },
         {
@@ -168,9 +176,9 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
           ]
         },
         {
-          name: 'Thursday: Bollywood Beats Dance Cardio',
+          name: 'Thursday: Zumba & Cardio class',
           exercises: [
-            { name: 'Bolly-Cardio Zumba Studio Class', sets: '1 Session', reps: '50 Mins', rest: 'Active Drink Breaks', tip: 'High energy interval tracks burning ~700 kcal.' }
+            { name: 'A second Zumba & Cardio class', sets: '1 Session', reps: 'Full class', rest: 'Water breaks between songs', tip: 'Push the high-energy tracks, recover on the slower ones.' }
           ]
         },
         {
@@ -189,7 +197,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
   const dietCharts = [
     {
       id: 'muscle-gain',
-      title: 'Muscle Gain & Bulk Plan (3,000 kcal)',
+      title: 'Muscle Gain & Bulk Plan',
       type: 'High Protein / Lean Surplus',
       macros: { protein: '170g', carbs: '380g', fats: '75g' },
       desc: 'Formulated for athletes building lean muscle tissue with wholesome, high-energy Indian staples and complete protein sources.',
@@ -234,7 +242,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
     },
     {
       id: 'fat-loss',
-      title: 'Fat Loss & Lean Definition (1,800 kcal)',
+      title: 'Fat Loss & Lean Definition',
       type: 'Calorie Deficit / High Satiety',
       macros: { protein: '150g', carbs: '160g', fats: '45g' },
       desc: 'Designed to shed body fat while preserving lean muscle mass. High protein, high fiber, and sustained energy for workouts and Zumba.',
@@ -279,7 +287,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
     },
     {
       id: 'pure-veg',
-      title: '100% Pure Vegetarian High-Protein Plan (2,200 kcal)',
+      title: 'Pure Vegetarian High-Protein Plan',
       type: 'Plant & Dairy Protein Power',
       macros: { protein: '140g', carbs: '260g', fats: '60g' },
       desc: 'A 100% pure vegetarian Indian diet proving you do not need meat to build muscle, hit 140g+ protein daily, and stay in peak shape.',
@@ -378,9 +386,9 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
       rating: '⭐⭐⭐⭐ (Stress Recovery)',
       dosage: '300mg–600mg KSM-66 extract at bedtime',
       timing: '30-45 minutes before sleep',
-      why: 'Heavy workouts combined with long corporate work hours in Gurugram elevate cortisol (stress hormone). Ashwagandha is a proven adaptogen that lowers cortisol, improves deep REM sleep, and aids natural testosterone support.',
+      why: 'Hard training on top of long work hours raises stress. Ashwagandha is a well-studied adaptogen: trials suggest it can lower cortisol (a stress hormone) and improve sleep quality.',
       faqs: [
-        { q: 'How long until I feel the effects?', a: 'Most lifters report deeper sleep and reduced anxiety within 7-14 days of regular nightly supplementation.' }
+        { q: 'How long until I feel the effects?', a: 'Studies typically measure effects after several weeks of daily use. Stop and see a doctor if you feel unwell.' }
       ]
     }
   ];
@@ -397,54 +405,39 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
           Master your fitness journey with proven workout splits, localized high-protein Indian diet charts, and safe, research-backed supplement recommendations.
         </p>
 
-        {/* Category Switcher Navigation */}
-        <div className="inline-flex items-center gap-1.5 sm:gap-2 p-1.5 rounded-2xl neu-pressed-sm mt-4 overflow-x-auto max-w-full">
-          <button
-            onClick={() => setActiveCategory('workout-plans')}
-            className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center gap-2 whitespace-nowrap ${
-              activeCategory === 'workout-plans'
-                ? 'neu-btn-lime shadow-glow-lime'
-                : 'text-slate-400 dark:text-slate-200'
-            }`}
-          >
-            <Dumbbell className="w-4 h-4" />
-            Workout Plans
-          </button>
-
-          <button
-            onClick={() => setActiveCategory('diet-charts')}
-            className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center gap-2 whitespace-nowrap ${
-              activeCategory === 'diet-charts'
-                ? 'neu-btn-lime shadow-glow-lime'
-                : 'text-slate-400 dark:text-slate-200'
-            }`}
-          >
-            <Apple className="w-4 h-4" />
-            Diet & Meal Charts
-          </button>
-
-          <button
-            onClick={() => setActiveCategory('supplements')}
-            className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center gap-2 whitespace-nowrap ${
-              activeCategory === 'supplements'
-                ? 'neu-btn-lime shadow-glow-lime'
-                : 'text-slate-400 dark:text-slate-200'
-            }`}
-          >
-            <Pill className="w-4 h-4" />
-            Supplements Guide
-          </button>
+        <div className="inline-flex items-center gap-1.5 sm:gap-2 p-1.5 rounded-2xl neu-pressed-sm mt-4 overflow-x-auto max-w-full" role="tablist" aria-label="Guide sections">
+          {GUIDE_TABS.map(t => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              id={`guide-tab-${t.id}`}
+              aria-selected={activeCategory === t.id}
+              aria-controls={`guide-panel-${t.id}`}
+              tabIndex={activeCategory === t.id ? 0 : -1}
+              onClick={() => setActiveCategory(t.id)}
+              onKeyDown={onTabKeyDown}
+              className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center gap-2 whitespace-nowrap ${
+                activeCategory === t.id ? 'neu-btn-lime' : 'text-slate-300'
+              }`}
+            >
+              <t.icon className="w-4 h-4" aria-hidden="true" />
+              {t.label}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* 2. TAB 1: WORKOUT PLANS */}
       {activeCategory === 'workout-plans' && (
-        <div className="space-y-8 animate-in fade-in">
+        <div className="space-y-8" role="tabpanel" id="guide-panel-workout-plans" aria-labelledby="guide-tab-workout-plans">
           {/* Plan Selector Pills */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {workoutPlans.map((plan, idx) => (
               <button
                 key={plan.id}
+                type="button"
+                aria-pressed={selectedPlanIdx === idx}
                 onClick={() => setSelectedPlanIdx(idx)}
                 className={`p-5 rounded-2xl text-left transition-all ${
                   selectedPlanIdx === idx
@@ -482,10 +475,11 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => setCurrentTab('workout-logger')}
-                  className="px-6 py-3 neu-btn-lime text-black font-extrabold text-xs rounded-xl shadow-glow-lime transition-all flex items-center justify-center gap-2 shrink-0 active:scale-95"
+                  className="px-6 py-3 neu-btn-lime font-extrabold text-xs rounded-xl transition-all flex items-center justify-center gap-2 shrink-0 active:scale-95"
                 >
-                  <Dumbbell className="w-4 h-4" /> Open Workout Logger
+                  <Dumbbell className="w-4 h-4" aria-hidden="true" /> {user ? 'Log it in the workout logger' : 'Sign in to log your workouts'}
                 </button>
               </div>
 
@@ -501,7 +495,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
                     </div>
 
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs">
+                      <table className="neu-table w-full text-left text-xs">
                         <thead className="text-slate-400 uppercase text-[10px] border-b border-slate-800/80">
                           <tr>
                             <th className="p-3 pl-4">#</th>
@@ -518,7 +512,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
                               <td className="p-3 pl-4 font-mono font-bold text-slate-500">{exIdx + 1}</td>
                               <td className="p-3 font-extrabold text-white">{ex.name}</td>
                               <td className="p-3 font-mono text-lime-400 font-bold">{ex.sets}</td>
-                              <td className="p-3 font-mono text-amber-300 font-bold">{ex.reps}</td>
+                              <td className="p-3 font-mono text-amber-700 dark:text-amber-300 font-bold">{ex.reps}</td>
                               <td className="p-3 font-mono text-slate-400">{ex.rest}</td>
                               <td className="p-3 pr-4 text-slate-400 text-xs">{ex.tip}</td>
                             </tr>
@@ -536,12 +530,14 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
 
       {/* 3. TAB 2: DIET CHARTS */}
       {activeCategory === 'diet-charts' && (
-        <div className="space-y-8 animate-in fade-in">
+        <div className="space-y-8" role="tabpanel" id="guide-panel-diet-charts" aria-labelledby="guide-tab-diet-charts">
           {/* Diet Plan Selector Pills */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {dietCharts.map((diet, idx) => (
               <button
                 key={diet.id}
+                type="button"
+                aria-pressed={selectedDietIdx === idx}
                 onClick={() => setSelectedDietIdx(idx)}
                 className={`p-5 rounded-2xl text-left transition-all ${
                   selectedDietIdx === idx
@@ -550,10 +546,10 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <Badge variant={selectedDietIdx === idx ? 'lime' : 'amber'} size="sm">
+                  <Badge variant={selectedDietIdx === idx ? 'lime' : 'slate'} size="sm">
                     {diet.type}
                   </Badge>
-                  <span className="text-[10px] text-lime-400 font-mono font-bold">{diet.macros.protein} Protein</span>
+                  <span className="text-[10px] text-lime-400 font-mono font-bold">≈ {dayTotalKcal(diet.meals).toLocaleString('en-IN')} kcal/day</span>
                 </div>
                 <h3 className="font-black text-sm sm:text-base text-white">{diet.title}</h3>
                 <p className="text-xs text-slate-400 mt-1 line-clamp-2">{diet.desc}</p>
@@ -566,7 +562,10 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
             <div className="neu-flat p-6 sm:p-8 rounded-3xl space-y-8">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
                 <div>
-                  <Badge variant="lime">{dietCharts[selectedDietIdx].type}</Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="lime">{dietCharts[selectedDietIdx].type}</Badge>
+                    <span className="text-xs font-mono text-slate-400 font-bold">≈ {dayTotalKcal(dietCharts[selectedDietIdx].meals).toLocaleString('en-IN')} kcal a day</span>
+                  </div>
                   <h2 className="text-2xl sm:text-3xl font-black text-white mt-1 font-['Outfit']">
                     {dietCharts[selectedDietIdx].title}
                   </h2>
@@ -584,12 +583,12 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
                   <div className="h-6 w-[1px] bg-slate-800" />
                   <div className="text-center px-2">
                     <div className="text-[10px] uppercase font-bold text-slate-400">Carbs</div>
-                    <div className="text-sm font-black text-amber-300 font-mono">{dietCharts[selectedDietIdx].macros.carbs}</div>
+                    <div className="text-sm font-black text-amber-700 dark:text-amber-300 font-mono">{dietCharts[selectedDietIdx].macros.carbs}</div>
                   </div>
                   <div className="h-6 w-[1px] bg-slate-800" />
                   <div className="text-center px-2">
                     <div className="text-[10px] uppercase font-bold text-slate-400">Fats</div>
-                    <div className="text-sm font-black text-cyan-400 font-mono">{dietCharts[selectedDietIdx].macros.fats}</div>
+                    <div className="text-sm font-black text-cyan-700 dark:text-cyan-400 font-mono">{dietCharts[selectedDietIdx].macros.fats}</div>
                   </div>
                 </div>
               </div>
@@ -603,7 +602,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
                         <span className="text-xs font-mono font-bold text-lime-400 flex items-center gap-1.5">
                           <Clock className="w-3.5 h-3.5 text-lime-400" /> {m.timing}
                         </span>
-                        <span className="text-[11px] font-mono font-extrabold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md">
+                        <span className="text-[11px] font-mono font-extrabold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md">
                           {m.calories}
                         </span>
                       </div>
@@ -640,7 +639,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
 
       {/* 4. TAB 3: SUPPLEMENTS GUIDE */}
       {activeCategory === 'supplements' && (
-        <div className="space-y-8 animate-in fade-in">
+        <div className="space-y-8" role="tabpanel" id="guide-panel-supplements" aria-labelledby="guide-tab-supplements">
           <div className="neu-flat p-6 sm:p-8 rounded-3xl space-y-3 text-center max-w-3xl mx-auto">
             <Badge variant="cyan">EVIDENCE-BASED NUTRACEUTICALS</Badge>
             <h2 className="text-2xl sm:text-3xl font-black text-white font-['Outfit']">
@@ -661,7 +660,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <Badge variant="lime" size="sm">{supp.badge}</Badge>
-                      <span className="text-xs font-mono text-amber-400 font-bold">{supp.rating}</span>
+                      <span className="text-xs font-mono text-amber-700 dark:text-amber-400 font-bold">{supp.rating}</span>
                     </div>
                     <h3 className="text-xl sm:text-2xl font-black text-white mt-1.5">{supp.name}</h3>
                   </div>
@@ -694,7 +693,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
           </div>
 
           <div className="p-6 rounded-3xl neu-pressed-sm flex items-start gap-3.5 text-xs text-slate-400">
-            <Info className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <Info className="w-5 h-5 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
             <div>
               <strong className="text-slate-200">Medical Disclaimer:</strong> Always consult with a licensed physician or registered dietitian before introducing new dietary supplements, particularly if you have pre-existing medical conditions.
             </div>
@@ -706,10 +705,10 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
       <div className="p-8 sm:p-12 rounded-3xl neu-flat border-2 border-lime-500/50 shadow-glow-lime text-center space-y-6">
         <Badge variant="lime">START YOUR TRANSFORMATION</Badge>
         <h2 className="text-3xl sm:text-5xl font-black text-white font-['Outfit']">
-          TRAIN SMARTER WITH COACHES AT CYBER HUB
+          TRAIN SMARTER WITH A COACH
         </h2>
         <p className="text-xs sm:text-sm text-slate-300 max-w-xl mx-auto">
-          Get personal form coaching, custom workout routines, and high-energy Zumba sessions all under one roof.
+          Coach-led strength classes and Zumba & Cardio sessions under one roof.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -723,7 +722,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
             onClick={() => setCurrentTab('schedule')}
             className="w-full sm:w-auto px-8 py-4 neu-btn text-white font-bold text-sm rounded-2xl"
           >
-            View Live Class Timetable
+            View the class timetable
           </button>
         </div>
       </div>

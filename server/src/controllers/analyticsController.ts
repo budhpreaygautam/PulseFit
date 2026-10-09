@@ -1,115 +1,187 @@
 import { Request, Response } from 'express';
 import db from '../db/database.js';
+import { asyncHandler, ok } from '../lib/http.js';
+import { addDays, addMonths, dayOfWeek, gymHour, gymToday, startOfWeek, toGymDate } from '../lib/dates.js';
+import { effectiveStatus } from '../lib/membership.js';
+import { MembershipTier, Payment, User } from '../types/index.js';
 
-export const getDashboardKPIs = async (req: Request, res: Response) => {
-  try {
-    const users = db.users;
-    const members = users.filter(u => u.role === 'member');
-    const activeMembers = members.filter(u => u.membership_status === 'active');
+// Admin dashboard. Every figure is derived from stored records at request time; when there is
+// no data the figure is 0 (or null where a rate has no denominator), never a placeholder.
 
-    // Calculate MRR
-    const tierPrices: Record<string, number> = { basic: 1199, pro: 1499, vip: 1999 };
-    const mrr = activeMembers.reduce((sum, m) => sum + (tierPrices[m.membership_tier] || 0), 0);
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+const OPEN_HOUR = 6;
+const CLOSE_HOUR = 22;
+const TIER_COLORS: Record<string, string> = { basic: '#38bdf8', pro: '#84cc16', vip: '#f59e0b' };
 
-    // Today's check-ins
-    const today = new Date().toISOString().split('T')[0];
-    const todayLogs = db.attendance_logs.filter(a => a.check_in_time.startsWith(today));
+const DEFINITIONS = {
+  monthlyRevenue:
+    'Monthly recurring revenue: for every member with an active membership, the monthly equivalent of their latest payment (annual plans divided by 12), or their plan\'s monthly price if they have no payment on record.',
+  avgFillRate:
+    'Spots booked (confirmed or attended) as a share of total capacity across this week\'s class occurrences, Monday to Sunday.',
+  retentionRate:
+    'Of the membership periods that ended in the last 90 days, the share whose member paid for another period; empty when no period ended in that window.'
+};
 
-    // Class fill rate
-    const totalCapacity = db.classes.reduce((sum, c) => sum + c.capacity, 0);
-    const totalBooked = db.classes.reduce((sum, c) => sum + c.booked_count, 0);
-    const fillRatePercent = totalCapacity > 0 ? Math.round((totalBooked / totalCapacity) * 100) : 0;
+const round1 = (n: number) => Math.round(n * 10) / 10;
+const percent = (part: number, whole: number) => (whole > 0 ? round1((part / whole) * 100) : 0);
 
-    // Attendance by Day of Week
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const attendanceByDay: Record<string, number> = {
-      Mon: 142,
-      Tue: 168,
-      Wed: 155,
-      Thu: 139,
-      Fri: 174,
-      Sat: 198,
-      Sun: 112
-    };
+/** Monday-first index (0 = Mon … 6 = Sun) of a gym-local date. */
+const mondayIndex = (date: string) => (dayOfWeek(date) + 6) % 7;
 
-    // Calculate real logs distribution if available
-    db.attendance_logs.forEach(log => {
-      const d = new Date(log.check_in_time);
-      const dayName = days[d.getDay()];
-      if (attendanceByDay[dayName] !== undefined) {
-        attendanceByDay[dayName] += 1;
-      }
-    });
+export const getDashboardKPIs = asyncHandler((_req: Request, res: Response) => {
+  const now = new Date();
+  const today = gymToday(now);
+  const monthPrefix = today.slice(0, 7);
 
-    const weeklyAttendanceChart = Object.entries(attendanceByDay).map(([day, visits]) => ({
-      day,
-      visits
+  const members = db.users.filter(u => u.role === 'member');
+  const statusOf = new Map(members.map(m => [m.id, effectiveStatus(m, today)]));
+  const countStatus = (s: string) => members.filter(m => statusOf.get(m.id) === s).length;
+  const activeMembers = members.filter(m => statusOf.get(m.id) === 'active');
+
+  const paidPayments = db.payments.filter(p => p.status === 'paid');
+  const paymentsByUser = new Map<string, Payment[]>();
+  for (const p of paidPayments) {
+    paymentsByUser.set(p.user_id, [...(paymentsByUser.get(p.user_id) || []), p]);
+  }
+  const latestPayment = (userId: string) =>
+    (paymentsByUser.get(userId) || []).reduce<Payment | undefined>(
+      (latest, p) => (!latest || p.created_at > latest.created_at ? p : latest),
+      undefined
+    );
+
+  // ---- MRR ----
+  const planFor = (tier: MembershipTier) => db.membership_plans.find(p => p.tier === tier);
+  const monthlyValue = (member: User): number => {
+    const payment = latestPayment(member.id);
+    if (payment) return payment.billing_cycle === 'annual' ? payment.amount_inr / 12 : payment.amount_inr;
+    return planFor(member.membership_tier)?.price_monthly ?? 0;
+  };
+  const monthlyRevenue = Math.round(activeMembers.reduce((sum, m) => sum + monthlyValue(m), 0));
+
+  const revenueThisMonth = paidPayments
+    .filter(p => toGymDate(p.created_at).startsWith(monthPrefix))
+    .reduce((sum, p) => sum + p.amount_inr, 0);
+
+  // ---- Check-ins ----
+  const checkInDates = db.attendance_logs.map(log => ({ date: toGymDate(log.check_in_time), hour: gymHour(log.check_in_time) }));
+  const todayCheckIns = checkInDates.filter(c => c.date === today).length;
+
+  const since28 = addDays(today, -27);
+  const visitsByDay = WEEKDAYS.map(() => 0);
+  for (const c of checkInDates) {
+    if (c.date >= since28 && c.date <= today) visitsByDay[mondayIndex(c.date)] += 1;
+  }
+  const weeklyAttendanceChart = WEEKDAYS.map((day, i) => ({ day, visits: visitsByDay[i] }));
+
+  const since30 = addDays(today, -29);
+  const hourly = new Map<number, number>();
+  for (let h = OPEN_HOUR; h <= CLOSE_HOUR; h++) hourly.set(h, 0);
+  for (const c of checkInDates) {
+    if (c.date >= since30 && c.date <= today && hourly.has(c.hour)) hourly.set(c.hour, hourly.get(c.hour)! + 1);
+  }
+  const hourlyPeakCurve = [...hourly].map(([h, checkIns]) => ({ hour: `${String(h).padStart(2, '0')}:00`, checkIns }));
+
+  // ---- This week's class occurrences ----
+  const weekStart = startOfWeek(today);
+  const occurrences = db.classes.map(c => {
+    const date = addDays(weekStart, (c.day_of_week + 6) % 7);
+    const booked = db.bookings.filter(
+      b => b.class_id === c.id && b.booking_date === date && (b.status === 'confirmed' || b.status === 'attended')
+    ).length;
+    return { cls: c, date, booked, capacity: Math.max(0, c.capacity || 0) };
+  });
+  const totalBooked = occurrences.reduce((sum, o) => sum + o.booked, 0);
+  const totalCapacity = occurrences.reduce((sum, o) => sum + o.capacity, 0);
+
+  const trainerName = (id: string) => db.trainers.find(t => t.id === id)?.name ?? null;
+  const topClasses = [...occurrences]
+    .sort((a, b) => b.booked - a.booked || percent(b.booked, b.capacity) - percent(a.booked, a.capacity) || a.cls.title.localeCompare(b.cls.title))
+    .slice(0, 5)
+    .map(o => ({
+      id: o.cls.id,
+      title: o.cls.title,
+      category: o.cls.category,
+      trainer: trainerName(o.cls.trainer_id),
+      booked: o.booked,
+      capacity: o.capacity,
+      occupancy: o.capacity > 0 ? Math.round((o.booked / o.capacity) * 100) : 0
     }));
 
-    // Peak Hours Heatmap Curve (06:00 to 22:00)
-    const hourlyPeakCurve = [
-      { hour: '06:00', checkIns: 48 },
-      { hour: '07:00', checkIns: 92 },
-      { hour: '08:00', checkIns: 76 },
-      { hour: '09:00', checkIns: 54 },
-      { hour: '11:00', checkIns: 38 },
-      { hour: '12:00', checkIns: 62 },
-      { hour: '14:00', checkIns: 34 },
-      { hour: '16:00', checkIns: 58 },
-      { hour: '17:00', checkIns: 118 },
-      { hour: '18:00', checkIns: 145 },
-      { hour: '19:00', checkIns: 132 },
-      { hour: '20:00', checkIns: 84 },
-      { hour: '21:00', checkIns: 39 }
-    ];
-
-    // Tier Distribution
-    const tierCounts = {
-      Basic: activeMembers.filter(m => m.membership_tier === 'basic').length,
-      Pro: activeMembers.filter(m => m.membership_tier === 'pro').length,
-      VIP: activeMembers.filter(m => m.membership_tier === 'vip').length
-    };
-
-    const tierDistribution = [
-      { name: 'Strength Pass', tier: 'Basic', count: tierCounts.Basic || 1, revenue: (tierCounts.Basic || 1) * 1199, color: '#38bdf8' },
-      { name: 'Zumba Pass', tier: 'Pro', count: tierCounts.Pro || 1, revenue: (tierCounts.Pro || 1) * 1499, color: '#84cc16' },
-      { name: 'Dual All-Access', tier: 'VIP', count: tierCounts.VIP || 1, revenue: (tierCounts.VIP || 1) * 1999, color: '#f59e0b' }
-    ];
-
-    // Top Classes Leaderboard
-    const topClasses = [...db.classes]
-      .sort((a, b) => b.booked_count - a.booked_count)
-      .slice(0, 5)
-      .map(c => ({
-        id: c.id,
-        title: c.title,
-        category: c.category,
-        trainer: c.trainer_name,
-        booked: c.booked_count,
-        capacity: c.capacity,
-        occupancy: Math.round((c.booked_count / c.capacity) * 100)
-      }));
-
-    res.json({
-      success: true,
-      data: {
-        kpis: {
-          totalMembers: members.length,
-          activeMembers: activeMembers.length,
-          monthlyRevenue: mrr,
-          todayCheckIns: todayLogs.length > 0 ? todayLogs.length : 14,
-          avgFillRate: fillRatePercent,
-          retentionRate: 94.6,
-          totalTrainers: db.trainers.length,
-          classesScheduled: db.classes.length
-        },
-        weeklyAttendanceChart,
-        hourlyPeakCurve,
-        tierDistribution,
-        topClasses
+  // ---- Retention ----
+  // One decision per member: did a membership period of theirs run out in the last 90 days, and
+  // did they pay again afterwards? A period whose end was pushed back (freeze days returned, an
+  // admin extension) has not run out, and a frozen member has not left.
+  const windowStart = addDays(today, -90);
+  const inWindow = (end: string) => end >= windowStart && end < today;
+  let periodsEnded = 0;
+  let periodsRenewed = 0;
+  for (const m of members) {
+    if (statusOf.get(m.id) === 'frozen') continue;
+    const payments = paymentsByUser.get(m.id) || [];
+    const ended = payments.filter(p => inWindow(p.period_end)).sort((a, b) => a.period_end.localeCompare(b.period_end)).pop();
+    if (ended) {
+      const paidAgain = payments.some(p => p.created_at > ended.created_at);
+      if (paidAgain) {
+        periodsEnded++;
+        periodsRenewed++;
+      } else if (!m.membership_expiry || m.membership_expiry <= ended.period_end) {
+        periodsEnded++;
       }
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+      continue;
+    }
+    // Members set up by an admin without any payment: their stored expiry is the period end.
+    if (payments.length === 0 && m.membership_expiry && inWindow(m.membership_expiry)) periodsEnded++;
   }
-};
+  const retentionRate = periodsEnded > 0 ? round1((periodsRenewed / periodsEnded) * 100) : null;
+
+  // ---- Tiers ----
+  const tierDistribution = [...db.membership_plans]
+    .sort((a, b) => a.price_monthly - b.price_monthly)
+    .map(plan => {
+      const onTier = activeMembers.filter(m => m.membership_tier === plan.tier);
+      return {
+        name: plan.name,
+        tier: plan.tier,
+        count: onTier.length,
+        revenue: Math.round(onTier.reduce((sum, m) => sum + monthlyValue(m), 0)),
+        color: TIER_COLORS[plan.tier] ?? '#94a3b8'
+      };
+    });
+
+  // ---- Revenue by month (last 6, oldest first) ----
+  const firstOfMonth = `${monthPrefix}-01`;
+  const revenueByMonth = [5, 4, 3, 2, 1, 0].map(back => {
+    const month = addMonths(firstOfMonth, -back).slice(0, 7);
+    const revenue = paidPayments
+      .filter(p => toGymDate(p.created_at).startsWith(month))
+      .reduce((sum, p) => sum + p.amount_inr, 0);
+    return { month, revenue };
+  });
+
+  const trialsThisMonth = db.trial_passes.filter(t => toGymDate(t.created_at).startsWith(monthPrefix)).length;
+
+  return ok(res, {
+    kpis: {
+      totalMembers: members.length,
+      activeMembers: activeMembers.length,
+      frozenMembers: countStatus('frozen'),
+      expiredMembers: countStatus('expired'),
+      pendingMembers: countStatus('pending'),
+      monthlyRevenue,
+      revenueThisMonth,
+      todayCheckIns,
+      avgFillRate: percent(totalBooked, totalCapacity),
+      retentionRate,
+      totalTrainers: db.trainers.length,
+      classesScheduled: db.classes.length,
+      trialsThisMonth
+    },
+    weeklyAttendanceChart,
+    hourlyPeakCurve,
+    tierDistribution,
+    topClasses,
+    revenueByMonth,
+    definitions: DEFINITIONS,
+    generatedAt: now.toISOString()
+  });
+});

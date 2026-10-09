@@ -21,6 +21,13 @@
   --gym-800: #202b3d;
   --gym-700: #2c3b52;
   --gym-600: #425573;
+  /* The same colours as RGB channels, so Tailwind opacity modifiers (bg-gym-900/80) work. */
+  --gym-950-rgb: 15 20 29;
+  --gym-900-rgb: 20 27 39;
+  --gym-850-rgb: 25 34 49;
+  --gym-800-rgb: 32 43 61;
+  --gym-700-rgb: 44 59 82;
+  --gym-600-rgb: 66 85 115;
 
   /* Neumorphic Shadow Tokens */
   --neu-shadow-dark: #080b10;
@@ -28,6 +35,8 @@
   --neu-inset-bg: #0c1017;
   --neu-border: rgba(255, 255, 255, 0.04);
   --neu-border-hover: rgba(132, 204, 22, 0.4);
+  --neu-glass-edge: rgba(255, 255, 255, 0.07);
+  --neu-glass-highlight: rgba(255, 255, 255, 0.07);
 }
 
 .light {
@@ -40,6 +49,12 @@
   --gym-800: #dce3ee;
   --gym-700: #c5d0df;
   --gym-600: #9cb0c8;
+  --gym-950-rgb: 230 235 242;
+  --gym-900-rgb: 236 241 248;
+  --gym-850-rgb: 241 246 252;
+  --gym-800-rgb: 220 227 238;
+  --gym-700-rgb: 197 208 223;
+  --gym-600-rgb: 156 176 200;
 
   /* Neumorphic Shadow Tokens */
   --neu-shadow-dark: #b8c3d1;
@@ -47,6 +62,8 @@
   --neu-inset-bg: #dfe5ee;
   --neu-border: rgba(255, 255, 255, 0.7);
   --neu-border-hover: rgba(132, 204, 22, 0.7);
+  --neu-glass-edge: rgba(255, 255, 255, 0.85);
+  --neu-glass-highlight: rgba(255, 255, 255, 0.95);
 }
 
 /* ------------------------------------------------------------------ */
@@ -90,9 +107,50 @@
 .light .text-slate-500 {
   color: #64748b;
 }
-.light .text-lime-400 {
-  color: #4d7c0f;
+
+/* Accent text (errors, warnings, statuses, badges, links). The 200-700 shades are picked for the */
+/* dark surfaces; on the light ones they fall to 1.3-4.4:1. In light theme each hue maps to one     */
+/* darker shade with at least 4.5:1 on every gym surface (gym-950 to gym-800) and on its own 10%     */
+/* tint. Text laid over a photo keeps its colour: anything on or inside a bg-black element, or after */
+/* a from-black gradient overlay, is left alone (those photos are dark in both themes).              */
+.light :is(.text-rose-200, .text-rose-300, .text-rose-400, .text-rose-500, .text-rose-600,
+  .text-red-200, .text-red-300, .text-red-400, .text-red-500, .text-red-600):where(:not([class*='bg-black'], [class*='bg-black'] *, [class*='from-black'] ~ *, [class*='from-black'] ~ * *)) {
+  color: #be123c;
 }
+.light :is(.text-pink-200, .text-pink-300, .text-pink-400, .text-pink-500, .text-pink-600,
+  .text-fuchsia-200, .text-fuchsia-300, .text-fuchsia-400, .text-fuchsia-500, .text-fuchsia-600):where(:not([class*='bg-black'], [class*='bg-black'] *, [class*='from-black'] ~ *, [class*='from-black'] ~ * *)) {
+  color: #9d174d;
+}
+.light :is(.text-amber-200, .text-amber-300, .text-amber-400, .text-amber-500, .text-amber-600, .text-amber-700,
+  .text-yellow-200, .text-yellow-300, .text-yellow-400, .text-yellow-500, .text-yellow-600, .text-yellow-700,
+  .text-orange-200, .text-orange-300, .text-orange-400, .text-orange-500, .text-orange-600, .text-orange-700):where(:not([class*='bg-black'], [class*='bg-black'] *, [class*='from-black'] ~ *, [class*='from-black'] ~ * *)) {
+  color: #92400e;
+}
+.light :is(.text-cyan-200, .text-cyan-300, .text-cyan-400, .text-cyan-500, .text-cyan-600, .text-cyan-700,
+  .text-sky-200, .text-sky-300, .text-sky-400, .text-sky-500, .text-sky-600, .text-sky-700,
+  .text-teal-200, .text-teal-300, .text-teal-400, .text-teal-500, .text-teal-600, .text-teal-700):where(:not([class*='bg-black'], [class*='bg-black'] *, [class*='from-black'] ~ *, [class*='from-black'] ~ * *)) {
+  color: #155e75;
+}
+.light :is(.text-purple-200, .text-purple-300, .text-purple-400, .text-purple-500, .text-purple-600,
+  .text-violet-200, .text-violet-300, .text-violet-400, .text-violet-500, .text-violet-600):where(:not([class*='bg-black'], [class*='bg-black'] *, [class*='from-black'] ~ *, [class*='from-black'] ~ * *)) {
+  color: #7e22ce;
+}
+.light :is(.text-emerald-200, .text-emerald-300, .text-emerald-400, .text-emerald-500, .text-emerald-600, .text-emerald-700,
+  .text-green-200, .text-green-300, .text-green-400, .text-green-500, .text-green-600, .text-green-700):where(:not([class*='bg-black'], [class*='bg-black'] *, [class*='from-black'] ~ *, [class*='from-black'] ~ * *)) {
+  color: #065f46;
+}
+.light :is(.text-lime-200, .text-lime-300, .text-lime-400, .text-lime-500, .text-lime-600, .text-lime-700):where(:not([class*='bg-black'], [class*='bg-black'] *, [class*='from-black'] ~ *, [class*='from-black'] ~ * *)) {
+  color: #3f6212;
+}
+/* The same for hover colours on links and icon buttons. */
+.light .hover\:text-lime-400:hover {
+  color: #3f6212;
+}
+.light .hover\:text-rose-400:hover,
+.light .hover\:text-rose-500:hover {
+  color: #be123c;
+}
+
 .light .text-white {
   color: #0f172a;
 }
@@ -100,7 +158,9 @@
 .light .bg-lime-500.text-white,
 .light .bg-black.text-white,
 .light .neu-btn-pink,
-.light .neu-btn-pink * {
+.light .neu-btn-pink *,
+.light .neu-btn-danger,
+.light .neu-btn-danger * {
   color: #ffffff !important;
 }
 .light .neu-btn-lime,
@@ -130,6 +190,12 @@
   color: #0f172a !important;
 }
 
+/* After a page change, focus moves to the page heading (or <main>) for screen readers; it is not a control. */
+main[tabindex='-1']:focus,
+main h1[tabindex='-1']:focus {
+  outline: none;
+}
+
 /* Ensure contrast in dark mode */
 .dark .neu-btn:not(.neu-btn-lime),
 .dark .neu-icon-btn {
@@ -140,12 +206,14 @@
   color: #ffffff !important;
 }
 
-/* Recharts Tooltip Universal Contrast Fix */
+/* Chart tooltips: dark frosted glass in both themes (their text is always white). */
 .recharts-default-tooltip {
-  background-color: #0c1017 !important;
+  background-color: rgba(12, 16, 23, 0.8) !important;
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
   border-radius: 0.875rem !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6) !important;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.08), 0 10px 25px -5px rgba(0, 0, 0, 0.6) !important;
   color: #ffffff !important;
   padding: 0.75rem 1rem !important;
 }
@@ -246,86 +314,388 @@
   border-radius: 0.75rem;
 }
 
-/* 4. Neumorphic Buttons */
-.neu-btn {
-  background-color: var(--gym-900);
-  box-shadow: 5px 5px 12px var(--neu-shadow-dark), -5px -5px 12px var(--neu-shadow-light);
-  border: 1px solid var(--neu-border);
-  border-radius: 0.875rem;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+/* 4. Glass-neumorphic buttons
+   Every raised button shares one anatomy: soft dual shadows (neumorphism), a base colour under a glossy
+   top-left highlight and a bright edge (glass), and a sheen that sweeps across on hover. On hover the
+   button lifts, glows and swaps colours (secondary -> lime, lime/pink -> dark glass, danger -> white),
+   with its text and icons recoloured to stay readable; pressing sinks it in. The colour is a plain
+   background-color, so the swap fades instead of jumping. */
+.neu-btn,
+.neu-btn-lime,
+.neu-btn-pink,
+.neu-btn-danger,
+.neu-icon-btn {
+  --btn-sheen: rgba(255, 255, 255, 0.2);
+  --btn-gloss: linear-gradient(145deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 60%);
+  background-image:
+    linear-gradient(115deg, transparent 35%, var(--btn-sheen) 50%, transparent 65%),
+    var(--btn-gloss) !important;
+  background-size: 250% 100%, 100% 100% !important;
+  background-position: 130% 0, 0 0 !important;
+  background-repeat: no-repeat !important;
   cursor: pointer;
+  transition:
+    transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.28s ease,
+    background-color 0.3s ease,
+    background-position 0.7s ease,
+    border-color 0.25s ease,
+    color 0.25s ease,
+    filter 0.2s ease;
 }
 
-.neu-btn:hover {
-  box-shadow: 7px 7px 16px var(--neu-shadow-dark), -7px -7px 16px var(--neu-shadow-light);
-  transform: translateY(-1px);
+/* In light theme the page-coloured buttons need a stronger highlight to read as convex. */
+.light .neu-btn,
+.light .neu-icon-btn {
+  --btn-gloss: linear-gradient(145deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 65%);
 }
 
-.neu-btn:active {
-  box-shadow: inset 3px 3px 6px var(--neu-shadow-dark), inset -3px -3px 6px var(--neu-shadow-light);
-  transform: translateY(1px);
+.neu-btn svg,
+.neu-btn-lime svg,
+.neu-btn-pink svg,
+.neu-btn-danger svg,
+.neu-icon-btn svg {
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.25s ease;
 }
 
-/* 5. Neumorphic Brand Buttons (Lime, Pink, Amber, Cyan) */
-.neu-btn-lime {
-  background: linear-gradient(135deg, #a3e635 0%, #84cc16 100%) !important;
-  color: #090c10 !important;
-  font-weight: 800;
-  box-shadow: 5px 5px 14px var(--neu-shadow-dark), -5px -5px 14px var(--neu-shadow-light), 0 0 16px rgba(132, 204, 22, 0.35) !important;
+.neu-btn:hover:not(:disabled) svg,
+.neu-btn-lime:hover:not(:disabled) svg,
+.neu-btn-pink:hover:not(:disabled) svg,
+.neu-btn-danger:hover:not(:disabled) svg,
+.neu-icon-btn:hover:not(:disabled) svg {
+  transform: scale(1.12);
+}
+
+.neu-btn:hover:not(:disabled),
+.neu-btn-lime:hover:not(:disabled),
+.neu-btn-pink:hover:not(:disabled),
+.neu-btn-danger:hover:not(:disabled),
+.neu-icon-btn:hover:not(:disabled) {
+  background-position: -30% 0, 0 0 !important;
+  transform: translateY(-2px);
+}
+
+.neu-btn:active:not(:disabled),
+.neu-btn-lime:active:not(:disabled),
+.neu-btn-pink:active:not(:disabled),
+.neu-btn-danger:active:not(:disabled),
+.neu-icon-btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+  transition-duration: 0.08s;
+}
+
+.neu-btn:focus-visible,
+.neu-btn-lime:focus-visible,
+.neu-btn-pink:focus-visible,
+.neu-btn-danger:focus-visible,
+.neu-icon-btn:focus-visible {
+  outline: 2px solid #84cc16;
+  outline-offset: 3px;
+}
+
+/* Secondary: frosted page-coloured pebble; turns lime on hover. */
+.neu-btn {
+  background-color: rgb(var(--gym-900-rgb) / 0.78);
+  border: 1px solid var(--neu-glass-edge);
   border-radius: 0.875rem;
-  transition: all 0.2s ease;
+  box-shadow: 5px 5px 12px var(--neu-shadow-dark), -5px -5px 12px var(--neu-shadow-light), inset 1px 1px 0 var(--neu-glass-highlight);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
 }
 
-.neu-btn-lime:hover {
-  background: linear-gradient(135deg, #bef264 0%, #84cc16 100%) !important;
-  box-shadow: 7px 7px 18px var(--neu-shadow-dark), -7px -7px 18px var(--neu-shadow-light), 0 0 24px rgba(132, 204, 22, 0.5) !important;
-  transform: translateY(-1px);
+.neu-btn:hover:not(:disabled) {
+  background-color: #a3e635;
+  border-color: rgba(217, 249, 157, 0.9);
+  box-shadow:
+    8px 8px 18px var(--neu-shadow-dark),
+    -8px -8px 18px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 10px 24px -8px rgba(132, 204, 22, 0.6);
 }
 
-.neu-btn-lime:active {
-  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.6), inset -3px -3px 6px rgba(255, 255, 255, 0.3) !important;
-  transform: translateY(1px);
+.neu-btn:active:not(:disabled) {
+  box-shadow: inset 3px 3px 7px var(--neu-shadow-dark), inset -3px -3px 7px var(--neu-shadow-light);
+}
+
+/* 5. Brand buttons: glossy coloured glass with a bright top edge, a darker lower lip and a coloured glow.
+   Lime and pink turn into dark glass with coloured text on hover; danger turns white with rose text. */
+.neu-btn-lime,
+.neu-btn-pink,
+.neu-btn-danger {
+  --btn-gloss: linear-gradient(145deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 55%);
+  --btn-sheen: rgba(255, 255, 255, 0.5);
+  font-weight: 800;
+  border-radius: 0.875rem;
+}
+
+.neu-btn-lime {
+  background-color: #84cc16 !important;
+  color: #090c10 !important;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow:
+    5px 5px 14px var(--neu-shadow-dark),
+    -5px -5px 14px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -3px 6px rgba(63, 98, 18, 0.3),
+    0 0 16px rgba(132, 204, 22, 0.3) !important;
+}
+
+.neu-btn-lime:hover:not(:disabled) {
+  background-color: #0f172a !important;
+  border-color: rgba(163, 230, 53, 0.7);
+  box-shadow:
+    8px 8px 20px var(--neu-shadow-dark),
+    -8px -8px 20px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 28px rgba(132, 204, 22, 0.5) !important;
+}
+
+.neu-btn-lime:active:not(:disabled) {
+  box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.55), inset -3px -3px 7px rgba(255, 255, 255, 0.12) !important;
 }
 
 .neu-btn-pink {
-  background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%) !important;
+  background-color: #ec4899 !important;
   color: #ffffff !important;
-  font-weight: 800;
-  box-shadow: 5px 5px 14px var(--neu-shadow-dark), -5px -5px 14px var(--neu-shadow-light), 0 0 16px rgba(236, 72, 153, 0.35) !important;
-  border-radius: 0.875rem;
-  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow:
+    5px 5px 14px var(--neu-shadow-dark),
+    -5px -5px 14px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -3px 6px rgba(131, 24, 67, 0.3),
+    0 0 16px rgba(236, 72, 153, 0.3) !important;
 }
 
-.neu-btn-pink:hover {
-  box-shadow: 7px 7px 18px var(--neu-shadow-dark), -7px -7px 18px var(--neu-shadow-light), 0 0 24px rgba(236, 72, 153, 0.5) !important;
-  transform: translateY(-1px);
+.neu-btn-pink:hover:not(:disabled) {
+  background-color: #0f172a !important;
+  border-color: rgba(244, 114, 182, 0.7);
+  box-shadow:
+    8px 8px 20px var(--neu-shadow-dark),
+    -8px -8px 20px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 28px rgba(236, 72, 153, 0.5) !important;
 }
 
-.neu-btn-pink:active {
-  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.6), inset -3px -3px 6px rgba(255, 255, 255, 0.3) !important;
-  transform: translateY(1px);
+.neu-btn-pink:active:not(:disabled) {
+  box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.55), inset -3px -3px 7px rgba(255, 255, 255, 0.12) !important;
 }
 
-/* 6. Neumorphic Circular Icon Buttons */
+/* Destructive actions (clock out, delete, remove): rose glass with white text (>= 4.5:1 across the gloss). */
+.neu-btn-danger {
+  --btn-gloss: linear-gradient(145deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 55%);
+  background-color: #c81b45 !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow:
+    5px 5px 14px var(--neu-shadow-dark),
+    -5px -5px 14px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -3px 6px rgba(76, 5, 25, 0.35),
+    0 0 14px rgba(225, 29, 72, 0.3) !important;
+}
+
+.neu-btn-danger:hover:not(:disabled) {
+  background-color: #ffffff !important;
+  border-color: rgba(225, 29, 72, 0.6);
+  box-shadow:
+    8px 8px 20px var(--neu-shadow-dark),
+    -8px -8px 20px var(--neu-shadow-light),
+    inset 0 -3px 6px rgba(225, 29, 72, 0.12),
+    0 0 26px rgba(225, 29, 72, 0.45) !important;
+}
+
+.neu-btn-danger:active:not(:disabled) {
+  box-shadow: inset 3px 3px 7px rgba(76, 5, 25, 0.35), inset -3px -3px 7px rgba(255, 255, 255, 0.6) !important;
+}
+
+/* 6. Round icon buttons: the secondary glass surface as a circle; lime on hover, rose for delete icons. */
 .neu-icon-btn {
-  background-color: var(--gym-900);
-  box-shadow: 4px 4px 9px var(--neu-shadow-dark), -4px -4px 9px var(--neu-shadow-light);
-  border: 1px solid var(--neu-border);
+  background-color: rgb(var(--gym-900-rgb) / 0.78);
+  border: 1px solid var(--neu-glass-edge);
   border-radius: 9999px;
+  box-shadow: 4px 4px 9px var(--neu-shadow-dark), -4px -4px 9px var(--neu-shadow-light), inset 1px 1px 0 var(--neu-glass-highlight);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
 }
 
-.neu-icon-btn:hover {
-  box-shadow: 6px 6px 12px var(--neu-shadow-dark), -6px -6px 12px var(--neu-shadow-light);
-  transform: translateY(-1px);
+.neu-icon-btn:hover:not(:disabled) {
+  background-color: #a3e635;
+  border-color: rgba(217, 249, 157, 0.9);
+  box-shadow:
+    6px 6px 13px var(--neu-shadow-dark),
+    -6px -6px 13px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 0 18px rgba(132, 204, 22, 0.45);
 }
 
-.neu-icon-btn:active {
+.neu-icon-btn.neu-icon-btn-danger:hover:not(:disabled) {
+  background-color: #e11d48;
+  border-color: rgba(253, 164, 175, 0.8);
+  box-shadow:
+    6px 6px 13px var(--neu-shadow-dark),
+    -6px -6px 13px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 18px rgba(225, 29, 72, 0.45);
+}
+
+.neu-icon-btn:active:not(:disabled) {
   box-shadow: inset 3px 3px 6px var(--neu-shadow-dark), inset -3px -3px 6px var(--neu-shadow-light);
-  transform: translateY(1px);
+}
+
+/* Hover text and icon colours. Doubled classes and !important outrank the theme colour rules above
+   (including the ones that recolour every child), so text stays readable on the new fill. */
+html .neu-btn.neu-btn:not(.neu-btn-lime):not(.neu-btn-pink):not(.neu-btn-danger):hover:not(:disabled),
+html .neu-btn.neu-btn:not(.neu-btn-lime):not(.neu-btn-pink):not(.neu-btn-danger):hover:not(:disabled) *,
+html .neu-icon-btn.neu-icon-btn:not(.neu-icon-btn-danger):hover:not(:disabled),
+html .neu-icon-btn.neu-icon-btn:not(.neu-icon-btn-danger):hover:not(:disabled) * {
+  color: #1a2e05 !important;
+}
+html .neu-btn-lime.neu-btn-lime:hover:not(:disabled),
+html .neu-btn-lime.neu-btn-lime:hover:not(:disabled) * {
+  color: #bef264 !important;
+}
+html .neu-btn-pink.neu-btn-pink:hover:not(:disabled),
+html .neu-btn-pink.neu-btn-pink:hover:not(:disabled) * {
+  color: #f9a8d4 !important;
+}
+html .neu-btn-danger.neu-btn-danger:hover:not(:disabled),
+html .neu-btn-danger.neu-btn-danger:hover:not(:disabled) * {
+  color: #be123c !important;
+}
+html .neu-icon-btn.neu-icon-btn-danger.neu-icon-btn-danger:hover:not(:disabled),
+html .neu-icon-btn.neu-icon-btn-danger.neu-icon-btn-danger:hover:not(:disabled) * {
+  color: #ffffff !important;
+}
+
+/* Disabled buttons stay put. */
+.neu-btn:disabled,
+.neu-btn-lime:disabled,
+.neu-btn-pink:disabled,
+.neu-btn-danger:disabled,
+.neu-icon-btn:disabled {
+  transform: none;
+  filter: none;
+  cursor: not-allowed;
+}
+
+/* No lift, bounce or sweep for people who ask for less motion; the colour swap remains. */
+@media (prefers-reduced-motion: reduce) {
+  .neu-btn,
+  .neu-btn-lime,
+  .neu-btn-pink,
+  .neu-btn-danger,
+  .neu-icon-btn,
+  .neu-btn svg,
+  .neu-btn-lime svg,
+  .neu-btn-pink svg,
+  .neu-btn-danger svg,
+  .neu-icon-btn svg {
+    transition: box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+  .neu-btn:hover,
+  .neu-btn-lime:hover,
+  .neu-btn-pink:hover,
+  .neu-btn-danger:hover,
+  .neu-icon-btn:hover,
+  .neu-btn:active,
+  .neu-btn-lime:active,
+  .neu-btn-pink:active,
+  .neu-btn-danger:active,
+  .neu-icon-btn:active {
+    transform: none !important;
+    background-position: 130% 0, 0 0 !important;
+  }
+  .neu-btn:hover svg,
+  .neu-btn-lime:hover svg,
+  .neu-btn-pink:hover svg,
+  .neu-btn-danger:hover svg,
+  .neu-icon-btn:hover svg {
+    transform: none !important;
+  }
+}
+
+/* 8. Glassmorphism */
+/* Sticky bars and menus: the page shows through, frosted. */
+.glass-bar {
+  background-color: rgb(var(--gym-950-rgb) / 0.72) !important;
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+}
+
+/* Tinted notices, alerts and icon tiles: keep their colour, add frosted depth and a soft lift. */
+.glass-tint {
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.07), 4px 4px 10px var(--neu-shadow-dark), -4px -4px 10px var(--neu-shadow-light);
+}
+.light .glass-tint {
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.75), 4px 4px 10px var(--neu-shadow-dark), -4px -4px 10px var(--neu-shadow-light);
+}
+
+/* Panels laid over photos: dark frosted glass in both themes (the photo is dark either way). */
+.glass-dark {
+  background-color: rgba(9, 12, 16, 0.55) !important;
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.1), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* 9. Neumorphic data tables: the header is a sunken band, rows lift slightly on hover. */
+.neu-table thead tr {
+  background-color: var(--neu-inset-bg);
+  box-shadow: inset 2px 2px 5px var(--neu-shadow-dark), inset -2px -2px 5px var(--neu-shadow-light);
+}
+.neu-table tbody tr {
+  transition: background-color 0.2s ease;
+}
+.neu-table tbody tr:hover {
+  background-color: rgb(var(--gym-850-rgb) / 0.7);
+}
+
+/* 10. Neumorphic checkboxes: a raised square that presses in, lime with a check, when ticked. */
+input[type='checkbox']:not(.sr-only) {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+  display: inline-grid;
+  place-content: center;
+  border-radius: 0.4rem;
+  background-color: var(--gym-900);
+  border: 1px solid var(--neu-border);
+  box-shadow: 2px 2px 5px var(--neu-shadow-dark), -2px -2px 5px var(--neu-shadow-light);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+input[type='checkbox']:not(.sr-only)::before {
+  content: '';
+  width: 0.65rem;
+  height: 0.65rem;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+  background-color: #090c10;
+  transform: scale(0);
+  transition: transform 0.12s ease-in-out;
+}
+input[type='checkbox']:not(.sr-only):checked {
+  background: linear-gradient(135deg, #a3e635 0%, #84cc16 100%);
+  border-color: transparent;
+  box-shadow: inset 2px 2px 4px rgba(0, 0, 0, 0.35), inset -2px -2px 4px rgba(255, 255, 255, 0.25);
+}
+input[type='checkbox']:not(.sr-only):checked::before {
+  transform: scale(1);
+}
+input[type='checkbox']:not(.sr-only):focus-visible {
+  outline: 2px solid #84cc16;
+  outline-offset: 2px;
+}
+input[type='checkbox']:not(.sr-only):disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* 7. Custom Neumorphic Scrollbars */
@@ -347,4 +717,116 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #84cc16;
+}
+/* ------------------------------------------------------------------ */
+/* Toast notifications: frosted glass with a neumorphic edge           */
+/* ------------------------------------------------------------------ */
+/* Text colours are set here, not through the slate remaps, so a toast stays readable over */
+/* anything behind it (photos, the dark dialog backdrop) in both themes.                  */
+.glass-toast {
+  --toast-accent: #22d3ee;
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  background-color: rgb(var(--gym-850-rgb) / 0.8);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 22px 45px -18px rgba(0, 0, 0, 0.75),
+    6px 6px 14px var(--neu-shadow-dark),
+    -4px -4px 12px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  animation: toast-in 0.28s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+}
+.light .glass-toast {
+  background-color: rgb(var(--gym-850-rgb) / 0.86);
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 22px 45px -18px rgba(15, 23, 42, 0.45),
+    6px 6px 14px var(--neu-shadow-dark),
+    -6px -6px 14px var(--neu-shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+/* Accent bar on the leading edge. */
+.glass-toast::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--toast-accent);
+}
+.glass-toast[data-type='success'] { --toast-accent: #84cc16; }
+.glass-toast[data-type='error'] { --toast-accent: #f43f5e; }
+.glass-toast[data-type='warning'] { --toast-accent: #f59e0b; }
+.light .glass-toast[data-type='success'] { --toast-accent: #4d7c0f; }
+.light .glass-toast[data-type='error'] { --toast-accent: #be123c; }
+.light .glass-toast[data-type='warning'] { --toast-accent: #b45309; }
+.light .glass-toast[data-type='info'] { --toast-accent: #0e7490; }
+
+.glass-toast .toast-icon {
+  color: var(--toast-accent);
+  border-radius: 0.85rem;
+  background-color: rgb(var(--gym-950-rgb) / 0.55);
+  box-shadow: inset 2px 2px 5px var(--neu-shadow-dark), inset -2px -2px 5px var(--neu-shadow-light);
+}
+.glass-toast .toast-title { color: #f8fafc; }
+.glass-toast .toast-message { color: #cbd5e1; }
+.light .glass-toast .toast-title { color: #0f172a; }
+.light .glass-toast .toast-message { color: #334155; }
+.glass-toast .toast-close { color: #94a3b8; }
+.glass-toast .toast-close:hover { color: #f8fafc; }
+.light .glass-toast .toast-close { color: #475569; }
+.light .glass-toast .toast-close:hover { color: #0f172a; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (min-width: 640px) {
+  .glass-toast { animation-name: toast-in-up; }
+}
+@keyframes toast-in-up {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .glass-toast { animation: none; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Dialogs: bottom sheet on phones, centred card from 640px            */
+/* ------------------------------------------------------------------ */
+.modal-panel {
+  /* Leave a strip at the top: room for toasts, and somewhere to tap to close. */
+  max-height: calc(100vh - 4.75rem);
+  max-height: calc(100dvh - 4.75rem);
+  border-radius: 1.75rem 1.75rem 0 0 !important;
+  animation: sheet-in 0.26s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+}
+.modal-body {
+  /* Keep the last button clear of the phone's home indicator. */
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+}
+@media (min-width: 640px) {
+  .modal-panel {
+    max-height: calc(100vh - 3rem);
+    max-height: calc(100dvh - 3rem);
+    border-radius: 2rem !important;
+    animation-name: dialog-in;
+  }
+  .modal-body {
+    padding-bottom: 2rem;
+  }
+}
+@keyframes sheet-in {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes dialog-in {
+  from { transform: translateY(8px) scale(0.98); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-panel { animation: none; }
 }

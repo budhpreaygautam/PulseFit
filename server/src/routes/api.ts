@@ -1,77 +1,38 @@
 import { Router } from 'express';
-import { login, register, demoLogin, firebaseSync, getMe, updateProfile, getPlans } from '../controllers/authController.js';
-import { getClasses, getClassById, createClass, updateClass, deleteClass } from '../controllers/classController.js';
-import { getMyBookings, createBooking, cancelBooking, getClassRoster } from '../controllers/bookingController.js';
-import { getExercises, getExerciseById, getWorkouts, getWorkoutById, createWorkout, deleteWorkout, getWorkoutAnalytics } from '../controllers/workoutController.js';
-import { getMembers, getMemberById, createMember, updateMember, deleteMember, checkInMember, getAttendanceLogs } from '../controllers/memberController.js';
-import { getTrainers, getTrainerById, createTrainer, updateTrainer, deleteTrainer } from '../controllers/trainerController.js';
-import { getDashboardKPIs } from '../controllers/analyticsController.js';
-import { createOrder, verifyPayment } from '../controllers/paymentController.js';
-import { clockIn, clockOut, getActiveFloorStatus, getMyTimeTrackingStats } from '../controllers/timeTrackingController.js';
-import { authenticate, requireRole, optionalAuth } from '../middleware/auth.js';
+import config, { googleSignInEnabled, paymentsEnabled } from '../config.js';
+import { notFoundHandler } from '../middleware/errorHandler.js';
+import { publicOpeningHours } from '../lib/hours.js';
+import authRoutes from './auth.js';
+import paymentRoutes from './payments.js';
+import classRoutes from './classes.js';
+import memberRoutes from './members.js';
+import activityRoutes from './activity.js';
 
 const router = Router();
 
-// --- Auth & Profile ---
-router.post('/auth/login', login);
-router.post('/auth/register', register);
-router.post('/auth/firebase-sync', firebaseSync);
-router.post('/auth/demo-login', demoLogin);
-router.get('/auth/me', authenticate, getMe);
-router.put('/auth/profile', authenticate, updateProfile);
-router.get('/plans', getPlans);
+router.get('/health', (_req, res) => {
+  res.json({ success: true, data: { status: 'ok', timestamp: new Date().toISOString() } });
+});
 
-// --- Payment Routes ---
-router.post('/payment/create-order', authenticate, createOrder);
-router.post('/payment/verify', authenticate, verifyPayment);
+// What the client needs to know about this deployment before rendering anything.
+router.get('/config', (_req, res) => {
+  res.json({
+    success: true,
+    data: {
+      demoMode: config.demoMode,
+      googleClientId: googleSignInEnabled() ? config.googleClientId : null,
+      payments: { enabled: paymentsEnabled(), keyId: paymentsEnabled() ? config.razorpay.keyId : null },
+      gym: { name: 'PulseFit Athletics', timezone: config.gymTimezone, currency: 'INR', hours: publicOpeningHours() }
+    }
+  });
+});
 
-// --- Classes ---
-router.get('/classes', optionalAuth, getClasses);
-router.get('/classes/:id', optionalAuth, getClassById);
-router.post('/classes', authenticate, requireRole(['admin']), createClass);
-router.put('/classes/:id', authenticate, requireRole(['admin']), updateClass);
-router.delete('/classes/:id', authenticate, requireRole(['admin']), deleteClass);
+router.use(authRoutes);
+router.use(paymentRoutes);
+router.use(classRoutes);
+router.use(memberRoutes);
+router.use(activityRoutes);
 
-// --- Bookings ---
-router.get('/bookings/my', authenticate, getMyBookings);
-router.post('/bookings', authenticate, createBooking);
-router.delete('/bookings/:id', authenticate, cancelBooking);
-router.get('/bookings/class/:classId/roster', authenticate, requireRole(['admin', 'trainer']), getClassRoster);
-
-// --- Workouts & Exercises ---
-router.get('/exercises', getExercises);
-router.get('/exercises/:id', getExerciseById);
-
-// --- Workouts ---
-router.get('/workouts', authenticate, getWorkouts);
-router.get('/workouts/analytics', authenticate, getWorkoutAnalytics);
-router.get('/workouts/:id', authenticate, getWorkoutById);
-router.post('/workouts', authenticate, createWorkout);
-router.delete('/workouts/:id', authenticate, deleteWorkout);
-
-// --- Trainers ---
-router.get('/trainers', getTrainers);
-router.get('/trainers/:id', getTrainerById);
-router.post('/trainers', authenticate, requireRole(['admin']), createTrainer);
-router.put('/trainers/:id', authenticate, requireRole(['admin']), updateTrainer);
-router.delete('/trainers/:id', authenticate, requireRole(['admin']), deleteTrainer);
-
-// --- Members & Attendance ---
-router.get('/members', authenticate, requireRole(['admin']), getMembers);
-router.get('/members/:id', authenticate, requireRole(['admin']), getMemberById);
-router.post('/members', authenticate, requireRole(['admin']), createMember);
-router.put('/members/:id', authenticate, requireRole(['admin']), updateMember);
-router.delete('/members/:id', authenticate, requireRole(['admin']), deleteMember);
-router.post('/attendance/check-in', authenticate, requireRole(['admin']), checkInMember);
-router.get('/attendance/logs', authenticate, requireRole(['admin']), getAttendanceLogs);
-
-// --- Time Tracking & Floor Presence ---
-router.post('/time-tracking/clock-in', authenticate, clockIn);
-router.post('/time-tracking/clock-out', authenticate, clockOut);
-router.get('/time-tracking/active-floor', getActiveFloorStatus);
-router.get('/time-tracking/my-stats', authenticate, getMyTimeTrackingStats);
-
-// --- Admin Analytics ---
-router.get('/analytics/dashboard', authenticate, requireRole(['admin']), getDashboardKPIs);
+router.use(notFoundHandler);
 
 export default router;

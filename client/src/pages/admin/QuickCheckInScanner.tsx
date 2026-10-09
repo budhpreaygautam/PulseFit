@@ -1,301 +1,366 @@
-import React, { useState, useEffect } from 'react';
-import {
-  QrCode,
-  Scan,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Sparkles
-} from 'lucide-react';
-import { AttendanceLog } from '../../types/index.js';
-import { api } from '../../api/client.js';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowLeft, Camera, CheckCircle2, Clock, Loader2, QrCode, RefreshCw, XCircle } from 'lucide-react';
+import { AttendanceLog, CheckInDenial, CheckInMember, CheckInResult, TrialPass } from '../../types/index.js';
+import { ApiError, api, errorMessage } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
-import { useToast } from '../../context/ToastContext.js';
+import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
+import { AdminNav, Avatar, PageHeader, SectionCard, focusRing, inputClass, labelClass } from '../../components/admin/ui.js';
+import { CameraScanner, canScanWithCamera } from '../../components/admin/CameraScanner.js';
+import { statusVariant } from '../../components/admin/memberStatus.js';
 import { useAuth } from '../../context/AuthContext.js';
+import { useNavigation } from '../../context/NavigationContext.js';
+import { STATUS_LABELS, TIER_LABELS, TIER_SHORT_LABELS, formatDate, formatDateTime, formatTime, gymToday } from '../../lib/format.js';
 
-interface CheckInUser {
-  id?: string;
-  name?: string;
-  email?: string;
-  tier?: string;
-  membership_tier?: string;
-  streak_days?: number;
-  expiry?: string;
-  membership_expiry?: string;
-}
+type Method = 'manual' | 'camera';
 
-export const QuickCheckInScanner: React.FC = () => {
-  const [tokenInput, setTokenInput] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [scanResult, setScanResult] = useState<{
-    status: 'success' | 'denied' | 'idle';
-    message: string;
-    user?: CheckInUser;
-    timestamp?: string;
-  }>({ status: 'idle', message: 'Scanner ready. Scan member optical QR token or enter pass code.' });
+type Outcome =
+  | { kind: 'granted'; result: CheckInResult; code: string }
+  | { kind: 'denied'; reason: string; message: string; member?: CheckInMember; trial?: TrialPass; at: string; code: string }
+  | { kind: 'error'; message: string; at: string; code: string };
 
-  const [recentLogs, setRecentLogs] = useState<AttendanceLog[]>([]);
-  const { showToast } = useToast();
-  const { triggerCelebration } = useAuth();
+const DENIAL_REASONS: Record<string, string> = {
+  MEMBERSHIP_EXPIRED: 'Membership expired',
+  MEMBERSHIP_FROZEN: 'Membership frozen',
+  MEMBERSHIP_PENDING: 'No active plan',
+  TRIAL_NOT_VALID_TODAY: 'Trial pass not valid today',
+  TRIAL_ALREADY_USED: 'Trial pass already used',
+  PASS_NOT_FOUND: 'Pass not recognised',
+  GYM_CLOSED: 'Gym closed'
+};
 
-  const fetchLogs = async () => {
-    try {
-      const logs = await api.getAttendanceLogs();
-      setRecentLogs(logs);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+const FEED_LIMIT = 20;
 
-  useEffect(() => {
-    fetchLogs();
-  }, []);
+const MemberSummary: React.FC<{ member: CheckInMember }> = ({ member }) => (
+  <div className="flex items-start gap-3 min-w-0">
+    <Avatar src={member.avatar_url} name={member.name} size="w-12 h-12" />
+    <div className="min-w-0 space-y-1">
+      <p className="text-lg font-black text-slate-100 font-['Outfit'] break-words">{member.name}</p>
+      <p className="text-xs text-slate-400 break-all">{member.email}</p>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <Badge size="sm" variant={statusVariant(member.membership_status)}>{STATUS_LABELS[member.membership_status]}</Badge>
+        <span className="font-semibold text-slate-300">{TIER_LABELS[member.membership_tier]}</span>
+        <span className="text-slate-400">Access until {formatDate(member.membership_expiry)}</span>
+        {member.streak_days !== undefined && <span className="text-slate-400">Streak: {member.streak_days} {member.streak_days === 1 ? 'day' : 'days'}</span>}
+      </div>
+    </div>
+  </div>
+);
 
-  const handleProcessCheckIn = async (codeToProcess: string) => {
-    const code = codeToProcess.trim();
-    if (!code) {
-      showToast('Please enter a QR pass token or member ID', 'warning');
-      return;
-    }
+const TrialSummary: React.FC<{ trial: TrialPass }> = ({ trial }) => (
+  <div className="space-y-1 min-w-0">
+    <p className="text-lg font-black text-slate-100 font-['Outfit'] break-words">
+      {trial.name} <Badge size="sm" variant="purple">Free trial</Badge>
+    </p>
+    <p className="text-xs text-slate-400 break-all">{trial.email} · {trial.phone}</p>
+    <p className="text-xs text-slate-300">
+      {trial.interest} · valid on {formatDate(trial.valid_on)} · <span className="font-mono">{trial.code}</span>
+      {trial.redeemed_at && <> · used {formatDateTime(trial.redeemed_at)}</>}
+    </p>
+  </div>
+);
 
-    setIsProcessing(true);
-    try {
-      const res = await api.checkInMember(code, 'qr');
-      setScanResult({
-        status: 'success',
-        message: res.message,
-        user: res.data.user as CheckInUser,
-        timestamp: new Date().toLocaleTimeString()
-      });
-      triggerCelebration();
-      showToast(res.message, 'success', 'Access Granted');
-      setTokenInput('');
-      fetchLogs();
-    } catch (err: any) {
-      setScanResult({
-        status: 'denied',
-        message: err.message || 'Check-in denied',
-        timestamp: new Date().toLocaleTimeString()
-      });
-      showToast(err.message || 'Check-in denied', 'error', 'Turnstile Blocked');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+const OutcomePanel: React.FC<{ outcome: Outcome | null }> = ({ outcome }) => {
+  if (!outcome) {
+    return (
+      <div className="neu-pressed-sm rounded-2xl p-5 flex items-center gap-4 text-sm text-slate-400">
+        <QrCode className="w-8 h-8 shrink-0" aria-hidden="true" />
+        Ready. Scan a pass or type a pass code, member email or trial code.
+      </div>
+    );
+  }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    handleProcessCheckIn(tokenInput);
-  };
+  if (outcome.kind === 'granted') {
+    const { result } = outcome;
+    return (
+      <div className="glass-tint rounded-2xl border-2 border-lime-500/60 bg-lime-500/10 p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="flex items-center gap-2 text-lime-400 font-black uppercase tracking-wider text-sm">
+            <CheckCircle2 className="w-6 h-6" aria-hidden="true" /> Access granted
+          </p>
+          <span className="text-xs text-slate-400">{formatTime(result.log.check_in_time)}</span>
+        </div>
+        {result.already_checked_in && (
+          <p className="text-sm font-bold text-slate-200">Already checked in today, so no new visit was recorded. Let them through.</p>
+        )}
+        {result.member && <MemberSummary member={result.member} />}
+        {result.trial && <TrialSummary trial={result.trial} />}
+      </div>
+    );
+  }
+
+  if (outcome.kind === 'denied') {
+    return (
+      <div className="glass-tint rounded-2xl border-2 border-rose-500/60 bg-rose-500/10 p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-black uppercase tracking-wider text-sm">
+            <XCircle className="w-6 h-6" aria-hidden="true" /> Access denied · {outcome.reason}
+          </p>
+          <span className="text-xs text-slate-400">{formatTime(outcome.at)}</span>
+        </div>
+        <p className="text-sm font-semibold text-slate-200">{outcome.message}</p>
+        {outcome.member && <MemberSummary member={outcome.member} />}
+        {outcome.trial && <TrialSummary trial={outcome.trial} />}
+        {!outcome.member && !outcome.trial && <p className="text-xs text-slate-400 break-all">Code entered: <span className="font-mono">{outcome.code}</span></p>}
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8 sm:space-y-10">
-      {/* Header */}
-      <div className="border-b border-slate-800/80 pb-6">
-        <Badge variant="lime">FRONT-DESK TURNSTILE</Badge>
-        <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight mt-2 font-['Outfit']">
-          OPTICAL QR CHECK-IN SCANNER
-        </h1>
-        <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
-          Simulate rapid member badge turnstile scans with instantaneous biometric validation, streak tracking, and attendance logging at Cyber Hub Gurugram.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Scanner & Test Panel (7 cols) */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* Scanner Simulation Card */}
-          <div className="neu-flat p-6 sm:p-8 rounded-3xl border border-slate-800/80 space-y-6 relative overflow-hidden">
-            {/* Visual Scan Beam Line */}
-            <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
-              <div className="flex items-center gap-2 text-slate-200 font-bold text-sm font-['Outfit']">
-                <Scan className="w-5 h-5 text-lime-400" />
-                Optical Laser Turnstile Kiosk #1
-              </div>
-              <span className="flex items-center gap-1.5 text-xs text-lime-400 font-mono font-bold bg-lime-500/10 px-2.5 py-1 rounded-full border border-lime-500/30">
-                <span className="w-2 h-2 rounded-full bg-lime-400 animate-pulse-dot" /> LIVE TURNSTILE
-              </span>
-            </div>
-
-            {/* Scan Result Feedback Screen */}
-            <div
-              className={`p-5 sm:p-6 rounded-2xl transition-all duration-300 ${
-                scanResult.status === 'success'
-                  ? 'neu-pressed-sm border border-lime-500/50 shadow-glow-lime'
-                  : scanResult.status === 'denied'
-                  ? 'neu-pressed-sm border border-rose-500/50 shadow-glow-crimson'
-                  : 'neu-pressed-sm border border-slate-800/80'
-              }`}
-            >
-              <div className="flex items-start gap-4">
-                <div className="mt-1">
-                  {scanResult.status === 'success' && (
-                    <div className="w-12 h-12 rounded-2xl bg-lime-500 text-black flex items-center justify-center font-black shadow-glow-lime">
-                      <CheckCircle2 className="w-7 h-7" />
-                    </div>
-                  )}
-                  {scanResult.status === 'denied' && (
-                    <div className="w-12 h-12 rounded-2xl bg-rose-500 text-white flex items-center justify-center font-black shadow-glow-crimson">
-                      <XCircle className="w-7 h-7" />
-                    </div>
-                  )}
-                  {scanResult.status === 'idle' && (
-                    <div className="w-12 h-12 rounded-2xl neu-flat text-slate-400 flex items-center justify-center border border-slate-800/80">
-                      <QrCode className="w-6 h-6" />
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-1.5 flex-1">
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`text-xs font-black uppercase tracking-wider font-['Outfit'] ${
-                        scanResult.status === 'success'
-                          ? 'text-lime-400'
-                          : scanResult.status === 'denied'
-                          ? 'text-rose-400'
-                          : 'text-slate-400'
-                      }`}
-                    >
-                      {scanResult.status === 'success'
-                        ? 'ACCESS GRANTED • TURNSTILE UNLOCKED'
-                        : scanResult.status === 'denied'
-                        ? 'ACCESS DENIED • TURNSTILE LOCKED'
-                        : 'READY FOR SCAN'}
-                    </span>
-                    {scanResult.timestamp && (
-                      <span className="text-[10px] font-mono text-slate-500 font-bold">{scanResult.timestamp}</span>
-                    )}
-                  </div>
-
-                  <p className="text-sm font-bold text-white leading-relaxed">{scanResult.message}</p>
-
-                  {scanResult.user && (
-                    <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center gap-4 text-xs text-slate-300 font-medium">
-                      <span>Tier: <strong className="text-lime-400 uppercase font-mono">{scanResult.user.tier || scanResult.user.membership_tier}</strong></span>
-                      <span>Streak: <strong className="text-amber-400 font-mono">{scanResult.user.streak_days || 1}d</strong></span>
-                      <span>Valid Thru: <strong className="text-slate-200 font-mono">{scanResult.user.expiry || scanResult.user.membership_expiry}</strong></span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Input Form for Manual Scanner Simulation */}
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
-                Scan Pass Barcode / Enter QR Token:
-              </label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <QrCode className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    value={tokenInput}
-                    onChange={e => setTokenInput(e.target.value)}
-                    placeholder="e.g. PULSE-MEM-AARAV-8821 or member email"
-                    className="w-full pl-10 pr-4 py-2.5 neu-pressed-sm rounded-xl text-xs font-mono text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-lime-500 font-medium"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isProcessing}
-                  className="px-5 py-2.5 neu-btn-lime text-black font-extrabold text-xs rounded-xl shadow-glow-lime transition-all shrink-0 disabled:opacity-50"
-                >
-                  {isProcessing ? 'Verifying...' : 'Scan / Verify'}
-                </button>
-              </div>
-            </form>
-
-            {/* Quick Test Shortcuts */}
-            <div className="space-y-2 pt-2 border-t border-slate-800/80">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 font-medium">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" /> 1-Click Demo Test Scans:
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleProcessCheckIn('PULSE-MEM-AARAV-8821')}
-                  className="p-3 neu-btn rounded-xl text-left transition-all truncate"
-                >
-                  <div className="text-xs font-bold text-white truncate font-['Outfit']">Aarav Sharma</div>
-                  <div className="text-[10px] text-lime-400 font-semibold truncate">Pro (Active)</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleProcessCheckIn('PULSE-MEM-ANANYA-7734')}
-                  className="p-3 neu-btn rounded-xl text-left transition-all truncate"
-                >
-                  <div className="text-xs font-bold text-white truncate font-['Outfit']">Ananya Gupta</div>
-                  <div className="text-[10px] text-amber-400 font-semibold truncate">VIP (Active)</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleProcessCheckIn('PULSE-MEM-DEV-1100')}
-                  className="p-3 neu-btn rounded-xl text-left transition-all truncate"
-                >
-                  <div className="text-xs font-bold text-white truncate font-['Outfit']">Dev Kapoor</div>
-                  <div className="text-[10px] text-rose-400 font-semibold truncate">Expired Pass</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleProcessCheckIn('FAKE-INVALID-TOKEN-999')}
-                  className="p-3 neu-btn rounded-xl text-left transition-all truncate"
-                >
-                  <div className="text-xs font-bold text-slate-300 truncate font-['Outfit']">Invalid Pass</div>
-                  <div className="text-[10px] text-slate-400 font-semibold truncate">Unrecognized</div>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Attendance Feed Stream (5 cols) */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-extrabold text-white flex items-center gap-2 font-['Outfit']">
-              <Clock className="w-4 h-4 text-lime-400" />
-              Live Turnstile Stream ({recentLogs.length})
-            </h3>
-            <span className="text-[10px] font-mono text-slate-500 font-bold">Auto-Refreshed</span>
-          </div>
-
-          <div className="neu-flat rounded-3xl border border-slate-800/80 divide-y divide-slate-800/80 overflow-hidden max-h-[520px] overflow-y-auto p-1">
-            {recentLogs.length > 0 ? (
-              recentLogs.map(log => (
-                <div key={log.id} className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-slate-800/20 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl neu-pressed-sm text-lime-400 flex items-center justify-center font-black text-xs shrink-0">
-                      ✓
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-white font-['Outfit']">{log.user_name || 'Member'}</div>
-                      <div className="text-[10px] text-slate-400 font-medium">{log.user_email}</div>
-                    </div>
-                  </div>
-
-                  <div className="text-right shrink-0">
-                    <Badge variant={log.user_tier === 'vip' ? 'amber' : 'lime'} size="sm">
-                      {log.user_tier || 'PRO'}
-                    </Badge>
-                    <div className="text-[10px] font-mono text-slate-500 mt-1 font-semibold">
-                      {new Date(log.check_in_time).toLocaleTimeString()}
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-8 text-center text-slate-500 text-xs font-medium">
-                No check-ins recorded yet today.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+    <div className="glass-tint rounded-2xl border-2 border-amber-500/60 bg-amber-500/10 p-5 space-y-2">
+      <p className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-black uppercase tracking-wider text-sm">
+        <XCircle className="w-6 h-6" aria-hidden="true" /> Check-in failed
+      </p>
+      <p className="text-sm font-semibold text-slate-200">{outcome.message}</p>
+      <p className="text-xs text-slate-400">
+        Nothing was recorded. Try again. Code entered: <span className="font-mono break-all">{outcome.code}</span>
+      </p>
     </div>
   );
 };
 
+const LOG_METHODS: Record<string, string> = { qr: 'QR', manual: 'Desk', kiosk: 'Kiosk', camera: 'Camera' };
+
+const LogRow: React.FC<{ log: AttendanceLog }> = ({ log }) => (
+  <li className="px-4 py-3 flex items-center justify-between gap-3">
+    <div className="min-w-0">
+      <p className="text-sm font-bold text-slate-100 truncate">{log.user_name || 'Unknown'}</p>
+      <p className="text-xs text-slate-400 truncate">{log.user_email}</p>
+    </div>
+    <div className="text-right shrink-0">
+      <Badge size="sm" variant={log.trial_pass_id ? 'purple' : 'slate'}>
+        {log.trial_pass_id ? 'Trial' : TIER_SHORT_LABELS[log.user_tier ?? ''] ?? log.user_tier ?? '—'}
+      </Badge>
+      <p className="text-[11px] text-slate-400 mt-1">
+        {formatDateTime(log.check_in_time)} · {LOG_METHODS[log.check_in_method] ?? log.check_in_method}
+      </p>
+    </div>
+  </li>
+);
+
+export const QuickCheckInScanner: React.FC = () => {
+  const { user, triggerCelebration } = useAuth();
+  const { navigate } = useNavigation();
+  const isAdmin = user?.role === 'admin';
+
+  const [code, setCode] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [sessionLog, setSessionLog] = useState<Outcome[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraAvailable = canScanWithCamera();
+
+  const [feedView, setFeedView] = useState<'today' | 'latest'>('today');
+  const [feed, setFeed] = useState<{ items: AttendanceLog[]; total: number } | null>(null);
+  const [feedError, setFeedError] = useState<string | null>(null);
+  const [feedLoading, setFeedLoading] = useState(false);
+  const [feedUpdatedAt, setFeedUpdatedAt] = useState<string | null>(null);
+
+  const loadFeed = useCallback(async () => {
+    if (!isAdmin) return;
+    setFeedLoading(true);
+    setFeedError(null);
+    try {
+      setFeed(await api.getAttendanceLogs(feedView === 'today' ? { date: gymToday(), limit: FEED_LIMIT } : { limit: FEED_LIMIT }));
+      setFeedUpdatedAt(new Date().toISOString());
+    } catch (err) {
+      setFeedError(errorMessage(err));
+    } finally {
+      setFeedLoading(false);
+    }
+  }, [isAdmin, feedView]);
+
+  useEffect(() => {
+    loadFeed();
+  }, [loadFeed]);
+
+  const process = async (raw: string, method: Method) => {
+    const value = raw.trim();
+    if (!value || isProcessing) return;
+    setIsProcessing(true);
+    let next: Outcome;
+    try {
+      const result = await api.checkIn(value, method);
+      next = { kind: 'granted', result, code: value };
+      if (!result.already_checked_in) {
+        triggerCelebration();
+        loadFeed();
+      }
+    } catch (err) {
+      const at = new Date().toISOString();
+      if (err instanceof ApiError && err.code && DENIAL_REASONS[err.code]) {
+        const data = (err.data ?? {}) as CheckInDenial;
+        next = { kind: 'denied', reason: DENIAL_REASONS[err.code], message: err.message, member: data.member, trial: data.trial, at, code: value };
+      } else {
+        next = { kind: 'error', message: errorMessage(err), at, code: value };
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+    setOutcome(next);
+    setSessionLog(log => [next, ...log].slice(0, 10));
+    if (method === 'manual') {
+      // Whatever the answer, the next scan starts in an empty box (a USB scanner types and presses
+      // Enter, so a left-over code would be glued to the next one). The outcome panel still shows
+      // what was entered. Anything typed while the check ran is kept.
+      setCode(current => (current.startsWith(raw) ? current.slice(raw.length) : current));
+      inputRef.current?.focus();
+    }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
+      <PageHeader
+        eyebrow="Front desk"
+        title="Check-in"
+        description="Scan a member's QR pass or type their pass code, email or free-trial code. Every granted check-in is recorded."
+        actions={
+          !isAdmin && (
+            <button type="button" onClick={() => navigate('trainer-dashboard')} className={`px-4 py-2.5 neu-btn rounded-xl text-xs font-bold flex items-center gap-2 ${focusRing}`}>
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" /> Coach dashboard
+            </button>
+          )
+        }
+      />
+      {isAdmin && <AdminNav />}
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <SectionCard id="scan-heading" className="lg:col-span-7" title="Scan a pass" icon={<QrCode className="w-4 h-4 text-lime-400" aria-hidden="true" />}>
+          <div aria-live="polite" aria-atomic="true">
+            <OutcomePanel outcome={outcome} />
+          </div>
+
+          {isCameraOpen ? (
+            <CameraScanner
+              onDetected={value => {
+                setIsCameraOpen(false);
+                process(value, 'camera');
+              }}
+              onClose={() => setIsCameraOpen(false)}
+            />
+          ) : (
+            cameraAvailable && (
+              <button
+                type="button"
+                onClick={() => setIsCameraOpen(true)}
+                disabled={isProcessing}
+                className={`w-full py-3 neu-btn rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60 ${focusRing}`}
+              >
+                <Camera className="w-4 h-4" aria-hidden="true" /> Scan with camera
+              </button>
+            )
+          )}
+
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              process(code, 'manual');
+            }}
+            className="space-y-2"
+          >
+            <label htmlFor="checkin-code" className={labelClass}>
+              Pass code, member email or trial code
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                id="checkin-code"
+                ref={inputRef}
+                type="text"
+                autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                autoFocus
+                value={code}
+                onChange={e => setCode(e.target.value)}
+                placeholder="PULSE-… or name@example.com"
+                className={`${inputClass} font-mono`}
+              />
+              <button
+                type="submit"
+                disabled={isProcessing || !code.trim()}
+                className={`px-5 py-2.5 neu-btn-lime rounded-xl text-sm font-black flex items-center justify-center gap-2 shrink-0 disabled:opacity-60 ${focusRing}`}
+              >
+                {isProcessing && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
+                {isProcessing ? 'Checking…' : 'Check in'}
+              </button>
+            </div>
+            {!cameraAvailable && <p className="text-xs text-slate-400">Camera scanning needs a browser that can read QR codes (Chrome or Edge on Android). A USB scanner that types the code works here too.</p>}
+          </form>
+        </SectionCard>
+
+        {isAdmin ? (
+          <SectionCard
+            id="feed-heading"
+            className="lg:col-span-5"
+            title={feedView === 'today' ? "Today's check-ins" : 'Latest check-ins'}
+            icon={<Clock className="w-4 h-4 text-lime-400" aria-hidden="true" />}
+            description={
+              feed
+                ? `Showing ${feed.items.length} of ${feed.total}${feedUpdatedAt ? ` · updated ${formatTime(feedUpdatedAt)}` : ''}. Refreshes after each check-in made here.`
+                : undefined
+            }
+            actions={
+              <button type="button" onClick={loadFeed} disabled={feedLoading} className={`p-2 neu-btn rounded-lg disabled:opacity-60 ${focusRing}`} aria-label="Refresh check-ins">
+                <RefreshCw className={`w-4 h-4 ${feedLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
+              </button>
+            }
+          >
+            <div role="group" aria-label="Which check-ins" className="flex gap-2">
+              {(['today', 'latest'] as const).map(view => (
+                <button
+                  key={view}
+                  type="button"
+                  aria-pressed={feedView === view}
+                  onClick={() => setFeedView(view)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold ${focusRing} ${feedView === view ? 'neu-pressed-sm text-lime-400' : 'neu-btn text-slate-300'}`}
+                >
+                  {view === 'today' ? 'Today' : 'All recent'}
+                </button>
+              ))}
+            </div>
+            {feedError ? (
+              <ErrorState message={`Could not load check-ins. ${feedError}`} onRetry={loadFeed} />
+            ) : !feed ? (
+              <LoadingState label="Loading check-ins…" />
+            ) : feed.items.length === 0 ? (
+              <EmptyState title={feedView === 'today' ? 'No check-ins yet today' : 'No check-ins recorded'} />
+            ) : (
+              <ul className="neu-pressed-sm rounded-2xl divide-y divide-slate-800/60 max-h-[520px] overflow-y-auto">
+                {feed.items.map(log => (
+                  <LogRow key={log.id} log={log} />
+                ))}
+              </ul>
+            )}
+          </SectionCard>
+        ) : (
+          <SectionCard
+            id="session-heading"
+            className="lg:col-span-5"
+            title="Scans on this screen"
+            icon={<Clock className="w-4 h-4 text-lime-400" aria-hidden="true" />}
+            description="Only the scans made here since you opened this page. The full check-in log is for admins."
+          >
+            {sessionLog.length === 0 ? (
+              <EmptyState title="No scans yet" />
+            ) : (
+              <ul className="neu-pressed-sm rounded-2xl divide-y divide-slate-800/60">
+                {sessionLog.map((o, i) => {
+                  const name = o.kind === 'granted' ? o.result.member?.name ?? o.result.trial?.name : o.kind === 'denied' ? o.member?.name ?? o.trial?.name : undefined;
+                  const at = o.kind === 'granted' ? o.result.log.check_in_time : o.at;
+                  return (
+                    <li key={`${at}-${i}`} className="px-4 py-3 flex items-center justify-between gap-3 text-sm">
+                      <span className="min-w-0 truncate text-slate-100 font-semibold">{name ?? o.code}</span>
+                      <span className={`shrink-0 text-xs font-bold ${o.kind === 'granted' ? 'text-lime-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {o.kind === 'granted' ? 'Granted' : o.kind === 'denied' ? o.reason : 'Failed'} · {formatTime(at)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </SectionCard>
+        )}
+      </div>
+    </div>
+  );
+};

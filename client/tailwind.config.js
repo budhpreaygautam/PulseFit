@@ -8,16 +8,17 @@ export default {
   theme: {
     extend: {
       colors: {
+        // RGB-channel variables (see index.css) so opacity modifiers such as bg-gym-900/80 work.
         gym: {
-          950: 'var(--gym-950)',
-          900: 'var(--gym-900)',
-          850: 'var(--gym-850)',
-          800: 'var(--gym-800)',
-          700: 'var(--gym-700)',
-          600: 'var(--gym-600)',
+          950: 'rgb(var(--gym-950-rgb) / <alpha-value>)',
+          900: 'rgb(var(--gym-900-rgb) / <alpha-value>)',
+          850: 'rgb(var(--gym-850-rgb) / <alpha-value>)',
+          800: 'rgb(var(--gym-800-rgb) / <alpha-value>)',
+          700: 'rgb(var(--gym-700-rgb) / <alpha-value>)',
+          600: 'rgb(var(--gym-600-rgb) / <alpha-value>)',
         },
         neu: {
-          surface: 'var(--gym-900)',
+          surface: 'rgb(var(--gym-900-rgb) / <alpha-value>)',
           inset: 'var(--neu-inset-bg)',
           light: 'var(--neu-shadow-light)',
           dark: 'var(--neu-shadow-dark)',

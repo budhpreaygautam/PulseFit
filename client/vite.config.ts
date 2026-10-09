@@ -24,7 +24,7 @@ export default defineConfig({
     https: httpsOptions,
     proxy: {
       '/api': {
-        target: 'http://localhost:5004',
+        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:5004',
         changeOrigin: true
       }
     }

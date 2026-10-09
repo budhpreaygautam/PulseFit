@@ -1,80 +1,62 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import config from '../config.js';
 import db from '../db/database.js';
 import { User, UserRole } from '../types/index.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'pulsefit_super_secret_jwt_key_2026';
 
 export interface AuthenticatedRequest extends Request {
   user?: User;
 }
 
+interface TokenClaims {
+  id: string;
+  role: UserRole;
+  tv: number;
+}
+
 export function generateToken(user: User): string {
-  return jwt.sign(
-    {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      name: user.name,
-      membership_tier: user.membership_tier
-    },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
+  const claims: TokenClaims = { id: user.id, role: user.role, tv: user.token_version || 0 };
+  return jwt.sign(claims, config.jwtSecret, { expiresIn: config.jwtExpiresIn as jwt.SignOptions['expiresIn'] });
+}
+
+/** The user a bearer token belongs to, or null if the token is missing, invalid, expired or revoked. */
+function userFromHeader(header: string | undefined): User | null {
+  if (!header || !header.startsWith('Bearer ')) return null;
+  try {
+    const claims = jwt.verify(header.slice(7), config.jwtSecret) as TokenClaims;
+    const user = db.users.find(u => u.id === claims.id);
+    if (!user) return null;
+    // Password changes and resets bump token_version, which revokes every older token.
+    if ((claims.tv || 0) !== (user.token_version || 0)) return null;
+    return user;
+  } catch {
+    return null;
+  }
 }
 
 export function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, error: 'Authorization header missing or invalid' });
+  const user = userFromHeader(req.headers.authorization);
+  if (!user) {
+    return res.status(401).json({ success: false, error: 'Your session has expired. Please sign in again.', code: 'UNAUTHORIZED' });
   }
-
-  const token = authHeader.split(' ')[1];
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
-    const user = db.users.find(u => u.id === decoded.id);
-
-    if (!user) {
-      return res.status(401).json({ success: false, error: 'User no longer exists' });
-    }
-
-    req.user = user;
-    next();
-  } catch (err) {
-    return res.status(401).json({ success: false, error: 'Invalid or expired token' });
-  }
+  req.user = user;
+  next();
 }
 
-export function optionalAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.split(' ')[1];
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
-      const user = db.users.find(u => u.id === decoded.id);
-      if (user) {
-        req.user = user;
-      }
-    } catch {
-      // ignore token validation errors for optional auth
-    }
-  }
+export function optionalAuth(req: AuthenticatedRequest, _res: Response, next: NextFunction) {
+  const user = userFromHeader(req.headers.authorization);
+  if (user) req.user = user;
   next();
 }
 
 export function requireRole(allowedRoles: UserRole[]) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
-      return res.status(401).json({ success: false, error: 'Authentication required' });
+      return res.status(401).json({ success: false, error: 'Please sign in to continue.', code: 'UNAUTHORIZED' });
     }
-
     if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        error: `Forbidden: Requires one of [${allowedRoles.join(', ')}] role`
-      });
+      return res.status(403).json({ success: false, error: 'You do not have permission to do that.', code: 'FORBIDDEN' });
     }
-
     next();
   };
 }
