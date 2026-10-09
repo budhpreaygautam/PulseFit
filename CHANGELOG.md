@@ -40,7 +40,7 @@ money and access rules are enforced on the server, and the features the README a
   detail with visits and payments; admin password reset; attendance CSV export.
 - **My bookings** with upcoming/past views; class capacity counted per date; bookings checked against
   the member's plan, membership dates and the 14-day window; cancellation keeps the history.
-- Membership freeze/unfreeze that gives the frozen days back; renewals extend from the current expiry;
+- Membership freeze/unfreeze that gives back the open gym days missed; renewals extend from the current expiry;
   switching plans credits unused days; memberships expire by date.
 - Password reset page, 404 page, privacy/terms/refund pages, and real URLs for every page
   (refresh, back button and shared links work).
@@ -54,9 +54,10 @@ money and access rules are enforced on the server, and the features the README a
   down from ₹1,199 / ₹1,499 / ₹1,999. Prices live in the plan catalogue and admins can change them.
 - Dashboards show only stored data: MRR, revenue, check-ins, fill rate, retention and peak hours are
   computed in India Standard Time from real records, with a one-line definition for each figure.
-- Streaks count consecutive days with any activity (check-in, class, floor session, same-day workout).
+- Streaks count consecutive gym days with any activity (check-in, class, floor session, same-day workout);
+  closed Sundays do not break them.
 - All dates and times use the gym's timezone (Asia/Kolkata) instead of UTC or the device clock.
-- The client loads member, coach and admin areas on demand (first load 877 kB → 418 kB; charts load only where they are shown).
+- The client loads member, coach and admin areas on demand (first load 877 kB → 391 kB; charts load only where they are shown).
 - The JSON database writes atomically, refuses to start on a corrupt file instead of wiping it,
   migrates v2.0 files on load, and is no longer tracked in git (seeded on first start).
 - `docs/API.md` documents the whole API.
