@@ -4,6 +4,7 @@ import { GymClass, Trainer } from '../../types/index.js';
 import { ApiError, api } from '../../api/client.js';
 import { Modal } from '../common/Modal.js';
 import { DAY_NAMES } from '../../lib/format.js';
+import { useAppConfig } from '../../context/ConfigContext.js';
 import { FieldError, FormError, focusRing, formErrorsFrom, hintClass, inputClass, labelClass, sideEffectsOf } from './ui.js';
 
 export const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -81,6 +82,7 @@ export const ClassFormModal: React.FC<ClassFormModalProps> = ({ target, trainers
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const editing = target && target !== 'new' ? target : null;
+  const { closedWeekdays } = useAppConfig().config.gym.hours;
 
   useEffect(() => {
     if (!target) return;
@@ -155,7 +157,12 @@ export const ClassFormModal: React.FC<ClassFormModalProps> = ({ target, trainers
         setErrors({ trainer_id: `${err.message} Choose another coach.` });
         onTrainersStale();
       } else {
-        const { fieldErrors, formError } = formErrorsFrom(err, Object.keys(EMPTY));
+        const { fieldErrors, formError } = formErrorsFrom(err, [...Object.keys(EMPTY), 'end_time']);
+        // A class that runs past closing time is reported on end_time, which the form sets through its length.
+        if (fieldErrors.end_time) {
+          fieldErrors.duration_minutes ??= fieldErrors.end_time;
+          delete fieldErrors.end_time;
+        }
         setErrors(fieldErrors);
         setFormError(formError);
       }
@@ -213,7 +220,8 @@ export const ClassFormModal: React.FC<ClassFormModalProps> = ({ target, trainers
             'day_of_week',
             'Day',
             <select value={form.day_of_week} onChange={e => set('day_of_week', e.target.value)} {...common('day_of_week')}>
-              {WEEK_ORDER.map(d => (
+              {/* The gym is closed on these days; an older class already on one keeps it while edited. */}
+              {WEEK_ORDER.filter(d => !closedWeekdays.includes(d) || editing?.day_of_week === d).map(d => (
                 <option key={d} value={d}>{DAY_NAMES[d]}</option>
               ))}
             </select>
