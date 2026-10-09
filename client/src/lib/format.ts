@@ -48,6 +48,27 @@ export function formatDateTime(iso: string): string {
 
 export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-export const TIER_LABELS: Record<string, string> = { none: 'No plan', basic: 'Strength Pass', pro: 'Zumba Pass', vip: 'All-Access' };
+/**
+ * Plan names as the catalogue (server/src/db/seed.ts) has them, for screens that do not load the
+ * plans. Where the plans are loaded, prefer tierLabel(tier, plans): an admin can rename a plan.
+ */
+export const TIER_LABELS: Record<string, string> = {
+  none: 'No plan',
+  basic: 'Workout & Strength Pass',
+  pro: 'Zumba & Cardio Pass',
+  vip: 'Dual All-Access Pass (Strength + Zumba)'
+};
+
+/**
+ * Short plan names for tight spots (badges, table cells, check-in log rows), where the full name
+ * would squeeze out the member's name on a phone or push a table wider than its card.
+ */
+export const TIER_SHORT_LABELS: Record<string, string> = { none: 'No plan', basic: 'Strength', pro: 'Zumba & Cardio', vip: 'All-Access' };
+
+/** The plan's name for a tier: from the loaded catalogue when there is one, else TIER_LABELS. */
+export function tierLabel(tier: string | null | undefined, plans?: ReadonlyArray<{ tier: string; name: string }> | null): string {
+  if (!tier) return TIER_LABELS.none;
+  return plans?.find(p => p.tier === tier)?.name ?? TIER_LABELS[tier] ?? tier;
+}
 
 export const STATUS_LABELS: Record<string, string> = { active: 'Active', expired: 'Expired', pending: 'No active plan', frozen: 'Frozen' };
