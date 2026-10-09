@@ -10,7 +10,7 @@ import { unfreezeMembership } from '../lib/billing.js';
 import { effectiveStatus } from '../lib/membership.js';
 import { defaultAvatar, findUserByEmail, generateQrToken, generateTempPassword, newId, toSafeUser } from '../lib/users.js';
 import { closeOpenSession, releaseInvalidBookings } from '../lib/bookingRules.js';
-import { DEMO_PERSONAS } from './authController.js';
+import { isLockedDemoAccount } from './authController.js';
 import { MembershipStatus, MembershipTier, User, UserRole } from '../types/index.js';
 
 const ROLES = ['member', 'trainer', 'admin'] as const satisfies readonly UserRole[];
@@ -77,7 +77,7 @@ function adminCount(): number {
 // so one visitor must not take them away from everyone else: no password reset, no delete, no
 // change of role.
 function isDemoPersona(user: User): boolean {
-  return config.demoMode && (Object.values(DEMO_PERSONAS) as string[]).includes(user.email);
+  return isLockedDemoAccount(user.email);
 }
 
 function demoAccountLocked(what: string): never {

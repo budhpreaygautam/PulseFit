@@ -1,11 +1,10 @@
 import { Response } from 'express';
 import { z } from 'zod';
-import config from '../config.js';
 import db from '../db/database.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { ApiError, asyncHandler, forbidden, ok, parse } from '../lib/http.js';
 import { displayDate, gymToday, isValidDate, toGymDate } from '../lib/dates.js';
-import { CLOSES_AT, OPENS_AT, isOpenAt } from '../lib/hours.js';
+import { gymClosedError, gymClosedNow } from '../lib/hours.js';
 import { closeStaleSessions } from '../lib/floor.js';
 import { effectiveStatus, isStaff } from '../lib/membership.js';
 import { recordActivity } from '../lib/streak.js';
@@ -33,22 +32,6 @@ const logsQuery = z.object({
 });
 
 const newestFirst = (a: AttendanceLog, b: AttendanceLog) => b.check_in_time.localeCompare(a.check_in_time);
-
-/**
- * Members (and free-trial visitors) cannot come in or start a floor session while the gym is shut.
- * A clock rule, so it applies only when config.enforceOpeningHours is on; staff are never refused.
- */
-export function gymClosedNow(now: Date = new Date()): boolean {
-  return config.enforceOpeningHours && !isOpenAt(now);
-}
-
-export function gymClosedError(data?: unknown): ApiError {
-  return forbidden(
-    `The gym is closed right now. Opening hours are Monday to Saturday, ${OPENS_AT} to ${CLOSES_AT}.`,
-    'GYM_CLOSED',
-    data
-  );
-}
 
 function memberSummary(user: User) {
   const safe = toSafeUser(user);

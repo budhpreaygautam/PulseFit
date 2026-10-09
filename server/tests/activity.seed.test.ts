@@ -4,6 +4,7 @@ import { addDays, dayOfWeek, gymDateTime, gymHour, toGymDate } from '../src/lib/
 import { isMembershipActive, tierAllowsCategory } from '../src/lib/membership.js';
 import { workoutVolume } from '../src/controllers/workoutController.js';
 import { recordActivity } from '../src/lib/streak.js';
+import { previousOpenDay } from '../src/lib/hours.js';
 
 function seedAt(iso: string) {
   vi.useFakeTimers({ toFake: ['Date'] });
@@ -97,6 +98,8 @@ describe('activity seed', () => {
   it.each([
     ['on a Wednesday', '2026-10-07T04:30:00.000Z'],
     ['on a Monday', '2026-10-12T04:30:00.000Z'],
+    // 00:30 IST: nobody has trained yet today and Sunday was closed, so Saturday's runs are still live.
+    ['on a Monday before opening', '2026-10-11T19:00:00.000Z'],
     ['on a Sunday', '2026-10-11T05:00:00.000Z']
   ])('gives every user a streak that matches the seeded history %s (regression: made-up streak numbers)', async (_label, iso) => {
     const now = seedAt(iso);
@@ -110,7 +113,7 @@ describe('activity seed', () => {
       const last = [...days].filter(d => d <= today).sort().pop() ?? null;
       // Closed days (Sundays) without activity are stepped over, not a break in the run.
       let run = 0;
-      if (last && last >= addDays(today, -1)) {
+      if (last && last >= previousOpenDay(today)) {
         for (let d = last; days.has(d); ) {
           run++;
           d = addDays(d, -1);
