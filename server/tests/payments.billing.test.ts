@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computeActivation,
   creditDays,
-  frozenDays,
+  freezeCredit,
   hmacMatches,
   MembershipState,
   nextInvoiceNumber,
@@ -77,11 +77,12 @@ describe('billing: periods', () => {
     }
   });
 
-  it('counts frozen days from the freeze date to today', () => {
-    expect(frozenDays('2026-10-02', '2026-10-07')).toBe(5);
-    expect(frozenDays('2026-10-07', '2026-10-07')).toBe(0);
-    expect(frozenDays(null, '2026-10-07')).toBe(0);
-    expect(frozenDays('2026-10-09', '2026-10-07')).toBe(0);
+  it('credits the open days strictly between the freeze date and today', () => {
+    // Fri 2 Oct to Wed 7 Oct: Sat 3, Mon 5 and Tue 6 were missed; Sunday 4 was closed anyway.
+    expect(freezeCredit('2026-10-02', '2026-10-07')).toBe(3);
+    expect(freezeCredit('2026-10-07', '2026-10-07')).toBe(0);
+    expect(freezeCredit(null, '2026-10-07')).toBe(0);
+    expect(freezeCredit('2026-10-09', '2026-10-07')).toBe(0);
   });
 
   it('counts remaining days including today, and none once expired', () => {
@@ -100,9 +101,10 @@ describe('billing: periods', () => {
 });
 
 describe('billing: unfreeze', () => {
-  it('pushes the expiry back by the days frozen and clears the freeze', () => {
+  it('moves the expiry forward by the open days missed and clears the freeze', () => {
     const out = unfreezeMembership(member({ membership_status: 'frozen', frozen_since: '2026-10-02' }), '2026-10-07');
-    expect(out).toMatchObject({ membership_status: 'active', membership_expiry: '2026-11-05', frozen_since: null, unfrozen_days: 5 });
+    // 3 open days after Sat 31 Oct: Mon 2, Tue 3, Wed 4 Nov.
+    expect(out).toMatchObject({ membership_status: 'active', membership_expiry: '2026-11-04', frozen_since: null, unfrozen_days: 3 });
   });
 
   it('leaves a membership that is not frozen unchanged', () => {
@@ -190,7 +192,7 @@ describe('billing: computeActivation', () => {
       plans,
       today
     );
-    expect(a).toMatchObject({ unfrozen_days: 5, period_start: '2026-11-06', membership_expiry: '2026-12-05', frozen_since: null });
+    expect(a).toMatchObject({ unfrozen_days: 3, period_start: '2026-11-05', membership_expiry: '2026-12-04', frozen_since: null });
   });
 
   it('unfreezes a frozen member first, then credits the extended days on a plan change', () => {
@@ -200,8 +202,8 @@ describe('billing: computeActivation', () => {
       plans,
       today
     );
-    // expiry becomes 10-29 => 23 days left => floor(23 * 1499 / 1999) = 17
-    expect(a).toMatchObject({ unfrozen_days: 5, credit_days: 17, period_start: today, membership_expiry: '2026-11-23' });
+    // expiry becomes 10-28 (3 open days after Sat 24 Oct) => 22 days left => floor(22 * 1499 / 1999) = 16
+    expect(a).toMatchObject({ unfrozen_days: 3, credit_days: 16, period_start: today, membership_expiry: '2026-11-22' });
   });
 });
 

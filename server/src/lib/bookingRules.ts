@@ -6,8 +6,8 @@ import { toGymDate } from './dates.js';
 import { Booking } from '../types/index.js';
 
 // Keeping bookings honest when something else changes: a frozen member, a class moved to
-// another category, or a plan whose entitlements shrink must not keep holding spots that the
-// booking rules would now refuse.
+// another category, a plan whose entitlements shrink, or a member whose plan or membership was
+// changed must not keep holding spots that the booking rules would now refuse.
 
 function startTimeOf(booking: Booking): string {
   return db.classes.find(c => c.id === booking.class_id)?.start_time ?? booking.start_time ?? '00:00';
@@ -32,17 +32,40 @@ export function releaseMemberBookings(userId: string, now: Date = new Date()): n
 }
 
 /**
- * After a class's category or a plan's categories change, cancel upcoming bookings whose member's
- * plan no longer covers the class. Scope to one class and/or one tier.
+ * After a class's category, a plan's categories or a member's tier change, cancel upcoming
+ * bookings whose member's plan no longer covers the class. Scope to one class, one tier and/or
+ * one member.
  */
-export function releaseUnentitledBookings(scope: { classId?: string; tier?: string }, now: Date = new Date()): number {
+export function releaseUnentitledBookings(
+  scope: { classId?: string; tier?: string; userId?: string },
+  now: Date = new Date()
+): number {
   return cancelUpcoming(b => {
     if (scope.classId && b.class_id !== scope.classId) return false;
+    if (scope.userId && b.user_id !== scope.userId) return false;
     const member = db.users.find(u => u.id === b.user_id);
     const cls = db.classes.find(c => c.id === b.class_id);
     if (!member || !cls || member.role !== 'member') return false;
     if (scope.tier && member.membership_tier !== scope.tier) return false;
     return !tierAllowsCategory(member.membership_tier, cls.category);
+  }, now);
+}
+
+/**
+ * After an admin edits someone's role or membership, cancel the upcoming bookings the booking
+ * rules (POST /bookings) would now refuse them: staff accounts hold no class spots, a membership
+ * that is not active (frozen, expired, pending) holds none, an active one none after its last
+ * day, and a plan only classes in the categories it includes.
+ */
+export function releaseInvalidBookings(userId: string, now: Date = new Date()): number {
+  const user = db.users.find(u => u.id === userId);
+  if (!user) return 0;
+  return cancelUpcoming(b => {
+    if (b.user_id !== userId) return false;
+    if (user.role !== 'member' || user.membership_status !== 'active') return true;
+    if (!user.membership_expiry || b.booking_date > user.membership_expiry) return true;
+    const cls = db.classes.find(c => c.id === b.class_id);
+    return !!cls && !tierAllowsCategory(user.membership_tier, cls.category);
   }, now);
 }
 

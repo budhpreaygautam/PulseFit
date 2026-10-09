@@ -1,9 +1,12 @@
 import db from '../db/database.js';
-import { recordActivity } from './streak.js';
-import { addDays, toGymDate } from './dates.js';
+import { activityDays, recordActivity, runEndingOn } from './streak.js';
+import { toGymDate } from './dates.js';
 import { FloorPresence, TimeSession } from '../types/index.js';
 
 // Floor time rules shared by the time-tracking endpoints and the seed.
+
+// The streak history helpers moved to lib/streak.ts; re-exported for existing callers.
+export { activityDays, runEndingOn };
 
 /** A session still open this long after clock-in is closed automatically at clock-in + this. */
 export const MAX_SESSION_MINUTES = 4 * 60;
@@ -42,29 +45,6 @@ export function closeStaleSessions(now: Date = new Date()): number {
   db.time_sessions = sessions;
   for (const s of closed) creditSession(s.user_id, toGymDate(s.clock_in_time));
   return closed.length;
-}
-
-/**
- * Gym-local days on which a user did something that counts towards the streak, read from stored
- * history: completed floor sessions, turnstile check-ins, attended bookings, and workouts logged
- * on the day they are for.
- */
-export function activityDays(userId: string): Set<string> {
-  const days = new Set<string>();
-  for (const s of db.time_sessions) if (s.user_id === userId && s.status === 'completed') days.add(toGymDate(s.clock_in_time));
-  for (const l of db.attendance_logs) if (l.user_id === userId) days.add(toGymDate(l.check_in_time));
-  for (const b of db.bookings) if (b.user_id === userId && b.status === 'attended') days.add(b.booking_date);
-  for (const w of db.workouts) {
-    if (w.user_id === userId && w.created_at && toGymDate(w.created_at) === w.date) days.add(w.date);
-  }
-  return days;
-}
-
-/** Number of consecutive days in `days` ending on `through` (0 when `through` is not one of them). */
-export function runEndingOn(days: Set<string>, through: string): number {
-  let run = 0;
-  for (let d = through; days.has(d); d = addDays(d, -1)) run++;
-  return run;
 }
 
 /**

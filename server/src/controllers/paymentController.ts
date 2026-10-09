@@ -4,7 +4,8 @@ import { z } from 'zod';
 import config, { paymentsEnabled } from '../config.js';
 import db from '../db/database.js';
 import { computeActivation, hmacMatches, nextInvoiceNumber, PaidTier, planPrice } from '../lib/billing.js';
-import { gymToday } from '../lib/dates.js';
+import { displayDate, gymToday } from '../lib/dates.js';
+import { releaseUnentitledBookings } from '../lib/bookingRules.js';
 import { ApiError, asyncHandler, badRequest, conflict, forbidden, notFound, ok, parse, unavailable } from '../lib/http.js';
 import { newId, toSafeUser } from '../lib/users.js';
 import { AuthenticatedRequest, generateToken } from '../middleware/auth.js';
@@ -107,12 +108,29 @@ export const createOrder = asyncHandler<AuthenticatedRequest>(async (req, res) =
 });
 
 type ActivationResult =
-  | { outcome: 'activated'; payment: Payment; user: SafeUser; token: string }
+  | { outcome: 'activated'; payment: Payment; user: SafeUser; token: string; cancelledBookings: number }
   | { outcome: 'already_processed' | 'rejected' | 'skipped' };
 
 /**
+ * A paid order also keeps how many bookings its plan change cancelled, so a verify that arrives
+ * after the webhook activated the order can still tell the member.
+ */
+type ActivatedOrder = PaymentOrder & { cancelled_bookings?: number };
+
+/** What verify tells the member: the plan and its last day, and any bookings the plan change cancelled. */
+function paymentMessage(payment: Payment, cancelled: number): string {
+  let message = `Payment received. Your ${payment.plan_name} is active until ${displayDate(payment.period_end)}.`;
+  if (cancelled > 0) {
+    message += ` ${cancelled} upcoming class booking${cancelled === 1 ? ' was' : 's were'} cancelled because your new plan does not include ${cancelled === 1 ? 'that class' : 'those classes'}.`;
+  }
+  return message;
+}
+
+/**
  * Apply a paid order to its member: extend or change the membership and store the invoice.
- * An order activates at most once, and never after the webhook rejected it for a wrong amount.
+ * A change of plan cancels the member's upcoming bookings the new plan does not cover, as an
+ * admin's tier change does. An order activates at most once, and never after the webhook
+ * rejected it for a wrong amount.
  */
 function activateOrder(orderId: string, paymentId: string, source: Payment['source']): ActivationResult {
   const order = db.payment_orders.find(o => o.id === orderId);
@@ -167,12 +185,15 @@ function activateOrder(orderId: string, paymentId: string, source: Payment['sour
   };
 
   db.users = db.users.map(u => (u.id === user.id ? updatedUser : u));
-  db.payment_orders = db.payment_orders.map(o => (o.id === order.id ? { ...o, status: 'paid' as const, paid_at: now } : o));
+  const cancelledBookings =
+    updatedUser.membership_tier !== user.membership_tier ? releaseUnentitledBookings({ userId: user.id }) : 0;
+  const paidOrder: ActivatedOrder = { ...order, status: 'paid', paid_at: now, cancelled_bookings: cancelledBookings };
+  db.payment_orders = db.payment_orders.map(o => (o.id === order.id ? paidOrder : o));
   db.payments = [...db.payments, payment];
   // Money has moved: make the activation durable before anyone is told it succeeded.
   db.saveSync();
 
-  return { outcome: 'activated', payment, user: toSafeUser(updatedUser), token: generateToken(updatedUser) };
+  return { outcome: 'activated', payment, user: toSafeUser(updatedUser), token: generateToken(updatedUser), cancelledBookings };
 }
 
 const verifySchema = z.object({
@@ -203,14 +224,20 @@ export const verifyPayment = asyncHandler<AuthenticatedRequest>(async (req, res)
     );
   }
   if (result.outcome !== 'activated') {
+    // Usually the webhook got here first: say what that activation did, as verify would have.
     const current = db.users.find(u => u.id === req.user!.id)!;
+    const applied = db.payments.find(p => p.order_id === order.id);
+    const cancelled = (db.payment_orders.find(o => o.id === order.id) as ActivatedOrder | undefined)?.cancelled_bookings ?? 0;
     throw conflict('This payment has already been applied to your membership.', 'ALREADY_PROCESSED', {
-      user: toSafeUser(current)
+      user: toSafeUser(current),
+      cancelled_bookings: cancelled,
+      ...(applied ? { message: paymentMessage(applied, cancelled) } : {})
     });
   }
 
-  const message = `Payment received. Your ${result.payment.plan_name} is active until ${result.payment.period_end}.`;
-  ok(res, { user: result.user, token: result.token, payment: result.payment, message }, message);
+  const cancelled = result.cancelledBookings;
+  const message = paymentMessage(result.payment, cancelled);
+  ok(res, { user: result.user, token: result.token, payment: result.payment, message, cancelled_bookings: cancelled }, message);
 });
 
 interface WebhookEvent {

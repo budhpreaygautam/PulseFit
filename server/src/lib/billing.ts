@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { addDays, addMonths, daysBetween } from './dates.js';
+import { addOpenDays, openDaysBetween } from './hours.js';
 import { effectiveStatus } from './membership.js';
 import { BillingCycle, MembershipPlan, MembershipStatus, MembershipTier, User } from '../types/index.js';
 
@@ -30,20 +31,29 @@ export function periodEnd(start: string, cycle: BillingCycle): string {
   return addDays(anniversary, -1);
 }
 
-/** Days of access lost while frozen: frozen on day F and back on day T gives T - F days. */
-export function frozenDays(frozenSince: string | null | undefined, today: string): number {
+/**
+ * Gym days given back for a freeze: the open days strictly between the freeze date and the
+ * unfreeze date. The member could still use the gym on the day they froze and on the day they
+ * come back, and closed days (Sundays) were never usable, so freezing at 21:00 and unfreezing
+ * the next morning, or freezing on Saturday evening and coming back on Monday, gives back nothing.
+ */
+export function freezeCredit(frozenSince: string | null | undefined, today: string): number {
   if (!frozenSince) return 0;
-  return Math.max(0, daysBetween(frozenSince, today));
+  return openDaysBetween(frozenSince, today);
 }
 
-/** A frozen membership made active again, with the expiry pushed back by the days frozen. */
+/**
+ * A frozen membership made active again, with the expiry moved forward by the freeze credit,
+ * counted in open days so the member gets back exactly as many usable days as they missed.
+ * Used by POST /membership/unfreeze, an admin's frozen -> active edit and a payment by a frozen member.
+ */
 export function unfreezeMembership<T extends MembershipState>(state: T, today: string): T & { unfrozen_days: number } {
   if (state.membership_status !== 'frozen') return { ...state, unfrozen_days: 0 };
-  const days = frozenDays(state.frozen_since, today);
+  const days = freezeCredit(state.frozen_since, today);
   return {
     ...state,
     membership_status: 'active' as MembershipStatus,
-    membership_expiry: state.membership_expiry ? addDays(state.membership_expiry, days) : state.membership_expiry,
+    membership_expiry: state.membership_expiry ? addOpenDays(state.membership_expiry, days) : state.membership_expiry,
     frozen_since: null,
     unfrozen_days: days
   };

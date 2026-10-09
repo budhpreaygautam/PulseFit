@@ -4,8 +4,8 @@ import db from '../db/database.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler, forbidden, notFound, ok, parse } from '../lib/http.js';
 import { newId } from '../lib/users.js';
-import { addDays, gymToday, isValidDate } from '../lib/dates.js';
-import { recordActivity } from '../lib/streak.js';
+import { addDays, gymToday, isValidDate, toGymDate } from '../lib/dates.js';
+import { recomputeStreak, recordActivity } from '../lib/streak.js';
 import { closeStaleSessions } from '../lib/floor.js';
 import { Exercise, Workout, WorkoutSet } from '../types/index.js';
 
@@ -149,6 +149,13 @@ export const createWorkout = asyncHandler<AuthenticatedRequest>((req, res: Respo
 export const deleteWorkout = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
   const workout = findOwnWorkout(req);
   db.workouts = db.workouts.filter(w => w.id !== workout.id);
+  // A workout logged on the day it was for counted towards the streak; deleting it takes that
+  // day back unless other activity on the same day also counted it. A forgotten floor session is
+  // closed first so the rebuilt history includes it.
+  if (workout.created_at && toGymDate(workout.created_at) === workout.date) {
+    closeStaleSessions();
+    recomputeStreak(workout.user_id);
+  }
   return ok(res, { deleted: true }, 'Workout deleted.');
 });
 
