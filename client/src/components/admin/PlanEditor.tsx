@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { ClassCategory, MembershipPlan } from '../../types/index.js';
-import { ApiError, api, errorMessage } from '../../api/client.js';
+import { ApiError, api } from '../../api/client.js';
 import { Badge } from '../common/Badge.js';
+import { ConfirmDialog } from '../common/ConfirmDialog.js';
 import { TIER_LABELS, formatINR } from '../../lib/format.js';
-import { FieldError, FormError, fieldErrorsFrom, focusRing, hintClass, inputClass, labelClass } from './ui.js';
+import { FieldError, FormError, focusRing, formErrorsFrom, hintClass, inputClass, labelClass, sideEffectsOf } from './ui.js';
 
 const CATEGORIES: ClassCategory[] = ['Workout & Strength', 'Zumba & Cardio'];
 const MAX_FEATURES = 20;
@@ -60,9 +61,16 @@ function changesFrom(form: Form, plan: MembershipPlan) {
 
 const isInt = (v: string, min: number, max: number) => /^\d+$/.test(v.trim()) && Number(v) >= min && Number(v) <= max;
 
+// An empty category list means every category.
+const covered = (categories: ClassCategory[]) => (categories.length === 0 ? CATEGORIES : categories);
+
+// The fields the editor shows a FieldError for; any other server issue goes to the form-level error.
+const FIELDS = ['name', 'description', 'price_monthly', 'price_annual', 'features', 'badge'];
+
 interface PlanEditorProps {
   plan: MembershipPlan;
-  onSaved: (plan: MembershipPlan) => void;
+  /** `notice` is what the save did besides saving, e.g. "3 upcoming bookings were cancelled …". */
+  onSaved: (plan: MembershipPlan, notice?: string) => void;
   onStale: () => void;
 }
 
@@ -71,6 +79,8 @@ export const PlanEditor: React.FC<PlanEditorProps> = ({ plan, onSaved, onStale }
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // Categories the change takes away, while the admin confirms that bookings in them are cancelled.
+  const [confirmDropped, setConfirmDropped] = useState<ClassCategory[] | null>(null);
   const id = (field: string) => `plan-${plan.id}-${field}`;
 
   useEffect(() => {
@@ -98,21 +108,28 @@ export const PlanEditor: React.FC<PlanEditorProps> = ({ plan, onSaved, onStale }
     return e;
   };
 
-  const save = async (ev: React.FormEvent) => {
+  const save = (ev: React.FormEvent) => {
     ev.preventDefault();
     const found = validate();
     setErrors(found);
     setFormError(null);
     if (Object.keys(found).length || !isDirty) return;
+    // Members on the plan lose their upcoming bookings in a category it stops covering: ask first.
+    const dropped = changes.categories ? covered(plan.categories ?? []).filter(c => !covered(changes.categories!).includes(c)) : [];
+    if (dropped.length) setConfirmDropped(dropped);
+    else send();
+  };
+
+  const send = async () => {
     setIsSaving(true);
     try {
-      onSaved((await api.updatePlan(plan.id, changes)).data);
+      const { data, message } = await api.updatePlan(plan.id, changes);
+      onSaved(data, sideEffectsOf(message));
     } catch (err) {
-      if (err instanceof ApiError && err.code === 'VALIDATION_ERROR' && Object.keys(fieldErrorsFrom(err)).length) setErrors(fieldErrorsFrom(err));
-      else {
-        setFormError(errorMessage(err));
-        if (err instanceof ApiError && err.code === 'NOT_FOUND') onStale();
-      }
+      const { fieldErrors, formError } = formErrorsFrom(err, FIELDS);
+      setErrors(fieldErrors);
+      setFormError(formError);
+      if (err instanceof ApiError && err.code === 'NOT_FOUND') onStale();
     } finally {
       setIsSaving(false);
     }
@@ -121,136 +138,155 @@ export const PlanEditor: React.FC<PlanEditorProps> = ({ plan, onSaved, onStale }
   const describedBy = (field: string, hint?: boolean) => [errors[field] ? `${id(field)}-error` : '', hint ? `${id(field)}-hint` : ''].filter(Boolean).join(' ') || undefined;
 
   return (
-    <form onSubmit={save} className="neu-flat p-5 sm:p-7 rounded-3xl border border-slate-800/80 space-y-5 min-w-0" aria-labelledby={id('heading')} noValidate>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id={id('heading')} className="text-lg font-black text-slate-100 font-['Outfit']">
-          {plan.name}
-        </h2>
-        <div className="flex gap-2">
-          <Badge size="sm" variant="cyan">{TIER_LABELS[plan.tier]}</Badge>
-          {isDirty && <Badge size="sm" variant="amber">Unsaved changes</Badge>}
+    <>
+      <form onSubmit={save} className="neu-flat p-5 sm:p-7 rounded-3xl border border-slate-800/80 space-y-5 min-w-0" aria-labelledby={id('heading')} noValidate>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id={id('heading')} className="text-lg font-black text-slate-100 font-['Outfit']">
+            {plan.name}
+          </h2>
+          <div className="flex gap-2">
+            <Badge size="sm" variant="cyan">{TIER_LABELS[plan.tier]}</Badge>
+            {isDirty && <Badge size="sm" variant="amber">Unsaved changes</Badge>}
+          </div>
         </div>
-      </div>
-      <FormError message={formError} />
+        <FormError message={formError} />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor={id('name')} className={labelClass}>Name</label>
+            <input id={id('name')} type="text" value={form.name} onChange={e => set('name', e.target.value)} className={inputClass} aria-invalid={!!errors.name} aria-describedby={describedBy('name')} />
+            <FieldError id={`${id('name')}-error`} message={errors.name} />
+          </div>
+          <div>
+            <label htmlFor={id('badge')} className={labelClass}>Badge (optional)</label>
+            <input id={id('badge')} type="text" value={form.badge} onChange={e => set('badge', e.target.value)} placeholder="e.g. Best value" className={inputClass} aria-invalid={!!errors.badge} aria-describedby={describedBy('badge', true)} />
+            <p id={`${id('badge')}-hint`} className={hintClass}>Shown on the pricing card. Leave empty for none.</p>
+            <FieldError id={`${id('badge')}-error`} message={errors.badge} />
+          </div>
+        </div>
+
         <div>
-          <label htmlFor={id('name')} className={labelClass}>Name</label>
-          <input id={id('name')} type="text" value={form.name} onChange={e => set('name', e.target.value)} className={inputClass} aria-invalid={!!errors.name} aria-describedby={describedBy('name')} />
-          <FieldError id={`${id('name')}-error`} message={errors.name} />
+          <label htmlFor={id('description')} className={labelClass}>Description</label>
+          <textarea id={id('description')} rows={2} value={form.description} onChange={e => set('description', e.target.value)} className={inputClass} aria-invalid={!!errors.description} aria-describedby={describedBy('description')} />
+          <FieldError id={`${id('description')}-error`} message={errors.description} />
         </div>
-        <div>
-          <label htmlFor={id('badge')} className={labelClass}>Badge (optional)</label>
-          <input id={id('badge')} type="text" value={form.badge} onChange={e => set('badge', e.target.value)} placeholder="e.g. Best value" className={inputClass} aria-invalid={!!errors.badge} aria-describedby={describedBy('badge', true)} />
-          <p id={`${id('badge')}-hint`} className={hintClass}>Shown on the pricing card. Leave empty for none.</p>
-          <FieldError id={`${id('badge')}-error`} message={errors.badge} />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor={id('price_monthly')} className={labelClass}>Monthly price (₹)</label>
+            <input id={id('price_monthly')} type="number" inputMode="numeric" min={1} max={100000} value={form.price_monthly} onChange={e => set('price_monthly', e.target.value)} className={inputClass} aria-invalid={!!errors.price_monthly} aria-describedby={describedBy('price_monthly')} />
+            <FieldError id={`${id('price_monthly')}-error`} message={errors.price_monthly} />
+          </div>
+          <div>
+            <label htmlFor={id('price_annual')} className={labelClass}>Annual price (₹, 12 months)</label>
+            <input id={id('price_annual')} type="number" inputMode="numeric" min={1} max={1200000} value={form.price_annual} onChange={e => set('price_annual', e.target.value)} className={inputClass} aria-invalid={!!errors.price_annual} aria-describedby={describedBy('price_annual', true)} />
+            <p id={`${id('price_annual')}-hint`} className={`${hintClass} ${pricesValid && saving < 0 ? 'text-amber-400' : ''}`} aria-live="polite">
+              {!pricesValid
+                ? 'Enter both prices to see the comparison.'
+                : saving > 0
+                ? `${formatINR(Math.round(annual / 12))}/month equivalent · saves ${formatINR(saving)} (${Math.round((saving / (monthly * 12)) * 100)}%) against 12 monthly payments.`
+                : saving === 0
+                ? `${formatINR(Math.round(annual / 12))}/month equivalent · the same as 12 monthly payments.`
+                : `${formatINR(Math.round(annual / 12))}/month equivalent · costs ${formatINR(-saving)} more than 12 monthly payments.`}
+            </p>
+            <FieldError id={`${id('price_annual')}-error`} message={errors.price_annual} />
+          </div>
         </div>
-      </div>
 
-      <div>
-        <label htmlFor={id('description')} className={labelClass}>Description</label>
-        <textarea id={id('description')} rows={2} value={form.description} onChange={e => set('description', e.target.value)} className={inputClass} aria-invalid={!!errors.description} aria-describedby={describedBy('description')} />
-        <FieldError id={`${id('description')}-error`} message={errors.description} />
-      </div>
+        <fieldset className="space-y-2">
+          <legend className={labelClass}>Class categories included</legend>
+          <div className="flex flex-wrap gap-4">
+            {CATEGORIES.map(c => (
+              <label key={c} className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={form.categories.includes(c)}
+                  onChange={e => set('categories', e.target.checked ? [...form.categories, c] : form.categories.filter(x => x !== c))}
+                  className="w-4 h-4 accent-lime-500"
+                />
+                {c}
+              </label>
+            ))}
+          </div>
+          <p className={hintClass}>{form.categories.length === 0 ? 'None ticked: members on this plan can book every category.' : 'Members on this plan can book only the ticked categories.'}</p>
+        </fieldset>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label htmlFor={id('price_monthly')} className={labelClass}>Monthly price (₹)</label>
-          <input id={id('price_monthly')} type="number" inputMode="numeric" min={1} max={100000} value={form.price_monthly} onChange={e => set('price_monthly', e.target.value)} className={inputClass} aria-invalid={!!errors.price_monthly} aria-describedby={describedBy('price_monthly')} />
-          <FieldError id={`${id('price_monthly')}-error`} message={errors.price_monthly} />
+        <fieldset className="space-y-2">
+          <legend className={labelClass}>Features ({form.features.length}/{MAX_FEATURES})</legend>
+          <ul className="space-y-2">
+            {form.features.map((feature, i) => (
+              <li key={i} className="flex gap-2">
+                <label htmlFor={id(`feature-${i}`)} className="sr-only">Feature {i + 1}</label>
+                <input
+                  id={id(`feature-${i}`)}
+                  type="text"
+                  value={feature}
+                  onChange={e => set('features', form.features.map((f, j) => (j === i ? e.target.value : f)))}
+                  className={inputClass}
+                />
+                <button
+                  type="button"
+                  onClick={() => set('features', form.features.filter((_, j) => j !== i))}
+                  className={`p-2.5 neu-btn rounded-xl hover:text-rose-400 shrink-0 ${focusRing}`}
+                  aria-label={`Remove feature ${i + 1}${feature ? `: ${feature}` : ''}`}
+                >
+                  <Trash2 className="w-4 h-4" aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={() => set('features', [...form.features, ''])}
+            disabled={form.features.length >= MAX_FEATURES}
+            className={`px-3 py-2 neu-btn rounded-xl text-xs font-bold flex items-center gap-1.5 disabled:opacity-50 ${focusRing}`}
+          >
+            <Plus className="w-3.5 h-3.5" aria-hidden="true" /> Add feature
+          </button>
+          <FieldError message={errors.features} />
+        </fieldset>
+
+        <label className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+          <input type="checkbox" checked={form.is_popular} onChange={e => set('is_popular', e.target.checked)} className="w-4 h-4 accent-lime-500" />
+          Highlight as the most popular plan
+        </label>
+
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-4 border-t border-slate-800/80">
+          <button
+            type="button"
+            onClick={() => {
+              setForm(toForm(plan));
+              setErrors({});
+              setFormError(null);
+            }}
+            disabled={!isDirty || isSaving}
+            className={`px-5 py-2.5 neu-btn rounded-xl text-sm font-bold disabled:opacity-50 ${focusRing}`}
+          >
+            Discard changes
+          </button>
+          <button type="submit" disabled={!isDirty || isSaving} aria-label={`Save ${plan.name}`} className={`px-5 py-2.5 neu-btn-lime rounded-xl text-sm font-black flex items-center justify-center gap-2 disabled:opacity-50 ${focusRing}`}>
+            {isSaving && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
+            Save changes
+          </button>
         </div>
-        <div>
-          <label htmlFor={id('price_annual')} className={labelClass}>Annual price (₹, 12 months)</label>
-          <input id={id('price_annual')} type="number" inputMode="numeric" min={1} max={1200000} value={form.price_annual} onChange={e => set('price_annual', e.target.value)} className={inputClass} aria-invalid={!!errors.price_annual} aria-describedby={describedBy('price_annual', true)} />
-          <p id={`${id('price_annual')}-hint`} className={`${hintClass} ${pricesValid && saving < 0 ? 'text-amber-400' : ''}`} aria-live="polite">
-            {!pricesValid
-              ? 'Enter both prices to see the comparison.'
-              : saving > 0
-              ? `${formatINR(Math.round(annual / 12))}/month equivalent · saves ${formatINR(saving)} (${Math.round((saving / (monthly * 12)) * 100)}%) against 12 monthly payments.`
-              : saving === 0
-              ? `${formatINR(Math.round(annual / 12))}/month equivalent · the same as 12 monthly payments.`
-              : `${formatINR(Math.round(annual / 12))}/month equivalent · costs ${formatINR(-saving)} more than 12 monthly payments.`}
-          </p>
-          <FieldError id={`${id('price_annual')}-error`} message={errors.price_annual} />
-        </div>
-      </div>
-
-      <fieldset className="space-y-2">
-        <legend className={labelClass}>Class categories included</legend>
-        <div className="flex flex-wrap gap-4">
-          {CATEGORIES.map(c => (
-            <label key={c} className="flex items-center gap-2 text-sm font-semibold text-slate-200">
-              <input
-                type="checkbox"
-                checked={form.categories.includes(c)}
-                onChange={e => set('categories', e.target.checked ? [...form.categories, c] : form.categories.filter(x => x !== c))}
-                className="w-4 h-4 accent-lime-500"
-              />
-              {c}
-            </label>
-          ))}
-        </div>
-        <p className={hintClass}>{form.categories.length === 0 ? 'None ticked: members on this plan can book every category.' : 'Members on this plan can book only the ticked categories.'}</p>
-      </fieldset>
-
-      <fieldset className="space-y-2">
-        <legend className={labelClass}>Features ({form.features.length}/{MAX_FEATURES})</legend>
-        <ul className="space-y-2">
-          {form.features.map((feature, i) => (
-            <li key={i} className="flex gap-2">
-              <label htmlFor={id(`feature-${i}`)} className="sr-only">Feature {i + 1}</label>
-              <input
-                id={id(`feature-${i}`)}
-                type="text"
-                value={feature}
-                onChange={e => set('features', form.features.map((f, j) => (j === i ? e.target.value : f)))}
-                className={inputClass}
-              />
-              <button
-                type="button"
-                onClick={() => set('features', form.features.filter((_, j) => j !== i))}
-                className={`p-2.5 neu-btn rounded-xl hover:text-rose-400 shrink-0 ${focusRing}`}
-                aria-label={`Remove feature ${i + 1}${feature ? `: ${feature}` : ''}`}
-              >
-                <Trash2 className="w-4 h-4" aria-hidden="true" />
-              </button>
-            </li>
-          ))}
-        </ul>
-        <button
-          type="button"
-          onClick={() => set('features', [...form.features, ''])}
-          disabled={form.features.length >= MAX_FEATURES}
-          className={`px-3 py-2 neu-btn rounded-xl text-xs font-bold flex items-center gap-1.5 disabled:opacity-50 ${focusRing}`}
-        >
-          <Plus className="w-3.5 h-3.5" aria-hidden="true" /> Add feature
-        </button>
-        <FieldError message={errors.features} />
-      </fieldset>
-
-      <label className="flex items-center gap-2 text-sm font-semibold text-slate-200">
-        <input type="checkbox" checked={form.is_popular} onChange={e => set('is_popular', e.target.checked)} className="w-4 h-4 accent-lime-500" />
-        Highlight as the most popular plan
-      </label>
-
-      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-4 border-t border-slate-800/80">
-        <button
-          type="button"
-          onClick={() => {
-            setForm(toForm(plan));
-            setErrors({});
-            setFormError(null);
-          }}
-          disabled={!isDirty || isSaving}
-          className={`px-5 py-2.5 neu-btn rounded-xl text-sm font-bold disabled:opacity-50 ${focusRing}`}
-        >
-          Discard changes
-        </button>
-        <button type="submit" disabled={!isDirty || isSaving} aria-label={`Save ${plan.name}`} className={`px-5 py-2.5 neu-btn-lime rounded-xl text-sm font-black flex items-center justify-center gap-2 disabled:opacity-50 ${focusRing}`}>
-          {isSaving && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
-          Save changes
-        </button>
-      </div>
-    </form>
+      </form>
+      <ConfirmDialog
+        isOpen={confirmDropped !== null}
+        title="Remove classes from this plan?"
+        message={
+          confirmDropped && (
+            <p>
+              Members on <strong>{plan.name}</strong> will no longer be able to book {confirmDropped.join(' or ')} classes. Their upcoming bookings for
+              those classes are cancelled when you save.
+            </p>
+          )
+        }
+        confirmLabel="Save and cancel bookings"
+        cancelLabel="Keep editing"
+        tone="danger"
+        onConfirm={send}
+        onClose={() => setConfirmDropped(null)}
+      />
+    </>
   );
 };

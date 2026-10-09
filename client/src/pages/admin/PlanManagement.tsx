@@ -3,7 +3,7 @@ import { Info } from 'lucide-react';
 import { MembershipPlan } from '../../types/index.js';
 import { api, errorMessage } from '../../api/client.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
-import { AdminNav, PageHeader } from '../../components/admin/ui.js';
+import { AdminNav, PageHeader, sideEffectTone } from '../../components/admin/ui.js';
 import { PlanEditor } from '../../components/admin/PlanEditor.js';
 import { useToast } from '../../context/ToastContext.js';
 
@@ -47,8 +47,10 @@ export const PlanManagement: React.FC = () => {
             <PlanEditor
               key={plan.id}
               plan={plan}
-              onSaved={updated => {
-                showToast(`${updated.name} was saved.`, 'success');
+              onSaved={(updated, notice) => {
+                // Say what else the save did (narrower categories cancel bookings), not just "saved".
+                if (notice) showToast(notice, sideEffectTone(notice), `${updated.name} was saved`);
+                else showToast(`${updated.name} was saved.`, 'success');
                 // Swap in the server's copy only; reloading every plan would wipe unsaved edits on the others.
                 setPlans(list => list?.map(p => (p.id === updated.id ? updated : p)) ?? null);
               }}

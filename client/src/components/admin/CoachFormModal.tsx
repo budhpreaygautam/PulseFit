@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { Trainer, User } from '../../types/index.js';
 import { ApiError, api, errorMessage } from '../../api/client.js';
 import { Modal } from '../common/Modal.js';
-import { FieldError, FormError, fieldErrorsFrom, focusRing, hintClass, inputClass, labelClass } from './ui.js';
+import { FieldError, FormError, focusRing, formErrorsFrom, hintClass, inputClass, labelClass } from './ui.js';
 
 type Form = {
   name: string;
@@ -132,8 +132,11 @@ export const CoachFormModal: React.FC<CoachFormModalProps> = ({ target, trainers
     } catch (err) {
       if (err instanceof ApiError && err.code === 'EMAIL_TAKEN') setErrors({ email: err.message });
       else if (err instanceof ApiError && (err.code === 'USER_NOT_TRAINER' || err.code === 'USER_ALREADY_LINKED')) setErrors({ user_id: err.message });
-      else if (err instanceof ApiError && err.code === 'VALIDATION_ERROR' && Object.keys(fieldErrorsFrom(err)).length) setErrors(fieldErrorsFrom(err));
-      else setFormError(errorMessage(err));
+      else {
+        const { fieldErrors, formError } = formErrorsFrom(err, Object.keys(EMPTY));
+        setErrors(fieldErrors);
+        setFormError(formError);
+      }
     } finally {
       setIsSaving(false);
     }

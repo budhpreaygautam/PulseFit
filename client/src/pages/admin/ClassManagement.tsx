@@ -6,11 +6,12 @@ import { Badge } from '../../components/common/Badge.js';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog.js';
 import { Modal } from '../../components/common/Modal.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
-import { AdminNav, Avatar, FormError, PageHeader, SectionCard, focusRing, inputClass, labelClass } from '../../components/admin/ui.js';
+import { AdminNav, Avatar, FormError, PageHeader, SectionCard, focusRing, inputClass, labelClass, sideEffectTone } from '../../components/admin/ui.js';
 import { ClassFormModal, WEEK_ORDER } from '../../components/admin/ClassFormModal.js';
 import { CoachFormModal } from '../../components/admin/CoachFormModal.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
+import { useToast } from '../../context/ToastContext.js';
 import { canAccess, routeForTab } from '../../routes.js';
 import { DAY_NAMES, formatClock, formatDate } from '../../lib/format.js';
 
@@ -51,6 +52,7 @@ const Notice: React.FC<{ notice: NoticeMessage | null; onDismiss: () => void }> 
 export const ClassManagement: React.FC = () => {
   const { user } = useAuth();
   const { navigate } = useNavigation();
+  const { showToast } = useToast();
   const coachViewRoute = routeForTab('trainer-dashboard');
   // The coach view needs routes.ts to admit admins to /trainer; the link appears once it does.
   const canViewCoachDashboard = !!coachViewRoute && canAccess(coachViewRoute, user?.role ?? null);
@@ -61,6 +63,12 @@ export const ClassManagement: React.FC = () => {
   const [day, setDay] = useState<number | 'all'>('all');
   const [notice, setNotice] = useState<NoticeMessage | null>(null);
   const success = (text: string) => setNotice({ tone: 'success', text });
+  // Members lose their spots when a class changes or goes, so cancellations get their own warning.
+  const reportSideEffects = (text?: string) => {
+    if (!text) return;
+    const tone = sideEffectTone(text);
+    showToast(text, tone, tone === 'warning' ? 'Bookings cancelled' : undefined);
+  };
 
   const [classTarget, setClassTarget] = useState<ClassOccurrence | 'new' | null>(null);
   const [deletingClass, setDeletingClass] = useState<ClassOccurrence | null>(null);
@@ -104,9 +112,13 @@ export const ClassManagement: React.FC = () => {
     if (!deletingClass) return;
     try {
       const { cancelled_bookings } = await api.deleteClass(deletingClass.id);
-      success(
-        `${deletingClass.title} was deleted. ${cancelled_bookings === 0 ? 'No upcoming bookings had to be cancelled.' : `${cancelled_bookings} upcoming booking${cancelled_bookings === 1 ? ' was' : 's were'} cancelled.`}`
-      );
+      if (cancelled_bookings === 0) success(`${deletingClass.title} was deleted. No upcoming bookings had to be cancelled.`);
+      else {
+        const cancelled = `${cancelled_bookings} upcoming booking${cancelled_bookings === 1 ? ' was' : 's were'} cancelled.`;
+        // The toast goes after a few seconds; the notice keeps the count for an admin who looked away.
+        success(`${deletingClass.title} was deleted. ${cancelled}`);
+        reportSideEffects(cancelled);
+      }
       reloadAll();
     } catch (err) {
       setNotice({ tone: 'error', text: `Could not delete ${deletingClass.title}. ${errorMessage(err)}` });
@@ -313,9 +325,10 @@ export const ClassManagement: React.FC = () => {
         target={classTarget}
         trainers={trainers ?? []}
         onClose={() => setClassTarget(null)}
-        onSaved={message => {
+        onSaved={(message, notice) => {
           setClassTarget(null);
-          success(message);
+          success(notice ? `${message} ${notice}` : message);
+          reportSideEffects(notice);
           reloadAll();
         }}
         onTrainersStale={loadTrainers}

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { MembershipStatus, MembershipTier, User, UserRole } from '../../types/index.js';
-import { ApiError, api, errorMessage } from '../../api/client.js';
+import { ApiError, api } from '../../api/client.js';
 import { Modal } from '../common/Modal.js';
 import { STATUS_LABELS, TIER_LABELS, gymToday } from '../../lib/format.js';
-import { FieldError, FormError, fieldErrorsFrom, focusRing, hintClass, inputClass, labelClass } from './ui.js';
+import { FieldError, FormError, focusRing, formErrorsFrom, hintClass, inputClass, labelClass, sideEffectsOf } from './ui.js';
 
 const TIERS: MembershipTier[] = ['none', 'basic', 'pro', 'vip'];
 const STATUSES: MembershipStatus[] = ['active', 'frozen', 'expired', 'pending'];
@@ -15,6 +15,10 @@ const ROLES: { value: UserRole; label: string }[] = [
 ];
 
 type Errors = Record<string, string>;
+
+// The fields each form shows a FieldError for; any other server issue goes to the form-level error.
+const CREATE_FIELDS = ['name', 'email', 'phone', 'expiry_months'];
+const EDIT_FIELDS = ['name', 'phone', 'role', 'membership_tier', 'membership_status', 'membership_expiry'];
 
 const FormButtons: React.FC<{ onCancel: () => void; isSaving: boolean; submitLabel: string }> = ({ onCancel, isSaving, submitLabel }) => (
   <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4 border-t border-slate-800/80">
@@ -90,8 +94,11 @@ export const CreateMemberModal: React.FC<CreateMemberModalProps> = ({ isOpen, on
       onCreated(res.member, res.tempPassword);
     } catch (err) {
       if (err instanceof ApiError && err.code === 'EMAIL_TAKEN') setErrors({ email: err.message });
-      else if (err instanceof ApiError && err.code === 'VALIDATION_ERROR') setErrors(fieldErrorsFrom(err));
-      else setFormError(errorMessage(err));
+      else {
+        const { fieldErrors, formError } = formErrorsFrom(err, CREATE_FIELDS);
+        setErrors(fieldErrors);
+        setFormError(formError);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -158,7 +165,8 @@ interface EditMemberModalProps {
   member: User | null;
   currentUserId: string | undefined;
   onClose: () => void;
-  onSaved: (member: User) => void;
+  /** `notice` is what the save did besides saving, e.g. "2 upcoming bookings were cancelled." */
+  onSaved: (member: User, notice?: string) => void;
 }
 
 export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, currentUserId, onClose, onSaved }) => {
@@ -185,6 +193,25 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, curren
   if (!member) return null;
   const isSelf = member.id === currentUserId;
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => setForm(f => ({ ...f, [key]: value }));
+  // Unfreezing with the date left alone: the server moves the expiry on by the days spent frozen,
+  // so an old date that has passed may still end up in the future. If not, the server says so.
+  const unfreezesWithOldExpiry =
+    member.membership_status === 'frozen' && form.membership_status === 'active' && !form.noExpiry && form.expiry === member.membership_expiry;
+  // Like the server, the membership rules apply only when the plan, status or expiry changes.
+  const touchesMembership =
+    form.membership_tier !== member.membership_tier ||
+    form.membership_status !== member.membership_status ||
+    (form.noExpiry ? null : form.expiry) !== member.membership_expiry;
+  // What the server cancels on save, said before the admin presses it (the count comes back after).
+  const bookingWarning =
+    form.membership_status === 'frozen' && member.membership_status !== 'frozen'
+      ? `Freezing cancels ${member.name}'s upcoming class bookings.`
+      : member.membership_tier !== 'none' && form.membership_tier !== member.membership_tier
+      ? 'Changing the plan cancels upcoming bookings for classes the new plan does not include.'
+      : null;
+  // A renewal that keeps the status Expired: a member whose plan ran out reads Expired here, so
+  // moving only the date on leaves them locked out. Easy to miss, so it is a warning with a fix.
+  const expiredWithAccessDate = form.membership_status === 'expired' && !form.noExpiry && !!form.expiry && form.expiry >= gymToday();
 
   const validate = (): Errors => {
     const e: Errors = {};
@@ -192,8 +219,11 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, curren
     if (name.length < 2 || name.length > 60) e.name = 'Enter a name of 2 to 60 characters.';
     if (form.phone.trim().length > 20) e.phone = 'Phone number is too long.';
     if (!form.noExpiry && !form.expiry) e.membership_expiry = 'Pick a date, or tick "No expiry date".';
-    else if (form.membership_status === 'active' && (form.noExpiry || form.expiry < gymToday())) {
+    else if (form.membership_status === 'active' && (form.noExpiry || (form.expiry < gymToday() && !unfreezesWithOldExpiry))) {
       e.membership_expiry = 'An active membership needs an expiry date of today or later.';
+    }
+    if (touchesMembership && form.membership_status === 'active' && form.membership_tier === 'none') {
+      e.membership_tier = 'Choose a plan for an active membership.';
     }
     return e;
   };
@@ -211,8 +241,11 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, curren
     if (form.phone.trim() !== (member.phone ?? '')) changes.phone = form.phone.trim();
     if (form.role !== member.role) changes.role = form.role;
     if (form.membership_tier !== member.membership_tier) changes.membership_tier = form.membership_tier;
-    if (form.membership_status !== member.membership_status) changes.membership_status = form.membership_status;
     if (expiry !== member.membership_expiry) changes.membership_expiry = expiry;
+    // Any membership change carries the status as shown. The list shows the effective status, so a
+    // member whose plan ran out reads "Expired" here while still stored as active; sending it tells
+    // the server what the admin sees and means.
+    if (touchesMembership) changes.membership_status = form.membership_status;
     if (Object.keys(changes).length === 0) {
       onClose();
       return;
@@ -220,11 +253,20 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, curren
 
     setIsSaving(true);
     try {
-      onSaved((await api.updateMember(member.id, changes)).data);
+      const { data, message } = await api.updateMember(member.id, changes);
+      // Said after a membership change only, not after a lapsed member's phone number or name is fixed.
+      const lockedOut =
+        changes.membership_status !== undefined && data.membership_status === 'expired' && !!data.membership_expiry && data.membership_expiry >= gymToday()
+          ? `${data.name} is marked Expired, so they cannot check in or book until the status is Active.`
+          : undefined;
+      onSaved(data, [sideEffectsOf(message), lockedOut].filter(Boolean).join(' ') || undefined);
     } catch (err) {
       if (err instanceof ApiError && (err.code === 'CANNOT_CHANGE_OWN_ROLE' || err.code === 'LAST_ADMIN')) setErrors({ role: err.message });
-      else if (err instanceof ApiError && err.code === 'VALIDATION_ERROR' && Object.keys(fieldErrorsFrom(err)).length) setErrors(fieldErrorsFrom(err));
-      else setFormError(errorMessage(err));
+      else {
+        const { fieldErrors, formError } = formErrorsFrom(err, EDIT_FIELDS);
+        setErrors(fieldErrors);
+        setFormError(formError);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -257,22 +299,42 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, curren
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label htmlFor="edit-tier" className={labelClass}>Plan</label>
-            <select id="edit-tier" value={form.membership_tier} onChange={e => set('membership_tier', e.target.value as MembershipTier)} className={inputClass}>
+            <select
+              id="edit-tier"
+              value={form.membership_tier}
+              onChange={e => set('membership_tier', e.target.value as MembershipTier)}
+              className={inputClass}
+              aria-invalid={!!errors.membership_tier}
+              aria-describedby={describedBy('edit-tier', errors, 'membership_tier')}
+            >
               {TIERS.map(t => (
                 <option key={t} value={t}>{TIER_LABELS[t]}</option>
               ))}
             </select>
+            <FieldError id="edit-tier-error" message={errors.membership_tier} />
           </div>
           <div>
             <label htmlFor="edit-status" className={labelClass}>Status</label>
-            <select id="edit-status" value={form.membership_status} onChange={e => set('membership_status', e.target.value as MembershipStatus)} className={inputClass} aria-invalid={!!errors.membership_status}>
+            <select
+              id="edit-status"
+              value={form.membership_status}
+              onChange={e => set('membership_status', e.target.value as MembershipStatus)}
+              className={inputClass}
+              aria-invalid={!!errors.membership_status}
+              aria-describedby={describedBy('edit-status', errors, 'membership_status')}
+            >
               {STATUSES.map(s => (
                 <option key={s} value={s}>{STATUS_LABELS[s]}</option>
               ))}
             </select>
-            <FieldError message={errors.membership_status} />
+            <FieldError id="edit-status-error" message={errors.membership_status} />
           </div>
         </div>
+        {bookingWarning && (
+          <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs font-semibold text-amber-800 dark:text-amber-300" role="note">
+            {bookingWarning}
+          </p>
+        )}
         <div>
           <label htmlFor="edit-expiry" className={labelClass}>Last day of access</label>
           <input
@@ -289,9 +351,26 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, curren
             <input type="checkbox" checked={form.noExpiry} onChange={e => set('noExpiry', e.target.checked)} className="w-4 h-4 accent-lime-500" />
             No expiry date (no plan bought yet)
           </label>
-          <p id="edit-expiry-hint" className={hintClass}>
-            Setting a frozen member to active without changing this date gives back the days they were frozen.
-          </p>
+          {expiredWithAccessDate ? (
+            <div id="edit-expiry-hint" className="mt-2 space-y-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs font-semibold text-amber-800 dark:text-amber-300" role="note">
+              <p>The status is Expired, so {member.name} cannot check in or book, even with this date.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  set('membership_status', 'active');
+                  // The note (and this button) goes away; focus lands on the field that changed.
+                  document.getElementById('edit-status')?.focus();
+                }}
+                className={`neu-btn px-3 py-1.5 rounded-lg text-xs font-bold ${focusRing}`}
+              >
+                Set status to Active
+              </button>
+            </div>
+          ) : (
+            <p id="edit-expiry-hint" className={hintClass}>
+              Setting a frozen member to active without changing this date gives back the days they were frozen.
+            </p>
+          )}
           <FieldError id="edit-expiry-error" message={errors.membership_expiry} />
         </div>
         <FormButtons onCancel={onClose} isSaving={isSaving} submitLabel="Save changes" />
