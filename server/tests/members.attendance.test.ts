@@ -104,7 +104,7 @@ describe('attendance API', () => {
       expect(res.status).toBe(403);
       expect(res.body.code).toBe('MEMBERSHIP_EXPIRED');
       expect(res.body.data.member).toMatchObject({ id: dev.id, name: dev.name, membership_status: 'expired', membership_expiry: '2026-08-01' });
-      expect(res.body.error).toContain('2026-08-01');
+      expect(res.body.error).toContain('1 Aug 2026');
       expect(db.attendance_logs.length).toBe(logs);
     });
 

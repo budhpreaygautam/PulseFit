@@ -1,5 +1,6 @@
 import db from './database.js';
 import bcrypt from 'bcryptjs';
+import { addCatalogueIfMissing } from './seed.js';
 import { defaultAvatar, findUserByEmail, generateQrToken, generateTempPassword, newId } from '../lib/users.js';
 import { User } from '../types/index.js';
 
@@ -7,7 +8,8 @@ import { User } from '../types/index.js';
 // Creates an admin account with a random password and prints the password once. This is how a
 // production deployment gets its first account (production never seeds the demo personas).
 // Run it while the API is stopped: a running server keeps the database in memory and would
-// overwrite the file on its next save.
+// overwrite the file on its next save. Run before the first start, it also loads the starting
+// catalogue (plans, exercises, coaches, timetable), which the server would otherwise have loaded.
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -24,6 +26,11 @@ if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
 if (findUserByEmail(email)) {
   console.error(`An account with ${email} already exists. Reset its password from the admin panel instead.`);
   process.exit(1);
+}
+
+// A new database (or one written by an earlier create-admin) has no plans or classes yet.
+if (addCatalogueIfMissing()) {
+  console.log(`📦 ${db.filePath} had no plans or classes; loaded the starting catalogue first.`);
 }
 
 const password = generateTempPassword(14);

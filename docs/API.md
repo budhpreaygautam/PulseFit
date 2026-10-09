@@ -66,9 +66,9 @@ google 20 per 15 min → `429 RATE_LIMITED`.
 | `POST /auth/demo-login` | `{ role: 'member' \| 'vip' \| 'trainer' \| 'admin' }` | `{ token, user }` | 404 `DEMO_DISABLED` when demo mode is off |
 | `GET /auth/me` | — | `SafeUser` | 401 |
 | `PUT /auth/profile` | `{ name?, phone?, avatar_url? }` **only** (unknown keys → 400). `avatar_url`: https URL or `data:image/(png\|jpeg\|webp);base64,…` ≤ 350 000 chars | `SafeUser` | 400 |
-| `PUT /auth/password` | `{ currentPassword?, newPassword }` (`currentPassword` required when the account has a password) | `{ token, user }` (old tokens are revoked) | 400 `WRONG_PASSWORD` |
-| `POST /auth/forgot-password` | `{ email }` | `{ message, resetUrl? }`. The same message whether or not the account exists. `resetUrl` (`<origin>/reset-password?token=…`) is returned only in demo mode or outside production, because this server has no email delivery; it is also logged to the server console | 429 |
-| `POST /auth/reset-password` | `{ token, newPassword }` | `{ token, user }` | 400 `INVALID_RESET_TOKEN` (unknown, used, or older than 30 min) |
+| `PUT /auth/password` | `{ currentPassword?, newPassword }` (`currentPassword` required when the account has a password) | `{ token, user }` (old tokens are revoked) | 400 `WRONG_PASSWORD`, 403 `DEMO_ACCOUNT_LOCKED` |
+| `POST /auth/forgot-password` | `{ email }` | `{ message, resetUrl? }`. The same message whether or not the account exists. `resetUrl` (`<address>/reset-password?token=…`) is returned only in local development (`NODE_ENV` development or test), because this server has no email delivery; it is always logged to the server console | 429 |
+| `POST /auth/reset-password` | `{ token, newPassword }` | `{ token, user }` | 400 `INVALID_RESET_TOKEN` (unknown, used, or older than 30 min), 403 `DEMO_ACCOUNT_LOCKED` |
 
 Google accounts are matched by Google subject id, then by verified email (linking the account). New Google
 users are created like a registration (tier `none`, status `pending`). An existing user's name is never overwritten.
@@ -80,10 +80,22 @@ Additional rules:
   revokes older tokens; `data.created` is `false` and the message says so. New and existing users both get 200.
 - `PUT /auth/password`: a missing `currentPassword` on an account that has one is 400 `VALIDATION_ERROR`
   (`data.issues[0].path = "currentPassword"`); a wrong one is 400 `WRONG_PASSWORD`. Limited to 10 per 15 minutes per account.
-- `POST /auth/forgot-password`: outside production `resetUrl` is returned for any existing account. In production it is
-  returned only when `DEMO_MODE` is on **and** the email is one of the four demo personas; otherwise the message asks the
-  member to get a reset link from the front desk. The message never reveals whether an account exists.
+- `POST /auth/forgot-password`: in local development `resetUrl` is returned for any existing account. Everywhere else it
+  is never returned and the message asks the member to get the link from the front desk. The message never reveals whether
+  an account exists.
+- Reset links point at `PUBLIC_URL` (server/.env, the address people open the app at). Without it: the address the request
+  came in on when the API serves the client (`SERVE_CLIENT`, the production default). Behind a trusted proxy
+  (`TRUST_PROXY`) that address is `X-Forwarded-Host` and the scheme is `X-Forwarded-Proto`; otherwise `Host` and the
+  connection's scheme. A host that is not a plain name or IP address (with an optional port) is ignored. Without
+  `SERVE_CLIENT`: the request's `Origin` when it is in `CLIENT_ORIGIN`, else the first `CLIENT_ORIGIN` (local development
+  with Vite). A link built on the request's address is logged with "(address taken from the request; check it before
+  handing it out)", since a client can fake those headers. A production server without `PUBLIC_URL` logs a warning at
+  start-up; set it.
 - `POST /auth/demo-login`: `role` is optional and defaults to `member`.
+- Demo personas are locked while `DEMO_MODE` is on: anyone can sign in as them, so nobody may change or reset their
+  password. `PUT /auth/password` and `POST /auth/reset-password` answer 403 `DEMO_ACCOUNT_LOCKED` for the four persona
+  emails, and `POST /auth/forgot-password` issues no link for them (with the same answer as for any other email).
+  With `DEMO_MODE` off they are ordinary accounts.
 
 ---
 
@@ -158,8 +170,8 @@ status `confirmed` or `attended` for that date. Stored classes carry no counter.
 |---|---|---|---|
 | `GET /classes` | `day?, category?, trainerId?, intensity?, search?, week_start?` (a Monday). Without `week_start`, `occurrence_date` is the next occurrence that has not started yet | `ClassOccurrence[]` sorted by `starts_at` | 400 |
 | `GET /classes/:id` | `date?` | `ClassOccurrence & { trainer }` | 404 |
-| `POST /classes` (admin) | `{ title, category, trainer_id, day_of_week (0–6), start_time (HH:MM), duration_minutes (15–180), room, capacity (1–200), intensity, description, image_url, calories_burn_est }` | `GymClass` | 400 `TRAINER_NOT_FOUND` |
-| `PUT /classes/:id` (admin) | any subset of the above (id is immutable) | `GymClass` | |
+| `POST /classes` (admin) | `{ title, category, trainer_id, day_of_week (0–6), start_time (HH:MM), duration_minutes (15–180), room, capacity (1–200), intensity, description, image_url, calories_burn_est }`. The slot must fit opening hours (see below) | `GymClass` | 400 `TRAINER_NOT_FOUND`, 400 `VALIDATION_ERROR` |
+| `PUT /classes/:id` (admin) | any subset of the above (id is immutable) | `GymClass` | 400 `VALIDATION_ERROR` |
 | `DELETE /classes/:id` (admin) | — | `{ cancelled_bookings: number }` (future confirmed bookings are cancelled) | |
 | `GET /bookings/my` | `scope = upcoming (default) \| past \| all` | `MyBooking[]`: booking + `class_title, category, start_time, room, trainer_name, image_url, duration_minutes, starts_at, can_cancel`. `upcoming` = confirmed and not started; `past` = started (any status but cancelled); `all` includes cancelled | |
 | `POST /bookings` (members only) | `{ class_id, booking_date }` | 201 `Booking` | 403 `MEMBERS_ONLY`, 400 `DATE_MISMATCH` (wrong weekday), 400 `CLASS_STARTED`, 400 `TOO_FAR_AHEAD` (> 14 days), 403 `MEMBERSHIP_INACTIVE` (`data.status`), 403 `MEMBERSHIP_ENDS_BEFORE_CLASS` (`data.membership_expiry`), 403 `PLAN_EXCLUDES_CATEGORY`, 409 `CLASS_FULL`, 409 `ALREADY_BOOKED`, 404 |
@@ -198,6 +210,11 @@ Additional rules:
   is `YYYY-MM-DD`.
 - `PUT /classes/:id`: 409 `CAPACITY_BELOW_BOOKINGS` (`data.max_booked`) when the new capacity is below an occurrence's
   bookings; moving a class to another weekday cancels its upcoming confirmed bookings.
+- Classes run inside opening hours: Monday to Saturday, starting at 06:00 or later and ending (start + duration) by 22:00.
+  `POST /classes`, and a `PUT /classes/:id` that changes `day_of_week`, `start_time` or `duration_minutes`, answer 400
+  `VALIDATION_ERROR` with `data.issues` naming `day_of_week` (closed day), `start_time` (before opening, or at or after
+  closing time) or `end_time` (runs past closing). Classes stored before this rule stay listed and can still be renamed
+  or otherwise edited.
 - `POST/PUT /trainers`: 409 `EMAIL_TAKEN`, 400 `USER_NOT_TRAINER`, 409 `USER_ALREADY_LINKED`; `user_id: null` unlinks the account.
 - Public trainer data (`GET /trainers`, `GET /trainers/:id`, the `trainer` in `GET /classes/:id`) leaves out email, phone
   and user_id unless the caller is an admin.
@@ -218,10 +235,10 @@ Additional rules:
 | `PUT /members/:id` (admin) | `{ name?, phone?, role?, membership_tier?, membership_status?, membership_expiry? (date \| null) }` | `SafeUser` | 400 `CANNOT_CHANGE_OWN_ROLE`, 400 `LAST_ADMIN`, 403 `DEMO_ACCOUNT_LOCKED` (role change of a demo persona in demo mode) |
 | `DELETE /members/:id` (admin) | — | `{ deleted: true }`. Removes bookings, workouts, attendance, floor sessions, notes about them and reset tokens; keeps payments (financial records) | 400 `CANNOT_DELETE_SELF`, 400 `LAST_ADMIN`, 403 `DEMO_ACCOUNT_LOCKED` (demo mode, one of the four demo personas) |
 | `POST /members/:id/reset-password` (admin) | — | `{ tempPassword }` (old tokens revoked) | 403 `DEMO_ACCOUNT_LOCKED` (demo mode, one of the four demo personas), 404 |
-| `POST /attendance/check-in` (admin, trainer) | `{ code, method?: 'qr'\|'manual'\|'kiosk'\|'camera' }` (`tokenOrId` accepted as an alias of `code`). `code` = QR token, member id, email, or trial code | `{ result: 'granted', already_checked_in: boolean, kind: 'member'\|'trial', member?: { id, name, email, avatar_url, membership_tier, membership_status, membership_expiry, streak_days }, trial?: TrialPass, log: AttendanceLog }`. A second scan on the same gym day lets the member through without a new log or streak day | 403 `MEMBERSHIP_EXPIRED` \| `MEMBERSHIP_FROZEN` \| `MEMBERSHIP_PENDING` \| `TRIAL_NOT_VALID_TODAY` \| `TRIAL_ALREADY_USED` (with `data.member` or `data.trial`), 404 `PASS_NOT_FOUND` |
+| `POST /attendance/check-in` (admin, trainer) | `{ code, method?: 'qr'\|'manual'\|'kiosk'\|'camera' }` (`tokenOrId` accepted as an alias of `code`). `code` = QR token, member id, email, or trial code (tokens, emails and trial codes ignore case) | `{ result: 'granted', already_checked_in: boolean, kind: 'member'\|'trial', member?: { id, name, email, avatar_url, membership_tier, membership_status, membership_expiry, streak_days }, trial?: TrialPass, log: AttendanceLog }`. A second scan on the same gym day lets the member through without a new log or streak day | 403 `GYM_CLOSED` \| `MEMBERSHIP_EXPIRED` \| `MEMBERSHIP_FROZEN` \| `MEMBERSHIP_PENDING` \| `TRIAL_NOT_VALID_TODAY` \| `TRIAL_ALREADY_USED` (with `data.member` or `data.trial`), 404 `PASS_NOT_FOUND` |
 | `GET /attendance/logs` (admin) | `date?, user_id?, limit? (1–200, default 50), offset?, format? = 'json'\|'csv'` | `{ items: AttendanceLog[], total }`, or a `text/csv` download | |
 | `GET /attendance/my` | — | the caller's `AttendanceLog[]`, newest first (≤ 100) | |
-| `POST /trials` (public, 5 per hour per IP) | `{ name, email, phone, interest: ClassCategory, preferred_date }` (today … today + 14, not a Sunday) | 201 `TrialPass` (`code` = `PULSE-TRIAL-XXXXXX`, valid only on `valid_on`, once) | 409 `TRIAL_ALREADY_CLAIMED` (same email or phone), 400 `GYM_CLOSED` |
+| `POST /trials` (public, 5 per hour per IP) | `{ name, email, phone, interest: ClassCategory, preferred_date }` (today … today + 14, not a Sunday, not today once the gym has closed) | 201 `TrialPass` (`code` = `PULSE-TRIAL-XXXXXX`, valid only on `valid_on`, once) | 409 `TRIAL_ALREADY_CLAIMED` (same email or phone), 400 `GYM_CLOSED` |
 | `GET /trials` (admin) | — | `TrialPass[]` newest first | |
 
 Additional rules:
@@ -247,6 +264,13 @@ Additional rules:
 - A trial pass scanned again on the day it was redeemed is let through with `already_checked_in: true`.
 - A trial `preferred_date` outside today … today + 14 is 400 `VALIDATION_ERROR`. The CSV export ignores `limit`/`offset`.
 - Request bodies are strict: unknown keys are 400 `VALIDATION_ERROR`. Staff skip membership checks at check-in.
+- Opening hours (when `ENFORCE_OPENING_HOURS` is on, the default): while the gym is closed (Sundays, and outside
+  06:00–22:00 on other days) check-in refuses members and free-trial passes with 403 `GYM_CLOSED` ("The gym is closed
+  right now. Opening hours are Monday to Saturday, 06:00 to 22:00.", with `data.member` or `data.trial`); the trial pass
+  stays unused. Staff are let in at any hour. `POST /trials` for today after 22:00 is 400 `GYM_CLOSED` ("The gym has
+  closed for today. Please pick another day."); a Sunday is 400 `GYM_CLOSED` whatever the setting.
+- Check-in closes floor sessions left open for 4 hours (as the floor endpoints do) before it counts today's visit, so
+  a clock-out forgotten yesterday still counts towards the streak. Dates in messages read like "1 Aug 2026".
 
 ---
 
@@ -260,7 +284,7 @@ Additional rules:
 | `POST /workouts` | `{ title (1–100), date (not after today, not more than 365 days ago), duration_minutes (1–300), notes? (≤ 1000), sets: [{ exercise_id (must exist), set_number (1–50), weight_kg (0–500), reps (1–100), rpe? (1–10), is_warmup? }] (1–100 items) }` | 201 `Workout`; `set_number` is kept as sent (per exercise); volume = Σ weight × reps of working sets | 400 |
 | `DELETE /workouts/:id` | — | `{ deleted: true }`. Deleting a workout logged on the day it was for takes that streak day back unless other activity counted it | |
 | `GET /workouts/analytics` | — | `{ volumeTimeline, personalRecords, muscleDistribution, … }` | |
-| `POST /time-tracking/clock-in` | `{ category: ClassCategory, notes? }` | 201 `TimeSession` | 403 `MEMBERSHIP_INACTIVE`, 403 `PLAN_EXCLUDES_CATEGORY`, 409 `ALREADY_CLOCKED_IN` |
+| `POST /time-tracking/clock-in` | `{ category: ClassCategory, notes? }` | 201 `TimeSession` | 403 `GYM_CLOSED`, 403 `MEMBERSHIP_INACTIVE`, 403 `PLAN_EXCLUDES_CATEGORY`, 409 `ALREADY_CLOCKED_IN` |
 | `POST /time-tracking/clock-out` | `{ notes? }` (own active session; an admin may pass `session_id`) | `TimeSession` | 404 `NO_ACTIVE_SESSION` |
 | `GET /time-tracking/active-floor` | optional auth | `{ totalActive, workoutActive, zumbaActive }`; staff also get `workoutUsers` / `zumbaUsers` (`user_name, user_avatar, user_tier, clock_in_time, duration_minutes`; no emails) | |
 | `GET /time-tracking/my-stats` | — | `UserTimeTrackingStats` | |
@@ -279,6 +303,8 @@ Additional rules:
   muscleDistribution }`; `personalRecords` = best estimated 1RM (Epley) per exercise.
 - `POST /workouts` rejects a repeated (`exercise_id`, `set_number`) pair. Floor notes are capped at 500 characters.
 - `POST /time-tracking/clock-out`: a member may pass the `session_id` of their own session; someone else's is 403.
+- `POST /time-tracking/clock-in` while the gym is closed (when `ENFORCE_OPENING_HOURS` is on) is 403 `GYM_CLOSED` for
+  members, with the same message as check-in. Staff may clock in at any hour, and clocking out always works.
 
 **Dashboard** (`GET /analytics/dashboard`). Every number comes from stored data; nothing is invented:
 ```ts

@@ -79,6 +79,18 @@ export const DEMO_PERSONAS = {
   admin: 'admin@pulsefit.com'
 } as const;
 
+/**
+ * Whether an account is a shared demo persona whose password nobody may change or reset. In demo
+ * mode anyone can sign in as one, so a changed password would sign every other visitor out and
+ * break the published password.
+ */
+export function isLockedDemoAccount(email: string): boolean {
+  return config.demoMode && (Object.values(DEMO_PERSONAS) as string[]).includes(email.toLowerCase());
+}
+
+export const DEMO_ACCOUNT_LOCKED_MESSAGE =
+  'This is a shared demo account, so its password cannot be changed or reset. Register your own account to try this.';
+
 const demoLoginSchema = z.object({
   role: z.enum(['member', 'vip', 'trainer', 'admin']).default('member')
 });

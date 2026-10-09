@@ -136,7 +136,8 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       id: 'trn_vikram',
       user_id: 'usr_trainer_1',
       name: 'Coach Vikram Rathore',
-      email: 'vikram@pulsefit.com',
+      // The same address he signs in with (trainer@pulsefit.com), so the coach and the account match.
+      email: 'trainer@pulsefit.com',
       phone: '+91 98112 45678',
       specialties: ['Workout & Strength Training', 'Barbell Compound Movements', 'Progressive Muscle Building'],
       bio: 'Certified Strength & Conditioning specialist with 10+ years experience mentoring gym-goers in compound lifting, hypertrophy, and proper lifting form.',
@@ -160,9 +161,10 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       instagram: '@kavya.zumbafit'
     },
     {
+      // The id predates the name: the coach was renamed so nobody confuses him with member Rohan Mehra.
       id: 'trn_rohan',
-      name: 'Rohan Mehta',
-      email: 'rohan@pulsefit.com',
+      name: 'Karan Joshi',
+      email: 'karan@pulsefit.com',
       phone: '+91 98118 78998',
       specialties: ['Functional Strength Training', 'Core Strengthening', 'Free Weight Workouts'],
       bio: 'Dedicated strength coach focusing on foundational weight training, functional lifting, dumbbell routines, and injury prevention.',
@@ -170,7 +172,7 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       rating: 4.91,
       reviews_count: 96,
       avatar_url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
-      instagram: '@rohan.strength'
+      instagram: '@karan.strength'
     },
     {
       id: 'trn_simran',
@@ -182,7 +184,7 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       experience_years: 6,
       rating: 4.93,
       reviews_count: 110,
-      avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+      avatar_url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80',
       instagram: '@simran_cardiozumba'
     }
   ];
@@ -232,7 +234,7 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       title: 'Functional Full-Body Strength',
       category: 'Workout & Strength',
       trainer_id: 'trn_rohan',
-      trainer_name: 'Rohan Mehta',
+      trainer_name: 'Karan Joshi',
       trainer_avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
       day_of_week: 2, // Tue
       start_time: '07:00',
@@ -251,7 +253,7 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       category: 'Zumba & Cardio',
       trainer_id: 'trn_simran',
       trainer_name: 'Simran Kaur',
-      trainer_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+      trainer_avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80',
       day_of_week: 2, // Tue
       start_time: '17:30',
       duration_minutes: 45,
@@ -305,7 +307,7 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       category: 'Zumba & Cardio',
       trainer_id: 'trn_simran',
       trainer_name: 'Simran Kaur',
-      trainer_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+      trainer_avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80',
       day_of_week: 4, // Thu
       start_time: '08:00',
       duration_minutes: 45,
@@ -322,7 +324,7 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       title: 'Lower Body & Squat Mechanics',
       category: 'Workout & Strength',
       trainer_id: 'trn_rohan',
-      trainer_name: 'Rohan Mehta',
+      trainer_name: 'Karan Joshi',
       trainer_avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
       day_of_week: 4, // Thu
       start_time: '18:00',
@@ -377,7 +379,7 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       category: 'Zumba & Cardio',
       trainer_id: 'trn_simran',
       trainer_name: 'Simran Kaur',
-      trainer_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+      trainer_avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80',
       day_of_week: 6, // Sat
       start_time: '09:00',
       duration_minutes: 60,
@@ -930,5 +932,26 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
   db.saveSync();
 
   if (!process.env.VITEST) console.log(`✅ ${demo ? 'Demo data' : 'Catalogue'} written to ${db.filePath}`);
+}
+
+/**
+ * Give a database without a catalogue (no plans and no classes) the starting catalogue, keeping
+ * everything already stored. That happens when `npm run create-admin` runs before the first
+ * server start: the file then holds only the admin, and the gym would have nothing to sell or book.
+ * Returns whether the catalogue was added.
+ */
+export function addCatalogueIfMissing(): boolean {
+  if (!db.lacksCatalogue()) return false;
+  const kept = db.snapshot();
+  seedDatabase({ demo: false });
+  const keptTrainerIds = new Set(kept.trainers.map(t => t.id));
+  db.restore({
+    ...kept,
+    trainers: [...kept.trainers, ...db.trainers.filter(t => !keptTrainerIds.has(t.id))],
+    classes: db.classes,
+    membership_plans: db.membership_plans,
+    exercises: kept.exercises.length > 0 ? kept.exercises : db.exercises
+  });
+  return true;
 }
 

@@ -1,9 +1,12 @@
 import { Response } from 'express';
 import { z } from 'zod';
+import config from '../config.js';
 import db from '../db/database.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { ApiError, asyncHandler, forbidden, ok, parse } from '../lib/http.js';
-import { gymToday, isValidDate, toGymDate } from '../lib/dates.js';
+import { displayDate, gymToday, isValidDate, toGymDate } from '../lib/dates.js';
+import { CLOSES_AT, OPENS_AT, isOpenAt } from '../lib/hours.js';
+import { closeStaleSessions } from '../lib/floor.js';
 import { effectiveStatus, isStaff } from '../lib/membership.js';
 import { recordActivity } from '../lib/streak.js';
 import { newId, toSafeUser } from '../lib/users.js';
@@ -31,6 +34,22 @@ const logsQuery = z.object({
 
 const newestFirst = (a: AttendanceLog, b: AttendanceLog) => b.check_in_time.localeCompare(a.check_in_time);
 
+/**
+ * Members (and free-trial visitors) cannot come in or start a floor session while the gym is shut.
+ * A clock rule, so it applies only when config.enforceOpeningHours is on; staff are never refused.
+ */
+export function gymClosedNow(now: Date = new Date()): boolean {
+  return config.enforceOpeningHours && !isOpenAt(now);
+}
+
+export function gymClosedError(data?: unknown): ApiError {
+  return forbidden(
+    `The gym is closed right now. Opening hours are Monday to Saturday, ${OPENS_AT} to ${CLOSES_AT}.`,
+    'GYM_CLOSED',
+    data
+  );
+}
+
 function memberSummary(user: User) {
   const safe = toSafeUser(user);
   return {
@@ -47,15 +66,18 @@ function memberSummary(user: User) {
 
 /**
  * Look the code up in a fixed order so an ambiguous value always resolves the same way:
- * pass token, then member id, then email, then trial code.
+ * pass token, then member id, then email, then trial code. Pass tokens, emails and trial codes
+ * ignore case (tokens and trial codes are issued in capitals), so a code typed in lower case works.
  */
 function resolveCode(code: string): { user: User } | { trial: TrialPass } | null {
+  const upper = code.toUpperCase();
+  const lower = code.toLowerCase();
   const user =
-    db.users.find(u => u.qr_code_token === code) ||
+    db.users.find(u => u.qr_code_token.toUpperCase() === upper) ||
     db.users.find(u => u.id === code) ||
-    db.users.find(u => u.email.toLowerCase() === code.toLowerCase());
+    db.users.find(u => u.email.toLowerCase() === lower);
   if (user) return { user };
-  const trial = db.trial_passes.find(t => t.code.toUpperCase() === code.toUpperCase());
+  const trial = db.trial_passes.find(t => t.code.toUpperCase() === upper);
   return trial ? { trial } : null;
 }
 
@@ -72,16 +94,17 @@ function trialLog(trial: TrialPass, at: string, method: AttendanceLog['check_in_
   };
 }
 
+// Check-in is a staff screen, so these messages speak to the front desk about the member.
 function denyMember(user: User, status: 'expired' | 'frozen' | 'pending'): ApiError {
   const member = memberSummary(user);
   if (status === 'expired') {
-    const when = user.membership_expiry ? ` on ${user.membership_expiry}` : '';
-    return forbidden(`${user.name}'s membership expired${when}. Please renew at the front desk.`, 'MEMBERSHIP_EXPIRED', { member });
+    const when = user.membership_expiry ? ` on ${displayDate(user.membership_expiry)}` : '';
+    return forbidden(`${user.name}'s membership expired${when}. It needs to be renewed before they can come in.`, 'MEMBERSHIP_EXPIRED', { member });
   }
   if (status === 'frozen') {
-    return forbidden(`${user.name}'s membership is frozen. Unfreeze it to use the gym.`, 'MEMBERSHIP_FROZEN', { member });
+    return forbidden(`${user.name}'s membership is frozen. It needs to be unfrozen before they can come in.`, 'MEMBERSHIP_FROZEN', { member });
   }
-  return forbidden(`${user.name} has no active plan yet. Buy a membership to use the gym.`, 'MEMBERSHIP_PENDING', { member });
+  return forbidden(`${user.name} has no active plan yet. They need to buy a membership before they can come in.`, 'MEMBERSHIP_PENDING', { member });
 }
 
 export const checkIn = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
@@ -89,6 +112,9 @@ export const checkIn = asyncHandler<AuthenticatedRequest>((req, res: Response) =
   const code = (body.code || body.tokenOrId)!;
   const now = new Date();
   const today = gymToday(now);
+  // A floor session left open yesterday must count before today's visit is recorded, or the
+  // streak would see a gap and restart at 1 (the floor endpoints do the same).
+  closeStaleSessions(now);
 
   const match = resolveCode(code);
   if (!match) {
@@ -97,6 +123,7 @@ export const checkIn = asyncHandler<AuthenticatedRequest>((req, res: Response) =
 
   if ('trial' in match) {
     const trial = match.trial;
+    if (gymClosedNow(now)) throw gymClosedError({ trial });
     // Same idempotency as members: a double read or stepping out and back in on the trial day
     // is still the one visit the pass was for.
     if (trial.status === 'redeemed' && trial.redeemed_at && toGymDate(trial.redeemed_at) === today) {
@@ -111,10 +138,11 @@ export const checkIn = asyncHandler<AuthenticatedRequest>((req, res: Response) =
       );
     }
     if (trial.status === 'redeemed') {
-      throw forbidden(`This free trial pass was already used${trial.redeemed_at ? ` on ${toGymDate(trial.redeemed_at)}` : ''}.`, 'TRIAL_ALREADY_USED', { trial });
+      const when = trial.redeemed_at ? ` on ${displayDate(toGymDate(trial.redeemed_at))}` : '';
+      throw forbidden(`This free trial pass was already used${when}.`, 'TRIAL_ALREADY_USED', { trial });
     }
     if (trial.valid_on !== today) {
-      throw forbidden(`This free trial pass is valid only on ${trial.valid_on}.`, 'TRIAL_NOT_VALID_TODAY', { trial });
+      throw forbidden(`This free trial pass is valid only on ${displayDate(trial.valid_on)}.`, 'TRIAL_NOT_VALID_TODAY', { trial });
     }
 
     const redeemed: TrialPass = { ...trial, status: 'redeemed', redeemed_at: now.toISOString() };
@@ -130,6 +158,7 @@ export const checkIn = asyncHandler<AuthenticatedRequest>((req, res: Response) =
   }
 
   const user = match.user;
+  if (!isStaff(user) && gymClosedNow(now)) throw gymClosedError({ member: memberSummary(user) });
   const status = effectiveStatus(user, today);
   if (status !== 'active' && !isStaff(user)) throw denyMember(user, status);
 

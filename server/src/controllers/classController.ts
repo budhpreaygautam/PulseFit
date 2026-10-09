@@ -3,8 +3,9 @@ import { z } from 'zod';
 import db from '../db/database.js';
 import { releaseUnentitledBookings } from '../lib/bookingRules.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
-import { asyncHandler, badRequest, conflict, notFound, ok, parse } from '../lib/http.js';
+import { ApiError, asyncHandler, badRequest, conflict, notFound, ok, parse } from '../lib/http.js';
 import { dayOfWeek, gymToday, isValidDate, isValidTime } from '../lib/dates.js';
+import { CLOSES_AT, OPENS_AT, isOpenWeekday, withinOpeningHours } from '../lib/hours.js';
 import { newId } from '../lib/users.js';
 import {
   bookedCount,
@@ -65,6 +66,38 @@ const createSchema = z
 
 const updateSchema = z.object(classFields).partial().strict();
 
+const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+const toTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+
+type Slot = Pick<GymClass, 'day_of_week' | 'start_time' | 'duration_minutes'>;
+
+/**
+ * A class must run on a day the gym opens and fit inside opening hours. This is a calendar rule,
+ * so it always applies. Classes stored before the rule existed stay on the timetable until their
+ * slot is edited.
+ */
+function assertWithinOpeningHours(slot: Slot): void {
+  const start = toMinutes(slot.start_time);
+  const end = start + slot.duration_minutes;
+  // Past midnight the end reads '24:30', which is still later than closing time.
+  if (withinOpeningHours(slot.day_of_week, slot.start_time, toTime(end))) return;
+
+  const issues: { path: 'day_of_week' | 'start_time' | 'end_time'; message: string }[] = [];
+  if (!isOpenWeekday(slot.day_of_week)) {
+    issues.push({ path: 'day_of_week', message: 'The gym is closed on Sundays. Pick a day from Monday to Saturday.' });
+  }
+  if (start < toMinutes(OPENS_AT)) {
+    issues.push({ path: 'start_time', message: `The gym opens at ${OPENS_AT}. Pick a start time from ${OPENS_AT}.` });
+  } else if (start >= toMinutes(CLOSES_AT)) {
+    issues.push({ path: 'start_time', message: `The gym closes at ${CLOSES_AT}. Pick an earlier start time.` });
+  } else if (end > toMinutes(CLOSES_AT)) {
+    issues.push({ path: 'end_time', message: `The class would end after the gym closes at ${CLOSES_AT}. Start it earlier or make it shorter.` });
+  }
+  if (issues.length === 0) issues.push({ path: 'start_time', message: `Classes must run between ${OPENS_AT} and ${CLOSES_AT}.` });
+  const [first] = issues;
+  throw new ApiError(400, `${first.path}: ${first.message}`, 'VALIDATION_ERROR', { issues });
+}
+
 function findTrainerOr400(trainerId: string) {
   const trainer = db.trainers.find(t => t.id === trainerId);
   if (!trainer) throw badRequest('That trainer does not exist.', 'TRAINER_NOT_FOUND');
@@ -121,6 +154,7 @@ export const getClassById = asyncHandler<AuthenticatedRequest>((req, res: Respon
 
 export const createClass = asyncHandler((req, res: Response) => {
   const body = parse(createSchema, req.body);
+  assertWithinOpeningHours(body);
   const trainer = findTrainerOr400(body.trainer_id);
 
   const newClass: GymClass = {
@@ -138,6 +172,14 @@ export const updateClass = asyncHandler((req, res: Response) => {
   const updates = parse(updateSchema, req.body);
   const existing = db.classes.find(c => c.id === req.params.id);
   if (!existing) throw notFound('That class does not exist.');
+  // Only a change to the slot is checked, so an older class outside the hours can still be renamed.
+  if (updates.day_of_week !== undefined || updates.start_time !== undefined || updates.duration_minutes !== undefined) {
+    assertWithinOpeningHours({
+      day_of_week: updates.day_of_week ?? existing.day_of_week,
+      start_time: updates.start_time ?? existing.start_time,
+      duration_minutes: updates.duration_minutes ?? existing.duration_minutes
+    });
+  }
 
   const trainer = updates.trainer_id ? findTrainerOr400(updates.trainer_id) : undefined;
   const now = new Date();

@@ -5,6 +5,9 @@ import config from '../src/config.js';
 import { api, authHeader, db, personas, resetDb, userByEmail } from './helpers.js';
 
 const NEW_PASSWORD = 'Stronger2026';
+// The shared demo personas are locked in demo mode (see fix-ops.test.ts), so these tests use a
+// regular seeded account with the same demo password.
+const ACCOUNT = personas.basic;
 
 function tokenFromUrl(url: string): string {
   return new URL(url).searchParams.get('token')!;
@@ -14,38 +17,38 @@ describe('PUT /auth/password', () => {
   beforeEach(() => resetDb());
 
   it('changes the password, returns a fresh token and revokes older tokens', async () => {
-    const oldHeader = authHeader(personas.member);
+    const oldHeader = authHeader(ACCOUNT);
     const res = await api()
       .put('/api/auth/password')
       .set(oldHeader)
       .send({ currentPassword: 'pulse123', newPassword: NEW_PASSWORD });
     expect(res.status).toBe(200);
-    expect(res.body.data.user.email).toBe(personas.member);
+    expect(res.body.data.user.email).toBe(ACCOUNT);
     expect(res.body.data.user.password_hash).toBeUndefined();
 
     expect((await api().get('/api/auth/me').set(oldHeader)).status).toBe(401);
     expect((await api().get('/api/auth/me').set({ Authorization: `Bearer ${res.body.data.token}` })).status).toBe(200);
 
-    expect((await api().post('/api/auth/login').send({ email: personas.member, password: 'pulse123' })).status).toBe(401);
-    expect((await api().post('/api/auth/login').send({ email: personas.member, password: NEW_PASSWORD })).status).toBe(200);
+    expect((await api().post('/api/auth/login').send({ email: ACCOUNT, password: 'pulse123' })).status).toBe(401);
+    expect((await api().post('/api/auth/login').send({ email: ACCOUNT, password: NEW_PASSWORD })).status).toBe(200);
   });
 
   it('regression: requires the current password when the account has one', async () => {
-    const res = await api().put('/api/auth/password').set(authHeader(personas.member)).send({ newPassword: NEW_PASSWORD });
+    const res = await api().put('/api/auth/password').set(authHeader(ACCOUNT)).send({ newPassword: NEW_PASSWORD });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('VALIDATION_ERROR');
     expect(res.body.data.issues[0].path).toBe('currentPassword');
-    expect(await bcrypt.compare('pulse123', userByEmail(personas.member).password_hash!)).toBe(true);
+    expect(await bcrypt.compare('pulse123', userByEmail(ACCOUNT).password_hash!)).toBe(true);
   });
 
   it('answers 400 WRONG_PASSWORD for a wrong current password and keeps the old one', async () => {
     const res = await api()
       .put('/api/auth/password')
-      .set(authHeader(personas.member))
+      .set(authHeader(ACCOUNT))
       .send({ currentPassword: 'wrong123', newPassword: NEW_PASSWORD });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('WRONG_PASSWORD');
-    expect(userByEmail(personas.member).token_version || 0).toBe(0);
+    expect(userByEmail(ACCOUNT).token_version || 0).toBe(0);
   });
 
   it('lets a Google-only account set a first password without a current one', async () => {
@@ -56,7 +59,7 @@ describe('PUT /auth/password', () => {
 
   it('enforces the password rules on the server', async () => {
     for (const newPassword of ['short1', 'lettersonly', '123456789', undefined]) {
-      const res = await api().put('/api/auth/password').set(authHeader(personas.member)).send({ currentPassword: 'pulse123', newPassword });
+      const res = await api().put('/api/auth/password').set(authHeader(ACCOUNT)).send({ currentPassword: 'pulse123', newPassword });
       expect(res.status).toBe(400);
       expect(res.body.code).toBe('VALIDATION_ERROR');
     }
@@ -65,7 +68,7 @@ describe('PUT /auth/password', () => {
   it('regression: limits passwords to 72 bytes, because bcrypt ignores anything after that', async () => {
     // 36 x 'é' is 72 bytes but only 36 characters; both of these used to share one hash.
     for (const newPassword of ['é'.repeat(36) + '1a', 'é'.repeat(36) + 'zz9']) {
-      const res = await api().put('/api/auth/password').set(authHeader(personas.member)).send({ currentPassword: 'pulse123', newPassword });
+      const res = await api().put('/api/auth/password').set(authHeader(ACCOUNT)).send({ currentPassword: 'pulse123', newPassword });
       expect(res.status).toBe(400);
       expect(res.body.code).toBe('VALIDATION_ERROR');
     }
@@ -74,9 +77,9 @@ describe('PUT /auth/password', () => {
 
     const fits = 'é'.repeat(34) + 'a1';
     expect(Buffer.byteLength(fits)).toBe(70);
-    const ok = await api().put('/api/auth/password').set(authHeader(personas.member)).send({ currentPassword: 'pulse123', newPassword: fits });
+    const ok = await api().put('/api/auth/password').set(authHeader(ACCOUNT)).send({ currentPassword: 'pulse123', newPassword: fits });
     expect(ok.status).toBe(200);
-    expect((await api().post('/api/auth/login').send({ email: personas.member, password: fits })).status).toBe(200);
+    expect((await api().post('/api/auth/login').send({ email: ACCOUNT, password: fits })).status).toBe(200);
   });
 
   it('answers 401 without a token', async () => {
@@ -103,14 +106,14 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
   const loggedLinks = () =>
     log.mock.calls.map(args => String(args[0])).filter(line => line.includes('/reset-password?token='));
 
-  async function requestReset(email: string = personas.member, origin?: string) {
+  async function requestReset(email: string = ACCOUNT, origin?: string) {
     const req = api().post('/api/auth/forgot-password');
     if (origin) req.set('Origin', origin);
     return req.send({ email });
   }
 
   it('gives the same message whether or not the account exists', async () => {
-    const known = await requestReset(personas.member);
+    const known = await requestReset(ACCOUNT);
     const unknown = await requestReset('ghost@example.com');
     expect(known.status).toBe(200);
     expect(unknown.status).toBe(200);
@@ -123,7 +126,7 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
     const res = await requestReset();
     const token = tokenFromUrl(res.body.data.resetUrl);
     const [reset] = db.password_resets;
-    expect(reset.user_id).toBe(userByEmail(personas.member).id);
+    expect(reset.user_id).toBe(userByEmail(ACCOUNT).id);
     expect(reset.token_hash).toBe(crypto.createHash('sha256').update(token).digest('hex'));
     expect(JSON.stringify(db.password_resets)).not.toContain(token);
     expect(Date.parse(reset.expires_at) - Date.parse(reset.created_at)).toBe(30 * 60_000);
@@ -131,10 +134,10 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
 
   it('builds the link on the request origin when it is allowed, else on the first configured origin', async () => {
     const allowed = config.corsOrigins[config.corsOrigins.length - 1];
-    const fromAllowed = await requestReset(personas.member, allowed);
+    const fromAllowed = await requestReset(ACCOUNT, allowed);
     expect(fromAllowed.body.data.resetUrl.startsWith(`${allowed}/reset-password?token=`)).toBe(true);
 
-    const fromEvil = await requestReset(personas.member, 'https://evil.example.com');
+    const fromEvil = await requestReset(ACCOUNT, 'https://evil.example.com');
     expect(fromEvil.body.data.resetUrl.startsWith(`${config.corsOrigins[0]}/reset-password?token=`)).toBe(true);
   });
 
@@ -151,24 +154,23 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
 
     const lines = loggedLinks();
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain(personas.member);
+    expect(lines[0]).toContain(ACCOUNT);
     const url = lines[0].slice(lines[0].indexOf('http'));
     const res = await api().post('/api/auth/reset-password').send({ token: tokenFromUrl(url), newPassword: NEW_PASSWORD });
     expect(res.status).toBe(200);
   });
 
-  it('regression: a public demo returns the link only for the shared demo personas', async () => {
+  it('regression: a public demo never returns the link, and issues none for the shared demo personas', async () => {
     config.isProduction = true;
     config.isLocal = false;
     config.demoMode = true;
-    expect((await requestReset(personas.admin)).body.data.resetUrl).toBeTruthy();
-
+    const persona = await requestReset(personas.admin);
     // A real account on the demo: no link in the response, and the same body as an unknown email.
     const real = await requestReset('kabir.singh@example.com');
     const ghost = await requestReset('ghost@example.com');
-    expect(real.body.data).toEqual(ghost.body.data);
-    expect(real.body.data.resetUrl).toBeUndefined();
-    expect(loggedLinks()).toHaveLength(2);
+    for (const res of [persona, real]) expect(res.body.data).toEqual(ghost.body.data);
+    expect(loggedLinks()).toHaveLength(1);
+    expect(loggedLinks()[0]).toContain('kabir.singh@example.com');
   });
 
   it('outside production the link is returned for any account and also logged', async () => {
@@ -187,15 +189,15 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
   });
 
   it('resets the password once, returns a fresh token and revokes older tokens', async () => {
-    const oldHeader = authHeader(personas.member);
+    const oldHeader = authHeader(ACCOUNT);
     const token = tokenFromUrl((await requestReset()).body.data.resetUrl);
 
     const res = await api().post('/api/auth/reset-password').send({ token, newPassword: NEW_PASSWORD });
     expect(res.status).toBe(200);
-    expect(res.body.data.user.email).toBe(personas.member);
+    expect(res.body.data.user.email).toBe(ACCOUNT);
     expect((await api().get('/api/auth/me').set(oldHeader)).status).toBe(401);
     expect((await api().get('/api/auth/me').set({ Authorization: `Bearer ${res.body.data.token}` })).status).toBe(200);
-    expect((await api().post('/api/auth/login').send({ email: personas.member, password: NEW_PASSWORD })).status).toBe(200);
+    expect((await api().post('/api/auth/login').send({ email: ACCOUNT, password: NEW_PASSWORD })).status).toBe(200);
 
     const again = await api().post('/api/auth/reset-password').send({ token, newPassword: 'Another2026' });
     expect(again.status).toBe(400);
@@ -211,7 +213,7 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
     vi.setSystemTime(new Date('2026-10-07T10:00:00Z'));
     const token = tokenFromUrl((await requestReset()).body.data.resetUrl);
     vi.setSystemTime(new Date('2026-10-07T10:29:00Z'));
-    const otherToken = tokenFromUrl((await requestReset(personas.vip)).body.data.resetUrl);
+    const otherToken = tokenFromUrl((await requestReset('maya.patel@example.com')).body.data.resetUrl);
     vi.setSystemTime(new Date('2026-10-07T10:30:01Z'));
 
     const expired = await api().post('/api/auth/reset-password').send({ token, newPassword: NEW_PASSWORD });
@@ -229,7 +231,7 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
       'INVALID_RESET_TOKEN'
     );
 
-    await api().put('/api/auth/password').set(authHeader(personas.member)).send({ currentPassword: 'pulse123', newPassword: NEW_PASSWORD });
+    await api().put('/api/auth/password').set(authHeader(ACCOUNT)).send({ currentPassword: 'pulse123', newPassword: NEW_PASSWORD });
     expect((await api().post('/api/auth/reset-password').send({ token: second, newPassword: 'Another2026' })).body.code).toBe(
       'INVALID_RESET_TOKEN'
     );
