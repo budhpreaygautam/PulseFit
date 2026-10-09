@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import confetti from 'canvas-confetti';
 import { AuthSession, User, UserRole } from '../types/index.js';
 import { api, isApiError, UNAUTHORIZED_EVENT } from '../api/client.js';
 import { storage, TOKEN_KEY } from '../lib/storage.js';
+import { abortableGet } from '../lib/abortableGet.js';
 import { useToast } from './ToastContext.js';
 
 type DemoRole = 'member' | 'vip' | 'trainer' | 'admin';
@@ -11,8 +11,15 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
-  /** True only while the saved session is being restored on page load. */
+  /** True only while the saved session is being restored on page load (also while the server cannot be reached). */
   isInitializing: boolean;
+  /**
+   * The saved session could not be checked because the server cannot be reached. The token is kept
+   * and the check is retried on its own (and when the browser comes back online or regains focus).
+   */
+  isServerUnreachable: boolean;
+  /** Check the saved session again now (the "Try again" button of the offline state). */
+  retrySessionRestore: () => void;
   role: UserRole | 'guest';
   login: (credentials: { email: string; password: string }) => Promise<User>;
   register: (payload: { name: string; email: string; password: string; phone?: string }) => Promise<User>;
@@ -33,25 +40,42 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/** Delay before each retry of the session check while the server cannot be reached. */
+const RESTORE_RETRY_MS = [800, 2_000, 4_000, 8_000, 15_000, 30_000];
+/** A session check still unanswered after this long counts as "cannot reach the server" too. */
+const RESTORE_SLOW_MS = 5_000;
+/** ...and after this long it is called off and tried again. */
+const RESTORE_TIMEOUT_MS = 15_000;
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { showToast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(() => storage.get(TOKEN_KEY));
   const [isInitializing, setIsInitializing] = useState<boolean>(() => Boolean(storage.get(TOKEN_KEY)));
+  const [isServerUnreachable, setIsServerUnreachable] = useState(false);
   const userRef = useRef<User | null>(null);
   userRef.current = user;
+  // Set while the saved session is being restored: retry now, or stop (a new sign-in or sign-out wins).
+  const restoreControls = useRef<{ retry: () => void; stop: () => void } | null>(null);
 
   const triggerCelebration = useCallback(() => {
-    confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors: ['#84cc16', '#a3e635', '#f59e0b', '#38bdf8'] });
+    // Loaded on first use: most visits never celebrate anything, so it stays out of the main bundle.
+    import('canvas-confetti')
+      .then(({ default: confetti }) =>
+        confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors: ['#84cc16', '#a3e635', '#f59e0b', '#38bdf8'], disableForReducedMotion: true })
+      )
+      .catch(() => undefined);
   }, []);
 
   const clearSession = useCallback(() => {
+    restoreControls.current?.stop();
     storage.remove(TOKEN_KEY);
     setToken(null);
     setUser(null);
   }, []);
 
   const setSession = useCallback((session: AuthSession) => {
+    restoreControls.current?.stop();
     storage.set(TOKEN_KEY, session.token);
     setToken(session.token);
     setUser(session.user);
@@ -71,36 +95,98 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [clearSession]);
 
-  // Restore the saved session once, retrying a few times if the server is unreachable.
+  // Restore the saved session. Only a rejected token (401) ends it. If the server cannot be reached,
+  // the token is kept, the app says so after the second failed try (about a second in) or when a try
+  // hangs for 5 s, and the check keeps retrying with a growing delay, and at once when the browser is
+  // back online or regains focus. One check runs at a time: a check that hangs is called off after
+  // 15 s (or sooner when one of those "try now" moments comes once it has hung for 5 s), and an answer
+  // that arrives before then still counts.
   useEffect(() => {
     if (!storage.get(TOKEN_KEY)) return;
-    let cancelled = false;
-    (async () => {
-      for (let attempt = 0; attempt < 3 && !cancelled; attempt++) {
-        try {
-          const me = await api.getMe();
-          if (!cancelled) setUser(me);
-          break;
-        } catch (err) {
-          if (isApiError(err) && err.status === 401) {
-            if (!cancelled) clearSession();
-            break;
-          }
-          await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
-        }
+    let done = false;
+    let failures = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let current: { controller: AbortController; slow: boolean } | null = null;
+
+    const stop = () => {
+      done = true;
+      clearTimeout(timer);
+      // A sign-in or sign-out during the restore wins: a check still waiting is no longer needed.
+      current?.controller.abort();
+      window.removeEventListener('online', retry);
+      window.removeEventListener('focus', retry);
+      restoreControls.current = null;
+      setIsServerUnreachable(false);
+      setIsInitializing(false);
+    };
+
+    async function attempt() {
+      if (done) return;
+      if (current) {
+        if (!current.slow) return;
+        current.controller.abort();
       }
-      if (!cancelled) setIsInitializing(false);
-    })();
+      clearTimeout(timer);
+      const check = { controller: new AbortController(), slow: false };
+      current = check;
+      const slow = setTimeout(() => {
+        check.slow = true;
+        setIsServerUnreachable(true);
+      }, RESTORE_SLOW_MS);
+      const giveUp = setTimeout(() => check.controller.abort(), RESTORE_TIMEOUT_MS);
+      try {
+        const me = await abortableGet<User>('/auth/me', check.controller.signal);
+        if (done) return;
+        setUser(me);
+        stop();
+      } catch (err) {
+        if (done) return;
+        if (isApiError(err) && err.status === 401) {
+          stop();
+          clearSession();
+          return;
+        }
+        // A check replaced by a newer one is not a failure of its own.
+        if (current !== check) return;
+        current = null;
+        failures += 1;
+        if (failures >= 2) setIsServerUnreachable(true);
+        timer = setTimeout(attempt, RESTORE_RETRY_MS[Math.min(failures, RESTORE_RETRY_MS.length) - 1]);
+      } finally {
+        clearTimeout(slow);
+        clearTimeout(giveUp);
+      }
+    }
+    function retry() {
+      void attempt();
+    }
+
+    restoreControls.current = { retry, stop };
+    window.addEventListener('online', retry);
+    window.addEventListener('focus', retry);
+    void attempt();
     return () => {
-      cancelled = true;
+      done = true;
+      clearTimeout(timer);
+      current?.controller.abort();
+      window.removeEventListener('online', retry);
+      window.removeEventListener('focus', retry);
+      restoreControls.current = null;
     };
   }, [clearSession]);
+
+  const retrySessionRestore = useCallback(() => restoreControls.current?.retry(), []);
 
   // Any API call answered with 401 means the token is no longer valid (expired, or revoked
   // by a password change elsewhere).
   useEffect(() => {
     const onUnauthorized = () => {
-      if (userRef.current) showToast('Your session has expired. Please sign in again.', 'warning');
+      // Requests that were in flight together all fail with 401: only the first one says so.
+      // userRef is cleared here because the re-render that would clear it comes after them.
+      if (userRef.current) {
+        userRef.current = null;
+        showToast('Your session has expired. Please sign in again.', 'warning');
+      }
       clearSession();
     };
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
@@ -154,6 +240,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         token,
         isAuthenticated: !!user,
         isInitializing,
+        isServerUnreachable,
+        retrySessionRestore,
         role,
         login,
         register,

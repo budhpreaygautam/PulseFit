@@ -369,7 +369,7 @@ export const LegalPage: React.FC<{ kind: Kind }> = ({ kind }) => {
         ))}
       </nav>
 
-      <div className="mt-8 space-y-8 text-sm text-slate-300 leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-2 [&_p+p]:mt-3 [&_p+ul]:mt-3 [&_ul+p]:mt-3 [&_strong]:text-slate-100">
+      <div className="mt-8 space-y-8 text-sm text-slate-300 leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-2 [&_p+p]:mt-3 [&_p+ul]:mt-3 [&_ul+p]:mt-3 [&_strong]:text-slate-900 dark:[&_strong]:text-slate-100">
         {sections.map((section, i) => (
           <section key={section.heading} aria-labelledby={`legal-${kind}-${i}`}>
             <h2 id={`legal-${kind}-${i}`} className="text-lg font-black text-slate-100 font-['Outfit'] mb-2">

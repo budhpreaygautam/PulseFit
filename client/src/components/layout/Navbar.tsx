@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import {
   Activity,
   BarChart3,
@@ -25,8 +25,13 @@ import { useAppConfig } from '../../context/ConfigContext.js';
 import { errorMessage } from '../../api/client.js';
 import { homeTabFor } from '../../routes.js';
 import { UserRole } from '../../types/index.js';
-import { DigitalQrPassModal } from '../qr/DigitalQrPassModal.js';
 import { TabLink } from '../public/TabLink.js';
+import { ErrorBoundary } from '../common/ErrorBoundary.js';
+
+// The QR pass (and the QR-code library it draws with) loads the first time a member opens it.
+// React remembers a load that failed, so a failure gets a fresh loader for the next try. (Chrome
+// also remembers the failed file until the page is reloaded, which is why the message says so.)
+const lazyQrPass = () => lazy(() => import('../qr/DigitalQrPassModal.js').then(m => ({ default: m.DigitalQrPassModal })));
 
 interface NavbarProps {
   currentTab: string;
@@ -106,11 +111,12 @@ const mobileLinkClass = (active: boolean) =>
   }`;
 
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpenAuthModal, onOpenFreeTrialModal }) => {
-  const { user, isInitializing, logout, demoLogin } = useAuth();
+  const { user, isInitializing, isServerUnreachable, logout, demoLogin } = useAuth();
   const { config } = useAppConfig();
   const { showToast } = useToast();
   const { isDark, toggleTheme } = useTheme();
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [DigitalQrPassModal, setDigitalQrPassModal] = useState(lazyQrPass);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [switchingTo, setSwitchingTo] = useState<DemoRole | 'guest' | null>(null);
 
@@ -229,7 +235,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
             {isInitializing ? (
               <div className="flex items-center gap-2" role="status">
                 <span className="w-24 h-8 rounded-xl neu-pressed-sm animate-pulse" aria-hidden="true" />
-                <span className="sr-only">Loading your account…</span>
+                <span className="sr-only">{isServerUnreachable ? 'Reconnecting to PulseFit…' : 'Loading your account…'}</span>
               </div>
             ) : user ? (
               <>
@@ -366,7 +372,20 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
         )}
       </header>
 
-      {isQrModalOpen && <DigitalQrPassModal isOpen={isQrModalOpen} onClose={() => setIsQrModalOpen(false)} user={user} />}
+      {isQrModalOpen && (
+        <ErrorBoundary
+          fallback={null}
+          onError={() => {
+            setIsQrModalOpen(false);
+            setDigitalQrPassModal(() => lazyQrPass());
+            showToast("Couldn't open your QR pass. Check your connection, then reload the page and try again.", 'error');
+          }}
+        >
+          <Suspense fallback={null}>
+            <DigitalQrPassModal isOpen={isQrModalOpen} onClose={() => setIsQrModalOpen(false)} user={user} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
     </>
   );
 };
