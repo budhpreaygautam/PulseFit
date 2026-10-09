@@ -528,7 +528,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
                       type="button"
                       onClick={() => removeExercise(group.key)}
                       aria-label={`Remove ${group.exercise_name} and its sets`}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 shrink-0"
+                      className="neu-icon-btn neu-icon-btn-danger w-8 h-8 shrink-0"
                     >
                       <Trash2 className="w-4 h-4" aria-hidden="true" />
                     </button>
@@ -612,7 +612,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
                               type="button"
                               onClick={() => removeSet(group.key, s.key)}
                               aria-label={`Remove ${setLabel}`}
-                              className="ml-auto p-1.5 rounded-lg text-slate-400 hover:text-rose-500 sm:mt-5"
+                              className="neu-icon-btn neu-icon-btn-danger ml-auto w-8 h-8 shrink-0 sm:mt-5"
                             >
                               <X className="w-4 h-4" aria-hidden="true" />
                             </button>
@@ -718,7 +718,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
                           {groups.length} {groups.length === 1 ? 'exercise' : 'exercises'}, {w.sets?.length ?? 0} sets
                         </p>
                       </div>
-                      <button type="button" onClick={() => setToDelete(w)} aria-label={`Delete workout ${w.title}`} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 shrink-0">
+                      <button type="button" onClick={() => setToDelete(w)} aria-label={`Delete workout ${w.title}`} className="neu-icon-btn neu-icon-btn-danger w-8 h-8 shrink-0">
                         <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
                     </li>

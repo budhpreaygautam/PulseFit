@@ -42,7 +42,7 @@ const Notice: React.FC<{ notice: NoticeMessage | null; onDismiss: () => void }> 
       role={notice.tone === 'error' ? 'alert' : 'status'}
     >
       <span>{notice.text}</span>
-      <button type="button" onClick={onDismiss} className={`p-1 rounded-lg text-slate-400 hover:text-slate-100 ${focusRing}`} aria-label="Dismiss message">
+      <button type="button" onClick={onDismiss} className={`neu-icon-btn w-7 h-7 shrink-0 ${focusRing}`} aria-label="Dismiss message">
         <X className="w-4 h-4" aria-hidden="true" />
       </button>
     </div>
@@ -421,7 +421,7 @@ export const ClassManagement: React.FC = () => {
               <button
                 type="submit"
                 disabled={isReassigning || otherCoaches.length === 0}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-black bg-rose-500 hover:bg-rose-400 text-white flex items-center justify-center gap-2 disabled:opacity-60 ${focusRing}`}
+                className={`neu-btn-danger flex-1 py-2.5 rounded-xl text-sm font-black flex items-center justify-center gap-2 disabled:opacity-60 ${focusRing}`}
               >
                 {isReassigning && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
                 Move classes and remove

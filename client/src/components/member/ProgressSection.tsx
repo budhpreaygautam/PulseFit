@@ -161,7 +161,7 @@ export const ProgressSection: React.FC<ProgressSectionProps> = ({ analytics, onL
         <h2 id="progress-heading" className="text-lg sm:text-xl font-black text-slate-100 font-['Outfit'] flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-lime-700 dark:text-lime-400" aria-hidden="true" /> My progress
         </h2>
-        <button type="button" onClick={onLogWorkout} className="text-xs font-bold text-lime-700 dark:text-lime-400 hover:underline">
+        <button type="button" onClick={onLogWorkout} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold shrink-0">
           Log a workout
         </button>
       </div>

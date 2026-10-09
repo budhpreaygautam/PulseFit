@@ -287,7 +287,7 @@ export const FreeTrialModal: React.FC<FreeTrialModalProps> = ({ isOpen, onClose,
             <div role="alert" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs font-semibold text-rose-300 space-y-2">
               <p>{formError}</p>
               {alreadyClaimed && (
-                <button type="button" onClick={onRegisterInstead} className="text-lime-400 font-bold hover:underline">
+                <button type="button" onClick={onRegisterInstead} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold">
                   Create an account and choose a membership
                 </button>
               )}

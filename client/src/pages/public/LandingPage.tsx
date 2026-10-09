@@ -368,7 +368,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
               </h2>
               <p className="text-sm text-slate-400">Spots left are counted for each date.</p>
             </div>
-            <button type="button" onClick={() => setCurrentTab('schedule')} className="text-xs font-bold text-lime-400 hover:underline flex items-center gap-1 shrink-0">
+            <button type="button" onClick={() => setCurrentTab('schedule')} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1 shrink-0 self-start sm:self-auto">
               Full timetable <ArrowRight className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
@@ -404,7 +404,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
                     <button
                       type="button"
                       onClick={() => navigate('schedule', { week: mondayOf(c.occurrence_date), day: String(c.day_of_week) })}
-                      className="text-xs font-bold text-lime-400 hover:underline flex items-center gap-0.5"
+                      className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-0.5"
                     >
                       {c.is_full ? 'View' : 'Book'}
                       <span className="sr-only"> {c.title}</span>
@@ -427,7 +427,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
               MEET THE TEAM
             </h2>
           </div>
-          <button type="button" onClick={() => setCurrentTab('trainers')} className="text-xs font-bold text-lime-400 hover:underline flex items-center gap-1 shrink-0">
+          <button type="button" onClick={() => setCurrentTab('trainers')} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1 shrink-0 self-start sm:self-auto">
             All coaches <ArrowRight className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
