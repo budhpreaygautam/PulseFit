@@ -24,7 +24,8 @@ const DENIAL_REASONS: Record<string, string> = {
   MEMBERSHIP_PENDING: 'No active plan',
   TRIAL_NOT_VALID_TODAY: 'Trial pass not valid today',
   TRIAL_ALREADY_USED: 'Trial pass already used',
-  PASS_NOT_FOUND: 'Pass not recognised'
+  PASS_NOT_FOUND: 'Pass not recognised',
+  GYM_CLOSED: 'Gym closed'
 };
 
 const FEED_LIMIT = 20;

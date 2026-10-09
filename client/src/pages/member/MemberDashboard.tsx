@@ -147,7 +147,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
         <StatCard
           title="Day streak"
           value={user.streak_days ?? 0}
-          subtitle="Visits, classes or workouts on consecutive days"
+          subtitle="Visits, classes or workouts on consecutive gym days (Sundays don't break it)"
           icon={<Flame className="w-5 h-5" aria-hidden="true" />}
           className="p-4 sm:p-6"
         />

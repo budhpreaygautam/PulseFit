@@ -368,7 +368,7 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, curren
             </div>
           ) : (
             <p id="edit-expiry-hint" className={hintClass}>
-              Setting a frozen member to active without changing this date gives back the days they were frozen.
+              Setting a frozen member to active without changing this date gives back the open gym days they missed while frozen (not the day of the freeze, today, or Sundays).
             </p>
           )}
           <FieldError id="edit-expiry-error" message={errors.membership_expiry} />

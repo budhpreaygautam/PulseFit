@@ -54,7 +54,7 @@ export const ClassManagement: React.FC = () => {
   const { navigate } = useNavigation();
   const { showToast } = useToast();
   const coachViewRoute = routeForTab('trainer-dashboard');
-  // The coach view needs routes.ts to admit admins to /trainer; the link appears once it does.
+  // Admins open a coach's dashboard (/trainer?trainer=<id>) to take attendance for coaches without a login.
   const canViewCoachDashboard = !!coachViewRoute && canAccess(coachViewRoute, user?.role ?? null);
   const [classes, setClasses] = useState<ClassOccurrence[] | null>(null);
   const [classesError, setClassesError] = useState<string | null>(null);
