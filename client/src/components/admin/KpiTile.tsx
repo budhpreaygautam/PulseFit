@@ -45,7 +45,7 @@ export const KpiTile: React.FC<KpiTileProps> = ({ title, value, detail, icon, ac
           </p>
           <div className="text-2xl sm:text-3xl font-black text-slate-100 mt-2 tracking-tight font-['Outfit'] break-words">{value}</div>
         </div>
-        <div className={`p-3 rounded-2xl border shrink-0 ${ACCENTS[accent]}`} aria-hidden="true">
+        <div className={`glass-tint p-3 rounded-2xl border shrink-0 ${ACCENTS[accent]}`} aria-hidden="true">
           {icon}
         </div>
       </div>

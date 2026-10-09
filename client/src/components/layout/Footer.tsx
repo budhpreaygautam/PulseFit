@@ -43,7 +43,7 @@ export const Footer: React.FC<{ setCurrentTab: (tab: string) => void }> = ({ set
   return (
     <footer className="bg-gym-950 border-t border-slate-800/80 pt-14 pb-10 text-slate-400">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-10 pb-10 border-b border-slate-800/80">
+        <div className="neu-flat rounded-3xl p-6 sm:p-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-10">
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center gap-3">
               <span className="w-10 h-10 rounded-2xl flex items-center justify-center neu-btn-lime">

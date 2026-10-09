@@ -202,12 +202,14 @@ main h1[tabindex='-1']:focus {
   color: #ffffff !important;
 }
 
-/* Recharts Tooltip Universal Contrast Fix */
+/* Chart tooltips: dark frosted glass in both themes (their text is always white). */
 .recharts-default-tooltip {
-  background-color: #0c1017 !important;
+  background-color: rgba(12, 16, 23, 0.8) !important;
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
   border-radius: 0.875rem !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6) !important;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.08), 0 10px 25px -5px rgba(0, 0, 0, 0.6) !important;
   color: #ffffff !important;
   padding: 0.75rem 1rem !important;
 }
@@ -426,6 +428,87 @@ main h1[tabindex='-1']:focus {
 .neu-btn-danger:disabled,
 .neu-icon-btn:disabled {
   transform: none;
+  cursor: not-allowed;
+}
+
+/* 8. Glassmorphism */
+/* Sticky bars and menus: the page shows through, frosted. */
+.glass-bar {
+  background-color: rgb(var(--gym-950-rgb) / 0.72) !important;
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+}
+
+/* Tinted notices, alerts and icon tiles: keep their colour, add frosted depth and a soft lift. */
+.glass-tint {
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.07), 4px 4px 10px var(--neu-shadow-dark), -4px -4px 10px var(--neu-shadow-light);
+}
+.light .glass-tint {
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.75), 4px 4px 10px var(--neu-shadow-dark), -4px -4px 10px var(--neu-shadow-light);
+}
+
+/* Panels laid over photos: dark frosted glass in both themes (the photo is dark either way). */
+.glass-dark {
+  background-color: rgba(9, 12, 16, 0.55) !important;
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.1), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* 9. Neumorphic data tables: the header is a sunken band, rows lift slightly on hover. */
+.neu-table thead tr {
+  background-color: var(--neu-inset-bg);
+  box-shadow: inset 2px 2px 5px var(--neu-shadow-dark), inset -2px -2px 5px var(--neu-shadow-light);
+}
+.neu-table tbody tr {
+  transition: background-color 0.2s ease;
+}
+.neu-table tbody tr:hover {
+  background-color: rgb(var(--gym-850-rgb) / 0.7);
+}
+
+/* 10. Neumorphic checkboxes: a raised square that presses in, lime with a check, when ticked. */
+input[type='checkbox']:not(.sr-only) {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+  display: inline-grid;
+  place-content: center;
+  border-radius: 0.4rem;
+  background-color: var(--gym-900);
+  border: 1px solid var(--neu-border);
+  box-shadow: 2px 2px 5px var(--neu-shadow-dark), -2px -2px 5px var(--neu-shadow-light);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+input[type='checkbox']:not(.sr-only)::before {
+  content: '';
+  width: 0.65rem;
+  height: 0.65rem;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+  background-color: #090c10;
+  transform: scale(0);
+  transition: transform 0.12s ease-in-out;
+}
+input[type='checkbox']:not(.sr-only):checked {
+  background: linear-gradient(135deg, #a3e635 0%, #84cc16 100%);
+  border-color: transparent;
+  box-shadow: inset 2px 2px 4px rgba(0, 0, 0, 0.35), inset -2px -2px 4px rgba(255, 255, 255, 0.25);
+}
+input[type='checkbox']:not(.sr-only):checked::before {
+  transform: scale(1);
+}
+input[type='checkbox']:not(.sr-only):focus-visible {
+  outline: 2px solid #84cc16;
+  outline-offset: 2px;
+}
+input[type='checkbox']:not(.sr-only):disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 

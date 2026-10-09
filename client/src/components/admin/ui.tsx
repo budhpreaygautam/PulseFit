@@ -19,7 +19,7 @@ export const FieldError: React.FC<{ id?: string; message?: string }> = ({ id, me
 
 export const FormError: React.FC<{ message?: string | null }> = ({ message }) =>
   message ? (
-    <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-300 [.light_&]:text-rose-700" role="alert">
+    <div className="glass-tint rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-300 [.light_&]:text-rose-700" role="alert">
       {message}
     </div>
   ) : null;

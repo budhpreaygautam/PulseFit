@@ -72,7 +72,7 @@ const OutcomePanel: React.FC<{ outcome: Outcome | null }> = ({ outcome }) => {
   if (outcome.kind === 'granted') {
     const { result } = outcome;
     return (
-      <div className="rounded-2xl border-2 border-lime-500/60 bg-lime-500/10 p-5 space-y-4">
+      <div className="glass-tint rounded-2xl border-2 border-lime-500/60 bg-lime-500/10 p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="flex items-center gap-2 text-lime-400 font-black uppercase tracking-wider text-sm">
             <CheckCircle2 className="w-6 h-6" aria-hidden="true" /> Access granted
@@ -90,7 +90,7 @@ const OutcomePanel: React.FC<{ outcome: Outcome | null }> = ({ outcome }) => {
 
   if (outcome.kind === 'denied') {
     return (
-      <div className="rounded-2xl border-2 border-rose-500/60 bg-rose-500/10 p-5 space-y-4">
+      <div className="glass-tint rounded-2xl border-2 border-rose-500/60 bg-rose-500/10 p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-black uppercase tracking-wider text-sm">
             <XCircle className="w-6 h-6" aria-hidden="true" /> Access denied · {outcome.reason}
@@ -106,7 +106,7 @@ const OutcomePanel: React.FC<{ outcome: Outcome | null }> = ({ outcome }) => {
   }
 
   return (
-    <div className="rounded-2xl border-2 border-amber-500/60 bg-amber-500/10 p-5 space-y-2">
+    <div className="glass-tint rounded-2xl border-2 border-amber-500/60 bg-amber-500/10 p-5 space-y-2">
       <p className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-black uppercase tracking-wider text-sm">
         <XCircle className="w-6 h-6" aria-hidden="true" /> Check-in failed
       </p>

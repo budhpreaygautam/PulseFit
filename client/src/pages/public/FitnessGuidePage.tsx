@@ -495,7 +495,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
                     </div>
 
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs">
+                      <table className="neu-table w-full text-left text-xs">
                         <thead className="text-slate-400 uppercase text-[10px] border-b border-slate-800/80">
                           <tr>
                             <th className="p-3 pl-4">#</th>

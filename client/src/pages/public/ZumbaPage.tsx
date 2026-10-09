@@ -79,7 +79,7 @@ export const ZumbaPage: React.FC<ZumbaPageProps> = ({ onOpenFreeTrialModal }) =>
         <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-gym-950 to-transparent" />
 
         <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-6 py-16">
-          <span className="inline-block px-3 py-1 rounded-full bg-black/60 border border-pink-400/40 text-pink-300 text-xs font-bold tracking-wide">
+          <span className="inline-block px-3 py-1 rounded-full bg-black/45 backdrop-blur-md border border-pink-400/40 text-pink-300 text-xs font-bold tracking-wide">
             ZUMBA & CARDIO STUDIO
           </span>
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-zinc-50 tracking-tight font-['Outfit'] uppercase leading-none">
@@ -168,7 +168,7 @@ export const ZumbaPage: React.FC<ZumbaPageProps> = ({ onOpenFreeTrialModal }) =>
           <ul className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {BENEFITS.map(item => (
               <li key={item.title} className="p-5 rounded-2xl neu-pressed-sm space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-pink-500/10 border border-pink-500/20 text-pink-400 flex items-center justify-center">
+                <div className="glass-tint w-10 h-10 rounded-xl bg-pink-500/10 border border-pink-500/20 text-pink-400 flex items-center justify-center">
                   <item.icon className="w-5 h-5" aria-hidden="true" />
                 </div>
                 <h3 className="text-sm font-black text-slate-100 font-['Outfit']">{item.title}</h3>

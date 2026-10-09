@@ -212,7 +212,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
       )}
 
       {isConfigLoaded && !config.payments.enabled && user && (
-        <div className="max-w-3xl mx-auto p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 text-sm text-slate-200" role="status">
+        <div className="glass-tint max-w-3xl mx-auto p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 text-sm text-slate-200" role="status">
           <Store className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
           <p>Online payment isn't available — pay at the front desk and staff will activate your plan.</p>
         </div>
@@ -343,7 +343,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
       )}
 
       {error && (
-        <div role="alert" className="max-w-3xl mx-auto flex items-start gap-3 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30">
+        <div role="alert" className="glass-tint max-w-3xl mx-auto flex items-start gap-3 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30">
           <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" aria-hidden="true" />
           <p className="text-sm leading-snug font-medium text-slate-200">{error}</p>
         </div>

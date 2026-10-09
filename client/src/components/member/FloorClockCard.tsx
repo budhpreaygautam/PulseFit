@@ -313,7 +313,7 @@ export const FloorClockCard: React.FC<FloorClockCardProps> = ({ user, stats, pla
         <div className="lg:col-span-7 space-y-3">
           {control}
           {formError && (
-            <div role="alert" className="rounded-xl p-3 text-xs border border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200 flex flex-wrap items-center gap-3">
+            <div role="alert" className="glass-tint rounded-xl p-3 text-xs border border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200 flex flex-wrap items-center gap-3">
               <span className="flex-1 min-w-[12rem]">{formError.message}</span>
               {formError.action && (
                 <button type="button" onClick={formError.action === 'profile' ? onOpenProfile : onOpenPricing} className="neu-btn px-3 py-1.5 rounded-lg font-bold">

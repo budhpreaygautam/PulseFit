@@ -86,7 +86,7 @@ export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenF
         <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-gym-950 to-transparent" />
 
         <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-6 py-16">
-          <span className="inline-block px-3 py-1 rounded-full bg-black/60 border border-lime-400/40 text-lime-300 text-xs font-bold tracking-wide">
+          <span className="inline-block px-3 py-1 rounded-full bg-black/45 backdrop-blur-md border border-lime-400/40 text-lime-300 text-xs font-bold tracking-wide">
             WORKOUT & STRENGTH FLOOR
           </span>
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-zinc-50 tracking-tight font-['Outfit'] uppercase leading-none">
@@ -180,7 +180,7 @@ export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenF
           <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {HIGHLIGHTS.map(item => (
               <li key={item.title} className="p-5 rounded-2xl neu-pressed-sm space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-lime-500/10 border border-lime-500/20 flex items-center justify-center text-lime-400">
+                <div className="glass-tint w-10 h-10 rounded-xl bg-lime-500/10 border border-lime-500/20 flex items-center justify-center text-lime-400">
                   <item.icon className="w-5 h-5" aria-hidden="true" />
                 </div>
                 <h3 className="font-extrabold text-sm text-slate-100 font-['Outfit']">{item.title}</h3>
