@@ -84,6 +84,7 @@ async function bookableClasses(request: APIRequestContext, token?: string): Prom
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
 }
 
+const monthOf = (date: string) => `${date.slice(0, 7)}-01`;
 const scheduleUrl = (c: Occurrence) => `/schedule?week=${mondayOf(c.occurrence_date)}&day=${c.day_of_week}`;
 
 /** The timetable card of one class. */
@@ -392,13 +393,13 @@ test('a class the timetable lists on a Sunday is shown, and an empty Sunday says
 
   await page.goto(`/schedule?week=${week}&day=0`);
   await expect(page.getByRole('heading', { name: 'Sunday Probe Class' })).toBeVisible();
-  await expect(page.locator('#day-tab-6')).not.toContainText('Closed');
+  await expect(page.locator(`#day-${sunday}`)).not.toHaveAttribute('aria-label', /: closed/);
   await expect(page.getByRole('heading', { name: 'Closed on Sundays' })).toHaveCount(0);
 
   inject = false;
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Closed on Sundays' })).toBeVisible();
-  await expect(page.locator('#day-tab-6')).toContainText('Closed');
+  await expect(page.locator(`#day-${sunday}`)).toHaveAttribute('aria-label', /: closed/);
 });
 
 test('with a coach filter on, a closed day is not called closed when other coaches teach then', async ({ page, request }) => {
@@ -421,7 +422,7 @@ test('with a coach filter on, a closed day is not called closed when other coach
 
   await page.goto(`/schedule?week=${week}&day=0&trainer=${filtered.id}`);
   await expect(page.getByText('No classes match your filters on this day')).toBeVisible();
-  await expect(page.locator('#day-tab-6')).not.toContainText('Closed');
+  await expect(page.locator(`#day-${sunday}`)).not.toHaveAttribute('aria-label', /: closed/);
   await expect(page.getByRole('heading', { name: /^Closed on/ })).toHaveCount(0);
 
   // Without the filter the Sunday class is listed.
@@ -503,21 +504,30 @@ test('booking past the membership end date explains it with a readable date and 
   }
 });
 
-test('the day tabs and guide tabs follow the arrow-key tabs pattern', async ({ page }) => {
+test('the month calendar and guide tabs work with the keyboard', async ({ page }) => {
   await page.goto('/schedule');
-  await expect(page.locator('[role="tab"][tabindex="0"]')).toHaveCount(1);
-  const selected = page.locator('[role="tab"][aria-selected="true"]');
-  const start = Number((await selected.getAttribute('id'))!.replace('day-tab-', ''));
+  const grid = page.getByRole('grid');
+  // One Tab stop in the calendar: the selected day.
+  await expect(grid.locator('button[tabindex="0"]')).toHaveCount(1);
+  const selected = grid.locator('[role="gridcell"][aria-selected="true"] button');
+  const start = (await selected.getAttribute('id'))!.replace('day-', '');
+  const cell = (date: string) => page.locator(`#day-${date}`);
   await selected.focus();
+  // Arrows move a day or a week and select that day; the day's heading follows.
   await page.keyboard.press('ArrowRight');
-  const next = page.locator(`#day-tab-${(start + 1) % 7}`);
-  await expect(next).toBeFocused();
-  await expect(next).toHaveAttribute('aria-selected', 'true');
-  await expect(next).toHaveAttribute('tabindex', '0');
+  await expect(cell(addDays(start, 1))).toBeFocused();
+  await expect(cell(addDays(start, 1))).toHaveAttribute('tabindex', '0');
+  await expect(page.locator('[role="gridcell"][aria-selected="true"]')).toHaveCount(1);
+  await page.keyboard.press('ArrowDown');
+  await expect(cell(addDays(start, 8))).toBeFocused();
+  // Home and End go to the ends of that week.
   await page.keyboard.press('Home');
-  await expect(page.locator('#day-tab-0')).toBeFocused();
-  await page.keyboard.press('ArrowLeft');
-  await expect(page.locator('#day-tab-6')).toBeFocused();
+  await expect(cell(mondayOf(addDays(start, 8)))).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(cell(addDays(mondayOf(addDays(start, 8)), 6))).toBeFocused();
+  // Days before today cannot be picked.
+  await expect(cell(addDays(gymToday(), -1))).toHaveCount(monthOf(addDays(gymToday(), -1)) === monthOf(start) ? 1 : 0);
+  if (monthOf(addDays(gymToday(), -1)) === monthOf(start)) await expect(cell(addDays(gymToday(), -1))).toBeDisabled();
 
   await page.goto('/guide');
   await page.locator('#guide-tab-workout-plans').focus();
