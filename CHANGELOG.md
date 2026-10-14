@@ -2,6 +2,20 @@
 
 All notable changes to PulseFit. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **ID cards.** Members and staff open their PulseFit ID card from the dashboard or the profile page: a
+  card-sized design in the app's glass style with their photo, name, card number, plan or role, validity
+  and status on the front, and the check-in QR code, pass code, opening hours and contact details on the
+  back. It flips, downloads as a PNG (both sides) and prints at real card size (85.6 × 54 mm). The front
+  desk can open and print any member's card from the member's details.
+
+### Changed
+
+- Dialogs opened on top of another dialog take Escape and Tab for themselves; the dialog underneath stays open.
+
 ## [2.1.0] — 2026-10-09
 
 v2.1 makes the app real and safe to run: every number on screen now comes from stored data,
