@@ -110,7 +110,7 @@ A freeze pauses the plan and gives back the open gym days missed while frozen (n
       <ul>
         <li>Dashboard with streak, membership status, upcoming classes, check-in history and coach notes</li>
         <li>Book and cancel classes (checked against the plan, membership dates and capacity)</li>
-        <li>Scannable QR turnstile pass</li>
+        <li>Scannable QR turnstile pass and a printable ID card (photo, card number, plan, QR code on the back)</li>
         <li>Workout logger, progress charts and personal records</li>
         <li>Floor clock-in/out, plan changes, freeze/unfreeze, invoices</li>
       </ul>
@@ -130,7 +130,7 @@ A freeze pauses the plan and gives back the open gym days missed while frozen (n
       <h3>🛡️ Admin & front desk</h3>
       <ul>
         <li>KPIs from real data: MRR, revenue, check-ins, fill rate, retention, peak hours, tiers</li>
-        <li>Member directory: create, edit, freeze, reset password, delete, visit and payment history</li>
+        <li>Member directory: create, edit, freeze, reset password, delete, visit and payment history, print ID cards</li>
         <li>QR check-in by camera or code, with clear granted/denied reasons</li>
         <li>Timetable, coaches, plans & pricing, free-trial leads, attendance CSV export</li>
       </ul>

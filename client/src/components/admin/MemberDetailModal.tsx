@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Download, Mail, Phone } from 'lucide-react';
+import { Download, IdCard, Mail, Phone } from 'lucide-react';
 import { MemberDetail } from '../../types/index.js';
 import { api, downloadFile, errorMessage } from '../../api/client.js';
 import { Modal } from '../common/Modal.js';
@@ -9,6 +9,7 @@ import { useToast } from '../../context/ToastContext.js';
 import { STATUS_LABELS, TIER_LABELS, formatDate, formatDateTime, formatINR } from '../../lib/format.js';
 import { Avatar, focusRing } from './ui.js';
 import { statusVariant } from './memberStatus.js';
+import { IdCardModal } from '../qr/IdCardModal.js';
 
 interface MemberDetailModalProps {
   memberId: string | null;
@@ -21,6 +22,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ memberId, 
   const [member, setMember] = useState<MemberDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isIdCardOpen, setIsIdCardOpen] = useState(false);
   const { showToast } = useToast();
 
   const load = useCallback(async () => {
@@ -71,7 +73,15 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ memberId, 
               )}
               <p className="text-xs text-slate-400">Joined {formatDateTime(member.created_at)} · Pass code <span className="font-mono">{member.qr_code_token}</span></p>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsIdCardOpen(true)}
+              className={`neu-btn px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 ${focusRing}`}
+            >
+              <IdCard className="w-4 h-4" aria-hidden="true" /> ID card
+            </button>
           </div>
+          <IdCardModal isOpen={isIdCardOpen} onClose={() => setIsIdCardOpen(false)} user={member} forOther />
 
           <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div className="neu-pressed-sm rounded-xl p-3">

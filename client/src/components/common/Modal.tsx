@@ -12,6 +12,10 @@ interface ModalProps {
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+// Dialogs can open on top of each other (e.g. a member's ID card over their details); only the top
+// one handles Escape and keeps Tab inside it.
+const openDialogs: symbol[] = [];
+
 const maxWidthClasses = {
   sm: 'sm:max-w-sm',
   md: 'sm:max-w-md',
@@ -35,12 +39,15 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, descriptio
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    const id = Symbol('dialog');
+    openDialogs.push(id);
 
     const dialog = dialogRef.current;
     const first = dialog?.querySelector<HTMLElement>(FOCUSABLE);
     (first ?? dialog)?.focus();
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if (openDialogs[openDialogs.length - 1] !== id) return;
       if (e.key === 'Escape') {
         e.stopPropagation();
         onCloseRef.current();
@@ -63,6 +70,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, descriptio
 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
+      openDialogs.splice(openDialogs.indexOf(id), 1);
       document.body.style.overflow = previousOverflow;
       previouslyFocused?.focus?.();
     };
