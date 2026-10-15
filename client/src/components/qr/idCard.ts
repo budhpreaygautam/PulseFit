@@ -2,26 +2,64 @@ import { User } from '../../types/index.js';
 import { formatDate } from '../../lib/format.js';
 import { GYM_ADDRESS, GYM_EMAIL, GYM_NAME, GYM_PHONE_DISPLAY, HOURS_DAYS, HOURS_TIME } from '../public/gymInfo.js';
 
-// The ID card is drawn on canvas at the size of a real card (CR80, 85.6 x 54 mm) at 300 dpi, so one
-// drawing serves the screen, the PNG download and printing. The design is dark glass on purpose, in
-// both themes: it is a physical card, not a page.
+// The ID card is a vertical badge, like a company employee card, drawn on canvas at real card size
+// (CR80 portrait, 54 x 85.6 mm) at 300 dpi, so one drawing serves the screen and the PNG download. The
+// physical card is issued by the gym, so the app does not print it. The header and footer are
+// colour-coded by role; the body follows the app's theme. The lanyard slot is cut out of the image, so
+// whatever is behind the card shows through it.
 
-export const CARD_WIDTH = 1012;
-export const CARD_HEIGHT = 638;
-const RADIUS = 38;
+export const CARD_WIDTH = 638;
+export const CARD_HEIGHT = 1012;
+const RADIUS = 34;
+
+/** Header/footer gradient and accent text colours for each role. */
+export const ROLE_STYLES: Record<string, { label: string; gradient: [string, string, string]; accentLight: string; accentDark: string }> = {
+  member: { label: 'MEMBER', gradient: ['#a3e635', '#22c55e', '#0d9488'], accentLight: '#15803d', accentDark: '#86efac' },
+  trainer: { label: 'COACH', gradient: ['#22d3ee', '#3b82f6', '#8b5cf6'], accentLight: '#1d4ed8', accentDark: '#93c5fd' },
+  admin: { label: 'ADMIN', gradient: ['#fbbf24', '#f97316', '#ec4899'], accentLight: '#c2410c', accentDark: '#fdba74' }
+};
+
+interface Palette {
+  body: [string, string];
+  text: string;
+  subtext: string;
+  label: string;
+  panelFill: string;
+  panelStroke: string;
+  pattern: string;
+  photoShadow: string;
+}
+
+const LIGHT: Palette = {
+  body: ['#ffffff', '#eef2f7'],
+  text: '#0f172a',
+  subtext: '#475569',
+  label: '#64748b',
+  panelFill: 'rgba(241, 245, 249, 0.9)',
+  panelStroke: 'rgba(148, 163, 184, 0.35)',
+  pattern: 'rgba(15, 23, 42, 0.045)',
+  photoShadow: 'rgba(15, 23, 42, 0.3)'
+};
+
+const DARK: Palette = {
+  body: ['#141c2b', '#090e18'],
+  text: '#f8fafc',
+  subtext: '#cbd5e1',
+  label: '#94a3b8',
+  panelFill: 'rgba(255, 255, 255, 0.06)',
+  panelStroke: 'rgba(255, 255, 255, 0.14)',
+  pattern: 'rgba(255, 255, 255, 0.04)',
+  photoShadow: 'rgba(0, 0, 0, 0.65)'
+};
+
+const STATUS_TEXT: Record<string, { label: string; light: string; dark: string }> = {
+  active: { label: 'Active', light: '#15803d', dark: '#86efac' },
+  frozen: { label: 'Frozen', light: '#1d4ed8', dark: '#93c5fd' },
+  expired: { label: 'Expired', light: '#be123c', dark: '#fda4af' },
+  pending: { label: 'No active plan', light: '#475569', dark: '#cbd5e1' }
+};
 
 const STAFF_ROLE_LABELS: Record<string, string> = { trainer: 'Coach', admin: 'Admin' };
-const ROLE_CHIPS: Record<string, { label: string; text: string; fill: string; edge: string }> = {
-  member: { label: 'MEMBER', text: '#bef264', fill: 'rgba(132, 204, 22, 0.16)', edge: 'rgba(163, 230, 53, 0.55)' },
-  trainer: { label: 'COACH', text: '#67e8f9', fill: 'rgba(6, 182, 212, 0.16)', edge: 'rgba(103, 232, 249, 0.5)' },
-  admin: { label: 'ADMIN', text: '#fcd34d', fill: 'rgba(245, 158, 11, 0.16)', edge: 'rgba(252, 211, 77, 0.5)' }
-};
-const STATUS_CHIPS: Record<string, { label: string; text: string; fill: string; edge: string }> = {
-  active: { label: 'ACTIVE', text: '#bef264', fill: 'rgba(132, 204, 22, 0.14)', edge: 'rgba(163, 230, 53, 0.45)' },
-  frozen: { label: 'FROZEN', text: '#93c5fd', fill: 'rgba(59, 130, 246, 0.16)', edge: 'rgba(147, 197, 253, 0.45)' },
-  expired: { label: 'EXPIRED', text: '#fda4af', fill: 'rgba(225, 29, 72, 0.16)', edge: 'rgba(253, 164, 175, 0.45)' },
-  pending: { label: 'NO ACTIVE PLAN', text: '#cbd5e1', fill: 'rgba(148, 163, 184, 0.16)', edge: 'rgba(203, 213, 225, 0.4)' }
-};
 // The PulseFit dumbbell mark (the favicon's paths, on a 24-unit grid).
 const DUMBBELL_PATHS = ['m6.5 6.5 11 11', 'm21 21-1-1', 'm3 3 1 1', 'm18 22 4-4', 'm2 6 4-4', 'm3 10 7-7', 'm14 21 7-7'];
 
@@ -43,6 +81,8 @@ export function cardNumber(user: Pick<User, 'id' | 'created_at'>): string {
   return `PF-${user.created_at.slice(2, 4)}-${code}`;
 }
 
+export const roleStyleOf = (role: string) => ROLE_STYLES[role] ?? ROLE_STYLES.member;
+
 export interface IdCardFaces {
   front: string;
   back: string;
@@ -52,6 +92,7 @@ export interface IdCardDetails {
   user: User;
   planName: string;
   qrDataUrl: string;
+  theme: 'light' | 'dark';
 }
 
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -74,114 +115,186 @@ function loadImage(src: string, crossOrigin: boolean): Promise<HTMLImageElement>
   });
 }
 
-/** The card's background: dark glass with a lime glow and a soft pink one, and a bright rim. */
-function drawBackground(ctx: CanvasRenderingContext2D) {
+function roleGradient(ctx: CanvasRenderingContext2D, colours: [string, string, string], x0: number, y0: number, x1: number, y1: number) {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  g.addColorStop(0, colours[0]);
+  g.addColorStop(0.55, colours[1]);
+  g.addColorStop(1, colours[2]);
+  return g;
+}
+
+/** Card body: theme background with a fine dot pattern, clipped to the card's rounded shape. */
+function drawBody(ctx: CanvasRenderingContext2D, p: Palette) {
   roundedRect(ctx, 0, 0, CARD_WIDTH, CARD_HEIGHT, RADIUS);
-  ctx.save();
   ctx.clip();
-  const base = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
-  base.addColorStop(0, '#162033');
-  base.addColorStop(0.55, '#0c1322');
-  base.addColorStop(1, '#060a12');
-  ctx.fillStyle = base;
+  const body = ctx.createLinearGradient(0, 0, 0, CARD_HEIGHT);
+  body.addColorStop(0, p.body[0]);
+  body.addColorStop(1, p.body[1]);
+  ctx.fillStyle = body;
   ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+  ctx.fillStyle = p.pattern;
+  for (let y = 16; y < CARD_HEIGHT; y += 20) {
+    for (let x = 16 + ((y / 20) % 2) * 10; x < CARD_WIDTH; x += 20) {
+      ctx.beginPath();
+      ctx.arc(x, y, 1.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
 
-  const lime = ctx.createRadialGradient(CARD_WIDTH * 0.95, -30, 0, CARD_WIDTH * 0.95, -30, 470);
-  lime.addColorStop(0, 'rgba(132, 204, 22, 0.42)');
-  lime.addColorStop(1, 'rgba(132, 204, 22, 0)');
-  ctx.fillStyle = lime;
-  ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
-
-  const pink = ctx.createRadialGradient(-40, CARD_HEIGHT + 40, 0, -40, CARD_HEIGHT + 40, 420);
-  pink.addColorStop(0, 'rgba(236, 72, 153, 0.22)');
-  pink.addColorStop(1, 'rgba(236, 72, 153, 0)');
-  ctx.fillStyle = pink;
-  ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
-
-  // A faint diagonal sheen across the glass.
-  const sheen = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
-  sheen.addColorStop(0.3, 'rgba(255, 255, 255, 0)');
-  sheen.addColorStop(0.42, 'rgba(255, 255, 255, 0.05)');
-  sheen.addColorStop(0.5, 'rgba(255, 255, 255, 0)');
-  ctx.fillStyle = sheen;
-  ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+/** The colourful header: two layered waves, soft circles and fine diagonal lines. */
+function drawHeader(ctx: CanvasRenderingContext2D, colours: [string, string, string], height: number) {
+  const W = CARD_WIDTH;
+  // Back wave, a little lower and translucent, for depth.
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(W, 0);
+  ctx.lineTo(W, height + 10);
+  ctx.bezierCurveTo(W * 0.72, height + 110, W * 0.32, height - 40, 0, height + 60);
+  ctx.closePath();
+  ctx.fillStyle = roleGradient(ctx, colours, W, 0, 0, height);
+  ctx.fill();
   ctx.restore();
 
-  roundedRect(ctx, 1.5, 1.5, CARD_WIDTH - 3, CARD_HEIGHT - 3, RADIUS - 1);
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(W, 0);
+  ctx.lineTo(W, height - 30);
+  ctx.bezierCurveTo(W * 0.7, height + 60, W * 0.35, height - 80, 0, height + 20);
+  ctx.closePath();
+  ctx.fillStyle = roleGradient(ctx, colours, 0, 0, W, height);
+  ctx.fill();
+  ctx.clip();
+  // Soft light circles and fine diagonal lines on the colour.
+  for (const [cx, cy, r, a] of [
+    [W * 0.88, 40, 170, 0.16],
+    [W * 0.08, height - 40, 110, 0.12],
+    [W * 0.55, -60, 120, 0.1]
+  ] as const) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 255, 255, ${a})`;
+    ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  ctx.lineWidth = 2;
+  for (let x = -height; x < W; x += 26) {
+    ctx.beginPath();
+    ctx.moveTo(x, height + 40);
+    ctx.lineTo(x + height + 40, 0);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** The coloured footer band with a wave edge. Returns its top. */
+function drawFooter(ctx: CanvasRenderingContext2D, colours: [string, string, string], top: number) {
+  const W = CARD_WIDTH;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(0, top + 20);
+  ctx.bezierCurveTo(W * 0.3, top - 30, W * 0.65, top + 50, W, top);
+  ctx.lineTo(W, CARD_HEIGHT);
+  ctx.lineTo(0, CARD_HEIGHT);
+  ctx.closePath();
+  ctx.fillStyle = roleGradient(ctx, colours, 0, top, W, CARD_HEIGHT);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Cut the lanyard slot out of the card and give it a bright rim. */
+function cutSlot(ctx: CanvasRenderingContext2D) {
+  const w = 132;
+  const h = 24;
+  const x = (CARD_WIDTH - w) / 2;
+  const y = 34;
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  roundedRect(ctx, x, y, w, h, h / 2);
+  ctx.fill();
+  ctx.restore();
+  roundedRect(ctx, x - 1, y - 1, w + 2, h + 2, h / 2 + 1);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
   ctx.lineWidth = 3;
   ctx.stroke();
 }
 
-/** A frosted glass panel with a bright top edge. */
-function drawGlassPanel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+function drawLogo(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
   ctx.save();
-  roundedRect(ctx, x, y, w, h, r);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.055)';
+  roundedRect(ctx, x, y, size, size, size * 0.28);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
   ctx.fill();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.13)';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+  ctx.lineWidth = 2.5;
   ctx.stroke();
-  ctx.clip();
-  const edge = ctx.createLinearGradient(x, y, x, y + 40);
-  edge.addColorStop(0, 'rgba(255, 255, 255, 0.1)');
-  edge.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  ctx.fillStyle = edge;
-  ctx.fillRect(x, y, w, 40);
-  ctx.restore();
-}
-
-function drawChip(ctx: CanvasRenderingContext2D, x: number, y: number, chip: { label: string; text: string; fill: string; edge: string }, align: 'left' | 'right') {
-  ctx.save();
-  ctx.font = `700 19px ${SANS}`;
-  const width = ctx.measureText(chip.label).width + 40;
-  const left = align === 'right' ? x - width : x;
-  roundedRect(ctx, left, y, width, 42, 21);
-  ctx.fillStyle = chip.fill;
-  ctx.fill();
-  ctx.strokeStyle = chip.edge;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.fillStyle = chip.text;
-  ctx.textBaseline = 'middle';
-  ctx.fillText(chip.label, left + 20, y + 22);
-  ctx.restore();
-}
-
-/** Logo square, wordmark and location line, top left. */
-function drawBrand(ctx: CanvasRenderingContext2D) {
-  ctx.save();
-  ctx.shadowColor = 'rgba(132, 204, 22, 0.45)';
-  ctx.shadowBlur = 24;
-  roundedRect(ctx, 56, 44, 76, 76, 22);
-  const lime = ctx.createLinearGradient(56, 44, 132, 120);
-  lime.addColorStop(0, '#bef264');
-  lime.addColorStop(1, '#84cc16');
-  ctx.fillStyle = lime;
-  ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  ctx.translate(70, 58);
-  ctx.scale(2, 2);
-  ctx.strokeStyle = '#0b1220';
+  const scale = (size * 0.62) / 24;
+  ctx.translate(x + size * 0.19, y + size * 0.19);
+  ctx.scale(scale, scale);
+  ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 2.6;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   for (const d of DUMBBELL_PATHS) ctx.stroke(new Path2D(d));
   ctx.restore();
+}
 
+/** A frosted white pill with white text, for the role tag on the coloured header. */
+function drawHeaderPill(ctx: CanvasRenderingContext2D, text: string, right: number, y: number) {
   ctx.save();
-  ctx.textBaseline = 'alphabetic';
-  ctx.font = `800 44px ${DISPLAY}`;
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillText('PULSE', 154, 92);
-  const pulseWidth = ctx.measureText('PULSE').width;
-  ctx.fillStyle = '#a3e635';
-  ctx.fillText('FIT', 154 + pulseWidth, 92);
-  ctx.font = `500 19px ${SANS}`;
-  ctx.fillStyle = '#94a3b8';
-  ctx.fillText('Sector 29 · Gurugram', 156, 120);
+  ctx.font = `800 18px ${SANS}`;
+  const w = ctx.measureText(text).width + 36;
+  roundedRect(ctx, right - w, y, w, 40, 20);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.24)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, right - w + 18, y + 21);
+  ctx.restore();
+}
+
+/** An iridescent hologram seal with the PF monogram. */
+function drawHologram(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetY = 4;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  const stops = ['#a3e635', '#22d3ee', '#a78bfa', '#f472b6', '#fbbf24', '#a3e635'];
+  const conic = (ctx as CanvasRenderingContext2D & { createConicGradient?: (a: number, x: number, y: number) => CanvasGradient }).createConicGradient;
+  const foil = conic ? conic.call(ctx, 0, cx, cy) : ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+  stops.forEach((c, i) => foil.addColorStop(i / (stops.length - 1), c));
+  ctx.fillStyle = foil;
+  ctx.fill();
+  ctx.restore();
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+  const milk = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+  milk.addColorStop(0, 'rgba(255, 255, 255, 0.65)');
+  milk.addColorStop(0.5, 'rgba(255, 255, 255, 0.1)');
+  milk.addColorStop(1, 'rgba(255, 255, 255, 0.45)');
+  ctx.fillStyle = milk;
+  ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.lineWidth = 1.5;
+  for (let i = 1; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 6 * i, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.font = `800 ${Math.round(r * 0.7)}px ${DISPLAY}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+  ctx.fillText('PF', cx, cy + 2);
   ctx.restore();
 }
 
@@ -220,17 +333,25 @@ function initialsOf(name: string): string {
   return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase() || '?';
 }
 
-async function drawPhoto(ctx: CanvasRenderingContext2D, user: User, x: number, y: number, w: number, h: number) {
-  // A soft neumorphic lift under the frame.
+/** Round photo with a white gap and a colourful gradient ring, lifted off the card. */
+async function drawPhoto(ctx: CanvasRenderingContext2D, p: Palette, user: User, colours: [string, string, string], cx: number, cy: number, r: number) {
   ctx.save();
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-  ctx.shadowBlur = 26;
-  ctx.shadowOffsetX = 8;
-  ctx.shadowOffsetY = 10;
-  roundedRect(ctx, x, y, w, h, 28);
-  ctx.fillStyle = '#0f172a';
+  ctx.shadowColor = p.photoShadow;
+  ctx.shadowBlur = 30;
+  ctx.shadowOffsetY = 12;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r + 16, 0, Math.PI * 2);
+  const conic = (ctx as CanvasRenderingContext2D & { createConicGradient?: (a: number, x: number, y: number) => CanvasGradient }).createConicGradient;
+  const ring = conic ? conic.call(ctx, -Math.PI / 2, cx, cy) : roleGradient(ctx, colours, cx - r, cy - r, cx + r, cy + r);
+  [colours[0], colours[1], colours[2], colours[0]].forEach((c, i) => ring.addColorStop(i / 3, c));
+  ctx.fillStyle = ring;
   ctx.fill();
   ctx.restore();
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r + 7, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
 
   let photo: HTMLImageElement | null = null;
   if (user.avatar_url) {
@@ -240,34 +361,25 @@ async function drawPhoto(ctx: CanvasRenderingContext2D, user: User, x: number, y
       photo = null;
     }
   }
-
   ctx.save();
-  roundedRect(ctx, x, y, w, h, 28);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.clip();
   if (photo) {
-    // Cover the frame, keeping the photo's proportions.
-    const scale = Math.max(w / photo.width, h / photo.height);
+    const scale = Math.max((r * 2) / photo.width, (r * 2) / photo.height);
     const dw = photo.width * scale;
     const dh = photo.height * scale;
-    ctx.drawImage(photo, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+    ctx.drawImage(photo, cx - dw / 2, cy - dh / 2, dw, dh);
   } else {
-    const g = ctx.createLinearGradient(x, y, x + w, y + h);
-    g.addColorStop(0, '#334155');
-    g.addColorStop(1, '#0f172a');
-    ctx.fillStyle = g;
-    ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = '#bef264';
-    ctx.font = `800 92px ${DISPLAY}`;
+    ctx.fillStyle = roleGradient(ctx, colours, cx - r, cy - r, cx + r, cy + r);
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `800 ${Math.round(r * 0.8)}px ${DISPLAY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(initialsOf(user.name), x + w / 2, y + h / 2 + 4);
+    ctx.fillText(initialsOf(user.name), cx, cy + 4);
   }
   ctx.restore();
-
-  roundedRect(ctx, x, y, w, h, 28);
-  ctx.strokeStyle = 'rgba(163, 230, 53, 0.85)';
-  ctx.lineWidth = 4;
-  ctx.stroke();
 }
 
 function newCanvas(): [HTMLCanvasElement, CanvasRenderingContext2D] {
@@ -288,137 +400,185 @@ function exportOrNull(canvas: HTMLCanvasElement): string | null {
   }
 }
 
-async function drawFront({ user, planName }: IdCardDetails, withPhoto: boolean): Promise<string | null> {
-  const [canvas, ctx] = newCanvas();
-  const isStaff = user.role !== 'member';
-  drawBackground(ctx);
-  drawBrand(ctx);
-  drawChip(ctx, CARD_WIDTH - 56, 60, ROLE_CHIPS[user.role] ?? ROLE_CHIPS.member, 'right');
-
-  drawGlassPanel(ctx, 40, 166, CARD_WIDTH - 80, 404, 32);
-  await drawPhoto(ctx, withPhoto ? user : { ...user, avatar_url: undefined }, 76, 200, 232, 292);
-
-  const textX = 346;
-  const textWidth = CARD_WIDTH - textX - 76;
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#f8fafc';
-  fitText(ctx, user.name, s => `800 ${s}px ${DISPLAY}`, 54, 30, textWidth);
-  ctx.fillText(user.name, textX, 262);
-
-  ctx.font = `600 25px ${SANS}`;
-  ctx.fillStyle = '#bef264';
-  const subtitle = isStaff ? `${STAFF_ROLE_LABELS[user.role] ?? 'Staff'} · PulseFit staff` : user.membership_tier === 'none' ? 'No plan yet' : planName;
-  fitText(ctx, subtitle, s => `600 ${s}px ${SANS}`, 25, 18, textWidth);
-  ctx.fillText(subtitle, textX, 304);
-
-  const fields: [string, string][] = isStaff
-    ? [['STAFF ID', cardNumber(user)], ['ROLE', STAFF_ROLE_LABELS[user.role] ?? 'Staff'], ['SINCE', formatDate(user.created_at, { month: 'short', year: 'numeric' })]]
-    : [
-        ['MEMBER ID', cardNumber(user)],
-        ['VALID THRU', user.membership_expiry ? formatDate(user.membership_expiry, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'],
-        ['SINCE', formatDate(user.created_at, { month: 'short', year: 'numeric' })]
-      ];
-  const columns = [textX, textX + 232, textX + 450];
-  fields.forEach(([label, value], i) => {
-    ctx.font = `700 16px ${SANS}`;
-    ctx.fillStyle = '#94a3b8';
-    ctx.fillText(label, columns[i], 368);
-    ctx.font = i === 0 ? `700 25px ${MONO}` : `700 25px ${SANS}`;
-    ctx.fillStyle = '#f8fafc';
-    ctx.fillText(value, columns[i], 404, (columns[i + 1] ?? CARD_WIDTH - 76) - columns[i] - 16);
-  });
-
-  if (!isStaff) drawChip(ctx, textX, 446, STATUS_CHIPS[user.membership_status] ?? STATUS_CHIPS.pending, 'left');
-  else {
-    ctx.font = `500 19px ${SANS}`;
-    ctx.fillStyle = '#cbd5e1';
-    ctx.fillText('Staff pass: no membership needed to check in.', textX, 474, textWidth);
-  }
-
-  ctx.font = `500 17px ${SANS}`;
-  ctx.fillStyle = '#64748b';
-  ctx.fillText(`${GYM_NAME} · Personal and non-transferable`, 56, 610);
-
-  // A lime accent along the bottom edge.
+/** Brand row on the header: logo square, wordmark and location. */
+function drawBrandRow(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  drawLogo(ctx, x, y, 62);
   ctx.save();
-  roundedRect(ctx, 0, 0, CARD_WIDTH, CARD_HEIGHT, RADIUS);
-  ctx.clip();
-  const bar = ctx.createLinearGradient(0, 0, CARD_WIDTH, 0);
-  bar.addColorStop(0, 'rgba(163, 230, 53, 0)');
-  bar.addColorStop(0.5, 'rgba(163, 230, 53, 0.9)');
-  bar.addColorStop(1, 'rgba(163, 230, 53, 0)');
-  ctx.fillStyle = bar;
-  ctx.fillRect(0, CARD_HEIGHT - 8, CARD_WIDTH, 8);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `800 36px ${DISPLAY}`;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('PULSEFIT', x + 78, y + 34);
+  ctx.font = `600 16px ${SANS}`;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.fillText('Sector 29 · Gurugram', x + 80, y + 58);
+  ctx.restore();
+}
+
+async function drawFront({ user, planName, theme }: IdCardDetails, withPhoto: boolean): Promise<string | null> {
+  const p = theme === 'light' ? LIGHT : DARK;
+  const role = roleStyleOf(user.role);
+  const accent = theme === 'light' ? role.accentLight : role.accentDark;
+  const isStaff = user.role !== 'member';
+  const W = CARD_WIDTH;
+  const [canvas, ctx] = newCanvas();
+
+  ctx.save();
+  drawBody(ctx, p);
+  drawHeader(ctx, role.gradient, 300);
+  drawFooter(ctx, role.gradient, 918);
   ctx.restore();
 
+  drawBrandRow(ctx, 40, 82);
+  drawHeaderPill(ctx, role.label, W - 40, 92);
+
+  await drawPhoto(ctx, p, withPhoto ? user : { ...user, avatar_url: undefined }, role.gradient, W / 2, 392, 118);
+
+  // Name and designation, centred.
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = p.text;
+  fitText(ctx, user.name, s => `800 ${s}px ${DISPLAY}`, 46, 28, W - 80);
+  ctx.fillText(user.name, W / 2, 584);
+  const designation = isStaff ? `${STAFF_ROLE_LABELS[user.role] ?? 'Staff'} · PulseFit staff` : user.membership_tier === 'none' ? 'No plan yet' : planName;
+  ctx.fillStyle = accent;
+  fitText(ctx, designation, s => `700 ${s}px ${SANS}`, 23, 16, W - 100);
+  ctx.fillText(designation, W / 2, 624);
+  // A short gradient rule under the designation.
+  ctx.fillStyle = roleGradient(ctx, role.gradient, W / 2 - 60, 0, W / 2 + 60, 0);
+  roundedRect(ctx, W / 2 - 60, 642, 120, 6, 3);
+  ctx.fill();
+  ctx.textAlign = 'left';
+
+  // Details panel.
+  roundedRect(ctx, 40, 672, W - 80, 196, 24);
+  ctx.fillStyle = p.panelFill;
+  ctx.fill();
+  ctx.strokeStyle = p.panelStroke;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  const status = STATUS_TEXT[user.membership_status] ?? STATUS_TEXT.pending;
+  const since = formatDate(user.created_at, { month: 'short', year: 'numeric' });
+  const rows: [string, string, string?][][] = isStaff
+    ? [
+        [['STAFF ID', cardNumber(user)], ['ROLE', STAFF_ROLE_LABELS[user.role] ?? 'Staff']],
+        [['JOINED', since], ['ACCESS', 'All areas']]
+      ]
+    : [
+        [['MEMBER ID', cardNumber(user)], ['VALID TILL', user.membership_expiry ? formatDate(user.membership_expiry, { day: 'numeric', month: 'short', year: 'numeric' }) : '—']],
+        [['MEMBER SINCE', since], ['STATUS', status.label, theme === 'light' ? status.light : status.dark]]
+      ];
+  const cols = [72, W / 2 + 12];
+  rows.forEach((row, ri) => {
+    const labelY = 716 + ri * 90;
+    row.forEach(([label, value, colour], ci) => {
+      ctx.font = `700 15px ${SANS}`;
+      ctx.fillStyle = p.label;
+      ctx.fillText(label, cols[ci], labelY);
+      ctx.font = ci === 0 && ri === 0 ? `700 24px ${MONO}` : `700 24px ${SANS}`;
+      ctx.fillStyle = colour ?? p.text;
+      ctx.fillText(value, cols[ci], labelY + 34, W / 2 - 52);
+    });
+  });
+
+  drawHologram(ctx, W - 92, 900, 38);
+
+  ctx.textAlign = 'center';
+  ctx.font = `700 18px ${SANS}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(GYM_NAME.toUpperCase(), W / 2, 966);
+  ctx.font = `500 14px ${SANS}`;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+  ctx.fillText('Personal and non-transferable', W / 2, 990);
+  ctx.textAlign = 'left';
+
+  cutSlot(ctx);
   return exportOrNull(canvas);
 }
 
-async function drawBack({ user, qrDataUrl }: IdCardDetails): Promise<string> {
+async function drawBack({ user, qrDataUrl, theme }: IdCardDetails): Promise<string> {
+  const p = theme === 'light' ? LIGHT : DARK;
+  const role = roleStyleOf(user.role);
+  const accent = theme === 'light' ? role.accentLight : role.accentDark;
+  const W = CARD_WIDTH;
   const [canvas, ctx] = newCanvas();
-  drawBackground(ctx);
 
-  // Magnetic-stripe band.
   ctx.save();
-  roundedRect(ctx, 0, 0, CARD_WIDTH, CARD_HEIGHT, RADIUS);
-  ctx.clip();
-  const stripe = ctx.createLinearGradient(0, 52, 0, 132);
-  stripe.addColorStop(0, 'rgba(0, 0, 0, 0.75)');
-  stripe.addColorStop(1, 'rgba(0, 0, 0, 0.55)');
-  ctx.fillStyle = stripe;
-  ctx.fillRect(0, 52, CARD_WIDTH, 80);
+  drawBody(ctx, p);
+  drawHeader(ctx, role.gradient, 150);
+  drawFooter(ctx, role.gradient, 930);
   ctx.restore();
 
-  // The QR code on a white tile (scanners need the contrast).
+  // Centred brand row on the header.
   ctx.save();
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-  ctx.shadowBlur = 24;
-  ctx.shadowOffsetY = 8;
-  roundedRect(ctx, 64, 168, 300, 300, 24);
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
+  ctx.font = `800 36px ${DISPLAY}`;
+  const rowWidth = 62 + 16 + ctx.measureText('PULSEFIT').width;
   ctx.restore();
-  const qr = await loadImage(qrDataUrl, false);
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(qr, 76, 180, 276, 276);
-  ctx.imageSmoothingEnabled = true;
+  drawBrandRow(ctx, (W - rowWidth) / 2, 78);
 
   ctx.textAlign = 'center';
-  ctx.font = `700 21px ${MONO}`;
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillText(user.qr_code_token, 214, 512, 300);
-  ctx.font = `600 15px ${SANS}`;
-  ctx.fillStyle = '#94a3b8';
-  ctx.fillText('PASS CODE', 214, 538);
+  ctx.font = `800 34px ${DISPLAY}`;
+  ctx.fillStyle = p.text;
+  ctx.fillText('Scan to check in', W / 2, 252);
+  ctx.font = `500 17px ${SANS}`;
+  ctx.fillStyle = p.subtext;
+  ctx.fillText('Show this side at the front desk', W / 2, 280);
+
+  // QR tile with a role-gradient frame (white inside: scanners need the contrast).
+  const size = 330;
+  const qx = (W - size) / 2;
+  const qy = 304;
+  ctx.save();
+  ctx.shadowColor = p.photoShadow;
+  ctx.shadowBlur = 26;
+  ctx.shadowOffsetY = 10;
+  roundedRect(ctx, qx - 8, qy - 8, size + 16, size + 16, 30);
+  ctx.fillStyle = roleGradient(ctx, role.gradient, qx, qy, qx + size, qy + size);
+  ctx.fill();
+  ctx.restore();
+  roundedRect(ctx, qx, qy, size, size, 24);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  const qr = await loadImage(qrDataUrl, false);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(qr, qx + 13, qy + 13, size - 26, size - 26);
+  ctx.imageSmoothingEnabled = true;
+
+  ctx.font = `700 22px ${MONO}`;
+  ctx.fillStyle = p.text;
+  ctx.fillText(user.qr_code_token, W / 2, qy + size + 50, W - 80);
+  ctx.font = `700 14px ${SANS}`;
+  ctx.fillStyle = p.label;
+  ctx.fillText('PASS CODE', W / 2, qy + size + 74);
   ctx.textAlign = 'left';
 
-  const x = 404;
-  const width = CARD_WIDTH - x - 56;
-  drawGlassPanel(ctx, x - 20, 160, width + 40, 392, 26);
-  ctx.font = `800 30px ${DISPLAY}`;
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillText('Scan at the front desk', x, 210, width);
-  ctx.font = `500 18px ${SANS}`;
-  ctx.fillStyle = '#cbd5e1';
-  ctx.fillText('or give the pass code to check in.', x, 240, width);
-
-  let y = 290;
+  // Gym details.
+  roundedRect(ctx, 40, 724, W - 80, 186, 24);
+  ctx.fillStyle = p.panelFill;
+  ctx.fill();
+  ctx.strokeStyle = p.panelStroke;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  let y = 760;
   const row = (label: string, value: string) => {
-    ctx.font = `700 15px ${SANS}`;
-    ctx.fillStyle = '#a3e635';
-    ctx.fillText(label, x, y);
-    ctx.font = `500 19px ${SANS}`;
-    ctx.fillStyle = '#f1f5f9';
-    y = wrapText(ctx, value, x, y + 26, width, 25) + 16;
+    ctx.font = `800 13px ${SANS}`;
+    ctx.fillStyle = accent;
+    ctx.fillText(label, 68, y);
+    ctx.font = `500 16px ${SANS}`;
+    ctx.fillStyle = p.text;
+    y = wrapText(ctx, value, 68, y + 22, W - 136, 21) + 6;
   };
   row('OPENING HOURS', `${HOURS_DAYS}, ${HOURS_TIME} · Sunday closed`);
   row('ADDRESS', GYM_ADDRESS);
   row('CONTACT', `${GYM_PHONE_DISPLAY} · ${GYM_EMAIL}`);
 
-  ctx.font = `500 15px ${SANS}`;
-  ctx.fillStyle = '#64748b';
-  wrapText(ctx, `If found, please return it to ${GYM_NAME}. This card is personal and cannot be lent or transferred.`, 56, 592, CARD_WIDTH - 112, 20);
+  ctx.textAlign = 'center';
+  ctx.font = `600 14px ${SANS}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(`Property of ${GYM_NAME}.`, W / 2, 974);
+  ctx.fillText('If found, please return it to the front desk.', W / 2, 994);
+  ctx.textAlign = 'left';
 
+  cutSlot(ctx);
   return canvas.toDataURL('image/png');
 }
 
@@ -426,9 +586,9 @@ async function drawBack({ user, qrDataUrl }: IdCardDetails): Promise<string> {
 export async function renderIdCard(details: IdCardDetails): Promise<IdCardFaces> {
   if (document.fonts) {
     await Promise.all([
-      document.fonts.load(`800 54px ${DISPLAY}`),
-      document.fonts.load(`600 25px ${SANS}`),
-      document.fonts.load(`700 16px ${SANS}`)
+      document.fonts.load(`800 46px ${DISPLAY}`),
+      document.fonts.load(`700 23px ${SANS}`),
+      document.fonts.load(`500 16px ${SANS}`)
     ]).catch(() => undefined);
   }
   const front = (await drawFront(details, true)) ?? (await drawFront(details, false));
@@ -437,56 +597,16 @@ export async function renderIdCard(details: IdCardDetails): Promise<IdCardFaces>
   return { front, back };
 }
 
-/** Both faces stacked in one PNG for the download. */
+/** Both faces side by side in one PNG for the download. */
 export async function stackedPng(faces: IdCardFaces): Promise<Blob> {
   const gap = 48;
   const canvas = document.createElement('canvas');
-  canvas.width = CARD_WIDTH;
-  canvas.height = CARD_HEIGHT * 2 + gap;
+  canvas.width = CARD_WIDTH * 2 + gap;
+  canvas.height = CARD_HEIGHT;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Your browser could not create the image.');
   const [front, back] = await Promise.all([loadImage(faces.front, false), loadImage(faces.back, false)]);
   ctx.drawImage(front, 0, 0);
-  ctx.drawImage(back, 0, CARD_HEIGHT + gap);
+  ctx.drawImage(back, CARD_WIDTH + gap, 0);
   return new Promise((resolve, reject) => canvas.toBlob(b => (b ? resolve(b) : reject(new Error('The image could not be saved.'))), 'image/png'));
-}
-
-/** Print both faces at real card size (85.6 x 54 mm) from a hidden frame, so the page around it is not printed. */
-export function printIdCard(faces: IdCardFaces, title: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const frame = document.createElement('iframe');
-    frame.setAttribute('aria-hidden', 'true');
-    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
-    document.body.appendChild(frame);
-    const doc = frame.contentDocument;
-    const win = frame.contentWindow;
-    if (!doc || !win) {
-      frame.remove();
-      reject(new Error('Your browser blocked printing.'));
-      return;
-    }
-    doc.open();
-    doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title.replace(/</g, '&lt;')}</title><style>
-      @page { size: A4; margin: 15mm; }
-      body { margin: 0; font: 10pt system-ui, sans-serif; color: #334155; }
-      img { display: block; width: 85.6mm; height: 54mm; margin: 0 0 8mm; }
-    </style></head><body>
-      <img src="${faces.front}" alt="Front of the card">
-      <img src="${faces.back}" alt="Back of the card">
-      <p>Print at 100% scale (turn off "fit to page"), then cut along the card edges.</p>
-    </body></html>`);
-    doc.close();
-    const images = Array.from(doc.images);
-    Promise.all(images.map(img => (img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; }))))
-      .then(() => {
-        win.focus();
-        win.print();
-        setTimeout(() => frame.remove(), 1000);
-        resolve();
-      })
-      .catch(err => {
-        frame.remove();
-        reject(err);
-      });
-  });
 }

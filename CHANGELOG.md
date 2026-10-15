@@ -6,11 +6,15 @@ All notable changes to PulseFit. Versions follow [Semantic Versioning](https://s
 
 ### Added
 
-- **ID cards.** Members and staff open their PulseFit ID card from the dashboard or the profile page: a
-  card-sized design in the app's glass style with their photo, name, card number, plan or role, validity
-  and status on the front, and the check-in QR code, pass code, opening hours and contact details on the
-  back. It flips, downloads as a PNG (both sides) and prints at real card size (85.6 × 54 mm). The front
-  desk can open and print any member's card from the member's details.
+- **ID cards.** Everyone opens their PulseFit ID card from My account, members also from their dashboard
+  and coaches from the coach dashboard: a
+  vertical, employee-style badge colour-coded by role (lime to teal for members, cyan to violet for coaches,
+  amber to pink for admins) that follows the app's light or dark theme. The front has the photo in a
+  gradient ring, name, plan or role, card number, validity, status and a hologram seal; the back has the
+  check-in QR code, pass code, opening hours and contact details. In the app it hangs from a lanyard and
+  swings gently, tilts towards the pointer and flips, and it downloads as a PNG (both sides). There is no
+  print option: the gym issues the physical card. The front desk can open any member's or coach's badge
+  from their details under Members.
 
 ### Changed
 
