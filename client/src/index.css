@@ -830,3 +830,46 @@ input[type='checkbox']:not(.sr-only):disabled {
 @media (prefers-reduced-motion: reduce) {
   .modal-panel { animation: none; }
 }
+
+/* ------------------------------------------------------------------ */
+/* ID badge stage: the badge hangs from its lanyard and swings gently  */
+/* over a soft aura, with its shadow following on the "floor".         */
+/* ------------------------------------------------------------------ */
+@keyframes id-badge-swing {
+  0%, 100% { transform: rotate(-2.6deg); }
+  50% { transform: rotate(2.6deg); }
+}
+@keyframes id-card-ground {
+  0%, 100% { transform: translateX(-10px) scaleX(0.94); opacity: 0.5; }
+  50% { transform: translateX(10px) scaleX(0.94); opacity: 0.5; }
+}
+.id-badge-swing {
+  transform-origin: 50% 0;
+  animation: id-badge-swing 5s ease-in-out infinite;
+}
+.id-card-ground {
+  background: rgba(15, 23, 42, 0.45);
+  animation: id-card-ground 5s ease-in-out infinite;
+}
+.dark .id-card-ground {
+  background: rgba(0, 0, 0, 0.8);
+}
+.id-card-aura {
+  background:
+    radial-gradient(60% 70% at 85% 10%, rgba(163, 230, 53, 0.45), transparent 70%),
+    radial-gradient(55% 65% at 10% 95%, rgba(244, 114, 182, 0.32), transparent 70%),
+    radial-gradient(50% 60% at 50% 50%, rgba(103, 232, 249, 0.18), transparent 70%);
+  opacity: 0.8;
+}
+.dark .id-card-aura {
+  background:
+    radial-gradient(60% 70% at 85% 10%, rgba(132, 204, 22, 0.35), transparent 70%),
+    radial-gradient(55% 65% at 10% 95%, rgba(236, 72, 153, 0.22), transparent 70%),
+    radial-gradient(50% 60% at 50% 50%, rgba(139, 92, 246, 0.16), transparent 70%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .id-badge-swing,
+  .id-card-ground {
+    animation: none;
+  }
+}

@@ -1,47 +1,63 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { Download, Printer, RotateCw } from 'lucide-react';
+import { Download, RotateCw } from 'lucide-react';
 import { Modal } from '../common/Modal.js';
 import { User } from '../../types/index.js';
 import { api } from '../../api/client.js';
 import { useToast } from '../../context/ToastContext.js';
+import { useTheme } from '../../context/ThemeContext.js';
 import { STATUS_LABELS, formatDate, tierLabel } from '../../lib/format.js';
-import { CARD_HEIGHT, CARD_WIDTH, IdCardFaces, cardNumber, printIdCard, renderIdCard, stackedPng } from './idCard.js';
+import { CARD_HEIGHT, CARD_WIDTH, IdCardFaces, cardNumber, renderIdCard, roleStyleOf, stackedPng } from './idCard.js';
 
 interface IdCardModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: User | null;
-  /** True when staff open someone else's card (front desk printing); changes only the wording. */
+  /** True when staff open someone else's card from the member's details; changes only the wording. */
   forOther?: boolean;
 }
 
-/** A PulseFit ID card: front with photo and details, back with the check-in QR code. Flips, downloads and prints. */
+const prefersReducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * A PulseFit ID badge: a vertical card with photo and details on the front and the check-in QR code
+ * on the back. It hangs from a lanyard in the role's colours and swings gently, tilts towards the
+ * pointer, follows the app's theme, flips and downloads. The physical card is issued by the gym, so
+ * there is no print option.
+ */
 export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user, forOther = false }) => {
   const { showToast } = useToast();
+  const { isDark } = useTheme();
+  const theme = isDark ? 'dark' : 'light';
   const [faces, setFaces] = useState<IdCardFaces | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showBack, setShowBack] = useState(false);
-  const [busy, setBusy] = useState<'download' | 'print' | null>(null);
-  const printButtonRef = useRef<HTMLButtonElement>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [tilt, setTilt] = useState({ x: 0, y: 0, gx: 50, gy: 50, active: false });
 
+  // A new person (or reopening) starts on the front, from a blank card.
+  useEffect(() => {
+    if (!isOpen) return;
+    setFaces(null);
+    setShowBack(false);
+  }, [isOpen, user]);
+
+  // Draw (and redraw on a theme switch, keeping the side on show).
   useEffect(() => {
     if (!isOpen || !user) return;
     let cancelled = false;
-    setFaces(null);
     setError(null);
-    setShowBack(false);
     (async () => {
       // The catalogue name of the plan (admins can rename plans); the built-in names if it cannot load.
       const plans = await api.getPlans().catch(() => null);
       const qrDataUrl = await QRCode.toDataURL(user.qr_code_token, { width: 552, margin: 1, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } });
-      const drawn = await renderIdCard({ user, planName: tierLabel(user.membership_tier, plans), qrDataUrl });
+      const drawn = await renderIdCard({ user, planName: tierLabel(user.membership_tier, plans), qrDataUrl, theme });
       if (!cancelled) setFaces(drawn);
     })().catch(err => !cancelled && setError(err instanceof Error ? err.message : 'The card could not be drawn.'));
     return () => {
       cancelled = true;
     };
-  }, [isOpen, user]);
+  }, [isOpen, user, theme]);
 
   if (!user) return null;
 
@@ -53,7 +69,7 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user,
 
   const download = async () => {
     if (!faces) return;
-    setBusy('download');
+    setDownloading(true);
     try {
       const blob = await stackedPng(faces);
       const link = document.createElement('a');
@@ -64,36 +80,35 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user,
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'The card could not be downloaded.', 'error');
     } finally {
-      setBusy(null);
+      setDownloading(false);
     }
   };
 
-  const print = async () => {
-    if (!faces) return;
-    setBusy('print');
-    try {
-      await printIdCard(faces, `${user.name} · PulseFit ID card`);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'The card could not be printed.', 'error');
-    } finally {
-      setBusy(null);
-      // Printing focuses the hidden print frame; bring focus back so Escape and Tab work in the dialog
-      // (after this render, once the button is enabled again).
-      setTimeout(() => printButtonRef.current?.focus(), 0);
-    }
+  // Tilt towards the pointer, with a glare that follows it.
+  const onPointerMove = (e: React.PointerEvent<HTMLElement>) => {
+    if (e.pointerType !== 'mouse' || prefersReducedMotion()) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width;
+    const py = (e.clientY - r.top) / r.height;
+    setTilt({ x: (0.5 - py) * 10, y: (px - 0.5) * 16, gx: px * 100, gy: py * 100, active: true });
   };
+  const resetTilt = () => setTilt(t => ({ ...t, x: 0, y: 0, active: false }));
 
-  const face = 'absolute inset-0 w-full h-full rounded-[4%/6.3%] [backface-visibility:hidden] shadow-[0_18px_40px_-12px_rgba(0,0,0,0.55)]';
+  const corner = 'rounded-[5.3%/3.4%]';
+  const [c0, c1, c2] = roleStyleOf(user.role).gradient;
+  const face = `absolute inset-0 w-full h-full ${corner} [backface-visibility:hidden] ${
+    isDark ? 'shadow-[0_30px_60px_-18px_rgba(0,0,0,0.75)]' : 'shadow-[0_30px_60px_-20px_rgba(15,23,42,0.45)]'
+  }`;
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={forOther ? `${user.name}'s ID card` : 'My ID card'}
-      description={forOther ? 'Print it on card stock for the member, or download it.' : 'Your PulseFit card: show it at the front desk, download it or print it.'}
-      maxWidth="xl"
+      description={forOther ? 'The digital card the member sees in the app.' : 'Your digital PulseFit card. Your physical card is issued at the front desk.'}
+      maxWidth="lg"
     >
-      <div className="space-y-5">
+      <div className="space-y-4">
         <p id="id-card-summary" className="sr-only">
           {summary}
         </p>
@@ -102,27 +117,60 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user,
             {error}
           </p>
         ) : (
-          <div className="mx-auto w-full max-w-[30rem] [perspective:1400px]">
-            <button
-              type="button"
-              onClick={() => setShowBack(v => !v)}
-              disabled={!faces}
-              aria-label={showBack ? 'Show the front of the card' : 'Show the back of the card'}
-              aria-describedby="id-card-summary"
-              className="relative block w-full rounded-[4%/6.3%] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-lime-500"
-              style={{ aspectRatio: `${CARD_WIDTH} / ${CARD_HEIGHT}` }}
-            >
-              {faces ? (
+          <div className="relative mx-auto w-full max-w-[15rem] sm:max-w-[16rem] pb-8 [perspective:1400px]">
+            {/* A soft coloured glow behind the badge, and its shadow on the "floor". */}
+            <div aria-hidden="true" className="id-card-aura pointer-events-none absolute -inset-x-6 top-16 bottom-8 rounded-[2rem] blur-2xl" />
+            <div aria-hidden="true" className="id-card-ground pointer-events-none absolute left-[18%] right-[18%] bottom-1 h-6 rounded-[50%] blur-xl" />
+
+            {/* The badge swings from the top of its lanyard. */}
+            <div className="id-badge-swing relative">
+              <div aria-hidden="true" className="relative mx-auto h-16 w-9 z-0">
+                <div
+                  className="absolute inset-0 rounded-b-md shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)]"
+                  style={{ background: `repeating-linear-gradient(180deg, rgba(255,255,255,0.12) 0 2px, transparent 2px 6px), linear-gradient(180deg, ${c0}, ${c1}, ${c2})` }}
+                />
+                <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black tracking-[0.3em] text-white/90 [writing-mode:vertical-rl]">PULSEFIT</span>
+              </div>
+              <div aria-hidden="true" className="relative z-20 mx-auto -mt-1 h-5 w-14 rounded-md bg-gradient-to-b from-slate-100 via-slate-300 to-slate-400 shadow-[0_2px_6px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.9)]">
+                <span className="absolute left-1/2 top-1/2 h-1.5 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-500/70" />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBack(v => !v)}
+                onPointerMove={onPointerMove}
+                onPointerLeave={resetTilt}
+                disabled={!faces}
+                aria-label={showBack ? 'Show the front of the card' : 'Show the back of the card'}
+                aria-describedby="id-card-summary"
+                className={`relative z-10 -mt-6 block w-full ${corner} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-lime-500 [transform-style:preserve-3d]`}
+                style={{
+                  aspectRatio: `${CARD_WIDTH} / ${CARD_HEIGHT}`,
+                  transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+                  transition: tilt.active ? 'transform 90ms linear' : 'transform 600ms cubic-bezier(0.2, 0.8, 0.2, 1)'
+                }}
+              >
+                {faces ? (
+                  <span
+                    className={`absolute inset-0 [transform-style:preserve-3d] transition-transform duration-700 motion-reduce:transition-none ${showBack ? '[transform:rotateY(180deg)]' : ''}`}
+                  >
+                    <img src={faces.front} alt="" className={face} draggable={false} />
+                    <img src={faces.back} alt="" className={`${face} [transform:rotateY(180deg)]`} draggable={false} />
+                  </span>
+                ) : (
+                  <span className={`absolute inset-0 ${corner} neu-pressed-sm animate-pulse`} role="status" aria-label="Drawing the card" />
+                )}
                 <span
-                  className={`absolute inset-0 [transform-style:preserve-3d] transition-transform duration-700 motion-reduce:transition-none ${showBack ? '[transform:rotateY(180deg)]' : ''}`}
-                >
-                  <img src={faces.front} alt="" className={face} draggable={false} />
-                  <img src={faces.back} alt="" className={`${face} [transform:rotateY(180deg)]`} draggable={false} />
-                </span>
-              ) : (
-                <span className="absolute inset-0 rounded-[4%/6.3%] neu-pressed-sm animate-pulse" role="status" aria-label="Drawing the card" />
-              )}
-            </button>
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute inset-0 ${corner} transition-opacity duration-300`}
+                  style={{
+                    opacity: tilt.active ? 1 : 0,
+                    background: `radial-gradient(circle at ${tilt.gx}% ${tilt.gy}%, rgba(255,255,255,${isDark ? 0.22 : 0.5}), rgba(255,255,255,0) 55%)`,
+                    mixBlendMode: isDark ? 'screen' : 'soft-light',
+                    transform: 'translateZ(2px)'
+                  }}
+                />
+              </button>
+            </div>
           </div>
         )}
 
@@ -130,7 +178,7 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user,
           {showBack ? 'Back: the QR code the front desk scans.' : 'Front: tap the card to see the back.'}
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
             type="button"
             onClick={() => setShowBack(v => !v)}
@@ -142,24 +190,15 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user,
           <button
             type="button"
             onClick={download}
-            disabled={!faces || busy !== null}
+            disabled={!faces || downloading}
             className="neu-btn-lime py-3 rounded-xl text-sm font-extrabold flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            <Download className="w-4 h-4" aria-hidden="true" /> {busy === 'download' ? 'Preparing…' : 'Download PNG'}
-          </button>
-          <button
-            ref={printButtonRef}
-            type="button"
-            onClick={print}
-            disabled={!faces || busy !== null}
-            className="neu-btn py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            <Printer className="w-4 h-4" aria-hidden="true" /> {busy === 'print' ? 'Opening…' : 'Print'}
+            <Download className="w-4 h-4" aria-hidden="true" /> {downloading ? 'Preparing…' : 'Download PNG'}
           </button>
         </div>
 
         <p className="text-[11px] text-slate-500 text-center">
-          Prints at real card size (85.6 × 54 mm), both sides. {forOther ? 'The QR code identifies the member at check-in.' : 'Keep it private: the QR code identifies you at check-in.'}
+          {forOther ? 'The QR code identifies the member at check-in.' : 'Keep it private: the QR code identifies you at check-in.'}
         </p>
       </div>
     </Modal>
