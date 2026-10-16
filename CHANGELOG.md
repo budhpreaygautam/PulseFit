@@ -2,7 +2,10 @@
 
 All notable changes to PulseFit. Versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.2.0] — 2026-10-16
+
+v2.2 adds ID cards: a digital PulseFit badge for every member and coach, and the front desk's record of
+the physical cards it hands out, so a lost or stolen card stops working at the turnstile.
 
 ### Added
 
