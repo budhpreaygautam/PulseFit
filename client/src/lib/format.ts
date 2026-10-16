@@ -41,6 +41,11 @@ export function formatClock(hhmm: string): string {
   return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${suffix}`;
 }
 
+/** '12 Oct 2026' for an ISO instant: the day it was at the gym. */
+export function formatDay(iso: string): string {
+  return formatDate(gymToday(new Date(iso)), { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 /** '12 Oct 2026, 6:30 pm' for an ISO instant, at the gym. */
 export function formatDateTime(iso: string): string {
   return new Intl.DateTimeFormat('en-IN', { timeZone: GYM_TIMEZONE, day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));

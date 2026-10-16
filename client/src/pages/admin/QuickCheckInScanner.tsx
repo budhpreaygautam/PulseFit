@@ -25,6 +25,7 @@ const DENIAL_REASONS: Record<string, string> = {
   TRIAL_NOT_VALID_TODAY: 'Trial pass not valid today',
   TRIAL_ALREADY_USED: 'Trial pass already used',
   PASS_NOT_FOUND: 'Pass not recognised',
+  CARD_DEACTIVATED: 'ID card deactivated',
   GYM_CLOSED: 'Gym closed'
 };
 
@@ -64,7 +65,7 @@ const OutcomePanel: React.FC<{ outcome: Outcome | null }> = ({ outcome }) => {
     return (
       <div className="neu-pressed-sm rounded-2xl p-5 flex items-center gap-4 text-sm text-slate-400">
         <QrCode className="w-8 h-8 shrink-0" aria-hidden="true" />
-        Ready. Scan a pass or type a pass code, member email or trial code.
+        Ready. Scan a pass or ID card, or type a pass code, card number, member email or trial code.
       </div>
     );
   }
@@ -213,7 +214,7 @@ export const QuickCheckInScanner: React.FC = () => {
       <PageHeader
         eyebrow="Front desk"
         title="Check-in"
-        description="Scan a member's QR pass or type their pass code, email or free-trial code. Every granted check-in is recorded."
+        description="Scan a member's QR pass or ID card, or type their pass code, card number, email or free-trial code. Every granted check-in is recorded."
         actions={
           !isAdmin && (
             <button type="button" onClick={() => navigate('trainer-dashboard')} className={`px-4 py-2.5 neu-btn rounded-xl text-xs font-bold flex items-center gap-2 ${focusRing}`}>
@@ -259,7 +260,7 @@ export const QuickCheckInScanner: React.FC = () => {
             className="space-y-2"
           >
             <label htmlFor="checkin-code" className={labelClass}>
-              Pass code, member email or trial code
+              Pass code, ID card number, member email or trial code
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
               <input
@@ -272,7 +273,7 @@ export const QuickCheckInScanner: React.FC = () => {
                 autoFocus
                 value={code}
                 onChange={e => setCode(e.target.value)}
-                placeholder="PULSE-… or name@example.com"
+                placeholder="PULSE-…, PFC-… or name@example.com"
                 className={`${inputClass} font-mono`}
               />
               <button

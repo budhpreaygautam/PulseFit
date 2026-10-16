@@ -1,44 +1,71 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Download, IdCard, Mail, Phone } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Ban, Download, IdCard, Mail, Phone, Plus, Repeat, RotateCcw } from 'lucide-react';
 import { MemberDetail } from '../../types/index.js';
 import { api, downloadFile, errorMessage } from '../../api/client.js';
 import { Modal } from '../common/Modal.js';
 import { Badge } from '../common/Badge.js';
 import { EmptyState, ErrorState, LoadingState } from '../common/States.js';
 import { useToast } from '../../context/ToastContext.js';
-import { STATUS_LABELS, TIER_LABELS, formatDate, formatDateTime, formatINR } from '../../lib/format.js';
+import { STATUS_LABELS, TIER_LABELS, formatDate, formatDateTime, formatDay, formatINR } from '../../lib/format.js';
 import { Avatar, focusRing } from './ui.js';
 import { statusVariant } from './memberStatus.js';
 import { IdCardModal } from '../qr/IdCardModal.js';
+import { DEACTIVATION_REASON_LABELS } from '../qr/idCard.js';
+import { CardStatusBadge, IdCardAction, IdCardActionDialog, eventLabel, useFocusAfterReload } from './IdCardActions.js';
 
 interface MemberDetailModalProps {
   memberId: string | null;
   onClose: () => void;
+  /** Called after an ID card was issued, deactivated or reactivated here, so the page behind can refresh. */
+  onChanged?: () => void;
 }
 
 const METHOD_LABELS: Record<string, string> = { qr: 'QR pass', manual: 'Front desk', kiosk: 'Kiosk', camera: 'Camera scan' };
 
-export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ memberId, onClose }) => {
+export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ memberId, onClose, onChanged }) => {
   const [member, setMember] = useState<MemberDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isIdCardOpen, setIsIdCardOpen] = useState(false);
+  const [cardAction, setCardAction] = useState<IdCardAction | null>(null);
+  const cardsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const focusAfterReload = useFocusAfterReload(member);
   const { showToast } = useToast();
+  // The dialog can close and reopen for someone else while an answer is on its way. An answer for a
+  // person no longer shown is dropped: it would show, and let the desk act on, the wrong member.
+  const shownId = useRef(memberId);
+  shownId.current = memberId;
 
   const load = useCallback(async () => {
     if (!memberId) return;
     setMember(null);
     setError(null);
     try {
-      setMember(await api.getMemberById(memberId));
+      const next = await api.getMemberById(memberId);
+      if (shownId.current === memberId) setMember(next);
     } catch (err) {
-      setError(errorMessage(err));
+      if (shownId.current === memberId) setError(errorMessage(err));
     }
   }, [memberId]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // After a card action the member is reloaded in place, not through the loading state, so the
+  // dialog keeps its scroll position and focus.
+  const reloadCards = async () => {
+    const id = memberId;
+    if (!id) return;
+    focusAfterReload(() => cardsHeadingRef.current);
+    try {
+      const next = await api.getMemberById(id);
+      if (shownId.current === id) setMember(next);
+    } catch (err) {
+      if (shownId.current === id) showToast(errorMessage(err), 'error', 'Could not refresh the ID cards');
+    }
+    onChanged?.();
+  };
 
   const exportAttendance = async () => {
     if (!member) return;
@@ -52,11 +79,18 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ memberId, 
     }
   };
 
+  // Newest first. The current card is the active one, else the most recently issued.
+  const cards = member?.id_cards ?? [];
+  const activeCard = cards.find(c => c.status === 'active') ?? null;
+  const currentCard = activeCard ?? cards[0] ?? null;
+  const holder = member ? { id: member.id, name: member.name } : null;
+  const smallButton = `neu-btn px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap ${focusRing}`;
+
   return (
     <Modal isOpen={memberId !== null} onClose={onClose} title={member ? member.name : 'Member details'} maxWidth="2xl">
       {error ? (
         <ErrorState message={error} onRetry={load} />
-      ) : !member ? (
+      ) : !member || !holder ? (
         <LoadingState label="Loading member…" />
       ) : (
         <div className="space-y-6">
@@ -81,7 +115,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ memberId, 
               <IdCard className="w-4 h-4" aria-hidden="true" /> ID card
             </button>
           </div>
-          <IdCardModal isOpen={isIdCardOpen} onClose={() => setIsIdCardOpen(false)} user={member} forOther />
+          <IdCardModal isOpen={isIdCardOpen} onClose={() => setIsIdCardOpen(false)} user={member} card={currentCard} forOther />
 
           <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div className="neu-pressed-sm rounded-xl p-3">
@@ -116,6 +150,84 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ memberId, 
               </div>
             ))}
           </dl>
+
+          <section aria-labelledby="id-cards-heading" className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h3 id="id-cards-heading" ref={cardsHeadingRef} tabIndex={-1} className="text-sm font-extrabold text-slate-100 font-['Outfit'] outline-none">
+                  ID cards
+                </h3>
+                <p className="text-xs text-slate-400">Physical cards handed out at the desk, newest first.</p>
+              </div>
+              {!activeCard && (
+                <button
+                  type="button"
+                  onClick={() => setCardAction({ kind: 'issue', holder, current: currentCard })}
+                  className={`neu-btn-lime px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 whitespace-nowrap ${focusRing}`}
+                >
+                  <Plus className="w-3.5 h-3.5" aria-hidden="true" /> {currentCard ? 'Issue new card' : 'Issue card'}
+                </button>
+              )}
+            </div>
+            {cards.length > 0 ? (
+              <ul className="space-y-2 text-xs">
+                {cards.map(c => {
+                  const replaced = c.replaces_card_id ? cards.find(other => other.id === c.replaces_card_id) : undefined;
+                  return (
+                    <li key={c.id} className="neu-pressed-sm rounded-xl p-3 sm:p-4 space-y-2 min-w-0">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2 min-w-0">
+                          <span id={`card-number-${c.id}`} className="font-mono text-sm font-bold text-slate-100">{c.card_number}</span>
+                          <CardStatusBadge status={c.status} />
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {c.status === 'active' ? (
+                            <>
+                              <button type="button" aria-describedby={`card-number-${c.id}`} onClick={() => setCardAction({ kind: 'deactivate', holder, card: c })} className={`${smallButton} hover:text-rose-400`}>
+                                <Ban className="w-3.5 h-3.5" aria-hidden="true" /> Deactivate
+                              </button>
+                              <button type="button" aria-describedby={`card-number-${c.id}`} onClick={() => setCardAction({ kind: 'issue', holder, current: c })} className={smallButton}>
+                                <Repeat className="w-3.5 h-3.5" aria-hidden="true" /> Replace card
+                              </button>
+                            </>
+                          ) : (
+                            // Only one card can work at a time: with another card active, this one stays off.
+                            !activeCard && (
+                              <button type="button" aria-describedby={`card-number-${c.id}`} onClick={() => setCardAction({ kind: 'reactivate', holder, card: c })} className={smallButton}>
+                                <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" /> Reactivate
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-slate-400">
+                        Issued {formatDay(c.issued_at)} by {c.issued_by_name}
+                        {replaced && ` · replaces ${replaced.card_number}`}
+                      </p>
+                      {c.status === 'deactivated' && (
+                        <p className="font-semibold text-rose-300 break-words">
+                          Deactivated{c.deactivated_at && ` ${formatDay(c.deactivated_at)}`}
+                          {c.deactivation_reason && ` · ${DEACTIVATION_REASON_LABELS[c.deactivation_reason]}`}
+                          {c.deactivation_note && ` · “${c.deactivation_note}”`}
+                        </p>
+                      )}
+                      <ol aria-label={`History of card ${c.card_number}`} className="border-l-2 border-slate-700/60 pl-3 space-y-1">
+                        {c.events.map((event, i) => (
+                          <li key={i} className="text-slate-400 break-words">
+                            <span className="font-semibold text-slate-300">{eventLabel(event)}</span> · {formatDateTime(event.at)} · {event.by_name}
+                            {event.note && <span className="block text-slate-400">“{event.note}”</span>}
+                          </li>
+                        ))}
+                      </ol>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <EmptyState title="No ID card issued yet" body="Issue one when the card is handed over at the desk. Until then the app pass works at check-in." />
+            )}
+          </section>
+          <IdCardActionDialog action={cardAction} onClose={() => setCardAction(null)} onChanged={reloadCards} />
 
           <section aria-labelledby="recent-attendance-heading" className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">

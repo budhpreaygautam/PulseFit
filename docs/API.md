@@ -248,12 +248,12 @@ Additional rules:
 | Method & path | Body / query | Success `data` | Errors |
 |---|---|---|---|
 | `GET /members` (admin) | `search?, tier?, status?` (effective status), `role?` (default `member`; `all` = everyone) | `SafeUser[]` | |
-| `GET /members/:id` (admin) | — | `SafeUser & { bookings_count, attendance_count, workouts_count, upcoming_bookings, recent_attendance: AttendanceLog[] (10), payments: Payment[] }` | 404 |
+| `GET /members/:id` (admin) | — | `SafeUser & { bookings_count, attendance_count, workouts_count, upcoming_bookings, recent_attendance: AttendanceLog[] (10), payments: Payment[], id_cards: IdCard[] (newest first) }` | 404 |
 | `POST /members` (admin) | `{ name, email, phone?, role? = 'member', membership_tier? = 'none', expiry_months? = 0 (0–24) }`. Tier ≠ none and months > 0 ⇒ active until the day before today + months | 201 `{ member: SafeUser, tempPassword }` | 409 `EMAIL_TAKEN` |
 | `PUT /members/:id` (admin) | `{ name?, phone?, role?, membership_tier?, membership_status?, membership_expiry? (date \| null) }` | `SafeUser` | 400 `CANNOT_CHANGE_OWN_ROLE`, 400 `LAST_ADMIN`, 403 `DEMO_ACCOUNT_LOCKED` (role change of a demo persona in demo mode) |
-| `DELETE /members/:id` (admin) | — | `{ deleted: true }`. Removes bookings, workouts, attendance, floor sessions, notes about them and reset tokens; keeps payments (financial records) | 400 `CANNOT_DELETE_SELF`, 400 `LAST_ADMIN`, 403 `DEMO_ACCOUNT_LOCKED` (demo mode, one of the four demo personas) |
+| `DELETE /members/:id` (admin) | — | `{ deleted: true }`. Removes bookings, workouts, attendance, floor sessions, notes about them, ID cards and reset tokens; keeps payments (financial records) | 400 `CANNOT_DELETE_SELF`, 400 `LAST_ADMIN`, 403 `DEMO_ACCOUNT_LOCKED` (demo mode, one of the four demo personas) |
 | `POST /members/:id/reset-password` (admin) | — | `{ tempPassword }` (old tokens revoked) | 403 `DEMO_ACCOUNT_LOCKED` (demo mode, one of the four demo personas), 404 |
-| `POST /attendance/check-in` (admin, trainer) | `{ code, method?: 'qr'\|'manual'\|'kiosk'\|'camera' }` (`tokenOrId` accepted as an alias of `code`). `code` = QR token, member id, email, or trial code (tokens, emails and trial codes ignore case) | `{ result: 'granted', already_checked_in: boolean, kind: 'member'\|'trial', member?: { id, name, email, avatar_url, membership_tier, membership_status, membership_expiry, streak_days }, trial?: TrialPass, log: AttendanceLog }`. A second scan on the same gym day lets the member through without a new log or streak day | 403 `GYM_CLOSED` \| `MEMBERSHIP_EXPIRED` \| `MEMBERSHIP_FROZEN` \| `MEMBERSHIP_PENDING` \| `TRIAL_NOT_VALID_TODAY` \| `TRIAL_ALREADY_USED` (with `data.member` or `data.trial`), 404 `PASS_NOT_FOUND` |
+| `POST /attendance/check-in` (admin, trainer) | `{ code, method?: 'qr'\|'manual'\|'kiosk'\|'camera' }` (`tokenOrId` accepted as an alias of `code`). `code` = QR token, ID card number, member id, email, or trial code, looked up in that order (tokens, emails and trial codes ignore case; card numbers also ignore spaces and hyphens) | `{ result: 'granted', already_checked_in: boolean, kind: 'member'\|'trial', member?: { id, name, email, avatar_url, membership_tier, membership_status, membership_expiry, streak_days }, trial?: TrialPass, log: AttendanceLog }`. A second scan on the same gym day lets the member through without a new log or streak day. An active ID card works exactly like the QR token | 403 `CARD_DEACTIVATED` (with `data.member` and `data.card: { card_number, status, deactivated_at, deactivation_reason }`; checked before the hours and membership) \| `GYM_CLOSED` \| `MEMBERSHIP_EXPIRED` \| `MEMBERSHIP_FROZEN` \| `MEMBERSHIP_PENDING` \| `TRIAL_NOT_VALID_TODAY` \| `TRIAL_ALREADY_USED` (with `data.member` or `data.trial`), 404 `PASS_NOT_FOUND` |
 | `GET /attendance/logs` (admin) | `date?, user_id?, limit? (1–200, default 50), offset?, format? = 'json'\|'csv'` | `{ items: AttendanceLog[], total }`, or a `text/csv` download | |
 | `GET /attendance/my` | — | the caller's `AttendanceLog[]`, newest first (≤ 100) | |
 | `POST /trials` (public, 5 per hour per IP) | `{ name, email, phone, interest: ClassCategory, preferred_date }` (today … today + 14, not a Sunday, not today once the gym has closed) | 201 `TrialPass` (`code` = `PULSE-TRIAL-XXXXXX`, valid only on `valid_on`, once) | 409 `TRIAL_ALREADY_CLAIMED` (same email or phone), 400 `GYM_CLOSED` |
@@ -289,6 +289,33 @@ Additional rules:
   closed for today. Please pick another day."); a Sunday is 400 `GYM_CLOSED` whatever the setting.
 - Check-in closes floor sessions left open for 4 hours (as the floor endpoints do) before it counts today's visit, so
   a clock-out forgotten yesterday still counts towards the streak. Dates in messages read like "1 Aug 2026".
+
+---
+
+## ID cards — owner: `members` (routes/idCards.ts, controllers/idCardController.ts, lib/idCards.ts)
+
+The gym hands out physical ID cards. Each card has its own number, `PFC-XXXX-XXXX` (no 0/O/1/I), which is printed on it
+and is also its QR code, so a lost card can be switched off at check-in while the member's app pass keeps working. A
+person has at most one active card.
+
+`IdCard = { id, user_id, card_number, status: 'active'|'deactivated', issued_at, issued_by_id, issued_by_name,
+deactivated_at, deactivation_reason: 'lost'|'stolen'|'damaged'|'returned'|'replaced'|'other'|null, deactivation_note,
+replaces_card_id, events: [{ type: 'issued'|'deactivated'|'reactivated', at, by_id, by_name, reason?, note? }] }`.
+The admin's name is a snapshot, so the history still reads right after that admin is deleted.
+
+| Method & path | Body / query | Success `data` | Errors |
+|---|---|---|---|
+| `GET /id-cards` (admin) | `status? = 'all'\|'active'\|'deactivated'\|'none'`, `role? = 'member'\|'trainer'\|'admin'\|'all'` (default `member`), `search?` (name, email, phone, pass token, or any of the person's card numbers however typed) | `{ counts: { people, active, deactivated, none, cards_issued }, rows: [{ user: { id, name, email, phone, avatar_url, role, membership_tier, membership_status, membership_expiry, created_at }, card_status: 'active'\|'deactivated'\|'none', card: IdCard \| null, cards_issued }] }`. `card` is the current card: the active one, else the latest issued. Rows are sorted by name; `counts` are taken before the status filter | 400 `VALIDATION_ERROR` |
+| `POST /members/:id/id-cards` (admin) | `{ replace?: boolean, replaces_card_id?: string, note?: string (≤ 200) }` | 201 `{ card: IdCard, replaced: IdCard \| null }`. With `replace: true` the active card is deactivated as `replaced` in the same write, and the new card's `replaces_card_id` points to it | 409 `CARD_ALREADY_ACTIVE` (an active card and no `replace`, or `replaces_card_id` is not the active card any more; `data.card` = the active card), 404 |
+| `POST /id-cards/:cardId/deactivate` (admin) | `{ reason: 'lost'\|'stolen'\|'damaged'\|'returned'\|'other', note? }` (`replaced` is the server's own) | `{ card }` | 409 `CARD_ALREADY_DEACTIVATED`, 404 `CARD_NOT_FOUND` |
+| `POST /id-cards/:cardId/reactivate` (admin) | `{ note? }` | `{ card }` (deactivation fields cleared, history kept) | 409 `CARD_ALREADY_ACTIVE`, 409 `ANOTHER_CARD_ACTIVE` (`data.card` = the person's other active card), 404 `CARD_NOT_FOUND` |
+| `GET /id-cards/mine` (any signed-in user) | — | `{ card: { id, card_number, status, issued_at, deactivated_at, deactivation_reason } \| null }`: the caller's current card, without history, notes or staff names | |
+
+- `replaces_card_id` guards against two desks replacing the same card: the second request names a card that is no longer
+  active and gets 409, instead of switching off the card the first desk just handed over.
+- Deleting a person deletes their cards. Old database files without `id_cards` load with none.
+- The demo seed gives the member, All-Access and coach personas active cards, one member a card deactivated as lost and
+  one member a replaced card; the catalogue-only start has no cards.
 
 ---
 

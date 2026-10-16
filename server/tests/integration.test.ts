@@ -32,7 +32,7 @@ describe('first start without demo mode', () => {
     expect(db.exercises.length).toBeGreaterThan(0);
     expect(db.trainers.length).toBeGreaterThan(0);
     expect(db.trainers.every(t => t.user_id === undefined)).toBe(true);
-    for (const rows of [db.bookings, db.payments, db.payment_orders, db.attendance_logs, db.time_sessions, db.trial_passes, db.trainer_notes]) {
+    for (const rows of [db.bookings, db.payments, db.payment_orders, db.attendance_logs, db.time_sessions, db.trial_passes, db.trainer_notes, db.id_cards]) {
       expect(rows).toHaveLength(0);
     }
   });
@@ -57,7 +57,8 @@ describe('loading a v2.0 database', () => {
 function emptyLike(): DatabaseSchema {
   return {
     users: [], trainers: [], classes: [], bookings: [], attendance_logs: [], exercises: [], workouts: [], workout_sets: [],
-    membership_plans: [], time_sessions: [], payment_orders: [], payments: [], trial_passes: [], trainer_notes: [], password_resets: []
+    membership_plans: [], time_sessions: [], payment_orders: [], payments: [], trial_passes: [], trainer_notes: [], password_resets: [],
+    id_cards: []
   };
 }
 

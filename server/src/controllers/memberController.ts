@@ -10,6 +10,7 @@ import { unfreezeMembership } from '../lib/billing.js';
 import { effectiveStatus } from '../lib/membership.js';
 import { defaultAvatar, findUserByEmail, generateQrToken, generateTempPassword, newId, toSafeUser } from '../lib/users.js';
 import { closeOpenSession, releaseInvalidBookings } from '../lib/bookingRules.js';
+import { cardsOf } from '../lib/idCards.js';
 import { isLockedDemoAccount } from './authController.js';
 import { MembershipStatus, MembershipTier, User, UserRole } from '../types/index.js';
 
@@ -135,7 +136,8 @@ export const getMemberById = asyncHandler<AuthenticatedRequest>((req, res: Respo
     workouts_count: db.workouts.filter(w => w.user_id === user.id).length,
     upcoming_bookings: upcoming.length,
     recent_attendance: attendance.slice(0, 10),
-    payments
+    payments,
+    id_cards: cardsOf(user.id)
   });
 });
 
@@ -267,6 +269,7 @@ export const deleteMember = asyncHandler<AuthenticatedRequest>((req, res: Respon
   db.time_sessions = db.time_sessions.filter(s => s.user_id !== id);
   db.trainer_notes = db.trainer_notes.filter(n => n.member_id !== id);
   db.password_resets = db.password_resets.filter(r => r.user_id !== id);
+  db.id_cards = db.id_cards.filter(c => c.user_id !== id);
   if (db.trainers.some(t => t.user_id === id)) {
     db.trainers = db.trainers.map(t => (t.user_id === id ? { ...t, user_id: undefined } : t));
   }

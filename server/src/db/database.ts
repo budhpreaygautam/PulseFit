@@ -16,7 +16,8 @@ import {
   Payment,
   TrialPass,
   TrainerNote,
-  PasswordReset
+  PasswordReset,
+  IdCard
 } from '../types/index.js';
 
 export interface DatabaseSchema {
@@ -35,6 +36,7 @@ export interface DatabaseSchema {
   trial_passes: TrialPass[];
   trainer_notes: TrainerNote[];
   password_resets: PasswordReset[];
+  id_cards: IdCard[];
 }
 
 const emptySchema = (): DatabaseSchema => ({
@@ -52,7 +54,8 @@ const emptySchema = (): DatabaseSchema => ({
   payments: [],
   trial_passes: [],
   trainer_notes: [],
-  password_resets: []
+  password_resets: [],
+  id_cards: []
 });
 
 const DEFAULT_PLAN_CATEGORIES: Record<string, MembershipPlan['categories']> = {
@@ -225,6 +228,9 @@ class GymDatabase {
 
   get password_resets() { return this.data.password_resets; }
   set password_resets(val: PasswordReset[]) { this.data.password_resets = val; this.save(); }
+
+  get id_cards() { return this.data.id_cards; }
+  set id_cards(val: IdCard[]) { this.data.id_cards = val; this.save(); }
 }
 
 export const db = new GymDatabase(config.dbPath);

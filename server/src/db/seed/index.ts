@@ -8,6 +8,7 @@ import { seedPayments } from './payments.js';
 import { seedClasses } from './classes.js';
 import { seedMembers } from './members.js';
 import { seedActivity, seedStreaks } from './activity.js';
+import { seedIdCards } from './idCards.js';
 
 // Each domain adds its own demo data in its own file, so they can evolve independently.
 export function runSeedExtensions(): void {
@@ -15,6 +16,7 @@ export function runSeedExtensions(): void {
   seedPayments();
   seedClasses();
   seedMembers();
+  seedIdCards();
   seedActivity();
   addMissingCheckIns();
   // Check-ins added above can extend a run, so streaks are derived once more from the final history.

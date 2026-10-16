@@ -37,6 +37,7 @@ export const ROUTES: RouteDef[] = [
 
   { tab: 'admin-dashboard', path: '/admin', title: 'Admin dashboard', access: ['admin'] },
   { tab: 'admin-members', path: '/admin/members', title: 'Members', access: ['admin'] },
+  { tab: 'admin-id-cards', path: '/admin/id-cards', title: 'ID cards', access: ['admin'] },
   { tab: 'admin-scanner', path: '/admin/check-in', title: 'Front-desk check-in', access: ['admin', 'trainer'] },
   { tab: 'admin-classes', path: '/admin/classes', title: 'Classes & coaches', access: ['admin'] },
   { tab: 'admin-plans', path: '/admin/plans', title: 'Plans & pricing', access: ['admin'] },
