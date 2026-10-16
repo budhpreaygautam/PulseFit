@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Award, Check, Copy, CreditCard, FileText, KeyRound, QrCode, Upload, User as UserIcon } from 'lucide-react';
+import { Award, Check, Copy, CreditCard, FileText, IdCard, KeyRound, QrCode, Upload, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { useToast } from '../../context/ToastContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
@@ -8,6 +8,7 @@ import { Payment, User } from '../../types/index.js';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
 import { DigitalQrPassModal } from '../../components/qr/DigitalQrPassModal.js';
+import { IdCardModal } from '../../components/qr/IdCardModal.js';
 import { MembershipStatusBadge } from '../../components/member/MembershipStatusBadge.js';
 import { InvoiceModal } from '../../components/member/InvoiceModal.js';
 import { useApiResource } from '../../components/member/useApiResource.js';
@@ -54,7 +55,7 @@ const FieldError: React.FC<{ id: string; message?: string | null }> = ({ id, mes
 
 // ---------------------------------------------------------------------------------------------
 
-const ProfileDetails: React.FC<{ user: User; onOpenPass: () => void }> = ({ user, onOpenPass }) => {
+const ProfileDetails: React.FC<{ user: User; onOpenPass: () => void; onOpenIdCard: () => void }> = ({ user, onOpenPass, onOpenIdCard }) => {
   const { updateUser } = useAuth();
   const { showToast } = useToast();
   const [name, setName] = useState(user.name);
@@ -180,9 +181,14 @@ const ProfileDetails: React.FC<{ user: User; onOpenPass: () => void }> = ({ user
             {copied ? <Check className="w-4 h-4 text-lime-700 dark:text-lime-400" aria-hidden="true" /> : <Copy className="w-4 h-4" aria-hidden="true" />}
           </button>
         </div>
-        <button type="button" onClick={onOpenPass} className="w-full neu-btn py-2.5 rounded-xl text-xs font-bold">
-          Show QR code
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={onOpenPass} className="neu-btn py-2.5 rounded-xl text-xs font-bold">
+            Show QR code
+          </button>
+          <button type="button" onClick={onOpenIdCard} className="neu-btn py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
+            <IdCard className="w-3.5 h-3.5" aria-hidden="true" /> ID card
+          </button>
+        </div>
       </section>
     </div>
   );
@@ -541,6 +547,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
   const requested = params.get('tab');
   const activeTab: TabId = TABS.find(t => t.id === requested)?.id ?? 'details';
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [isIdCardOpen, setIsIdCardOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -620,6 +627,9 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
           <button type="button" onClick={() => setIsQrModalOpen(true)} className="neu-btn-lime px-5 py-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2">
             <QrCode className="w-4 h-4" aria-hidden="true" /> Check-in pass
           </button>
+          <button type="button" onClick={() => setIsIdCardOpen(true)} className="neu-btn px-5 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
+            <IdCard className="w-4 h-4" aria-hidden="true" /> ID card
+          </button>
         </div>
       </section>
       <p id="profile-photo-hint" className="sr-only">
@@ -654,13 +664,14 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
       </div>
 
       <div id={`profile-panel-${activeTab}`} role="tabpanel" aria-labelledby={`profile-tab-${activeTab}`}>
-        {activeTab === 'details' && <ProfileDetails user={user} onOpenPass={() => setIsQrModalOpen(true)} />}
+        {activeTab === 'details' && <ProfileDetails user={user} onOpenPass={() => setIsQrModalOpen(true)} onOpenIdCard={() => setIsIdCardOpen(true)} />}
         {activeTab === 'membership' && <MembershipPanel user={user} onOpenPricing={openPricing} />}
         {activeTab === 'billing' && <BillingPanel onOpenPricing={openPricing} />}
         {activeTab === 'security' && <PasswordPanel />}
       </div>
 
       <DigitalQrPassModal isOpen={isQrModalOpen} onClose={() => setIsQrModalOpen(false)} user={user} />
+      <IdCardModal isOpen={isIdCardOpen} onClose={() => setIsIdCardOpen(false)} user={user} />
     </div>
   );
 };

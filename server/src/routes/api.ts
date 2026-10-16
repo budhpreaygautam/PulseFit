@@ -6,6 +6,7 @@ import authRoutes from './auth.js';
 import paymentRoutes from './payments.js';
 import classRoutes from './classes.js';
 import memberRoutes from './members.js';
+import idCardRoutes from './idCards.js';
 import activityRoutes from './activity.js';
 
 const router = Router();
@@ -31,6 +32,7 @@ router.use(authRoutes);
 router.use(paymentRoutes);
 router.use(classRoutes);
 router.use(memberRoutes);
+router.use(idCardRoutes);
 router.use(activityRoutes);
 
 router.use(notFoundHandler);

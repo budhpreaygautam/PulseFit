@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, CalendarDays, Gauge, QrCode, Tag, Users, UserPlus } from 'lucide-react';
+import { Activity, CalendarDays, Gauge, IdCard, QrCode, Tag, Users, UserPlus } from 'lucide-react';
 import { ApiError, errorMessage } from '../../api/client.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 
@@ -89,6 +89,7 @@ export const PageHeader: React.FC<{ eyebrow: string; title: string; description?
 const ADMIN_LINKS = [
   { tab: 'admin-dashboard', label: 'Dashboard', icon: Gauge },
   { tab: 'admin-members', label: 'Members', icon: Users },
+  { tab: 'admin-id-cards', label: 'ID cards', icon: IdCard },
   { tab: 'admin-scanner', label: 'Check-in', icon: QrCode },
   { tab: 'admin-classes', label: 'Classes & coaches', icon: CalendarDays },
   { tab: 'trainer-dashboard', label: 'Coach dashboards', icon: Activity },

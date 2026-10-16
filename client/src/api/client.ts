@@ -12,11 +12,16 @@ import {
   ClassRoster,
   Exercise,
   GymClass,
+  IdCardDeactivationReason,
+  IdCardOverview,
+  IdCardStatus,
+  IssuedIdCard,
   MemberDetail,
   MembershipPlan,
   MembershipStatus,
   MembershipTier,
   MyBooking,
+  MyIdCard,
   NewWorkout,
   Paginated,
   PaidTier,
@@ -231,6 +236,18 @@ export const api = {
   ) => putWithMessage<User>(`/members/${id}`, payload),
   deleteMember: (id: string) => del<{ deleted: true }>(`/members/${id}`),
   resetMemberPassword: (id: string) => post<{ tempPassword: string }>(`/members/${id}/reset-password`),
+
+  // --- Physical ID cards ---
+  getIdCards: (params: { status?: IdCardStatus | 'none' | 'all'; role?: UserRole | 'all'; search?: string } = {}) =>
+    get<IdCardOverview>(`/id-cards${qs(params)}`),
+  // The writes keep the server's message: it names the card, and says when an old card stopped working.
+  issueIdCard: (userId: string, payload: { replace?: boolean; replaces_card_id?: string; note?: string } = {}) =>
+    postWithMessage<{ card: IssuedIdCard; replaced: IssuedIdCard | null }>(`/members/${userId}/id-cards`, payload),
+  // 'replaced' is the server's own reason, for a card a replacement took over.
+  deactivateIdCard: (cardId: string, payload: { reason: Exclude<IdCardDeactivationReason, 'replaced'>; note?: string }) =>
+    postWithMessage<{ card: IssuedIdCard }>(`/id-cards/${cardId}/deactivate`, payload),
+  reactivateIdCard: (cardId: string, payload: { note?: string } = {}) => postWithMessage<{ card: IssuedIdCard }>(`/id-cards/${cardId}/reactivate`, payload),
+  getMyIdCard: () => get<{ card: MyIdCard | null }>('/id-cards/mine'),
 
   checkIn: (code: string, method: 'qr' | 'manual' | 'kiosk' | 'camera' = 'manual') =>
     post<CheckInResult>('/attendance/check-in', { code, method }),

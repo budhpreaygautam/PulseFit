@@ -35,6 +35,7 @@ const MemberProfilePage = named(() => import('./pages/member/MemberProfilePage.j
 const TrainerDashboard = named(() => import('./pages/trainer/TrainerDashboard.js'), 'TrainerDashboard');
 const AdminDashboard = named(() => import('./pages/admin/AdminDashboard.js'), 'AdminDashboard');
 const MemberManagement = named(() => import('./pages/admin/MemberManagement.js'), 'MemberManagement');
+const IdCardManagement = named(() => import('./pages/admin/IdCardManagement.js'), 'IdCardManagement');
 const QuickCheckInScanner = named(() => import('./pages/admin/QuickCheckInScanner.js'), 'QuickCheckInScanner');
 const ClassManagement = named(() => import('./pages/admin/ClassManagement.js'), 'ClassManagement');
 const PlanManagement = named(() => import('./pages/admin/PlanManagement.js'), 'PlanManagement');
@@ -237,6 +238,8 @@ function MainAppContent() {
         return <AdminDashboard setCurrentTab={setCurrentTab} />;
       case 'admin-members':
         return <MemberManagement />;
+      case 'admin-id-cards':
+        return <IdCardManagement />;
       case 'admin-scanner':
         return <QuickCheckInScanner />;
       case 'admin-classes':

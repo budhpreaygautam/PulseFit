@@ -2,6 +2,39 @@
 
 All notable changes to PulseFit. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] — 2026-10-16
+
+v2.2 adds ID cards: a digital PulseFit badge for every member and coach, and the front desk's record of
+the physical cards it hands out, so a lost or stolen card stops working at the turnstile.
+
+### Added
+
+- **ID cards.** Everyone opens their PulseFit ID card from My account, members also from their dashboard
+  and coaches from the coach dashboard: a
+  vertical, employee-style badge colour-coded by role (lime to teal for members, cyan to violet for coaches,
+  amber to pink for admins) that follows the app's light or dark theme. The front has the photo in a
+  gradient ring, name, plan or role, card number, validity, status and a hologram seal; the back has the
+  check-in QR code, pass code, opening hours and contact details. In the app it hangs from a lanyard and
+  swings gently, tilts towards the pointer and flips, and it downloads as a PNG (both sides). There is no
+  print option: the gym issues the physical card. The front desk can open any member's or coach's badge
+  from their details under Members.
+- **Issued ID cards are tracked.** Each physical card the desk hands out gets its own number
+  (`PFC-XXXX-XXXX`), which is also its QR code. The new ID cards page (`/admin/id-cards`) shows, for
+  members, coaches or admins, who has an active card, a deactivated one or none yet, with counts, filters
+  and search by name or card number, and when and by whom each card was issued or deactivated. Admins
+  issue a card, deactivate it with a reason (lost, stolen, damaged, returned or other) and an optional
+  note, reactivate it, or replace it; a person has at most one active card. A deactivated card is refused
+  at check-in with a message saying whose card it is and why, and nothing is recorded; the member's app
+  pass keeps working. A member's details list all their cards, newest first, with each card's history.
+  Members see their card's number on their own ID card, and are told to ask the desk for a new one when
+  it was deactivated. The demo data includes active, lost and replaced cards. New endpoints:
+  `GET /api/id-cards`, `POST /api/members/:id/id-cards`, `POST /api/id-cards/:cardId/deactivate` and
+  `/reactivate`, and `GET /api/id-cards/mine`.
+
+### Changed
+
+- Dialogs opened on top of another dialog take Escape and Tab for themselves; the dialog underneath stays open.
+
 ## [2.1.0] — 2026-10-09
 
 v2.1 makes the app real and safe to run: every number on screen now comes from stored data,

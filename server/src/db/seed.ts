@@ -7,7 +7,7 @@ import { User, Trainer, GymClass, Exercise, MembershipPlan, Booking, AttendanceL
 /**
  * Wipe the database and load data.
  * - demo (default): the full demo gym, including the four demo personas whose password
- *   (pulse123) is published in the README, members, bookings, payments and activity.
+ *   (pulse123) is published in the README, members, bookings, payments, ID cards and activity.
  * - demo: false: only the catalogue a real gym starts from (plans, exercises, coaches and the
  *   weekly timetable), with no accounts at all. Create the first admin with `npm run create-admin`.
  */
@@ -927,6 +927,7 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
     db.trial_passes = [];
     db.trainer_notes = [];
     db.password_resets = [];
+    db.id_cards = [];
   }
 
   db.saveSync();

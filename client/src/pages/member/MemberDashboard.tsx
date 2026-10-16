@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, CalendarCheck, Calendar, Dumbbell, Flame, MessageSquareText, Plus, QrCode, Timer } from 'lucide-react';
+import { ArrowRight, CalendarCheck, Calendar, Dumbbell, Flame, IdCard, MessageSquareText, Plus, QrCode, Timer } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { api } from '../../api/client.js';
@@ -7,6 +7,7 @@ import { MyBooking, TrainerNoteCategory, User } from '../../types/index.js';
 import { StatCard } from '../../components/common/StatCard.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
 import { DigitalQrPassModal } from '../../components/qr/DigitalQrPassModal.js';
+import { IdCardModal } from '../../components/qr/IdCardModal.js';
 import { MembershipStatusBadge } from '../../components/member/MembershipStatusBadge.js';
 import { BookingCard, CancelBookingDialog } from '../../components/member/BookingCard.js';
 import { FloorClockCard } from '../../components/member/FloorClockCard.js';
@@ -70,6 +71,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
   const { user, refreshUser } = useAuth();
   const { navigate } = useNavigation();
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [isIdCardOpen, setIsIdCardOpen] = useState(false);
   const [toCancel, setToCancel] = useState<MyBooking | null>(null);
   const [showAllNotes, setShowAllNotes] = useState(false);
 
@@ -120,6 +122,9 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
         <div className="flex flex-col sm:flex-row gap-3">
           <button type="button" onClick={() => setIsQrModalOpen(true)} className="neu-btn px-5 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
             <QrCode className="w-4 h-4" aria-hidden="true" /> Check-in pass
+          </button>
+          <button type="button" onClick={() => setIsIdCardOpen(true)} className="neu-btn px-5 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
+            <IdCard className="w-4 h-4" aria-hidden="true" /> ID card
           </button>
           <button type="button" onClick={() => setCurrentTab('workout-logger')} className="neu-btn-lime px-5 py-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2">
             <Plus className="w-4 h-4" aria-hidden="true" /> Log a workout
@@ -292,6 +297,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
 
       <CancelBookingDialog booking={toCancel} onClose={() => setToCancel(null)} onChanged={bookings.reload} />
       <DigitalQrPassModal isOpen={isQrModalOpen} onClose={() => setIsQrModalOpen(false)} user={user} />
+      <IdCardModal isOpen={isIdCardOpen} onClose={() => setIsIdCardOpen(false)} user={user} />
     </div>
   );
 };
