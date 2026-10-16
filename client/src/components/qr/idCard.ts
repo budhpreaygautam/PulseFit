@@ -1,5 +1,5 @@
-import { User } from '../../types/index.js';
-import { formatDate } from '../../lib/format.js';
+import { IdCardDeactivationReason, IssuedIdCard, User } from '../../types/index.js';
+import { formatDate, formatDay } from '../../lib/format.js';
 import { GYM_ADDRESS, GYM_EMAIL, GYM_NAME, GYM_PHONE_DISPLAY, HOURS_DAYS, HOURS_TIME } from '../public/gymInfo.js';
 
 // The ID card is a vertical badge, like a company employee card, drawn on canvas at real card size
@@ -83,16 +83,56 @@ export function cardNumber(user: Pick<User, 'id' | 'created_at'>): string {
 
 export const roleStyleOf = (role: string) => ROLE_STYLES[role] ?? ROLE_STYLES.member;
 
+/**
+ * Who the card is for. The pass code is only needed when no physical card has been issued: an
+ * issued card carries its own number instead.
+ */
+export type CardHolder = Pick<User, 'id' | 'name' | 'role' | 'avatar_url' | 'membership_tier' | 'membership_status' | 'membership_expiry' | 'created_at'> & {
+  qr_code_token?: string;
+};
+
+/** The physical card the drawing stands for. */
+export type PhysicalCard = Pick<IssuedIdCard, 'card_number' | 'status'> & Partial<Pick<IssuedIdCard, 'deactivated_at' | 'deactivation_reason'>>;
+
+export const DEACTIVATION_REASON_LABELS: Record<IdCardDeactivationReason, string> = {
+  lost: 'Lost',
+  stolen: 'Stolen',
+  damaged: 'Damaged',
+  returned: 'Returned',
+  replaced: 'Replaced',
+  other: 'Other'
+};
+
+/** ' on 12 Oct 2026 (lost)' for a deactivated card, as far as the card says. */
+// Worded like the scanner's refusal (server attendanceController): 'other' tells the reader
+// nothing, so it is left out.
+const REASON_WORDS: Record<IdCardDeactivationReason, string> = {
+  lost: 'lost',
+  stolen: 'stolen',
+  damaged: 'damaged',
+  returned: 'returned',
+  replaced: 'replaced by a newer card',
+  other: ''
+};
+
+export function deactivatedWhen(card: PhysicalCard): string {
+  const on = card.deactivated_at ? ` on ${formatDay(card.deactivated_at)}` : '';
+  const words = card.deactivation_reason ? REASON_WORDS[card.deactivation_reason] : '';
+  return on + (words ? ` (${words})` : '');
+}
+
 export interface IdCardFaces {
   front: string;
   back: string;
 }
 
 export interface IdCardDetails {
-  user: User;
+  user: CardHolder;
   planName: string;
   qrDataUrl: string;
   theme: 'light' | 'dark';
+  /** The issued card: its number goes under the QR code, and a deactivated one is stamped. */
+  card?: PhysicalCard | null;
 }
 
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -334,7 +374,7 @@ function initialsOf(name: string): string {
 }
 
 /** Round photo with a white gap and a colourful gradient ring, lifted off the card. */
-async function drawPhoto(ctx: CanvasRenderingContext2D, p: Palette, user: User, colours: [string, string, string], cx: number, cy: number, r: number) {
+async function drawPhoto(ctx: CanvasRenderingContext2D, p: Palette, user: CardHolder, colours: [string, string, string], cx: number, cy: number, r: number) {
   ctx.save();
   ctx.shadowColor = p.photoShadow;
   ctx.shadowBlur = 30;
@@ -382,6 +422,40 @@ async function drawPhoto(ctx: CanvasRenderingContext2D, p: Palette, user: User, 
   ctx.restore();
 }
 
+/**
+ * A rubber stamp across a deactivated card, on both faces, so a picture of a card that no longer
+ * works cannot pass for one that does. The card is washed out a little under it.
+ */
+function drawDeactivatedStamp(ctx: CanvasRenderingContext2D, theme: 'light' | 'dark') {
+  const colour = theme === 'light' ? '#e11d48' : '#fb7185';
+  ctx.save();
+  roundedRect(ctx, 0, 0, CARD_WIDTH, CARD_HEIGHT, RADIUS);
+  ctx.clip();
+  ctx.fillStyle = theme === 'light' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(9, 14, 24, 0.45)';
+  ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+
+  ctx.translate(CARD_WIDTH / 2, CARD_HEIGHT / 2);
+  ctx.rotate(-Math.PI / 6);
+  const text = 'DEACTIVATED';
+  const size = fitText(ctx, text, s => `800 ${s}px ${DISPLAY}`, 84, 40, CARD_WIDTH - 150);
+  const w = ctx.measureText(text).width + 64;
+  const h = size + 48;
+  roundedRect(ctx, -w / 2, -h / 2, w, h, 18);
+  ctx.fillStyle = theme === 'light' ? 'rgba(255, 241, 242, 0.94)' : 'rgba(76, 5, 25, 0.9)';
+  ctx.fill();
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = 8;
+  ctx.stroke();
+  roundedRect(ctx, -w / 2 + 13, -h / 2 + 13, w - 26, h - 26, 10);
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+  ctx.fillStyle = colour;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 0, 4);
+  ctx.restore();
+}
+
 function newCanvas(): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const canvas = document.createElement('canvas');
   canvas.width = CARD_WIDTH;
@@ -414,7 +488,7 @@ function drawBrandRow(ctx: CanvasRenderingContext2D, x: number, y: number) {
   ctx.restore();
 }
 
-async function drawFront({ user, planName, theme }: IdCardDetails, withPhoto: boolean): Promise<string | null> {
+async function drawFront({ user, planName, theme, card }: IdCardDetails, withPhoto: boolean): Promise<string | null> {
   const p = theme === 'light' ? LIGHT : DARK;
   const role = roleStyleOf(user.role);
   const accent = theme === 'light' ? role.accentLight : role.accentDark;
@@ -491,11 +565,12 @@ async function drawFront({ user, planName, theme }: IdCardDetails, withPhoto: bo
   ctx.fillText('Personal and non-transferable', W / 2, 990);
   ctx.textAlign = 'left';
 
+  if (card?.status === 'deactivated') drawDeactivatedStamp(ctx, theme);
   cutSlot(ctx);
   return exportOrNull(canvas);
 }
 
-async function drawBack({ user, qrDataUrl, theme }: IdCardDetails): Promise<string> {
+async function drawBack({ user, qrDataUrl, theme, card }: IdCardDetails): Promise<string> {
   const p = theme === 'light' ? LIGHT : DARK;
   const role = roleStyleOf(user.role);
   const accent = theme === 'light' ? role.accentLight : role.accentDark;
@@ -543,12 +618,13 @@ async function drawBack({ user, qrDataUrl, theme }: IdCardDetails): Promise<stri
   ctx.drawImage(qr, qx + 13, qy + 13, size - 26, size - 26);
   ctx.imageSmoothingEnabled = true;
 
+  // The code the QR holds: an issued card's own number, else the app pass code.
   ctx.font = `700 22px ${MONO}`;
   ctx.fillStyle = p.text;
-  ctx.fillText(user.qr_code_token, W / 2, qy + size + 50, W - 80);
+  ctx.fillText(card ? card.card_number : user.qr_code_token ?? '', W / 2, qy + size + 50, W - 80);
   ctx.font = `700 14px ${SANS}`;
   ctx.fillStyle = p.label;
-  ctx.fillText('PASS CODE', W / 2, qy + size + 74);
+  ctx.fillText(card ? 'CARD NO.' : 'PASS CODE', W / 2, qy + size + 74);
   ctx.textAlign = 'left';
 
   // Gym details.
@@ -578,6 +654,7 @@ async function drawBack({ user, qrDataUrl, theme }: IdCardDetails): Promise<stri
   ctx.fillText('If found, please return it to the front desk.', W / 2, 994);
   ctx.textAlign = 'left';
 
+  if (card?.status === 'deactivated') drawDeactivatedStamp(ctx, theme);
   cutSlot(ctx);
   return canvas.toDataURL('image/png');
 }

@@ -6,10 +6,11 @@ import { ApiError, asyncHandler, forbidden, ok, parse } from '../lib/http.js';
 import { displayDate, gymToday, isValidDate, toGymDate } from '../lib/dates.js';
 import { gymClosedError, gymClosedNow } from '../lib/hours.js';
 import { closeStaleSessions } from '../lib/floor.js';
+import { findCardByNumber } from '../lib/idCards.js';
 import { effectiveStatus, isStaff } from '../lib/membership.js';
 import { recordActivity } from '../lib/streak.js';
 import { newId, toSafeUser } from '../lib/users.js';
-import { AttendanceLog, TrialPass, User } from '../types/index.js';
+import { AttendanceLog, IdCard, IdCardDeactivationReason, TrialPass, User } from '../types/index.js';
 
 const METHODS = ['qr', 'manual', 'kiosk', 'camera'] as const;
 
@@ -21,7 +22,7 @@ const checkInBody = z
     method: z.enum(METHODS).default('qr')
   })
   .strict()
-  .refine(b => b.code || b.tokenOrId, { message: 'Enter a pass code, member id or email.', path: ['code'] });
+  .refine(b => b.code || b.tokenOrId, { message: 'Enter a pass code, card number, member id or email.', path: ['code'] });
 
 const logsQuery = z.object({
   date: z.string().refine(isValidDate, 'Use a date in YYYY-MM-DD format.').optional(),
@@ -49,16 +50,20 @@ function memberSummary(user: User) {
 
 /**
  * Look the code up in a fixed order so an ambiguous value always resolves the same way:
- * pass token, then member id, then email, then trial code. Pass tokens, emails and trial codes
- * ignore case (tokens and trial codes are issued in capitals), so a code typed in lower case works.
+ * pass token, then ID card number, then member id, then email, then trial code. Pass tokens,
+ * emails and trial codes ignore case (tokens and trial codes are issued in capitals), so a code
+ * typed in lower case works; card numbers also ignore spaces and hyphens. A card match carries
+ * the card, because a deactivated card must not open the turnstile.
  */
-function resolveCode(code: string): { user: User } | { trial: TrialPass } | null {
+function resolveCode(code: string): { user: User; card?: IdCard } | { trial: TrialPass } | null {
   const upper = code.toUpperCase();
   const lower = code.toLowerCase();
-  const user =
-    db.users.find(u => u.qr_code_token.toUpperCase() === upper) ||
-    db.users.find(u => u.id === code) ||
-    db.users.find(u => u.email.toLowerCase() === lower);
+  const byToken = db.users.find(u => u.qr_code_token.toUpperCase() === upper);
+  if (byToken) return { user: byToken };
+  const card = findCardByNumber(code);
+  const holder = card && db.users.find(u => u.id === card.user_id);
+  if (card && holder) return { user: holder, card };
+  const user = db.users.find(u => u.id === code) || db.users.find(u => u.email.toLowerCase() === lower);
   if (user) return { user };
   const trial = db.trial_passes.find(t => t.code.toUpperCase() === upper);
   return trial ? { trial } : null;
@@ -77,7 +82,36 @@ function trialLog(trial: TrialPass, at: string, method: AttendanceLog['check_in_
   };
 }
 
+// How a deactivation reason reads in the front-desk sentence; 'other' adds nothing to it.
+const REASON_WORDS: Record<IdCardDeactivationReason, string> = {
+  lost: 'lost',
+  stolen: 'stolen',
+  damaged: 'damaged',
+  returned: 'returned',
+  replaced: 'replaced by a newer card',
+  other: ''
+};
+
 // Check-in is a staff screen, so these messages speak to the front desk about the member.
+function cardDeactivated(user: User, card: IdCard): ApiError {
+  const when = card.deactivated_at ? ` on ${displayDate(toGymDate(card.deactivated_at))}` : '';
+  const words = card.deactivation_reason ? REASON_WORDS[card.deactivation_reason] : '';
+  return forbidden(
+    `This ID card (${card.card_number}) belongs to ${user.name} and was deactivated${when}${words ? ` (${words})` : ''}. ` +
+      'Ask for their app pass, or issue a new card.',
+    'CARD_DEACTIVATED',
+    {
+      member: memberSummary(user),
+      card: {
+        card_number: card.card_number,
+        status: card.status,
+        deactivated_at: card.deactivated_at,
+        deactivation_reason: card.deactivation_reason
+      }
+    }
+  );
+}
+
 function denyMember(user: User, status: 'expired' | 'frozen' | 'pending'): ApiError {
   const member = memberSummary(user);
   if (status === 'expired') {
@@ -140,7 +174,10 @@ export const checkIn = asyncHandler<AuthenticatedRequest>((req, res: Response) =
     );
   }
 
-  const user = match.user;
+  const { user, card } = match;
+  // A lost or stolen card stays shut out whatever the hour or membership; its holder still gets in
+  // with the app pass. An active card goes on exactly like the pass.
+  if (card && card.status === 'deactivated') throw cardDeactivated(user, card);
   if (!isStaff(user) && gymClosedNow(now)) throw gymClosedError({ member: memberSummary(user) });
   const status = effectiveStatus(user, today);
   if (status !== 'active' && !isStaff(user)) throw denyMember(user, status);

@@ -1,20 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { Download, RotateCw } from 'lucide-react';
+import { AlertTriangle, Download, RotateCw } from 'lucide-react';
 import { Modal } from '../common/Modal.js';
-import { User } from '../../types/index.js';
+import { MyIdCard } from '../../types/index.js';
 import { api } from '../../api/client.js';
 import { useToast } from '../../context/ToastContext.js';
 import { useTheme } from '../../context/ThemeContext.js';
 import { STATUS_LABELS, formatDate, tierLabel } from '../../lib/format.js';
-import { CARD_HEIGHT, CARD_WIDTH, IdCardFaces, cardNumber, renderIdCard, roleStyleOf, stackedPng } from './idCard.js';
+import { CARD_HEIGHT, CARD_WIDTH, CardHolder, IdCardFaces, PhysicalCard, cardNumber, deactivatedWhen, renderIdCard, roleStyleOf, stackedPng } from './idCard.js';
 
 interface IdCardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  user: User | null;
-  /** True when staff open someone else's card from the member's details; changes only the wording. */
+  user: CardHolder | null;
+  /**
+   * True when staff open someone else's card from the member's details. Without it the card is the
+   * signed-in person's own, and the dialog looks up the physical card the gym issued them.
+   */
   forOther?: boolean;
+  /**
+   * The physical card staff opened (forOther only): its number goes in the QR code, and a deactivated
+   * one is stamped. Left out, or null when none was issued, the card shows the app pass.
+   */
+  card?: PhysicalCard | null;
 }
 
 const prefersReducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -25,7 +33,7 @@ const prefersReducedMotion = () => typeof window !== 'undefined' && !!window.mat
  * pointer, follows the app's theme, flips and downloads. The physical card is issued by the gym, so
  * there is no print option.
  */
-export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user, forOther = false }) => {
+export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user, forOther = false, card = null }) => {
   const { showToast } = useToast();
   const { isDark } = useTheme();
   const theme = isDark ? 'dark' : 'light';
@@ -34,38 +42,94 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user,
   const [showBack, setShowBack] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0, gx: 50, gy: 50, active: false });
+  // The signed-in person's own issued card, looked up each time the dialog opens (undefined while
+  // asking). If the answer does not come, the card shows the app pass, which always works.
+  const [ownCard, setOwnCard] = useState<MyIdCard | null | undefined>(undefined);
 
-  // A new person (or reopening) starts on the front, from a blank card.
+  useEffect(() => {
+    if (!isOpen || forOther) return;
+    let cancelled = false;
+    api
+      .getMyIdCard()
+      .then(r => r.card)
+      .catch(() => null)
+      .then(found => {
+        if (!cancelled) setOwnCard(found);
+      });
+    return () => {
+      cancelled = true;
+      // Forget it on close, so reopening never shows a card that has changed since.
+      setOwnCard(undefined);
+    };
+  }, [isOpen, forOther, user?.id]);
+
+  // The card drawn. Staff see the card they opened, working or not. People see their own card only
+  // while it works: with a deactivated one they check in with the app pass until they get a new card.
+  const shown: PhysicalCard | null = forOther ? card : ownCard?.status === 'active' ? ownCard : null;
+  const ownDeactivated = !forOther && ownCard?.status === 'deactivated' ? ownCard : null;
+  const isAsking = !forOther && ownCard === undefined;
+  const shownNumber = shown?.card_number ?? null;
+  const shownStatus = shown?.status ?? null;
+
+  // A new person or card (or reopening) starts on the front, from a blank card.
   useEffect(() => {
     if (!isOpen) return;
     setFaces(null);
     setShowBack(false);
-  }, [isOpen, user]);
+  }, [isOpen, user, shownNumber]);
 
   // Draw (and redraw on a theme switch, keeping the side on show).
   useEffect(() => {
-    if (!isOpen || !user) return;
+    if (!isOpen || !user || isAsking) return;
     let cancelled = false;
     setError(null);
     (async () => {
       // The catalogue name of the plan (admins can rename plans); the built-in names if it cannot load.
       const plans = await api.getPlans().catch(() => null);
-      const qrDataUrl = await QRCode.toDataURL(user.qr_code_token, { width: 552, margin: 1, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } });
-      const drawn = await renderIdCard({ user, planName: tierLabel(user.membership_tier, plans), qrDataUrl, theme });
+      // An issued card has its own code, so deactivating the card stops it at the scanner while the
+      // app pass keeps working.
+      const code = shownNumber ?? user.qr_code_token;
+      if (!code) throw new Error('This card has no code to show.');
+      const qrDataUrl = await QRCode.toDataURL(code, { width: 552, margin: 1, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } });
+      const drawnCard = shownNumber && shownStatus ? { card_number: shownNumber, status: shownStatus } : null;
+      const drawn = await renderIdCard({ user, planName: tierLabel(user.membership_tier, plans), qrDataUrl, theme, card: drawnCard });
       if (!cancelled) setFaces(drawn);
     })().catch(err => !cancelled && setError(err instanceof Error ? err.message : 'The card could not be drawn.'));
     return () => {
       cancelled = true;
     };
-  }, [isOpen, user, theme]);
+  }, [isOpen, user, theme, isAsking, shownNumber, shownStatus]);
 
   if (!user) return null;
 
   const isStaff = user.role !== 'member';
+  const isDeactivated = shown?.status === 'deactivated';
   const fileBase = `pulsefit-id-card-${user.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-  const summary = isStaff
-    ? `${user.name}, ${user.role === 'admin' ? 'admin' : 'coach'}, staff ID ${cardNumber(user)}.`
-    : `${user.name}, member ID ${cardNumber(user)}, ${user.membership_tier === 'none' ? 'no plan yet' : tierLabel(user.membership_tier)}, ${STATUS_LABELS[user.membership_status].toLowerCase()}${user.membership_expiry ? `, valid through ${formatDate(user.membership_expiry)}` : ''}.`;
+  // Tests read the wording up to the ID, so the issued card's number and status go after it.
+  const summary =
+    (isStaff
+      ? `${user.name}, ${user.role === 'admin' ? 'admin' : 'coach'}, staff ID ${cardNumber(user)}.`
+      : `${user.name}, member ID ${cardNumber(user)}, ${user.membership_tier === 'none' ? 'no plan yet' : tierLabel(user.membership_tier)}, ${STATUS_LABELS[user.membership_status].toLowerCase()}${user.membership_expiry ? `, valid through ${formatDate(user.membership_expiry)}` : ''}.`) +
+    (shown ? ` Card ${shown.card_number}, ${isDeactivated ? 'deactivated: it no longer works at check-in' : 'active'}.` : '');
+
+  // The description is read out as the dialog opens, so it never guesses: while the person's own
+  // card is being looked up it says only what is certain.
+  let description: string;
+  if (forOther) {
+    description = !shown
+      ? 'The digital card the member sees in the app.'
+      : isDeactivated
+        ? `Card ${shown.card_number} was deactivated and no longer works at check-in.`
+        : `Card ${shown.card_number}, issued at the front desk. Its QR code works at check-in.`;
+  } else {
+    description = isAsking
+      ? 'Your digital PulseFit card.'
+      : shown
+        ? `Your PulseFit card ${shown.card_number}. Its QR code gets you in at the front desk.`
+        : ownDeactivated
+          ? 'Your digital PulseFit card, with your app pass.'
+          : 'Your digital PulseFit card. Your physical card is issued at the front desk.';
+  }
 
   const download = async () => {
     if (!faces) return;
@@ -105,10 +169,29 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user,
       isOpen={isOpen}
       onClose={onClose}
       title={forOther ? `${user.name}'s ID card` : 'My ID card'}
-      description={forOther ? 'The digital card the member sees in the app.' : 'Your digital PulseFit card. Your physical card is issued at the front desk.'}
+      description={description}
       maxWidth="lg"
     >
       <div className="space-y-4">
+        {/* Always rendered, and first so it adds no gap while empty: the person's own card is looked
+            up after the dialog opens, and a notice that arrives later must still be read out. */}
+        <div role="status">
+          {shown && isDeactivated && (
+            <p className="glass-tint flex items-start gap-2 rounded-xl p-3 text-sm font-semibold border border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>This card was deactivated{deactivatedWhen(shown)}. It no longer works at check-in.</span>
+            </p>
+          )}
+          {ownDeactivated && (
+            <p className="glass-tint flex items-start gap-2 rounded-xl p-3 text-sm font-semibold border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>
+                Your card {ownDeactivated.card_number} was deactivated{deactivatedWhen(ownDeactivated)}. Ask the front desk for a new one; until then, check in
+                with your app pass.
+              </span>
+            </p>
+          )}
+        </div>
         <p id="id-card-summary" className="sr-only">
           {summary}
         </p>
@@ -198,7 +281,11 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user,
         </div>
 
         <p className="text-[11px] text-slate-500 text-center">
-          {forOther ? 'The QR code identifies the member at check-in.' : 'Keep it private: the QR code identifies you at check-in.'}
+          {forOther
+            ? isDeactivated
+              ? "This card's QR code is refused at check-in; the member's app pass still works."
+              : 'The QR code identifies the member at check-in.'
+            : 'Keep it private: the QR code identifies you at check-in.'}
         </p>
       </div>
     </Modal>

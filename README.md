@@ -132,7 +132,8 @@ A freeze pauses the plan and gives back the open gym days missed while frozen (n
       <ul>
         <li>KPIs from real data: MRR, revenue, check-ins, fill rate, retention, peak hours, tiers</li>
         <li>Member directory: create, edit, freeze, reset password, delete, visit and payment history, view ID cards</li>
-        <li>QR check-in by camera or code, with clear granted/denied reasons</li>
+        <li>ID cards page: who has a physical card, active or deactivated; issue a card with its own number and QR code, deactivate it with a reason (lost, stolen, damaged, returned, other), reactivate or replace it, and see each card's history</li>
+        <li>QR check-in by camera or code, with clear granted/denied reasons; a deactivated card is refused, while the member's app pass keeps working</li>
         <li>Timetable, coaches, plans & pricing, free-trial leads, attendance CSV export</li>
       </ul>
     </td>
@@ -246,8 +247,8 @@ events `payment.captured`, `order.paid` and `payment.failed`, and use the same s
 ## 🧪 Testing
 
 ```bash
-npm test            # 599 API tests (Vitest + supertest), each file on its own throwaway database
-npm run test:e2e    # 180 Playwright tests (90 per project): builds the client, starts the API on a fresh demo database, runs Chromium (desktop + mobile)
+npm test            # 653 API tests (Vitest + supertest), each file on its own throwaway database
+npm run test:e2e    # 202 Playwright tests (101 per project): builds the client, starts the API on a fresh demo database, runs Chromium (desktop + mobile)
 npm run typecheck   # server, client and e2e
 ```
 
@@ -318,7 +319,8 @@ In short:
 - **Plans & payments**: `GET /api/plans`; `POST /api/payment/create-order`, `/verify`, `/webhook`; `GET /api/payments/my`; `POST /api/membership/freeze`, `/unfreeze`
 - **Classes & bookings**: `GET /api/classes`; `POST /api/bookings`; `GET /api/bookings/my`; `DELETE /api/bookings/:id`; rosters and attendance
 - **Coaches**: `GET /api/trainers`; `GET /api/trainer/me`, `/clients`, `/notes`; `GET /api/notes/my`
-- **Front desk & admin**: `POST /api/attendance/check-in`; `GET /api/attendance/logs`; `/api/members` CRUD; `POST /api/trials`; `GET /api/analytics/dashboard`
+- **Front desk & admin**: `POST /api/attendance/check-in` (pass code, ID card number, member id, email or trial code); `GET /api/attendance/logs`; `/api/members` CRUD; `POST /api/trials`; `GET /api/analytics/dashboard`
+- **ID cards**: `GET /api/id-cards` (people with their card status, counts and filters); `POST /api/members/:id/id-cards` (issue or replace); `POST /api/id-cards/:cardId/deactivate`, `/reactivate`; `GET /api/id-cards/mine` (the signed-in person's own card)
 - **Activity**: `/api/workouts`, `/api/exercises`, `/api/time-tracking/*`
 
 ---
