@@ -1,4 +1,4 @@
-# PulseFit API reference (v2.1)
+# PulseFit API reference (v2.2)
 
 Base path: `/api`. All bodies are JSON. Every endpoint is implemented by exactly one domain
 (the "Owner" line under each section), in `server/src/routes/<owner>.ts`.

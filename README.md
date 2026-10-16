@@ -37,9 +37,11 @@ classes, check in at the turnstile with a QR pass, log workouts and track their 
 rosters and keep client notes, and the front desk and admins manage members, the timetable, plans and
 revenue. Everything runs on India Standard Time.
 
-**What's new in v2.1:** the coach dashboard, real QR passes and camera scanning, a payments ledger with
-invoices, saved free trials, admin pages for classes, plans and trial leads, real URLs for every page, and
-a security overhaul. See the [changelog](CHANGELOG.md).
+**What's new in v2.2:** ID cards. Members and coaches get a digital PulseFit badge, and the front desk keeps
+a record of every physical card it hands out, active or deactivated; a lost or stolen card is refused at
+check-in while the app pass keeps working. v2.1 brought the coach dashboard, real QR passes and camera
+scanning, a payments ledger with invoices, saved free trials, admin pages for classes, plans and trial
+leads, real URLs for every page, and a security overhaul. See the [changelog](CHANGELOG.md).
 
 ---
 
