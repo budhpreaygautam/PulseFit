@@ -6,6 +6,7 @@ import {
   CalendarCheck,
   ClipboardList,
   Dumbbell,
+  IdCard,
   LogOut,
   Menu,
   Moon,
@@ -75,6 +76,7 @@ const ROLE_LINKS: Record<UserRole, RoleLink[]> = {
   admin: [
     { tab: 'admin-dashboard', label: 'Dashboard', icon: BarChart3 },
     { tab: 'admin-members', label: 'Members', icon: Users },
+    { tab: 'admin-id-cards', label: 'ID cards', icon: IdCard },
     { tab: 'admin-scanner', label: 'Check-in', icon: ScanLine },
     { tab: 'admin-classes', label: 'Classes & coaches', icon: CalendarCheck },
     { tab: 'trainer-dashboard', label: 'Coach dashboards', icon: Activity },

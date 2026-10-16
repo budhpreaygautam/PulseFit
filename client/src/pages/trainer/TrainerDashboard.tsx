@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, CalendarDays, ClipboardList, NotebookPen, QrCode, RefreshCw, UserCheck, Users } from 'lucide-react';
+import { Activity, CalendarDays, ClipboardList, IdCard, NotebookPen, QrCode, RefreshCw, UserCheck, Users } from 'lucide-react';
 import { ClassOccurrence, TrainerClient, TrainerDashboard as Dashboard } from '../../types/index.js';
 import { ApiError, api, errorMessage } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
@@ -10,6 +10,7 @@ import { statusVariant } from '../../components/admin/memberStatus.js';
 import { RosterModal, RosterSession } from '../../components/trainer/RosterModal.js';
 import { NotesPanel } from '../../components/trainer/NotesPanel.js';
 import { CoachList, CoachSelect } from '../../components/trainer/CoachPicker.js';
+import { IdCardModal } from '../../components/qr/IdCardModal.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { STATUS_LABELS, TIER_LABELS, formatClock, formatDate, formatTime } from '../../lib/format.js';
@@ -114,6 +115,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
   const [tab, setTab] = useState<Tab>('classes');
   const [session, setSession] = useState<RosterSession | null>(null);
   const [noteMember, setNoteMember] = useState('');
+  const [isIdCardOpen, setIsIdCardOpen] = useState(false);
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ classes: null, clients: null, notes: null });
   // An answer for a coach the admin has already switched away from is dropped.
   const shownTrainer = useRef(trainerId);
@@ -180,6 +182,16 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
     </button>
   );
 
+  // A coach's own staff ID card. Admins open a coach's card from Members › Coaches instead: the coach
+  // shown here may have no login, so there is no account to put on a card.
+  const cardHolder = isAdmin ? null : user;
+  const idCardButton = cardHolder && (
+    <button type="button" onClick={() => setIsIdCardOpen(true)} className={`px-4 py-2.5 neu-btn rounded-xl text-xs font-bold flex items-center gap-2 ${focusRing}`}>
+      <IdCard className="w-4 h-4" aria-hidden="true" /> ID card
+    </button>
+  );
+  const idCardModal = cardHolder && <IdCardModal isOpen={isIdCardOpen} onClose={() => setIsIdCardOpen(false)} user={cardHolder} />;
+
   if (needsCoach) {
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
@@ -199,7 +211,17 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
         {isAdmin && <AdminNav />}
-        <PageHeader eyebrow={isAdmin ? 'Admin · coach view' : 'Coach'} title="Coach dashboard" actions={scannerButton} />
+        <PageHeader
+          eyebrow={isAdmin ? 'Admin · coach view' : 'Coach'}
+          title="Coach dashboard"
+          actions={
+            <>
+              {/* Not while loading: the loaded page replaces this one, and a card opened here with it. */}
+              {!isLoading && idCardButton}
+              {scannerButton}
+            </>
+          }
+        />
         {isLoading ? (
           <LoadingState label={isAdmin ? 'Loading the coach’s dashboard…' : 'Loading your dashboard…'} />
         ) : error?.notLinked && isAdmin ? (
@@ -215,6 +237,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
         ) : (
           <ErrorState message={`Could not load the dashboard. ${error?.message ?? ''}`} onRetry={loadDashboard} />
         )}
+        {idCardModal}
       </div>
     );
   }
@@ -238,6 +261,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
               }} disabled={isLoading} className={`px-4 py-2.5 neu-btn rounded-xl text-xs font-bold flex items-center gap-2 disabled:opacity-60 ${focusRing}`}>
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
             </button>
+            {idCardButton}
             {scannerButton}
           </>
         }
@@ -391,6 +415,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
           loadClients();
         }}
       />
+      {idCardModal}
     </div>
   );
 };

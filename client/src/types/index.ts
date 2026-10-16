@@ -222,6 +222,8 @@ export interface CheckInResult {
 export interface CheckInDenial {
   member?: CheckInMember;
   trial?: TrialPass;
+  // Sent with CARD_DEACTIVATED.
+  card?: Pick<IssuedIdCard, 'card_number' | 'status' | 'deactivated_at' | 'deactivation_reason'>;
 }
 
 export interface MemberDetail extends User {
@@ -231,7 +233,56 @@ export interface MemberDetail extends User {
   upcoming_bookings: number;
   recent_attendance: AttendanceLog[];
   payments: Payment[];
+  // Every physical card issued to the person, newest first.
+  id_cards: IssuedIdCard[];
 }
+
+export type IdCardStatus = 'active' | 'deactivated';
+// 'replaced' is set only by the server, when a replacement card is issued.
+export type IdCardDeactivationReason = 'lost' | 'stolen' | 'damaged' | 'returned' | 'replaced' | 'other';
+
+export interface IdCardEvent {
+  type: 'issued' | 'deactivated' | 'reactivated';
+  at: string;
+  by_id: string | null; // null for seeded or system events
+  by_name: string; // the admin's name at the time
+  reason?: IdCardDeactivationReason;
+  note?: string;
+}
+
+/** A physical PulseFit card. Its number is also the QR code printed on it. */
+export interface IssuedIdCard {
+  id: string;
+  user_id: string;
+  card_number: string; // PFC-XXXX-XXXX
+  status: IdCardStatus;
+  issued_at: string;
+  issued_by_id: string | null;
+  issued_by_name: string;
+  deactivated_at: string | null; // set while deactivated
+  deactivation_reason: IdCardDeactivationReason | null;
+  deactivation_note: string | null;
+  replaces_card_id: string | null;
+  events: IdCardEvent[]; // oldest first
+}
+
+export interface IdCardRow {
+  user: Pick<User, 'id' | 'name' | 'email' | 'phone' | 'avatar_url' | 'role' | 'membership_tier' | 'membership_status' | 'membership_expiry' | 'created_at'>;
+  // Status of the current card; 'none' when no card was ever issued.
+  card_status: IdCardStatus | 'none';
+  // The active card, else the most recently issued one.
+  card: IssuedIdCard | null;
+  cards_issued: number;
+}
+
+export interface IdCardOverview {
+  // Over the people the role and search filters match, before the status filter.
+  counts: { people: number; active: number; deactivated: number; none: number; cards_issued: number };
+  rows: IdCardRow[];
+}
+
+/** The signed-in person's own current card, without the history or the admins' notes. */
+export type MyIdCard = Pick<IssuedIdCard, 'id' | 'card_number' | 'status' | 'issued_at' | 'deactivated_at' | 'deactivation_reason'>;
 
 export interface Exercise {
   id: string;

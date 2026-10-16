@@ -197,6 +197,39 @@ export interface TrialPass {
   redeemed_at?: string;
 }
 
+export type IdCardStatus = 'active' | 'deactivated';
+// 'replaced' is set only by the server, when a replacement card is issued.
+export type IdCardDeactivationReason = 'lost' | 'stolen' | 'damaged' | 'returned' | 'replaced' | 'other';
+
+export interface IdCardEvent {
+  type: 'issued' | 'deactivated' | 'reactivated';
+  at: string; // ISO timestamp
+  by_id: string | null; // admin user id; null for seeded/system events
+  by_name: string; // snapshot of the admin's name, so the history survives the admin being deleted
+  reason?: IdCardDeactivationReason;
+  note?: string;
+}
+
+/**
+ * A physical PulseFit ID card handed to a member or staff member. Each card has its own number
+ * (also its QR content), so a lost card can be switched off while the app pass keeps working.
+ */
+export interface IdCard {
+  id: string;
+  user_id: string;
+  card_number: string; // PFC-XXXX-XXXX, upper case, unique
+  status: IdCardStatus;
+  issued_at: string; // ISO timestamp
+  issued_by_id: string | null;
+  issued_by_name: string;
+  // Set while deactivated, cleared on reactivation.
+  deactivated_at: string | null;
+  deactivation_reason: IdCardDeactivationReason | null;
+  deactivation_note: string | null;
+  replaces_card_id: string | null; // the card this one replaced, if any
+  events: IdCardEvent[]; // oldest first; the full history of this card
+}
+
 export interface TrainerNote {
   id: string;
   trainer_user_id: string;
