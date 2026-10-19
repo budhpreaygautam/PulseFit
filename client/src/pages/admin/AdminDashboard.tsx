@@ -3,7 +3,7 @@ import { Activity, Award, CalendarDays, Clock, Dumbbell, IndianRupee, QrCode, Re
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { AdminDashboardKPIs } from '../../types/index.js';
 import { api, errorMessage } from '../../api/client.js';
-import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
+import { EmptyState, ErrorState, Skeleton } from '../../components/common/States.js';
 import { AdminNav, PageHeader, SectionCard, focusRing } from '../../components/admin/ui.js';
 import { KpiTile } from '../../components/admin/KpiTile.js';
 import { useTheme } from '../../context/ThemeContext.js';
@@ -79,10 +79,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
 
   if (!data) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6 sm:space-y-8">
         {header}
         <AdminNav />
-        {error ? <ErrorState message={`Could not load the dashboard. ${error}`} onRetry={load} /> : <LoadingState label="Loading the dashboard…" />}
+        {error ? (
+          <ErrorState message={`Could not load the dashboard. ${error}`} onRetry={load} />
+        ) : (
+          // The tiles and first row of charts, at their loaded size, so nothing jumps when they arrive.
+          <div role="status" aria-live="polite" className="space-y-6 sm:space-y-8">
+            <span className="sr-only">Loading the dashboard…</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+              {Array.from({ length: 8 }, (_, i) => (
+                <Skeleton key={i} className="h-[9.5rem]" />
+              ))}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <Skeleton className="lg:col-span-7 h-[23rem]" />
+              <Skeleton className="lg:col-span-5 h-[23rem]" />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -164,7 +180,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
                   className={`w-full neu-pressed-sm rounded-xl px-3 py-2 text-left ${focusRing}`}
                   aria-label={`${s.count} ${s.label.toLowerCase()}: show these members`}
                 >
-                  <span className={`block text-lg font-black font-['Outfit'] ${s.tone}`}>{s.count}</span>
+                  <span className={`block text-lg font-black font-heading ${s.tone}`}>{s.count}</span>
                   <span className="block text-[11px] font-semibold text-slate-400">{s.label}</span>
                 </button>
               </li>
@@ -311,7 +327,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
                     {cls.booked}/{cls.capacity} booked · {cls.occupancy}%
                   </span>
                 </div>
-                <h3 className="font-extrabold text-sm text-slate-100 truncate font-['Outfit']">{cls.title}</h3>
+                <h3 className="font-extrabold text-sm text-slate-100 truncate font-heading">{cls.title}</h3>
                 <p className="text-xs text-slate-400">
                   {cls.trainer ?? 'No coach assigned'} · {cls.category}
                 </p>

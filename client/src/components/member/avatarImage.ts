@@ -3,6 +3,12 @@
 export const AVATAR_MAX_SIZE = 256;
 export const AVATAR_MAX_CHARS = 350_000;
 
+/** Picture for an account without a photo, seeded with initials only (no full name sent to DiceBear). */
+export function fallbackAvatar(name: string): string {
+  const initials = name.trim().split(/\s+/).map(p => p[0] ?? '').join('').toUpperCase().slice(0, 3) || 'PF';
+  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(initials)}`;
+}
+
 function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);

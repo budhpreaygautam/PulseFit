@@ -3,10 +3,12 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import config, { googleSignInEnabled } from '../config.js';
 import db from '../db/database.js';
-import { generateToken, AuthenticatedRequest } from '../middleware/auth.js';
-import { ApiError, asyncHandler, conflict, notFound, ok, parse, unauthorized, unavailable } from '../lib/http.js';
+import { AuthenticatedRequest, clearSessionCookie, generateMfaToken, issueSession } from '../middleware/auth.js';
+import { ApiError, asyncHandler, conflict, forbidden, notFound, ok, parse, unauthorized, unavailable } from '../lib/http.js';
 import { defaultAvatar, findUserByEmail, generateQrToken, newId, toSafeUser } from '../lib/users.js';
 import { InvalidGoogleTokenError, verifyGoogleCredential } from '../lib/google.js';
+import { isCommonPassword } from '../lib/passwordPolicy.js';
+import { isAllowedRemoteImageUrl, validateImageDataUrl } from '../lib/imageValidation.js';
 import { User } from '../types/index.js';
 
 export const BCRYPT_ROUNDS = 10;
@@ -28,7 +30,8 @@ export const newPasswordSchema = z
   // bcrypt ignores everything after 72 bytes, so accented or non-Latin characters must count by byte.
   .refine(v => Buffer.byteLength(v, 'utf8') <= 72, 'Your password is too long. Use fewer or simpler characters.')
   .regex(/[A-Za-z]/, 'Your password needs at least one letter.')
-  .regex(/\d/, 'Your password needs at least one digit.');
+  .regex(/\d/, 'Your password needs at least one digit.')
+  .refine(v => !isCommonPassword(v), 'That password is too common and easy to guess. Choose a less obvious one.');
 
 const nameSchema = z
   .string({ error: 'Enter your name.' })
@@ -42,19 +45,21 @@ const phoneSchema = z
   .max(20, 'Enter a valid phone number.')
   .refine(v => v === '' || /^\+?[0-9][0-9\s()-]{6,19}$/.test(v), 'Enter a valid phone number, for example +91 98110 12345.');
 
-const AVATAR_DATA_URL = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+// The generated default picture is the only remote image a member may keep: any other address would
+// make staff browsers fetch a URL of the member's choosing.
+const DEFAULT_AVATAR_PREFIX = 'https://api.dicebear.com/';
 
 const avatarSchema = z
   .string()
   .max(350_000, 'The profile photo is too large. Please choose a smaller image.')
-  .refine(v => {
-    if (v.startsWith('data:')) return AVATAR_DATA_URL.test(v);
-    try {
-      return new URL(v).protocol === 'https:';
-    } catch {
-      return false;
+  .superRefine((v, ctx) => {
+    if (v.startsWith('data:')) {
+      const check = validateImageDataUrl(v);
+      if (!check.ok) ctx.addIssue({ code: 'custom', message: check.error });
+    } else if (!v.startsWith(DEFAULT_AVATAR_PREFIX) || !isAllowedRemoteImageUrl(v)) {
+      ctx.addIssue({ code: 'custom', message: 'Upload a PNG, JPEG or WebP photo.' });
     }
-  }, 'The profile photo must be an https link or a PNG, JPEG or WebP image.');
+  });
 
 const loginSchema = z.object({
   email: z.string({ error: 'Enter your email address.' }).trim().toLowerCase().min(1, 'Enter your email address.').max(254),
@@ -71,6 +76,9 @@ const registerSchema = z.object({
 const googleSchema = z.object({
   credential: z.string({ error: 'The Google sign-in response is missing.' }).min(1, 'The Google sign-in response is missing.').max(10_000)
 });
+
+/** The demo personas' published password (README); refused outside demo mode. */
+export const DEMO_PASSWORD = 'pulse123';
 
 export const DEMO_PERSONAS = {
   member: 'member@pulsefit.com',
@@ -107,9 +115,9 @@ const profileSchema = z.strictObject(
   }
 );
 
-/** What every successful sign-in returns. */
-export function session(user: User) {
-  return { token: generateToken(user), user: toSafeUser(user) };
+/** What every successful sign-in returns (and the session cookie it sets, see issueSession). */
+export function session(req: Request, res: Response, user: User) {
+  return { ...issueSession(req, res, user), user: toSafeUser(user) };
 }
 
 /** A new member account: no plan until they pay (or an admin grants one). */
@@ -152,9 +160,18 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   if (!user || !user.password_hash || !matches) {
     throw new ApiError(401, 'The email or password is incorrect.', 'INVALID_CREDENTIALS');
   }
+  // The seeded accounts share a password published in the README. Outside demo mode it opens nothing.
+  if (!config.demoMode && password === DEMO_PASSWORD) {
+    throw forbidden('This account still uses the published demo password, so it cannot sign in. Ask an admin to reset its password.', 'DEMO_PASSWORD_BLOCKED');
+  }
 
-  return ok(res, session(user));
+  return ok(res, signInResult(req, res, user));
 });
+
+/** A session, or for an account with MFA on, the challenge for POST /auth/mfa/verify. */
+export function signInResult(req: Request, res: Response, user: User) {
+  return user.mfa_enabled ? { mfa_required: true, mfa_token: generateMfaToken(user) } : session(req, res, user);
+}
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   // Any tier, role or status in the body is ignored: the schema strips unknown keys.
@@ -168,7 +185,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   const user = newMember({ name, email, phone, password_hash });
   db.users = [...db.users, user];
 
-  return ok(res, session(user), 'Welcome to PulseFit! Choose a plan to start training.', 201);
+  return ok(res, session(req, res, user), 'Welcome to PulseFit! Choose a plan to start training.', 201);
 });
 
 export const googleSignIn = asyncHandler(async (req: Request, res: Response) => {
@@ -186,7 +203,7 @@ export const googleSignIn = asyncHandler(async (req: Request, res: Response) => 
   }
 
   const bySub = db.users.find(u => u.google_sub === profile.sub);
-  if (bySub) return ok(res, { ...session(bySub), created: false });
+  if (bySub) return ok(res, { ...signInResult(req, res, bySub), created: false });
 
   const byEmail = findUserByEmail(profile.email);
   if (byEmail) {
@@ -203,13 +220,13 @@ export const googleSignIn = asyncHandler(async (req: Request, res: Response) => 
     const message = password_hash
       ? 'Your Google account is now linked. For your security the old password was removed and other devices were signed out. You can set a new password in your profile.'
       : 'Your Google account is now linked.';
-    return ok(res, { ...session(linked), created: false }, message);
+    return ok(res, { ...signInResult(req, res, linked), created: false }, message);
   }
 
   const name = (profile.name?.trim() || profile.email.split('@')[0]).slice(0, 60);
   const user = newMember({ name, email: profile.email, google_sub: profile.sub });
   db.users = [...db.users, user];
-  return ok(res, { ...session(user), created: true });
+  return ok(res, { ...session(req, res, user), created: true });
 });
 
 export const demoLogin = asyncHandler(async (req: Request, res: Response) => {
@@ -219,7 +236,13 @@ export const demoLogin = asyncHandler(async (req: Request, res: Response) => {
   const user = findUserByEmail(DEMO_PERSONAS[role]);
   if (!user) throw notFound('That demo account does not exist. Run "npm run seed" to restore the demo data.');
 
-  return ok(res, session(user));
+  return ok(res, session(req, res, user));
+});
+
+/** Ends the website session by clearing its cookie. Bearer-token clients just drop their token. */
+export const logout = asyncHandler(async (_req: Request, res: Response) => {
+  clearSessionCookie(res);
+  return ok(res, { signedOut: true });
 });
 
 export const getMe = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {

@@ -225,7 +225,7 @@ export const ClassManagement: React.FC = () => {
               if (day === 'all' && list.length === 0) return null;
               return (
                 <section key={d} aria-labelledby={`day-${d}`} className="space-y-2">
-                  <h3 id={`day-${d}`} className="text-sm font-black text-slate-200 font-['Outfit']">
+                  <h3 id={`day-${d}`} className="text-sm font-black text-slate-200 font-heading">
                     {DAY_NAMES[d]} <span className="text-xs font-semibold text-slate-400">· {list.length} {list.length === 1 ? 'class' : 'classes'}</span>
                   </h3>
                   {list.length === 0 ? (
@@ -238,7 +238,7 @@ export const ClassManagement: React.FC = () => {
                             {formatClock(c.start_time)} – {endClock(c.start_time, c.duration_minutes)}
                           </div>
                           <div className="flex-1 min-w-0 space-y-1">
-                            <p className="font-extrabold text-slate-100 font-['Outfit'] break-words">{c.title}</p>
+                            <p className="font-extrabold text-slate-100 font-heading break-words">{c.title}</p>
                             <p className="text-xs text-slate-400">
                               {c.category} · {c.intensity} · {c.room} · {c.trainer_name ?? 'No coach'}
                             </p>
@@ -280,7 +280,7 @@ export const ClassManagement: React.FC = () => {
                 <div className="flex items-start gap-3 min-w-0">
                   <Avatar src={t.avatar_url} name={t.name} size="w-12 h-12" />
                   <div className="min-w-0">
-                    <p className="font-extrabold text-slate-100 font-['Outfit'] break-words">{t.name}</p>
+                    <p className="font-extrabold text-slate-100 font-heading break-words">{t.name}</p>
                     <p className="text-xs text-slate-400">
                       {t.classes_count ?? 0} weekly {t.classes_count === 1 ? 'class' : 'classes'} · {t.experience_years} yrs experience
                     </p>

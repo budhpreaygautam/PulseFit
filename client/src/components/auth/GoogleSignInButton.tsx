@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppConfig } from '../../context/ConfigContext.js';
 import { useTheme } from '../../context/ThemeContext.js';
+import { isNativeApp } from '../../lib/native.js';
 
 // "Continue with Google" via Google Identity Services. Google renders the button and hands
 // back an ID token (credential) that the API verifies. Renders nothing when the server has
@@ -53,7 +54,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ onCreden
 
   useEffect(() => {
     const clientId = config.googleClientId;
-    if (!clientId) return;
+    if (!clientId || isNativeApp) return;
     let cancelled = false;
     loadGsi()
       .then(() => {
@@ -76,6 +77,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ onCreden
     };
   }, [config.googleClientId, isDark, onError]);
 
-  if (!config.googleClientId || failed) return null;
+  // Google refuses sign-in inside app WebViews, so the apps offer email and password only.
+  if (!config.googleClientId || failed || isNativeApp) return null;
   return <div ref={containerRef} className="w-full flex justify-center min-h-[44px]" />;
 };

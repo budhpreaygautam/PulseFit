@@ -3,7 +3,10 @@ node_modules/
 
 # Build output
 dist/
+dist-mobile/
 build/
+# API address the app bundle was last built against (scripts/mobile-sync.mjs)
+client/.mobile-api-url
 
 # Environment / secrets
 .env
@@ -26,6 +29,8 @@ Thumbs.db
 server/data/*.json
 server/data/*.tmp
 server/data/*.corrupt-*
+# Development JWT secret generated when JWT_SECRET is unset (server/src/config.ts)
+server/data/.dev-jwt-secret
 
 # Test & tooling output
 coverage/

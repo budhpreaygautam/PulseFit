@@ -3,7 +3,8 @@ import { CalendarCheck, CheckCircle2, ChevronLeft, ChevronRight, Clock, Filter, 
 import { Badge } from '../../components/common/Badge.js';
 import { Modal } from '../../components/common/Modal.js';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog.js';
-import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
+import { EmptyState, ErrorState } from '../../components/common/States.js';
+import { CardSkeletons } from '../../components/public/CardSkeletons.js';
 import { useApiData } from '../../components/public/useApiData.js';
 import { cheapestPlanFor, planCovers } from '../../components/public/plans.js';
 import { CATEGORIES, HOURS_DAYS, HOURS_TIME, mondayOf, weekdayOf } from '../../components/public/gymInfo.js';
@@ -206,11 +207,25 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
     else setMonth(next);
   };
 
-  // Calendar weeks (Monday first) covering the month on show.
-  const calendarWeeks: string[][] = [];
-  for (let d = mondayOf(month); d <= lastDayOfMonth(month); d = addDays(d, 7)) {
-    calendarWeeks.push(Array.from({ length: 7 }, (_, i) => addDays(d, i)));
-  }
+  // Calendar weeks (Monday first) covering the month on show, with each day's spoken labels. Built
+  // once per month: formatting ~40 dates is the costly part of a render, and the search box
+  // re-renders the page on every key.
+  const calendarWeeks = useMemo(() => {
+    const weeks: { date: string; longDate: string; opensOn: string }[][] = [];
+    for (let d = mondayOf(month); d <= lastDayOfMonth(month); d = addDays(d, 7)) {
+      weeks.push(
+        Array.from({ length: 7 }, (_, i) => {
+          const date = addDays(d, i);
+          return {
+            date,
+            longDate: formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' }),
+            opensOn: formatDate(addDays(date, -BOOKING_WINDOW_DAYS), { day: 'numeric', month: 'short' })
+          };
+        })
+      );
+    }
+    return weeks;
+  }, [month]);
   // One Tab stop in the grid (roving tabindex): the selected day, or the first one worth opening.
   const focusDate = monthOf(selectedDate) === month ? selectedDate : firstDateIn(month);
 
@@ -459,7 +474,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-800/80 pb-6">
         <div>
           <Badge variant="lime">CLASS TIMETABLE</Badge>
-          <h1 className="text-3xl sm:text-5xl font-black text-slate-100 tracking-tight mt-2 font-['Outfit']">BOOK A CLASS</h1>
+          <h1 className="text-3xl sm:text-5xl font-black text-slate-100 tracking-tight mt-2 font-heading">BOOK A CLASS</h1>
           <p className="text-sm text-slate-400 mt-1 max-w-xl font-medium">
             Classes run {HOURS_DAYS}. Members can book up to {BOOKING_WINDOW_DAYS} days ahead; spots are counted for each date.
           </p>
@@ -508,7 +523,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
             >
               <ChevronLeft className="w-4 h-4" aria-hidden="true" />
             </button>
-            <h2 id="calendar-month" className="text-base font-black text-slate-100 font-['Outfit'] truncate" aria-live="polite">
+            <h2 id="calendar-month" className="text-base font-black text-slate-100 font-heading truncate" aria-live="polite">
               {formatDate(month, { month: 'long', year: 'numeric' })}
             </h2>
             <div className="flex items-center gap-1.5 shrink-0">
@@ -538,8 +553,8 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
               ))}
             </div>
             {calendarWeeks.map(week => (
-              <div key={week[0]} role="row" className="grid grid-cols-7 gap-1">
-                {week.map(date => {
+              <div key={week[0].date} role="row" className="grid grid-cols-7 gap-1">
+                {week.map(({ date, longDate, opensOn }) => {
                   if (monthOf(date) !== month) return <div key={date} role="gridcell" aria-hidden="true" />;
                   const viewable = isViewable(date);
                   const isSelected = date === selectedDate;
@@ -547,7 +562,6 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
                   const closed = viewable && isClosedDate(date);
                   const count = countOn(date);
                   const notOpenYet = date > lastBookable;
-                  const longDate = formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' });
                   const summary = !viewable
                     ? date < today ? 'past' : 'not shown yet'
                     : closed ? 'closed' : !classesState.data ? 'loading' : `${count} ${count === 1 ? 'class' : 'classes'}`;
@@ -560,7 +574,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
                         tabIndex={date === focusDate ? 0 : -1}
                         aria-current={isToday ? 'date' : undefined}
                         aria-controls="day-panel"
-                        aria-label={`${longDate}${isToday ? ', today' : ''}: ${summary}${viewable && notOpenYet && !closed ? `, booking opens ${formatDate(addDays(date, -BOOKING_WINDOW_DAYS), { day: 'numeric', month: 'short' })}` : ''}`}
+                        aria-label={`${longDate}${isToday ? ', today' : ''}: ${summary}${viewable && notOpenYet && !closed ? `, booking opens ${opensOn}` : ''}`}
                         onClick={() => selectDate(date)}
                         onKeyDown={e => onDayKeyDown(e, date)}
                         className={`relative w-full aspect-square max-h-11 mx-auto rounded-xl flex flex-col items-center justify-center gap-0.5 ${
@@ -668,18 +682,18 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
         </div>
 
         <section id="day-panel" aria-labelledby="day-heading" className="space-y-4">
-          <h2 id="day-heading" className="text-lg sm:text-xl font-black text-slate-100 font-['Outfit']">
+          <h2 id="day-heading" className="text-lg sm:text-xl font-black text-slate-100 font-heading">
             {formatDate(selectedDate, { weekday: 'long', day: 'numeric', month: 'long' })}
             {selectedDate === today && <span className="ml-2 text-xs font-bold text-lime-700 dark:text-lime-400 align-middle">Today</span>}
           </h2>
           {classesState.isLoading && !classesState.data ? (
-            <LoadingState label="Loading the timetable…" />
+            <CardSkeletons label="Loading the timetable…" count={2} className="grid grid-cols-1 md:grid-cols-2 gap-6" cardClassName="h-96 rounded-3xl" />
           ) : classesState.error ? (
             <ErrorState message={classesState.error} onRetry={classesState.reload} />
           ) : selectedIsClosed ? (
             <div className="neu-flat p-10 sm:p-14 rounded-3xl text-center border border-slate-800/80 space-y-4 max-w-2xl mx-auto">
               <Moon className="w-10 h-10 text-amber-600 dark:text-amber-400 mx-auto" aria-hidden="true" />
-              <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit']">Closed on {DAY_NAMES[weekdayOf(selectedDate)]}s</h2>
+              <h3 className="text-2xl sm:text-3xl font-black text-slate-100 font-heading">Closed on {DAY_NAMES[weekdayOf(selectedDate)]}s</h3>
               <p className="text-sm text-slate-300 max-w-md mx-auto">
                 The gym is open {HOURS_DAYS}, {HOURS_TIME}. There are no classes on this day.
               </p>
@@ -710,7 +724,15 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
                   <li key={occurrenceKey(c)} className="neu-flat rounded-3xl border border-slate-800/80 overflow-hidden flex flex-col justify-between">
                     <div>
                       <div className="relative h-40 overflow-hidden bg-slate-900">
-                        <img src={c.image_url} alt="" className="w-full h-full object-cover brightness-[.85]" loading="lazy" />
+                        <img
+                          src={c.image_url}
+                          alt=""
+                          width={600}
+                          height={240}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover brightness-[.85]"
+                        />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
                         <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5">
                           <span className="px-2 py-0.5 rounded-md glass-dark text-[10px] font-bold uppercase tracking-wider text-zinc-100">{c.intensity}</span>
@@ -733,12 +755,22 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
 
                       <div className="p-5 space-y-4">
                         <div>
-                          <h2 className="text-lg font-black text-slate-100 font-['Outfit']">{c.title}</h2>
+                          <h3 className="text-lg font-black text-slate-100 font-heading">{c.title}</h3>
                           <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">{c.description}</p>
                         </div>
                         <div className="flex items-center justify-between pt-2 text-xs border-t border-slate-800/80 gap-2">
                           <div className="flex items-center gap-2 min-w-0">
-                            {c.trainer_avatar && <img src={c.trainer_avatar} alt="" className="w-7 h-7 rounded-full object-cover border border-slate-700 shrink-0" />}
+                            {c.trainer_avatar && (
+                              <img
+                                src={c.trainer_avatar}
+                                alt=""
+                                width={28}
+                                height={28}
+                                loading="lazy"
+                                decoding="async"
+                                className="w-7 h-7 rounded-full object-cover border border-slate-700 shrink-0"
+                              />
+                            )}
                             <div className="min-w-0">
                               <div className="font-bold text-slate-200 truncate">{c.trainer_name ?? 'Coach to be confirmed'}</div>
                               <div className="text-[10px] text-slate-400 truncate">{c.room}</div>
@@ -808,7 +840,9 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
           maxWidth="lg"
         >
           <div className="space-y-6">
-            {detail.image_url && <img src={detail.image_url} alt="" className="w-full h-48 object-cover rounded-2xl border border-slate-800/80" />}
+            {detail.image_url && (
+              <img src={detail.image_url} alt="" width={600} height={192} decoding="async" className="w-full h-48 object-cover rounded-2xl border border-slate-800/80" />
+            )}
             <p className="text-sm text-slate-300 leading-relaxed">{detail.description}</p>
             <dl className="grid grid-cols-3 gap-3 p-4 rounded-2xl neu-pressed-sm text-center">
               <div>
@@ -826,7 +860,9 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
             </dl>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-slate-800/80">
               <div className="flex items-center gap-3">
-                {detail.trainer_avatar && <img src={detail.trainer_avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-700" />}
+                {detail.trainer_avatar && (
+                  <img src={detail.trainer_avatar} alt="" width={40} height={40} decoding="async" className="w-10 h-10 rounded-full object-cover border border-slate-700" />
+                )}
                 <div>
                   <div className="text-xs text-slate-400">Coach</div>
                   <div className="text-sm font-bold text-slate-100">{detail.trainer_name ?? 'To be confirmed'}</div>

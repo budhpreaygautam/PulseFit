@@ -103,7 +103,7 @@ export const TrialLeads: React.FC = () => {
                 <li key={t.id} className="neu-flat p-4 rounded-2xl space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-extrabold text-slate-100 font-['Outfit'] break-words">{t.name}</p>
+                      <p className="font-extrabold text-slate-100 font-heading break-words">{t.name}</p>
                       <p className="text-xs text-slate-400">{t.interest}</p>
                     </div>
                     <Badge size="sm" variant={status.variant}>{status.label}</Badge>
@@ -138,7 +138,7 @@ export const TrialLeads: React.FC = () => {
                   return (
                     <tr key={t.id}>
                       <td className="p-4 pl-6">
-                        <p className="font-extrabold text-sm text-slate-100 font-['Outfit']">{t.name}</p>
+                        <p className="font-extrabold text-sm text-slate-100 font-heading">{t.name}</p>
                         <p className="font-mono text-[11px] text-slate-400">{t.code}</p>
                       </td>
                       <td className="p-4"><Contact trial={t} /></td>

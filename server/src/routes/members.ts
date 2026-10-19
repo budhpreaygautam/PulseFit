@@ -11,6 +11,7 @@ import {
 } from '../controllers/memberController.js';
 import { checkIn, getAttendanceLogs, getMyAttendance } from '../controllers/attendanceController.js';
 import { createTrial, listTrials } from '../controllers/trialController.js';
+import { adminResetMfa } from '../controllers/mfaController.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 
 // Owner: member administration, turnstile check-in, attendance and free trials.
@@ -40,6 +41,7 @@ router.get('/members/:id', ...admin, getMemberById);
 router.put('/members/:id', ...admin, updateMember);
 router.delete('/members/:id', ...admin, deleteMember);
 router.post('/members/:id/reset-password', ...admin, resetMemberPassword);
+router.post('/members/:id/mfa/reset', ...admin, adminResetMfa);
 
 router.post('/attendance/check-in', authenticate, requireRole(['admin', 'trainer']), checkIn);
 router.get('/attendance/logs', ...admin, getAttendanceLogs);

@@ -14,9 +14,11 @@ export function newId(prefix: string): string {
  * membership status / streak as they are today (an expired date reads as 'expired').
  */
 export function toSafeUser(user: User): SafeUser {
-  const { password_hash, token_version, google_sub, ...rest } = user;
+  const { password_hash, token_version, google_sub, mfa_secret, mfa_pending_secret, mfa_recovery_codes, mfa_last_step, ...rest } = user;
   return {
     ...rest,
+    mfa_enabled: Boolean(user.mfa_enabled),
+    has_password: Boolean(password_hash),
     membership_status: effectiveStatus(user),
     streak_days: currentStreak(user)
   };
@@ -47,6 +49,15 @@ export function findUserByEmail(email: string): User | undefined {
   return db.users.find(u => u.email.toLowerCase() === normalized);
 }
 
+/** A generated picture seeded with initials only, so members' full names are not sent to the avatar service. */
 export function defaultAvatar(name: string): string {
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`;
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .map(part => part[0] ?? '')
+    .join('')
+    .toUpperCase()
+    .slice(0, 3);
+  const seed = `${initials || 'PF'}-${crypto.randomBytes(3).toString('hex')}`;
+  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`;
 }

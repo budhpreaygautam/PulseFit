@@ -138,6 +138,7 @@ describe('POST /payment/create-order', () => {
     const res = await api().post('/api/payment/create-order').set(authHeader(personas.member)).send({ tier: 'pro', billing_cycle: 'monthly' });
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({
+      provider: 'razorpay',
       orderId: 'order_test_' + orderSeq,
       amount: paise(plan('pro').price_monthly),
       amount_inr: plan('pro').price_monthly,
@@ -202,7 +203,7 @@ describe('POST /payment/create-order', () => {
 });
 
 describe('POST /payment/verify', () => {
-  it('activates the order, stores an invoice and returns user, token and payment', async () => {
+  it('activates the order, stores an invoice and returns user and payment (the session is unchanged, so no new token)', async () => {
     const orderId = await createOrder(personas.expired, 'basic', 'monthly');
     const before = db.payments.length;
     const res = await verify(personas.expired, orderId, 'pay_dev_1');
@@ -210,7 +211,7 @@ describe('POST /payment/verify', () => {
     const { user, token, payment, message } = res.body.data;
     expect(user).toMatchObject({ email: personas.expired, membership_tier: 'basic', membership_status: 'active', membership_expiry: '2026-11-06' });
     expect(user.password_hash).toBeUndefined();
-    expect(typeof token).toBe('string');
+    expect(token).toBeUndefined();
     expect(message).toMatch(/active/);
     expect(payment).toMatchObject({
       user_id: user.id,
@@ -228,8 +229,8 @@ describe('POST /payment/verify', () => {
     expect(payment.invoice_number).toMatch(/^PF-2026-\d{6}$/);
     expect(db.payments).toHaveLength(before + 1);
     expect(db.payment_orders.find(o => o.id === orderId)!.status).toBe('paid');
-    // The returned token works.
-    expect((await api().get('/api/payments/my').set('Authorization', `Bearer ${token}`)).status).toBe(200);
+    // The session the member paid with still works after the activation.
+    expect((await api().get('/api/payments/my').set(authHeader(personas.expired))).status).toBe(200);
   });
 
   it('takes tier and cycle from the order, not the request body (regression)', async () => {

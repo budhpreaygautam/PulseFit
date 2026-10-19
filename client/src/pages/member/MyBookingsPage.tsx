@@ -38,7 +38,7 @@ export const MyBookingsPage: React.FC = () => {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
       <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit'] flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-100 font-heading flex items-center gap-2">
             <CalendarDays className="w-7 h-7 text-lime-700 dark:text-lime-400" aria-hidden="true" /> My bookings
           </h1>
           <p className="text-sm text-slate-400 mt-1">Your class reservations. Times are gym time (IST).</p>
@@ -68,6 +68,8 @@ export const MyBookingsPage: React.FC = () => {
       </div>
 
       <section id="bookings-panel" role="tabpanel" aria-labelledby={`bookings-tab-${scope}`}>
+        {/* The tab says which list this is on screen; the heading keeps the outline h1 > h2 > h3 (each booking). */}
+        <h2 className="sr-only">{scope === 'upcoming' ? 'Upcoming classes' : 'Past classes'}</h2>
         {bookings.error ? (
           <ErrorState message={bookings.error} onRetry={bookings.reload} />
         ) : !rows ? (

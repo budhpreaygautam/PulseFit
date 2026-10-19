@@ -1,0 +1,43 @@
+[Unit]
+Description=PulseFit Athletics (API and website)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pulsefit
+Group=pulsefit
+WorkingDirectory=/opt/pulsefit/current/server
+EnvironmentFile=/etc/pulsefit/pulsefit.env
+ExecStart=/usr/bin/node dist/index.js
+# SIGTERM makes the API write any pending database change before it exits.
+KillSignal=SIGTERM
+TimeoutStopSec=15
+Restart=always
+RestartSec=3
+
+# Hardening: the app may only write its database folder.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=/var/lib/pulsefit
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

@@ -51,7 +51,8 @@ const PRIVACY: Section[] = [
         </li>
         <li>
           <strong>Membership and payments:</strong> your plan, its start and end dates, freeze dates and your invoices (amount, plan and period). Card, UPI and bank details are
-          entered on Razorpay's checkout and handled by Razorpay; we receive only a payment reference, never your card number.
+          entered on Razorpay's checkout or in your own UPI app, never on our site; we receive only a payment reference (for UPI payments to the gym's account, also the
+          UPI transaction reference), never your card number or UPI PIN.
         </li>
         <li>
           <strong>Visits and bookings:</strong> the time and method of each check-in (your QR pass or a manual check-in by staff), the classes you book or cancel, and whether
@@ -69,7 +70,8 @@ const PRIVACY: Section[] = [
           can make sure each person claims one pass.
         </li>
         <li>
-          <strong>On your device:</strong> your browser stores your sign-in token and your light/dark theme choice. We do not use advertising or tracking cookies.
+          <strong>On your device:</strong> your browser keeps you signed in with a secure cookie that pages cannot read (the app keeps your sign-in in your phone's
+          secure storage), and remembers your light/dark theme choice. We do not use advertising or tracking cookies.
         </li>
       </ul>
     )
@@ -80,10 +82,13 @@ const PRIVACY: Section[] = [
       <ul>
         <li>Front-desk and admin staff see member accounts, memberships, payments, visits and bookings so they can run the gym.</li>
         <li>Coaches see the names, contact details and attendance of members booked into their classes, and the notes they write.</li>
-        <li>Razorpay processes online payments. Google processes sign-in if you use "Continue with Google".</li>
         <li>
-          Until you choose your own photo, your account picture is a cartoon avatar drawn by DiceBear (api.dicebear.com) from your name, so your name is sent to DiceBear
-          whenever the picture is shown. To stop this, upload your own photo or pick a preset on your account page.
+          Razorpay processes card and online payments. UPI payments made straight to the gym's bank account are confirmed by a payment system the gym runs itself, from
+          the bank's payment alert. Google processes sign-in if you use "Continue with Google".
+        </li>
+        <li>
+          Until you choose your own photo, your account picture is a cartoon avatar drawn by DiceBear (api.dicebear.com). Only your initials and a random code are
+          sent to DiceBear, never your name, whenever the picture is shown. To stop this, upload your own photo on your account page.
         </li>
         <li>
           Our pages load fonts from Google Fonts and photos from Unsplash. Like any website you visit, those services see your IP address and browser details, but not your
@@ -257,7 +262,8 @@ const REFUNDS: Section[] = [
     heading: 'Paying online',
     body: (
       <p>
-        Online payments are processed by Razorpay in Indian rupees. The amount is always the price of the plan you chose, shown on the{' '}
+        Online payments are made in Indian rupees, through Razorpay or by UPI straight to the gym's bank account. A UPI payment must be for the exact amount shown and
+        made within 5 minutes; your plan starts as soon as the bank confirms it. The amount is always the price of the plan you chose, shown on the{' '}
         <TabLinkInline tab="pricing">memberships page</TabLinkInline> before you pay. Every payment creates an invoice you can see on your account page.
       </p>
     )
@@ -305,8 +311,8 @@ const REFUNDS: Section[] = [
     heading: 'How refunds are paid',
     body: (
       <p>
-        Refunds go back to the card, UPI account or bank account you paid with, through Razorpay. Once we have issued a refund, your bank usually takes a few working days to
-        show it.
+        Refunds go back to the card, UPI account or bank account you paid with: through Razorpay for Razorpay payments, or by UPI from the gym's account for UPI payments
+        made straight to it. Once we have issued a refund, your bank usually takes a few working days to show it.
       </p>
     )
   },
@@ -349,7 +355,7 @@ export const LegalPage: React.FC<{ kind: Kind }> = ({ kind }) => {
         <div className="w-12 h-12 rounded-2xl neu-pressed-sm flex items-center justify-center text-lime-400">
           <FileText className="w-5 h-5" aria-hidden="true" />
         </div>
-        <h1 className="text-3xl sm:text-4xl font-black text-slate-100 font-['Outfit']">{title}</h1>
+        <h1 className="text-3xl sm:text-4xl font-black text-slate-100 font-heading">{title}</h1>
         <p className="text-sm text-slate-400">{intro}</p>
         <p className="text-xs text-slate-500">
           {GYM_NAME} · Last updated <time dateTime={LAST_UPDATED}>{formatDate(LAST_UPDATED, { day: 'numeric', month: 'long', year: 'numeric' })}</time>
@@ -373,7 +379,7 @@ export const LegalPage: React.FC<{ kind: Kind }> = ({ kind }) => {
       <div className="mt-8 space-y-8 text-sm text-slate-300 leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-2 [&_p+p]:mt-3 [&_p+ul]:mt-3 [&_ul+p]:mt-3 [&_strong]:text-slate-900 dark:[&_strong]:text-slate-100">
         {sections.map((section, i) => (
           <section key={section.heading} aria-labelledby={`legal-${kind}-${i}`}>
-            <h2 id={`legal-${kind}-${i}`} className="text-lg font-black text-slate-100 font-['Outfit'] mb-2">
+            <h2 id={`legal-${kind}-${i}`} className="text-lg font-black text-slate-100 font-heading mb-2">
               {section.heading}
             </h2>
             {section.body}

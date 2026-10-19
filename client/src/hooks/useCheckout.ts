@@ -1,8 +1,10 @@
 import { useCallback, useState } from 'react';
 import { useAuth } from '../context/AuthContext.js';
 import { useAppConfig } from '../context/ConfigContext.js';
+import { useNavigation } from '../context/NavigationContext.js';
 import { api, ApiError, errorMessage } from '../api/client.js';
 import { GYM_EMAIL, GYM_PHONE_DISPLAY } from '../components/public/gymInfo.js';
+import { isNativeApp } from '../lib/native.js';
 import { BillingCycle, PaidTier, Payment, User } from '../types/index.js';
 
 const RAZORPAY_CHECKOUT_URL = 'https://checkout.razorpay.com/v1/checkout.js';
@@ -27,13 +29,17 @@ export interface CheckoutParams {
 }
 
 /**
- * Opens Razorpay Checkout for a membership. The server prices the order from the plan
- * catalogue and fixes the tier/cycle on its own order record; the browser only says which
- * plan was chosen. Verification activates the membership and returns a fresh session.
+ * Pays for a membership with the gateway the server uses. The server prices the order from the
+ * plan catalogue and fixes the tier/cycle on its own order record; the browser only says which
+ * plan was chosen.
+ * - Razorpay: its checkout opens over the page; verification activates the membership.
+ * - YouPI: the member pays by UPI on YouPI's page and comes back to /payment-status, which asks
+ *   the server until YouPI has confirmed the money arrived.
  */
-export const useRazorpay = () => {
-  const { user, setSession, updateUser, triggerCelebration } = useAuth();
+export const useCheckout = () => {
+  const { user, updateUser, triggerCelebration } = useAuth();
   const { config } = useAppConfig();
+  const { navigate } = useNavigation();
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,8 +58,17 @@ export const useRazorpay = () => {
       setError(null);
 
       try {
-        await loadRazorpayScript();
+        if (config.payments.provider === 'razorpay') await loadRazorpayScript();
         const order = await api.createPaymentOrder({ tier, billing_cycle: billingCycle });
+
+        if (order.provider === 'youpi') {
+          // The app waits on its own status page; the checkout opens in the phone's browser, since
+          // the app only shows its own pages. The website goes there in this tab and comes back.
+          if (isNativeApp) navigate('payment-status', { order: order.orderId });
+          window.location.assign(order.checkoutUrl);
+          return;
+        }
+        await loadRazorpayScript();
 
         const checkoutModal = new window.Razorpay!({
           key: order.keyId,
@@ -72,7 +87,7 @@ export const useRazorpay = () => {
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature
               });
-              setSession({ token: result.token, user: result.user });
+              updateUser(result.user);
               triggerCelebration();
               onSuccess?.({ user: result.user, payment: result.payment, message: result.message || undefined });
             } catch (err) {
@@ -116,7 +131,7 @@ export const useRazorpay = () => {
         setIsProcessing(false);
       }
     },
-    [user, config, setSession, updateUser, triggerCelebration]
+    [user, config, navigate, updateUser, triggerCelebration]
   );
 
   return { checkout, isProcessing, error, clearError: () => setError(null), paymentsEnabled: config.payments.enabled };

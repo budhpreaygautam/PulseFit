@@ -1,11 +1,16 @@
-import React from 'react';
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import React, { Suspense, lazy } from 'react';
 import { TrendingUp } from 'lucide-react';
 import { WorkoutAnalytics } from '../../types/index.js';
 import { formatDate } from '../../lib/format.js';
 import { useTheme } from '../../context/ThemeContext.js';
-import { EmptyState, ErrorState, LoadingState } from '../common/States.js';
+import { EmptyState, ErrorState, LoadingState, Skeleton } from '../common/States.js';
 import { ApiResource } from './useApiResource.js';
+
+// The charting library is large; it loads once there is something to chart, after the dashboard
+// has painted. Until then each chart's box shows a placeholder of the same size.
+const VolumeChart = lazy(() => import('./ProgressCharts.js').then(m => ({ default: m.VolumeChart })));
+const MuscleChart = lazy(() => import('./ProgressCharts.js').then(m => ({ default: m.MuscleChart })));
+const chartPlaceholder = <Skeleton className="w-full h-full" />;
 
 const TIMELINE_POINTS = 20;
 const shortDate = (d: string) => formatDate(d, { day: 'numeric', month: 'short' });
@@ -57,7 +62,7 @@ export const ProgressSection: React.FC<ProgressSectionProps> = ({ analytics, onL
           ].map(s => (
             <div key={s.label} className="neu-pressed-sm rounded-2xl p-3 sm:p-4 min-w-0">
               <dt className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">{s.label}</dt>
-              <dd className="text-base sm:text-2xl font-black text-slate-100 font-['Outfit'] mt-1 break-words">{s.value}</dd>
+              <dd className="text-base sm:text-2xl font-black text-slate-100 font-heading mt-1 break-words">{s.value}</dd>
             </div>
           ))}
         </dl>
@@ -69,27 +74,9 @@ export const ProgressSection: React.FC<ProgressSectionProps> = ({ analytics, onL
               <span className="block font-medium text-slate-500 mt-0.5">Weight × reps of working sets, in kg</span>
             </figcaption>
             <div className="h-56" role="img" aria-label={`Training volume of your last ${timeline.length} workouts, from ${kg(timeline[0].volumeKg)} on ${shortDate(timeline[0].date)} to ${kg(timeline[timeline.length - 1].volumeKg)} on ${shortDate(timeline[timeline.length - 1].date)}.`}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={timeline} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="volumeFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={chart.mark} stopOpacity={0.35} />
-                      <stop offset="100%" stopColor={chart.mark} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke={chart.grid} vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fill: chart.tick, fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={16} />
-                  <YAxis tick={{ fill: chart.tick, fontSize: 11 }} tickLine={false} axisLine={false} width={48} />
-                  <Tooltip
-                    labelFormatter={(_, payload) => {
-                      const p = payload?.[0]?.payload as WorkoutAnalytics['volumeTimeline'][number] | undefined;
-                      return p ? `${p.title} · ${formatDate(p.date)}` : '';
-                    }}
-                    formatter={(value: number) => [kg(value), 'Volume']}
-                  />
-                  <Area type="linear" dataKey="volumeKg" stroke={chart.mark} strokeWidth={2} fill="url(#volumeFill)" dot={{ r: 3, fill: chart.mark }} activeDot={{ r: 5 }} />
-                </AreaChart>
-              </ResponsiveContainer>
+              <Suspense fallback={chartPlaceholder}>
+                <VolumeChart timeline={timeline} chart={chart} />
+              </Suspense>
             </div>
           </figure>
 
@@ -102,15 +89,9 @@ export const ProgressSection: React.FC<ProgressSectionProps> = ({ analytics, onL
               <p className="text-xs text-slate-400 py-10 text-center">Only warm-up sets so far.</p>
             ) : (
               <div style={{ height: Math.max(120, muscles.length * 34) }} role="img" aria-label={muscles.map(m => `${m.category}: ${m.count} sets`).join(', ')}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={muscles} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }} barCategoryGap={6}>
-                    <CartesianGrid stroke={chart.grid} horizontal={false} />
-                    <XAxis type="number" allowDecimals={false} tick={{ fill: chart.tick, fontSize: 11 }} tickLine={false} axisLine={false} />
-                    <YAxis type="category" dataKey="category" tick={{ fill: chart.tick, fontSize: 11 }} tickLine={false} axisLine={false} width={72} />
-                    <Tooltip cursor={{ fill: chart.grid }} formatter={(value: number) => [`${value} sets`, 'Working sets']} />
-                    <Bar dataKey="count" fill={chart.mark} radius={[0, 4, 4, 0]} maxBarSize={18} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <Suspense fallback={chartPlaceholder}>
+                  <MuscleChart muscles={muscles} chart={chart} />
+                </Suspense>
               </div>
             )}
           </figure>
@@ -158,7 +139,7 @@ export const ProgressSection: React.FC<ProgressSectionProps> = ({ analytics, onL
   return (
     <section aria-labelledby="progress-heading" className="neu-flat rounded-3xl p-5 sm:p-8 space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h2 id="progress-heading" className="text-lg sm:text-xl font-black text-slate-100 font-['Outfit'] flex items-center gap-2">
+        <h2 id="progress-heading" className="text-lg sm:text-xl font-black text-slate-100 font-heading flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-lime-700 dark:text-lime-400" aria-hidden="true" /> My progress
         </h2>
         <button type="button" onClick={onLogWorkout} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold shrink-0">

@@ -73,6 +73,98 @@ const FieldError: React.FC<{ id: string; message?: string }> = ({ id, message })
     </p>
   ) : null;
 
+/**
+ * The rest timer keeps its own state. It updates every second while it runs, and with that state in
+ * the logger each update re-rendered the whole set form (up to 100 sets) while the member typed.
+ */
+const RestTimer: React.FC = () => {
+  const { showToast } = useToast();
+  // A running timer keeps its end time on the wall clock and works out what is left from it.
+  // Phones pause timers while the screen is locked and browsers slow them in background tabs,
+  // so counting ticks would fall behind.
+  const [timerDuration, setTimerDuration] = useState(90);
+  const [timeLeft, setTimeLeft] = useState(90);
+  const [endsAt, setEndsAt] = useState<number | null>(null);
+  const isTimerRunning = endsAt !== null;
+  const secondsUntil = (end: number) => Math.max(0, Math.ceil((end - Date.now()) / 1000));
+
+  useEffect(() => {
+    if (endsAt === null) return;
+    const tick = () => setTimeLeft(secondsUntil(endsAt));
+    tick();
+    const interval = setInterval(tick, 250);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [endsAt]);
+
+  useEffect(() => {
+    if (endsAt !== null && timeLeft === 0) {
+      setEndsAt(null);
+      showToast('Rest is over. Time for your next set.', 'success', 'Rest timer');
+    }
+  }, [endsAt, timeLeft, showToast]);
+
+  const toggleTimer = () => {
+    if (endsAt !== null) {
+      setTimeLeft(secondsUntil(endsAt));
+      setEndsAt(null);
+      return;
+    }
+    const seconds = timeLeft === 0 ? timerDuration : timeLeft;
+    setTimeLeft(seconds);
+    setEndsAt(Date.now() + seconds * 1000);
+  };
+
+  const startPreset = (seconds: number) => {
+    setTimerDuration(seconds);
+    setTimeLeft(seconds);
+    setEndsAt(Date.now() + seconds * 1000);
+  };
+
+  return (
+    <section aria-labelledby="timer-heading" className="neu-flat p-5 sm:p-6 rounded-3xl space-y-4">
+      <h2 id="timer-heading" className="text-sm font-extrabold text-slate-100 flex items-center gap-2 font-heading">
+        <Clock className="w-4 h-4 text-lime-700 dark:text-lime-400" aria-hidden="true" /> Rest timer
+      </h2>
+      <div className="text-center">
+        <div role="timer" aria-live="off" className="text-5xl font-black font-mono text-lime-700 dark:text-lime-400 tracking-tight">
+          {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+        </div>
+        <div className="w-full h-2 neu-pressed-sm rounded-full overflow-hidden mt-3" aria-hidden="true">
+          <div className="h-full bg-lime-500 transition-all duration-1000 rounded-full" style={{ width: `${(timeLeft / timerDuration) * 100}%` }} />
+        </div>
+      </div>
+      <div className="flex items-center justify-center gap-3">
+        <button type="button" onClick={toggleTimer} className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 ${isTimerRunning ? 'neu-btn' : 'neu-btn-lime'}`}>
+          {isTimerRunning ? <Pause className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
+          {isTimerRunning ? 'Pause' : 'Start'}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setEndsAt(null);
+            setTimeLeft(timerDuration);
+          }}
+          aria-label="Reset timer"
+          className="neu-btn p-2.5 rounded-xl"
+        >
+          <RotateCcw className="w-4 h-4" aria-hidden="true" />
+        </button>
+      </div>
+      <div className="grid grid-cols-4 gap-1.5" role="group" aria-label="Rest length">
+        {[45, 60, 90, 180].map(sec => (
+          <button key={sec} type="button" aria-pressed={timerDuration === sec} onClick={() => startPreset(sec)} className={`py-1.5 rounded-lg text-xs font-bold ${timerDuration === sec ? 'neu-btn-lime' : 'neu-btn'}`}>
+            {sec}s
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+};
+
 export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) => {
   const { user, refreshUser } = useAuth();
   const { showToast } = useToast();
@@ -280,52 +372,6 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
     history.reload();
   };
 
-  // --- Rest timer ---
-  // A running timer keeps its end time on the wall clock and works out what is left from it.
-  // Phones pause timers while the screen is locked and browsers slow them in background tabs,
-  // so counting ticks would fall behind.
-  const [timerDuration, setTimerDuration] = useState(90);
-  const [timeLeft, setTimeLeft] = useState(90);
-  const [endsAt, setEndsAt] = useState<number | null>(null);
-  const isTimerRunning = endsAt !== null;
-  const secondsUntil = (end: number) => Math.max(0, Math.ceil((end - Date.now()) / 1000));
-
-  useEffect(() => {
-    if (endsAt === null) return;
-    const tick = () => setTimeLeft(secondsUntil(endsAt));
-    tick();
-    const interval = setInterval(tick, 250);
-    document.addEventListener('visibilitychange', tick);
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', tick);
-    };
-  }, [endsAt]);
-
-  useEffect(() => {
-    if (endsAt !== null && timeLeft === 0) {
-      setEndsAt(null);
-      showToast('Rest is over. Time for your next set.', 'success', 'Rest timer');
-    }
-  }, [endsAt, timeLeft, showToast]);
-
-  const toggleTimer = () => {
-    if (endsAt !== null) {
-      setTimeLeft(secondsUntil(endsAt));
-      setEndsAt(null);
-      return;
-    }
-    const seconds = timeLeft === 0 ? timerDuration : timeLeft;
-    setTimeLeft(seconds);
-    setEndsAt(Date.now() + seconds * 1000);
-  };
-
-  const startPreset = (seconds: number) => {
-    setTimerDuration(seconds);
-    setTimeLeft(seconds);
-    setEndsAt(Date.now() + seconds * 1000);
-  };
-
   const inputErr = (key: string) => (errors[key] ? 'outline outline-2 outline-rose-500/80' : '');
   const describedBy = (key: string) => (errors[key] ? `${key}-error` : undefined);
 
@@ -333,7 +379,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6 sm:space-y-8">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-4xl font-black text-slate-100 tracking-tight font-['Outfit']">Log a workout</h1>
+          <h1 className="text-2xl sm:text-4xl font-black text-slate-100 tracking-tight font-heading">Log a workout</h1>
           <p className="text-sm text-slate-400 mt-1 max-w-xl">Record each set's weight, reps and effort. Volume counts working sets only (weight × reps).</p>
         </div>
         <div className="neu-flat px-4 py-3 rounded-2xl shrink-0 self-start md:self-auto">
@@ -346,7 +392,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
         <section aria-labelledby="saved-heading" className="neu-flat rounded-3xl p-5 sm:p-6 border border-lime-500/40 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 id="saved-heading" className="text-lg font-black text-slate-100 font-['Outfit'] flex items-center gap-2">
+              <h2 id="saved-heading" className="text-lg font-black text-slate-100 font-heading flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-lime-700 dark:text-lime-400" aria-hidden="true" /> Saved: {saved.title}
               </h2>
               <p className="text-xs text-slate-400 mt-1">
@@ -506,7 +552,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
 
           <section aria-labelledby="sets-heading" className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 id="sets-heading" className="text-base font-black text-slate-100 font-['Outfit'] flex items-center gap-2">
+              <h2 id="sets-heading" className="text-base font-black text-slate-100 font-heading flex items-center gap-2">
                 <Dumbbell className="w-5 h-5 text-lime-700 dark:text-lime-400" aria-hidden="true" /> Sets ({totalSets}/{LIMITS.setsTotal})
               </h2>
               <span className="text-[11px] text-slate-400">Warm-ups are not counted in volume</span>
@@ -655,46 +701,10 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
         </form>
 
         <aside className="lg:col-span-4 space-y-6">
-          <section aria-labelledby="timer-heading" className="neu-flat p-5 sm:p-6 rounded-3xl space-y-4">
-            <h2 id="timer-heading" className="text-sm font-extrabold text-slate-100 flex items-center gap-2 font-['Outfit']">
-              <Clock className="w-4 h-4 text-lime-700 dark:text-lime-400" aria-hidden="true" /> Rest timer
-            </h2>
-            <div className="text-center">
-              <div role="timer" aria-live="off" className="text-5xl font-black font-mono text-lime-700 dark:text-lime-400 tracking-tight">
-                {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
-              </div>
-              <div className="w-full h-2 neu-pressed-sm rounded-full overflow-hidden mt-3" aria-hidden="true">
-                <div className="h-full bg-lime-500 transition-all duration-1000 rounded-full" style={{ width: `${(timeLeft / timerDuration) * 100}%` }} />
-              </div>
-            </div>
-            <div className="flex items-center justify-center gap-3">
-              <button type="button" onClick={toggleTimer} className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 ${isTimerRunning ? 'neu-btn' : 'neu-btn-lime'}`}>
-                {isTimerRunning ? <Pause className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
-                {isTimerRunning ? 'Pause' : 'Start'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEndsAt(null);
-                  setTimeLeft(timerDuration);
-                }}
-                aria-label="Reset timer"
-                className="neu-btn p-2.5 rounded-xl"
-              >
-                <RotateCcw className="w-4 h-4" aria-hidden="true" />
-              </button>
-            </div>
-            <div className="grid grid-cols-4 gap-1.5" role="group" aria-label="Rest length">
-              {[45, 60, 90, 180].map(sec => (
-                <button key={sec} type="button" aria-pressed={timerDuration === sec} onClick={() => startPreset(sec)} className={`py-1.5 rounded-lg text-xs font-bold ${timerDuration === sec ? 'neu-btn-lime' : 'neu-btn'}`}>
-                  {sec}s
-                </button>
-              ))}
-            </div>
-          </section>
+          <RestTimer />
 
           <section aria-labelledby="history-heading" className="neu-flat p-5 sm:p-6 rounded-3xl space-y-3">
-            <h2 id="history-heading" className="text-sm font-extrabold text-slate-100 flex items-center gap-2 font-['Outfit']">
+            <h2 id="history-heading" className="text-sm font-extrabold text-slate-100 flex items-center gap-2 font-heading">
               <History className="w-4 h-4 text-lime-700 dark:text-lime-400" aria-hidden="true" /> Recent workouts
             </h2>
             {!history.data && history.error ? (

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Eye, EyeOff, Loader2, Trash2 } from 'lucide-react';
 import { TrainerClient, TrainerNote, TrainerNoteCategory } from '../../types/index.js';
 import { ApiError, api, errorMessage } from '../../api/client.js';
@@ -51,7 +51,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({ clients, trainerId, curr
   const [deleting, setDeleting] = useState<ListedNote | null>(null);
   const { showToast } = useToast();
 
-  const nameOf = (memberId: string, listed?: string | null) => clients.find(c => c.user_id === memberId)?.name ?? listed ?? 'Member';
+  const nameOf = useCallback((memberId: string, listed?: string | null) => clients.find(c => c.user_id === memberId)?.name ?? listed ?? 'Member', [clients]);
   // A coach writes only about their own clients; an admin looking at a coach's page reads them.
   const canWrite = !trainerId;
 
@@ -69,20 +69,58 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({ clients, trainerId, curr
     load();
   }, [load]);
 
-  const notes = allNotes && (memberFilter ? allNotes.filter(n => n.member_id === memberFilter) : allNotes);
+  // Memoised, like the list below: typing a note re-renders this panel on every keystroke, and
+  // rebuilding every listed note (two date formats each) each time slows typing for a coach with many.
+  const notes = useMemo(() => allNotes && (memberFilter ? allNotes.filter(n => n.member_id === memberFilter) : allNotes), [allNotes, memberFilter]);
   // Members the notes are about who are not clients any more (their bookings were all cancelled).
   // A coach can no longer write about them, but can still find what was written.
-  const earlierClients = [
-    ...new Map(
-      (allNotes ?? []).filter(n => !clients.some(c => c.user_id === n.member_id)).map(n => [n.member_id, n.member_name ?? 'Member'])
-    )
-  ].sort((a, b) => a[1].localeCompare(b[1]));
+  const earlierClients = useMemo(
+    () =>
+      [
+        ...new Map(
+          (allNotes ?? []).filter(n => !clients.some(c => c.user_id === n.member_id)).map(n => [n.member_id, n.member_name ?? 'Member'])
+        )
+      ].sort((a, b) => a[1].localeCompare(b[1])),
+    [allNotes, clients]
+  );
 
   // Choosing whose notes to read also picks them for the next note, when they are still a client.
   // Runs on a new choice only, so a client list refreshed after saving keeps the form's own pick.
   useEffect(() => {
     if (memberFilter && clients.some(c => c.user_id === memberFilter)) setForm(f => ({ ...f, member_id: memberFilter }));
   }, [memberFilter]);
+
+  const noteItems = useMemo(
+    () =>
+      notes?.map(n => {
+        const category = CATEGORIES.find(c => c.value === n.category) ?? CATEGORIES[3];
+        const canDelete = isAdmin || n.trainer_user_id === currentUserId;
+        return (
+          <li key={n.id} className="neu-pressed-sm rounded-2xl p-4 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-sm text-slate-100">{nameOf(n.member_id, n.member_name)}</span>
+                <Badge size="sm" variant={category.variant}>{category.label}</Badge>
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+                  {n.visible_to_member ? <Eye className="w-3.5 h-3.5" aria-hidden="true" /> : <EyeOff className="w-3.5 h-3.5" aria-hidden="true" />}
+                  {n.visible_to_member ? 'Shared with member' : 'Private'}
+                </span>
+              </div>
+              {canDelete && (
+                <button type="button" onClick={() => setDeleting(n)} className={`p-2 neu-btn rounded-lg hover:text-rose-400 ${focusRing}`} aria-label={`Delete note about ${nameOf(n.member_id, n.member_name)} from ${formatDateTime(n.created_at)}`}>
+                  <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+            <p className="text-sm text-slate-200 whitespace-pre-wrap break-words">{n.note}</p>
+            <p className="text-[11px] text-slate-400">
+              {n.trainer_name} · {formatDateTime(n.created_at)}
+            </p>
+          </li>
+        );
+      }),
+    [notes, nameOf, isAdmin, currentUserId]
+  );
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,7 +169,8 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({ clients, trainerId, curr
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
       {canWrite && (
         <form onSubmit={submit} className="lg:col-span-2 neu-pressed-sm rounded-2xl p-4 sm:p-5 space-y-4" noValidate aria-labelledby="add-note-heading">
-          <h3 id="add-note-heading" className="text-sm font-extrabold text-slate-100 font-['Outfit']">Add a note</h3>
+          {/* h2: the Notes tab panel sits right under the page's h1. */}
+          <h2 id="add-note-heading" className="text-sm font-extrabold text-slate-100 font-heading">Add a note</h2>
           <FormError message={formError} />
           {clients.length === 0 ? (
             <p className="text-xs text-slate-400">Notes can be written for members who book your classes. You have no clients yet.</p>
@@ -203,35 +242,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({ clients, trainerId, curr
         ) : notes.length === 0 ? (
           <EmptyState title={memberFilter ? `No notes about ${nameOf(memberFilter)} yet` : 'No notes yet'} />
         ) : (
-          <ul className="space-y-3">
-            {notes.map(n => {
-              const category = CATEGORIES.find(c => c.value === n.category) ?? CATEGORIES[3];
-              const canDelete = isAdmin || n.trainer_user_id === currentUserId;
-              return (
-                <li key={n.id} className="neu-pressed-sm rounded-2xl p-4 space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-bold text-sm text-slate-100">{nameOf(n.member_id, n.member_name)}</span>
-                      <Badge size="sm" variant={category.variant}>{category.label}</Badge>
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400">
-                        {n.visible_to_member ? <Eye className="w-3.5 h-3.5" aria-hidden="true" /> : <EyeOff className="w-3.5 h-3.5" aria-hidden="true" />}
-                        {n.visible_to_member ? 'Shared with member' : 'Private'}
-                      </span>
-                    </div>
-                    {canDelete && (
-                      <button type="button" onClick={() => setDeleting(n)} className={`p-2 neu-btn rounded-lg hover:text-rose-400 ${focusRing}`} aria-label={`Delete note about ${nameOf(n.member_id, n.member_name)} from ${formatDateTime(n.created_at)}`}>
-                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-sm text-slate-200 whitespace-pre-wrap break-words">{n.note}</p>
-                  <p className="text-[11px] text-slate-400">
-                    {n.trainer_name} · {formatDateTime(n.created_at)}
-                  </p>
-                </li>
-              );
-            })}
-          </ul>
+          <ul className="space-y-3">{noteItems}</ul>
         )}
       </div>
 

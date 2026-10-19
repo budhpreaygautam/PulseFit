@@ -194,20 +194,27 @@ describe('PUT /auth/profile', () => {
     const res = await api()
       .put('/api/auth/profile')
       .set(authHeader(personas.member))
-      .send({ name: '  Aarav S. ', phone: '+91 99999 00000', avatar_url: 'https://images.example.com/me.png' });
+      .send({ name: '  Aarav S. ', phone: '+91 99999 00000', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=AS' });
     expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ name: 'Aarav S.', phone: '+91 99999 00000', avatar_url: 'https://images.example.com/me.png' });
+    expect(res.body.data).toMatchObject({ name: 'Aarav S.', phone: '+91 99999 00000', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=AS' });
     expect(res.body.data.password_hash).toBeUndefined();
     expect(userByEmail(personas.member).name).toBe('Aarav S.');
+  });
+
+  it('refuses photo addresses on other hosts and files that are not really images', async () => {
+    for (const avatar_url of ['https://images.example.com/me.png', 'https://192.168.1.10/x.png', 'data:image/png;base64,iVBORw0KGgo=', 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=']) {
+      const res = await api().put('/api/auth/profile').set(authHeader(personas.member)).send({ avatar_url });
+      expect(res.status, avatar_url).toBe(400);
+    }
   });
 
   it('accepts a small data-URL photo and an empty phone', async () => {
     const res = await api()
       .put('/api/auth/profile')
       .set(authHeader(personas.member))
-      .send({ avatar_url: 'data:image/png;base64,iVBORw0KGgo=', phone: '' });
+      .send({ avatar_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', phone: '' });
     expect(res.status).toBe(200);
-    expect(res.body.data.avatar_url).toBe('data:image/png;base64,iVBORw0KGgo=');
+    expect(res.body.data.avatar_url).toBe('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
     expect(res.body.data.phone).toBe('');
   });
 

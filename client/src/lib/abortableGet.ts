@@ -1,5 +1,4 @@
-import { ApiError } from '../api/client.js';
-import { storage, TOKEN_KEY } from './storage.js';
+import { API_BASE, ApiError, authHeaders } from '../api/client.js';
 
 const NO_ANSWER = 'Cannot reach the PulseFit server. Check your connection and try again.';
 
@@ -14,11 +13,10 @@ const NO_ANSWER = 'Cannot reach the PulseFit server. Check your connection and t
  * A 401 is not announced to the app; the caller decides what it means.
  */
 export async function abortableGet<T>(endpoint: string, signal: AbortSignal): Promise<T> {
-  const token = storage.get(TOKEN_KEY);
   let status: number;
   let body: { success?: boolean; data?: T; error?: string; code?: string } | null = null;
   try {
-    const response = await fetch(`/api${endpoint}`, { signal, headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const response = await fetch(`${API_BASE}${endpoint}`, { signal, headers: authHeaders() });
     status = response.status;
     const text = await response.text();
     try {

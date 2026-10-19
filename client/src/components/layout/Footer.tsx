@@ -1,6 +1,8 @@
 import React from 'react';
-import { Clock, Dumbbell, Mail, MapPin, Phone } from 'lucide-react';
+import { Clock, Dumbbell, Mail, MapPin, Phone, Smartphone } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
+import { useAppConfig } from '../../context/ConfigContext.js';
+import { isNativeApp } from '../../lib/native.js';
 import { homeTabFor } from '../../routes.js';
 import { gymToday } from '../../lib/format.js';
 import { TabLink } from '../public/TabLink.js';
@@ -26,6 +28,9 @@ const linkClass = 'hover:text-lime-400 transition-colors font-medium rounded foc
 
 export const Footer: React.FC<{ setCurrentTab: (tab: string) => void }> = ({ setCurrentTab }) => {
   const { user } = useAuth();
+  const { config } = useAppConfig();
+  // The APK this server offers (GET /api/config); pointless inside the app itself.
+  const androidApp = isNativeApp ? null : config.androidApp;
   const year = gymToday().slice(0, 4);
 
   const accountLinks = user
@@ -49,13 +54,19 @@ export const Footer: React.FC<{ setCurrentTab: (tab: string) => void }> = ({ set
               <span className="w-10 h-10 rounded-2xl flex items-center justify-center neu-btn-lime">
                 <Dumbbell className="w-5 h-5 stroke-[2.5]" aria-hidden="true" />
               </span>
-              <span className="text-2xl font-black text-slate-100 font-['Outfit']">
+              <span className="text-2xl font-black text-slate-100 font-heading">
                 PULSE<span className="text-lime-400">FIT</span>
               </span>
             </div>
             <p className="text-sm text-slate-400 leading-relaxed max-w-sm font-medium">
               A single-location gym in Gurugram with a Workout & Strength floor, a Zumba & Cardio studio and coaches who run every class on the timetable.
             </p>
+            {androidApp && (
+              <a href={androidApp.url} download="PulseFit.apk" className={`inline-flex items-center gap-2 text-sm text-slate-300 ${linkClass}`}>
+                <Smartphone className="w-4 h-4 text-lime-400" aria-hidden="true" />
+                Get the Android app
+              </a>
+            )}
           </div>
 
           <nav aria-label="Explore" className="space-y-3">

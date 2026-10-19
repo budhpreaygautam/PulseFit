@@ -24,5 +24,3 @@ export const storage = {
     }
   }
 };
-
-export const TOKEN_KEY = 'pulsefit_token';

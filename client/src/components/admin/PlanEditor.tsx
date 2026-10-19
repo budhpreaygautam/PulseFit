@@ -141,7 +141,7 @@ export const PlanEditor: React.FC<PlanEditorProps> = ({ plan, onSaved, onStale }
     <>
       <form onSubmit={save} className="neu-flat p-5 sm:p-7 rounded-3xl border border-slate-800/80 space-y-5 min-w-0" aria-labelledby={id('heading')} noValidate>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id={id('heading')} className="text-lg font-black text-slate-100 font-['Outfit']">
+          <h2 id={id('heading')} className="text-lg font-black text-slate-100 font-heading">
             {plan.name}
           </h2>
           <div className="flex gap-2">

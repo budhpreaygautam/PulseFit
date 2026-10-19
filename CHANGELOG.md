@@ -2,6 +2,58 @@
 
 All notable changes to PulseFit. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] — 2026-10-19
+
+v2.3 takes PulseFit live: Android and iOS apps, a security pass, search-engine and speed work, free UPI
+payments through a self-hosted gateway, and one-command deployment.
+
+### Added
+
+- **Android and iOS apps** (Capacitor). The app keeps its session in the Android Keystore / iOS
+  Keychain, follows the phone's back button and system bars, and shares files through the share sheet.
+  `npm run mobile:sync` and `npm run mobile:run` build and start it against a local API (via `adb
+  reverse`) or any address; `npm run mobile:release` builds a signed release APK against the live site.
+- **"Get the PulseFit app" bar** for Android visitors to the website, with a download, an install note
+  and a close button remembered for 30 days, plus a footer link. The APK is served from the data volume
+  at `/downloads/pulsefit.apk`, so a new version goes live without a redeploy; `GET /api/config`
+  reports it as `androidApp`.
+- **Two-step sign-in (optional for everyone).** Authenticator-app codes (TOTP) with 10 one-time backup
+  codes, set up under My account → Sign-in & security. Password resets cannot skip it, and admins can
+  reset it for a member who lost their phone.
+- **YouPI PG**, a free, self-hosted UPI gateway, alongside Razorpay (`PAYMENT_PROVIDER`). Members pay by
+  UPI on YouPI's page and land on `/payment-status`, which confirms the payment with YouPI server to
+  server; YouPI's signed webhook also activates the plan. Experimental: see README › Payments.
+- **SEO.** Per-page titles, descriptions, canonical links and robots tags (written by the server into the
+  HTML, then kept in step by the client); `robots.txt`, `sitemap.xml`, JSON-LD (Organization, WebSite,
+  ExerciseGym, plan offers); real 404s for unknown addresses; `ALLOW_INDEXING` for staging hosts.
+- **Deployment.** A `Dockerfile` and `railway.json` (the app runs as a non-root user with its database on
+  a volume), and `deploy/` scripts for a VPS behind Cloudflare Tunnel: server setup, releases with
+  automatic rollback, daily backups and a backup puller.
+
+### Changed
+
+- **Light theme by default.** Dark appears only when chosen with the toggle; the device setting is no
+  longer followed.
+- **Sessions.** The website keeps its session in an httpOnly cookie with a CSRF header check; nothing is
+  stored in localStorage. Staff sessions last 12 hours.
+- **Faster pages.** Route-level code splitting and a separate React chunk (the first load is about a
+  third smaller), Brotli-compressed assets, a preloaded hero image, reserved space for loading content
+  and fixed image sizes. Measured on a throttled phone: LCP mostly 1.4–2.1 s, CLS under 0.06.
+- **Headings.** Every page has exactly one `h1`, and headings no longer skip levels.
+
+### Security
+
+- A strict Content Security Policy, HSTS and an HTTP-to-HTTPS redirect in production.
+- Rate limits per IP and per account on sign-in, password reset, demo sign-in and two-step codes, plus an
+  API-wide limit.
+- Common passwords are refused; the published demo password works only in demo mode, and the seed will
+  not create demo accounts in production.
+- Uploaded photos must be real PNG/JPEG/WebP images within size limits; remote image links are limited
+  to https on public hosts.
+- Production refuses the old public development JWT secret; request logs leave out query strings, and
+  reset links are logged only when `LOG_RESET_LINKS` is on.
+- CI audits dependencies, and Dependabot keeps them up to date.
+
 ## [2.2.0] — 2026-10-16
 
 v2.2 adds ID cards: a digital PulseFit badge for every member and coach, and the front desk's record of

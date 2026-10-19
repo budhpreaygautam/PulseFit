@@ -1,5 +1,5 @@
 import { test, expect, APIRequestContext, Page } from '@playwright/test';
-import { signInAs } from './helpers';
+import { signInAs, useSession } from './helpers';
 
 // Regression checks for the member-facing fixes: freezing, the rest and floor timers, the
 // workout logger, the check-in pass, the free-trial days, the timetable, pricing, sign-in and
@@ -67,7 +67,7 @@ async function createUser(
 
 const deleteUser = (request: APIRequestContext, admin: string, id: string) => request.delete(`/api/members/${id}`, { headers: auth(admin) });
 
-const useToken = (page: Page, token: string) => page.addInitScript(t => window.localStorage.setItem('pulsefit_token', t), token);
+const useToken = (page: Page, token: string) => useSession(page, token);
 
 /** Classes this week and next that can still be booked (an hour or more away, inside the 14-day window, not full). */
 async function bookableClasses(request: APIRequestContext, token?: string): Promise<Occurrence[]> {
@@ -166,7 +166,7 @@ test('the "Some fields need fixing" banner goes once the fields are fixed', asyn
   await expect(banner).toBeHidden();
 });
 
-test('"See my progress" is offered to members only, and opens their dashboard', async ({ page, request }) => {
+test('"See my progress" is offered to members only, and opens their dashboard', async ({ page, request, browser, baseURL }) => {
   const admin = await adminToken(request);
   const coach = await createUser(request, admin, { role: 'trainer' });
   const member = await createUser(request, admin, { tier: 'pro', months: 1 });
@@ -178,8 +178,9 @@ test('"See my progress" is offered to members only, and opens their dashboard', 
     await expect(page.getByRole('heading', { name: /Saved: Coach session/ })).toBeVisible();
     await expect(page.getByRole('button', { name: 'See my progress' })).toHaveCount(0);
 
-    const memberPage = await page.context().newPage();
-    await memberPage.addInitScript(t => window.localStorage.setItem('pulsefit_token', t), member.token);
+    // Another user: a browser context of its own, since pages of one context share the session cookie.
+    const memberPage = await (await browser.newContext({ baseURL, viewport: page.viewportSize() })).newPage();
+    await useSession(memberPage, member.token);
     await memberPage.goto('/log-workout');
     await fillOneSet(memberPage, 'Member session');
     await memberPage.getByRole('button', { name: 'Save workout' }).click();
@@ -195,7 +196,7 @@ test('"See my progress" is offered to members only, and opens their dashboard', 
 // ---------------------------------------------------------------------------------------------
 // Check-in pass
 
-test('the check-in pass does not warn staff that the front desk will refuse them', async ({ page, request }) => {
+test('the check-in pass does not warn staff that the front desk will refuse them', async ({ page, request, browser, baseURL }) => {
   const admin = await adminToken(request);
   const coach = await createUser(request, admin, { role: 'trainer' });
   const member = await createUser(request, admin);
@@ -208,8 +209,9 @@ test('the check-in pass does not warn staff that the front desk will refuse them
     await expect(dialog).not.toContainText('front desk will not let this pass in');
 
     // A member without a plan is still warned.
-    const memberPage = await page.context().newPage();
-    await memberPage.addInitScript(t => window.localStorage.setItem('pulsefit_token', t), member.token);
+    // Another user: a browser context of its own, since pages of one context share the session cookie.
+    const memberPage = await (await browser.newContext({ baseURL, viewport: page.viewportSize() })).newPage();
+    await useSession(memberPage, member.token);
     await memberPage.goto('/profile');
     await memberPage.getByRole('button', { name: 'Check-in pass', exact: true }).click();
     await expect(memberPage.getByRole('dialog')).toContainText('front desk will not let this pass in');
@@ -525,9 +527,10 @@ test('the month calendar and guide tabs work with the keyboard', async ({ page }
   await expect(cell(mondayOf(addDays(start, 8)))).toBeFocused();
   await page.keyboard.press('End');
   await expect(cell(addDays(mondayOf(addDays(start, 8)), 6))).toBeFocused();
-  // Days before today cannot be picked.
-  await expect(cell(addDays(gymToday(), -1))).toHaveCount(monthOf(addDays(gymToday(), -1)) === monthOf(start) ? 1 : 0);
-  if (monthOf(addDays(gymToday(), -1)) === monthOf(start)) await expect(cell(addDays(gymToday(), -1))).toBeDisabled();
+  // Days before today cannot be picked. The keys may have moved into the next month, which is the one on show.
+  const shown = monthOf(addDays(mondayOf(addDays(start, 8)), 6));
+  await expect(cell(addDays(gymToday(), -1))).toHaveCount(monthOf(addDays(gymToday(), -1)) === shown ? 1 : 0);
+  if (monthOf(addDays(gymToday(), -1)) === shown) await expect(cell(addDays(gymToday(), -1))).toBeDisabled();
 
   await page.goto('/guide');
   await page.locator('#guide-tab-workout-plans').focus();
@@ -558,7 +561,7 @@ test('for a frozen member, pricing moves the end date by open days, stepping ove
   await page.route('**/api/config', async route => {
     const response = await route.fetch();
     const json = await response.json();
-    json.data.payments = { enabled: true, keyId: 'rzp_test_e2e' };
+    json.data.payments = { enabled: true, provider: 'razorpay', keyId: 'rzp_test_e2e' };
     await route.fulfill({ response, json });
   });
   const isOpen = (date: string) => new Date(`${date}T00:00:00Z`).getUTCDay() !== 0;
@@ -607,7 +610,7 @@ async function payWithFakeCheckout(page: Page, verify: { status: number; json: u
   await page.route('**/api/config', async route => {
     const response = await route.fetch();
     const json = await response.json();
-    json.data.payments = { enabled: true, keyId: 'rzp_test_e2e' };
+    json.data.payments = { enabled: true, provider: 'razorpay', keyId: 'rzp_test_e2e' };
     await route.fulfill({ response, json });
   });
   await page.route('https://checkout.razorpay.com/**', route => route.fulfill({ contentType: 'application/javascript', body: FAKE_RAZORPAY }));
@@ -615,7 +618,7 @@ async function payWithFakeCheckout(page: Page, verify: { status: number; json: u
     route.fulfill({
       json: {
         success: true,
-        data: { orderId: 'order_E2E', amount: 79900, amount_inr: 799, currency: 'INR', keyId: 'rzp_test_e2e', tier: 'pro', billing_cycle: 'monthly', plan_name: 'Plan', description: 'Plan' }
+        data: { provider: 'razorpay', orderId: 'order_E2E', amount: 79900, amount_inr: 799, currency: 'INR', keyId: 'rzp_test_e2e', tier: 'pro', billing_cycle: 'monthly', plan_name: 'Plan', description: 'Plan' }
       }
     })
   );

@@ -3,7 +3,9 @@ import { ArrowRight, Calendar, CheckCircle2, ChevronRight, Clock, Dumbbell, MapP
 import { ActiveFloorStatus } from '../../types/index.js';
 import { api } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
-import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
+import { EmptyState, ErrorState } from '../../components/common/States.js';
+import { CardSkeletons } from '../../components/public/CardSkeletons.js';
+import { HERO_PHOTOS, HIGH_FETCH_PRIORITY, unsplashSrcSet } from '../../components/public/media.js';
 import { useApiData } from '../../components/public/useApiData.js';
 import { cheapestPlan, cheapestPlanFor } from '../../components/public/plans.js';
 import { HOURS_DAYS, HOURS_TIME, isGymOpenNow, mondayOf } from '../../components/public/gymInfo.js';
@@ -64,6 +66,7 @@ function useFloorStatus() {
 }
 
 const photoChip = 'px-2 py-0.5 rounded-lg glass-dark text-[11px] font-bold';
+const HERO_PHOTO = HERO_PHOTOS['/'];
 
 export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenFreeTrialModal, onOpenAuthModal }) => {
   const { user } = useAuth();
@@ -97,13 +100,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
                 SECTOR 29 · NEAR CYBER HUB, GURUGRAM
               </div>
 
-              <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-slate-100 tracking-tight leading-[1.1] font-['Outfit']">
+              <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-slate-100 tracking-tight leading-[1.1] font-heading">
                 YOUR GYM FOR <span className="text-lime-400">STRENGTH & ZUMBA</span>.
               </h1>
 
               <p className="text-sm sm:text-base text-slate-300 max-w-xl mx-auto lg:mx-0 leading-relaxed">
                 A Workout & Strength floor and a Zumba & Cardio studio under one roof, with coach-led classes you book in the app
-                {fromPlan ? `, from ${formatINR(fromPlan.price_monthly)} a month` : ''}.
+                {fromPlan ? `, from ${formatINR(fromPlan.price_monthly)} a month.` : '.'}
+                {/* Holds the price's room while plans load, so the buttons below don't move when it arrives. */}
+                {!fromPlan && plans.isLoading && (
+                  <span className="invisible" aria-hidden="true">
+                    {' '}
+                    from ₹0,000 a month
+                  </span>
+                )}
               </p>
 
               <div className="grid grid-cols-2 gap-3 max-w-md mx-auto lg:mx-0 pt-1">
@@ -149,7 +159,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
               <dl className="pt-6 sm:pt-8 border-t border-slate-800/80 grid grid-cols-3 gap-3 sm:gap-6 max-w-lg mx-auto lg:mx-0 text-center sm:text-left">
                 <div>
                   <dt className="text-[11px] text-slate-400 font-medium">Plans from</dt>
-                  <dd className="text-lg sm:text-2xl font-black text-lime-400 font-['Outfit']">
+                  <dd className="text-lg sm:text-2xl font-black text-lime-400 font-heading">
                     {fromPlan ? (
                       <>
                         {formatINR(fromPlan.price_monthly)}
@@ -162,19 +172,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
                 </div>
                 <div>
                   <dt className="text-[11px] text-slate-400 font-medium">Open {HOURS_DAYS}</dt>
-                  <dd className="text-lg sm:text-2xl font-black text-slate-100 font-['Outfit']">6am–10pm</dd>
+                  <dd className="text-lg sm:text-2xl font-black text-slate-100 font-heading">6am–10pm</dd>
                 </div>
                 <div>
                   <dt className="text-[11px] text-slate-400 font-medium">Classes a week</dt>
-                  <dd className="text-lg sm:text-2xl font-black text-amber-600 dark:text-amber-400 font-['Outfit']">{classes.data ? classes.data.length : '—'}</dd>
+                  <dd className="text-lg sm:text-2xl font-black text-amber-600 dark:text-amber-400 font-heading">{classes.data ? classes.data.length : '—'}</dd>
                 </div>
               </dl>
             </div>
 
             <div className="lg:col-span-5 relative mt-4 lg:mt-0">
               <div className="relative rounded-3xl overflow-hidden neu-flat">
+                {/* The page's largest image: fetched first, never lazy. */}
                 <img
-                  src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&auto=format&fit=crop&q=80"
+                  src={HERO_PHOTO}
+                  width={800}
+                  height={640}
+                  {...HIGH_FETCH_PRIORITY}
                   alt="Barbells and racks on a strength training floor"
                   className="w-full h-[300px] sm:h-[420px] object-cover object-center opacity-90"
                 />
@@ -212,7 +226,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
             <div className="space-y-1">
               <Badge variant="lime">ON THE FLOOR NOW</Badge>
-              <h2 id="floor-heading" className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit'] mt-1">
+              <h2 id="floor-heading" className="text-2xl sm:text-3xl font-black text-slate-100 font-heading mt-1">
                 HOW BUSY IS THE GYM?
               </h2>
               <p className="text-xs sm:text-sm text-slate-400">Members who have clocked in on each floor. Counts only; we never show who is training.</p>
@@ -273,7 +287,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-2xl mx-auto space-y-2 mb-10 sm:mb-12">
           <Badge variant="lime">WHAT WE OFFER</Badge>
-          <h2 className="text-2xl sm:text-4xl font-black text-slate-100 tracking-tight font-['Outfit']">TWO DEDICATED SPACES</h2>
+          <h2 className="text-2xl sm:text-4xl font-black text-slate-100 tracking-tight font-heading">TWO DEDICATED SPACES</h2>
           <p className="text-slate-400 text-sm">Build strength, improve your fitness, or do both.</p>
         </div>
 
@@ -304,7 +318,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
           ].map(offer => (
             <article key={offer.tab} className="neu-flat rounded-3xl overflow-hidden border border-slate-800 flex flex-col justify-between">
               <div className="relative h-56 sm:h-64 overflow-hidden bg-black">
-                <img src={offer.image} alt="" loading="lazy" className="w-full h-full object-cover opacity-90" />
+                <img
+                  src={offer.image}
+                  srcSet={unsplashSrcSet(offer.image, [480, 800])}
+                  sizes="(min-width: 768px) 50vw, 100vw"
+                  width={800}
+                  height={400}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full object-cover opacity-90"
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
                 <div className="absolute bottom-4 left-4 right-4">
                   <div className={`text-xs font-bold ${offer.accent}`}>{offer.eyebrow}</div>
@@ -346,7 +370,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
         <div className="neu-flat p-6 sm:p-10 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="space-y-2 text-center md:text-left">
             <Badge variant="cyan">FREE GUIDES</Badge>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit']">WORKOUT SPLITS, INDIAN DIET CHARTS & SUPPLEMENTS</h2>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-heading">WORKOUT SPLITS, INDIAN DIET CHARTS & SUPPLEMENTS</h2>
             <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
               Muscle-gain, fat-loss and vegetarian high-protein meal plans built on Indian staples, plus 4- and 5-day training splits and a plain-language supplements guide.
             </p>
@@ -363,7 +387,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 sm:mb-8">
             <div className="space-y-1">
               <Badge variant="cyan">COMING UP</Badge>
-              <h2 id="upcoming-heading" className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit']">
+              <h2 id="upcoming-heading" className="text-2xl sm:text-3xl font-black text-slate-100 font-heading">
                 NEXT CLASSES
               </h2>
               <p className="text-sm text-slate-400">Spots left are counted for each date.</p>
@@ -374,7 +398,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
           </div>
 
           {classes.isLoading ? (
-            <LoadingState label="Loading classes…" />
+            <CardSkeletons label="Loading classes…" count={4} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" cardClassName="h-44 rounded-2xl" />
           ) : classes.error ? (
             <ErrorState message={classes.error} onRetry={classes.reload} />
           ) : upcoming.length === 0 ? (
@@ -423,7 +447,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-8 sm:mb-10">
           <div className="space-y-1">
             <Badge variant="cyan">COACHES</Badge>
-            <h2 id="coaches-heading" className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit']">
+            <h2 id="coaches-heading" className="text-2xl sm:text-3xl font-black text-slate-100 font-heading">
               MEET THE TEAM
             </h2>
           </div>
@@ -433,7 +457,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
         </div>
 
         {trainers.isLoading ? (
-          <LoadingState label="Loading coaches…" />
+          <CardSkeletons label="Loading coaches…" count={4} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5" cardClassName="h-[22rem] sm:h-[23rem] rounded-2xl" />
         ) : trainers.error ? (
           <ErrorState message={trainers.error} onRetry={trainers.reload} />
         ) : !trainers.data || trainers.data.length === 0 ? (
@@ -443,7 +467,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
             {trainers.data.slice(0, 4).map(trainer => (
               <li key={trainer.id} className="neu-flat rounded-2xl overflow-hidden border border-slate-800">
                 <div className="relative h-56 sm:h-60 overflow-hidden bg-black">
-                  {trainer.avatar_url && <img src={trainer.avatar_url} alt={`Portrait of ${trainer.name}`} loading="lazy" className="w-full h-full object-cover object-top" />}
+                  {trainer.avatar_url && (
+                    <img
+                      src={trainer.avatar_url}
+                      alt={`Portrait of ${trainer.name}`}
+                      width={300}
+                      height={240}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover object-top"
+                    />
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                   <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
                     <span className={`${photoChip} text-zinc-100`}>
@@ -478,14 +512,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" aria-labelledby="plans-heading">
         <div className="text-center max-w-2xl mx-auto space-y-2 mb-10 sm:mb-12">
           <Badge variant="lime">MEMBERSHIPS</Badge>
-          <h2 id="plans-heading" className="text-2xl sm:text-4xl font-black text-slate-100 tracking-tight font-['Outfit']">
+          <h2 id="plans-heading" className="text-2xl sm:text-4xl font-black text-slate-100 tracking-tight font-heading">
             CLEAR, SIMPLE PRICING
           </h2>
           <p className="text-slate-400 text-sm">No sign-up fee and no automatic renewals. Entry with your QR pass during opening hours.</p>
         </div>
 
         {plans.isLoading ? (
-          <LoadingState label="Loading plans…" />
+          <CardSkeletons label="Loading plans…" count={3} className="grid grid-cols-1 md:grid-cols-3 gap-6" cardClassName="h-[26rem] rounded-3xl" />
         ) : plans.error ? (
           <ErrorState message={plans.error} onRetry={plans.reload} />
         ) : !plans.data || plans.data.length === 0 ? (
@@ -503,9 +537,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
                   </div>
                 )}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-black text-slate-100 font-['Outfit']">{plan.name}</h3>
+                  <h3 className="text-lg font-black text-slate-100 font-heading">{plan.name}</h3>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-black text-slate-100 font-['Outfit']">{formatINR(plan.price_monthly)}</span>
+                    <span className="text-3xl font-black text-slate-100 font-heading">{formatINR(plan.price_monthly)}</span>
                     <span className="text-slate-400 text-xs">/ month</span>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">{plan.description}</p>
@@ -535,7 +569,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
         <div className="neu-flat rounded-3xl border border-lime-500/40 p-6 sm:p-10 lg:p-12 text-center lg:text-left flex flex-col lg:flex-row items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl">
             <Badge variant="lime">FREE TRIAL</Badge>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit']">TRY A STRENGTH OR ZUMBA SESSION FREE</h2>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-heading">TRY A STRENGTH OR ZUMBA SESSION FREE</h2>
             <p className="text-sm text-slate-300 leading-relaxed">
               Claim a free 1-day pass for any day in the next two weeks, Monday to Saturday. One pass per person.
             </p>

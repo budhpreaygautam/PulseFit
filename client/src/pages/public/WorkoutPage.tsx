@@ -3,6 +3,7 @@ import { ArrowRight, CheckCircle2, Dumbbell, Layers, Sparkles, Target, Users } f
 import { Badge } from '../../components/common/Badge.js';
 import { StatTile } from '../../components/public/StatTile.js';
 import { WeeklyClasses } from '../../components/public/WeeklyClasses.js';
+import { HERO_PHOTOS, HIGH_FETCH_PRIORITY, unsplashSrcSet } from '../../components/public/media.js';
 import { useApiData } from '../../components/public/useApiData.js';
 import { cheapestPlanFor } from '../../components/public/plans.js';
 import { HOURS_DAYS, HOURS_TIME } from '../../components/public/gymInfo.js';
@@ -15,6 +16,8 @@ interface WorkoutPageProps {
   onOpenAuthModal: (mode: 'login' | 'register') => void;
   onOpenFreeTrialModal: () => void;
 }
+
+const HERO_PHOTO = HERO_PHOTOS['/strength'];
 
 const CATEGORY = 'Workout & Strength';
 
@@ -77,8 +80,12 @@ export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenF
   return (
     <div className="space-y-16 pb-20">
       <section className="relative min-h-[460px] sm:min-h-[540px] flex items-center justify-center overflow-hidden bg-black">
+        {/* The page's largest image: fetched first, never lazy. */}
         <img
-          src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=1600&auto=format&fit=crop&q=80"
+          src={HERO_PHOTO}
+          width={1600}
+          height={900}
+          {...HIGH_FETCH_PRIORITY}
           alt=""
           className="absolute inset-0 w-full h-full object-cover opacity-40"
         />
@@ -89,7 +96,7 @@ export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenF
           <span className="inline-block px-3 py-1 rounded-full bg-black/45 backdrop-blur-md border border-lime-400/40 text-lime-300 text-xs font-bold tracking-wide">
             WORKOUT & STRENGTH FLOOR
           </span>
-          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-zinc-50 tracking-tight font-['Outfit'] uppercase leading-none">
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-zinc-50 tracking-tight font-heading uppercase leading-none">
             BUILD REAL STRENGTH. <span className="text-lime-300">LIFT WITH A PLAN.</span>
           </h1>
           <p className="text-sm sm:text-base md:text-lg text-zinc-300 max-w-2xl mx-auto leading-relaxed font-medium">
@@ -128,7 +135,7 @@ export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenF
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
           <div>
             <Badge variant="lime">CLASSES</Badge>
-            <h2 className="text-2xl sm:text-4xl font-black text-slate-100 font-['Outfit'] mt-2">STRENGTH CLASSES EVERY WEEK</h2>
+            <h2 className="text-2xl sm:text-4xl font-black text-slate-100 font-heading mt-2">STRENGTH CLASSES EVERY WEEK</h2>
             <p className="text-sm text-slate-400 mt-1">Spots shown are for each class's next session.</p>
           </div>
           <button type="button" onClick={() => navigate('schedule')} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1 shrink-0 self-start sm:self-auto">
@@ -148,16 +155,26 @@ export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenF
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="text-center space-y-3 max-w-2xl mx-auto">
           <Badge variant="lime">THE FLOOR</Badge>
-          <h2 className="text-3xl sm:text-4xl font-black text-slate-100 font-['Outfit']">WHAT YOU'LL TRAIN WITH</h2>
+          <h2 className="text-3xl sm:text-4xl font-black text-slate-100 font-heading">WHAT YOU'LL TRAIN WITH</h2>
         </div>
         <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {ZONES.map(zone => (
             <li key={zone.title} className="neu-flat overflow-hidden rounded-3xl border border-slate-800/80">
               <div className="h-52 overflow-hidden bg-slate-900">
-                <img src={zone.url} alt="" loading="lazy" className="w-full h-full object-cover" />
+                <img
+                  src={zone.url}
+                  srcSet={unsplashSrcSet(zone.url, [480, 800, 1200])}
+                  sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                  width={800}
+                  height={416}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div className="p-5 space-y-2">
-                <h3 className="text-base font-extrabold text-slate-100 font-['Outfit']">{zone.title}</h3>
+                <h3 className="text-base font-extrabold text-slate-100 font-heading">{zone.title}</h3>
                 <p className="text-xs text-slate-400 leading-relaxed">{zone.desc}</p>
               </div>
             </li>
@@ -171,7 +188,7 @@ export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenF
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-800 pb-6">
             <div>
               <Badge variant="cyan">WHY LIFT HERE</Badge>
-              <h2 className="text-2xl sm:text-4xl font-black text-slate-100 font-['Outfit'] mt-2">BUILT FOR PROGRESS</h2>
+              <h2 className="text-2xl sm:text-4xl font-black text-slate-100 font-heading mt-2">BUILT FOR PROGRESS</h2>
             </div>
             <button type="button" onClick={() => setCurrentTab('guide')} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1 shrink-0 self-start sm:self-auto">
               Training plans & diet charts <ArrowRight className="w-4 h-4" aria-hidden="true" />
@@ -183,7 +200,7 @@ export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenF
                 <div className="glass-tint w-10 h-10 rounded-xl bg-lime-500/10 border border-lime-500/20 flex items-center justify-center text-lime-400">
                   <item.icon className="w-5 h-5" aria-hidden="true" />
                 </div>
-                <h3 className="font-extrabold text-sm text-slate-100 font-['Outfit']">{item.title}</h3>
+                <h3 className="font-extrabold text-sm text-slate-100 font-heading">{item.title}</h3>
                 <p className="text-xs text-slate-400 leading-relaxed">{item.desc}</p>
               </li>
             ))}
@@ -194,7 +211,7 @@ export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenF
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="text-center space-y-3 max-w-2xl mx-auto">
           <Badge variant="cyan">SAMPLE SPLIT</Badge>
-          <h2 className="text-3xl sm:text-4xl font-black text-slate-100 font-['Outfit']">A 4-DAY BODY-PART SPLIT</h2>
+          <h2 className="text-3xl sm:text-4xl font-black text-slate-100 font-heading">A 4-DAY BODY-PART SPLIT</h2>
           <p className="text-sm text-slate-400">A simple starting point. Ask a coach to adjust it to your level.</p>
         </div>
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -202,7 +219,7 @@ export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenF
             <li key={routine.day} className="p-6 rounded-3xl neu-flat space-y-4 flex flex-col justify-between">
               <div className="space-y-3">
                 <span className="inline-block font-mono text-xs font-black text-lime-400 bg-lime-500/10 px-2.5 py-0.5 rounded-lg border border-lime-500/20">{routine.day}</span>
-                <h3 className="font-black text-sm text-slate-100 font-['Outfit']">{routine.title}</h3>
+                <h3 className="font-black text-sm text-slate-100 font-heading">{routine.title}</h3>
                 <ul className="space-y-2 text-xs text-slate-300">
                   {routine.exercises.map(ex => (
                     <li key={ex} className="flex items-start gap-2">
@@ -226,7 +243,7 @@ export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenF
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="p-8 sm:p-12 rounded-3xl neu-flat border-2 border-lime-500/50 text-center space-y-6">
-          <h2 className="text-3xl sm:text-5xl font-black text-slate-100 font-['Outfit']">READY TO START LIFTING?</h2>
+          <h2 className="text-3xl sm:text-5xl font-black text-slate-100 font-heading">READY TO START LIFTING?</h2>
           <p className="text-sm text-slate-300 max-w-xl mx-auto">
             {plan
               ? `The ${plan.name} gives you the strength floor and every Workout & Strength class for ${formatINR(plan.price_monthly)} a month.`

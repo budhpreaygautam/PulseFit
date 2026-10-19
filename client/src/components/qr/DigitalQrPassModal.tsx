@@ -6,8 +6,10 @@ import { User } from '../../types/index.js';
 import { useToast } from '../../context/ToastContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
 import { formatDate, TIER_LABELS } from '../../lib/format.js';
+import { saveFile } from '../../lib/native.js';
 import { MembershipStatusBadge } from '../member/MembershipStatusBadge.js';
 import { copyText } from '../member/clipboard.js';
+import { fallbackAvatar } from '../member/avatarImage.js';
 
 interface DigitalQrPassModalProps {
   isOpen: boolean;
@@ -135,12 +137,7 @@ export const DigitalQrPassModal: React.FC<DigitalQrPassModalProps> = ({ isOpen, 
     if (!qrDataUrl) return;
     setIsDownloading(true);
     try {
-      const blob = await renderPassPng(user, qrDataUrl, config.gym.name);
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `pulsefit-pass-${user.qr_code_token}.png`;
-      link.click();
-      URL.revokeObjectURL(link.href);
+      await saveFile(await renderPassPng(user, qrDataUrl, config.gym.name), `pulsefit-pass-${user.qr_code_token}.png`);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'The pass could not be downloaded.', 'error');
     } finally {
@@ -159,12 +156,15 @@ export const DigitalQrPassModal: React.FC<DigitalQrPassModalProps> = ({ isOpen, 
       <div className="space-y-4">
         <div className="flex items-center gap-3 min-w-0">
           <img
-            src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`}
+            src={user.avatar_url || fallbackAvatar(user.name)}
             alt=""
+            width={48}
+            height={48}
+            decoding="async"
             className="w-12 h-12 rounded-xl object-cover bg-slate-800 shrink-0"
           />
           <div className="min-w-0">
-            <p className="font-black text-slate-100 font-['Outfit'] truncate">{user.name}</p>
+            <p className="font-black text-slate-100 font-heading truncate">{user.name}</p>
             <div className="flex items-center gap-2 flex-wrap mt-0.5">
               {isStaff ? (
                 <span className="text-xs text-slate-400">{STAFF_LABELS[user.role] ?? 'Staff'} · staff pass</span>

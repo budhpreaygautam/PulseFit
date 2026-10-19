@@ -228,16 +228,22 @@ Copy `server/.env.example` to `server/.env`. Every setting is optional for local
 | `JWT_SECRET` | Signs login tokens. **Required outside local development** (32+ random characters). |
 | `NODE_ENV` | `development`, `production` or `test`. If unset, `npm run dev` is development and `npm start` is production. |
 | `DEMO_MODE` | `true` enables the 1-click personas. Default: on in development, off elsewhere. |
-| `CLIENT_ORIGIN` | Browser origins allowed to call the API (comma-separated). |
+| `CLIENT_ORIGIN` | Browser origins allowed to call the API (comma-separated). Default: the Vite dev server in development, `PUBLIC_URL` elsewhere (never localhost in production). |
+| `APP_ORIGINS` | Origins of the Android/iOS apps, also allowed. Default `https://localhost,capacitor://localhost`; empty refuses the apps. |
 | `TRUST_PROXY` | Number of reverse proxies in front of the API (e.g. `1` on Render/Railway/nginx). |
 | `GYM_TIMEZONE` | Default `Asia/Kolkata`. |
-| `PUBLIC_URL` | The address people open the app at (e.g. `https://gym.example.com`); password reset links are built on it. Set it in production. |
+| `PUBLIC_URL` | The address people open the app at (e.g. `https://gym.example.com`); password reset links, canonical links, the sitemap and the HTTPS redirect are built on it. Set it in production. |
+| `ALLOW_INDEXING` | Let search engines index the site. Default: on in production, off elsewhere. Set `false` on staging/preview deploys: `robots.txt` then disallows everything and every response carries `X-Robots-Tag: noindex`. |
+| `HTTPS_REDIRECT` | Default `true`: in production with an `https://` `PUBLIC_URL`, plain-HTTP requests get a 301 to `PUBLIC_URL` + path (`/api/health` excepted). Needs `TRUST_PROXY` and a proxy that sends `X-Forwarded-Proto`. |
+| `HSTS` | Default `true` (off in local development): `Strict-Transport-Security: max-age=31536000; includeSubDomains`. |
 | `ENFORCE_OPENING_HOURS` | Default `true`: members cannot check in, clock in or book a same-day trial while the gym is closed. The test suites turn it off. |
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | Enable checkout ([Razorpay dashboard → API keys](https://dashboard.razorpay.com/app/keys); use test-mode keys first). |
 | `RAZORPAY_WEBHOOK_SECRET` | Enables `POST /api/payment/webhook`, so a payment still activates if the member closes the tab. |
+| `YOUPI_API_URL`, `YOUPI_MERCHANT_ID`, `YOUPI_WEBHOOK_SECRET` | Enable free UPI checkout through your own [YouPI PG](https://github.com/youpi-pg/YouPI-PG) (see *Payments* below). |
+| `PAYMENT_PROVIDER` | `razorpay` or `youpi`. Empty: Razorpay when its keys are set, else YouPI. |
 | `GOOGLE_CLIENT_ID` | Enables "Continue with Google" (an OAuth web client id; add your site as an authorised JavaScript origin). |
 | `PULSEFIT_DB_PATH` | Where the JSON database lives. |
-| `SERVE_CLIENT` | Serve `client/dist` from the API (default on in production). |
+| `SERVE_CLIENT` | Serve `client/dist` from the API (default on in production), with each page's `<head>` filled in, `/robots.txt` and `/sitemap.xml`. |
 
 The client needs no secrets. It reads what is enabled from `GET /api/config`.
 
@@ -249,13 +255,40 @@ events `payment.captured`, `order.paid` and `payment.failed`, and use the same s
 ## 🧪 Testing
 
 ```bash
-npm test            # 653 API tests (Vitest + supertest), each file on its own throwaway database
+npm test            # 758 API tests (Vitest + supertest), each file on its own throwaway database
 npm run test:e2e    # 202 Playwright tests (101 per project): builds the client, starts the API on a fresh demo database, runs Chromium (desktop + mobile)
 npm run typecheck   # server, client and e2e
 ```
 
 The first Playwright run needs a browser: `npx playwright install chromium`. CI (`.github/workflows/ci.yml`)
-runs the type checks, API tests, build and Playwright suite on every push and pull request.
+runs the type checks, API tests, build and Playwright suite on every push and pull request, and fails on
+any high or critical advisory in the runtime dependencies (`npm audit --omit=dev --audit-level=high` for the
+root, `server` and `client`). Dependabot (`.github/dependabot.yml`) opens weekly update PRs for the three npm
+packages and the GitHub Actions. Node 22 or newer is required.
+
+---
+
+## 📱 Android & iOS Apps
+
+The apps are the same React client wrapped with [Capacitor](https://capacitorjs.com) (`client/android`, `client/ios`).
+
+```bash
+npm run dev                    # keep the API running
+npm run mobile:sync            # build the app against the API on this PC (http://localhost:5004) and copy it into both projects
+npm run mobile:sync -- --api https://gym.example.com   # build against a hosted API instead
+npm run mobile:run             # build the APK, install + start it on a USB phone or emulator (boots one if none is running), and run `adb reverse tcp:5004 tcp:5004`
+npm run mobile:android         # or open in Android Studio and press Run
+npm --prefix client run mobile:release   # signed release APK against https://pulsefit.up.railway.app (deploy/README.md › Android app)
+npm run mobile:ios             # open in Xcode (macOS only)
+```
+
+- Run `mobile:sync` after every client change. It remembers the API address in `client/.mobile-api-url`, so later `npx cap …` commands keep the right settings.
+- The API stays private to this PC: `mobile:run` uses `adb reverse` so the emulator or a USB-connected phone reaches `localhost:5004` on the PC through adb. The tunnel ends when the device disconnects or restarts; run `mobile:run` again, or `adb reverse tcp:5004 tcp:5004` (also needed after starting the app from Android Studio). The iOS simulator shares the Mac's `localhost`.
+- A phone on Wi-Fi without USB needs `npm run mobile:sync -- --lan` (builds against `http://<lan-ip>:5004`) and the API started with `HOST=0.0.0.0` (PowerShell: `$env:HOST="0.0.0.0"; npm run dev`). This exposes the dev API, and demo sign-in as the admin, to everyone on that network: use it only on a network you trust, and stop the API afterwards. Windows Firewall must also allow Node.js (port 5004) on the network profile your Wi-Fi uses.
+- Android needs **JDK 21** (`JAVA_HOME`) and the Android SDK (`ANDROID_HOME`), or [Android Studio](https://developer.android.com/studio) for the SDK. Studio's bundled JDK is newer than 21: the build picks up `JAVA_HOME` as its Java 21 toolchain (`client/android/gradle.properties`), so set `JAVA_HOME` to a JDK 21. Keep the Gradle wrapper at 8.14.3: the Android Gradle Plugin used here does not work with Gradle 9.6+.
+- iOS needs a Mac with Xcode.
+- Plain `http://` is for local testing only. A release APK comes from `mobile:release`, which only accepts an `https://` API, signs with the release key (created on first run in `%USERPROFILE%\.pulsefit\pulsefit-release.jks`, named in `client/android/keystore.properties`) and leaves the app built against that API; run `mobile:sync` afterwards to test against this PC again. Without `keystore.properties`, `assembleRelease` builds an unsigned APK. Release signing keys (`*.jks`, `*.keystore`, `keystore.properties`) and `google-services.json` are git-ignored in `client/android`; keep them out of the repo.
+- In the apps, downloads (pass, ID card, attendance CSV) open the share sheet, Google sign-in and invoice printing are hidden, the Android back button closes dialogs and goes back a page, and camera scanning works where the WebView offers `BarcodeDetector` (Android); otherwise staff type the code.
 
 ---
 
@@ -277,6 +310,22 @@ npm run create-admin -- --email you@example.com --name "Your Name"   # prints a 
 The database is a single JSON file, so run one instance, keep `server/data/` on a persistent disk, and back
 it up. Behind a proxy, set `TRUST_PROXY`. Set `PUBLIC_URL` to your site's address so password reset links work.
 For checkout, set the Razorpay keys and webhook secret.
+
+**HTTPS.** The proxy in front (Cloudflare Tunnel in `deploy/`) ends TLS. The API sends HSTS (one year,
+sub-domains included, no `preload`) and, with `TRUST_PROXY` set and an `https://` `PUBLIC_URL`, redirects
+plain-HTTP requests to `PUBLIC_URL` with a 301. The target is always built on `PUBLIC_URL`, never on the
+request's Host header. Only add `preload` (in `server/src/server.ts`) and submit the domain to
+[hstspreload.org](https://hstspreload.org) once every sub-domain is HTTPS for good: it is hard to undo.
+
+**Search engines.** With `SERVE_CLIENT` on, the API answers `/robots.txt` and `/sitemap.xml` and writes each
+page's title, description, canonical link, robots tag and JSON-LD (the gym as a schema.org `ExerciseGym`,
+the plans as offers on `/pricing`) into `index.html`, so crawlers see them without running the app.
+Unknown addresses answer 404. The page list and gym facts are copied from `client/src/routes.ts` and
+`client/src/components/public/gymInfo.ts` into `server/src/lib/seo.ts`; `server/tests/seo.test.ts` fails
+when they drift, so update both together. Staging and preview deploys should set `ALLOW_INDEXING=false`.
+Logo, photo, map coordinates and social profiles are left out of the JSON-LD until you add real ones
+in `GYM_PROFILE` in `server/src/lib/seo.ts`. After the first deploy, submit
+`https://<your-domain>/sitemap.xml` in Google Search Console.
 
 ---
 

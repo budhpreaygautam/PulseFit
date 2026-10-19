@@ -88,7 +88,7 @@ describe('PUT /auth/password', () => {
 });
 
 describe('POST /auth/forgot-password and /auth/reset-password', () => {
-  const original = { demoMode: config.demoMode, isProduction: config.isProduction, isLocal: config.isLocal };
+  const original = { demoMode: config.demoMode, isProduction: config.isProduction, isLocal: config.isLocal, logResetLinks: config.logResetLinks };
   let log: MockInstance<typeof console.log>;
 
   beforeEach(() => {
@@ -99,6 +99,7 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
     config.demoMode = original.demoMode;
     config.isProduction = original.isProduction;
     config.isLocal = original.isLocal;
+    config.logResetLinks = original.logResetLinks;
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -141,10 +142,19 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
     expect(fromEvil.body.data.resetUrl.startsWith(`${config.corsOrigins[0]}/reset-password?token=`)).toBe(true);
   });
 
-  it('regression: in production the link is logged for staff, never returned, and still works', async () => {
+  it('never builds the link on the Android/iOS app origin, which opens nothing outside the app', async () => {
+    expect(config.appOrigins.length).toBeGreaterThan(0);
+    for (const appOrigin of config.appOrigins) {
+      const res = await requestReset(ACCOUNT, appOrigin);
+      expect(res.body.data.resetUrl.startsWith(`${config.corsOrigins[0]}/reset-password?token=`)).toBe(true);
+    }
+  });
+
+  it('regression: in production with LOG_RESET_LINKS the link is logged for staff, never returned, and still works', async () => {
     config.isProduction = true;
     config.isLocal = false;
     config.demoMode = false;
+    config.logResetLinks = true;
     const known = await requestReset();
     const unknown = await requestReset('ghost@example.com');
     expect(known.status).toBe(200);
@@ -154,7 +164,8 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
 
     const lines = loggedLinks();
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain(ACCOUNT);
+    expect(lines[0]).toContain(userByEmail(ACCOUNT).id);
+    expect(lines[0]).not.toContain(ACCOUNT);
     const url = lines[0].slice(lines[0].indexOf('http'));
     const res = await api().post('/api/auth/reset-password').send({ token: tokenFromUrl(url), newPassword: NEW_PASSWORD });
     expect(res.status).toBe(200);
@@ -164,13 +175,14 @@ describe('POST /auth/forgot-password and /auth/reset-password', () => {
     config.isProduction = true;
     config.isLocal = false;
     config.demoMode = true;
+    config.logResetLinks = true;
     const persona = await requestReset(personas.admin);
     // A real account on the demo: no link in the response, and the same body as an unknown email.
     const real = await requestReset('kabir.singh@example.com');
     const ghost = await requestReset('ghost@example.com');
     for (const res of [persona, real]) expect(res.body.data).toEqual(ghost.body.data);
     expect(loggedLinks()).toHaveLength(1);
-    expect(loggedLinks()[0]).toContain('kabir.singh@example.com');
+    expect(loggedLinks()[0]).toContain(userByEmail('kabir.singh@example.com').id);
   });
 
   it('outside production the link is returned for any account and also logged', async () => {

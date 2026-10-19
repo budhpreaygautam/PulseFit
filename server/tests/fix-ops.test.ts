@@ -25,7 +25,8 @@ const original = {
   isProduction: config.isProduction,
   serveClient: config.serveClient,
   publicUrl: config.publicUrl,
-  trustProxy: config.trustProxy
+  trustProxy: config.trustProxy,
+  logResetLinks: config.logResetLinks
 };
 
 function at(iso: string) {
@@ -375,10 +376,12 @@ describe('reset link address (reset-link-localhost-origin)', () => {
   const loggedLink = () => loggedLine().slice(loggedLine().indexOf('http'));
   const CAUTION = '(address taken from the request; check it before handing it out)';
   const production = () =>
-    Object.assign(config, { isProduction: true, isLocal: false, demoMode: false, serveClient: true, publicUrl: '' });
+    Object.assign(config, { isProduction: true, isLocal: false, demoMode: false, serveClient: true, publicUrl: '', logResetLinks: true });
+  // A development server that serves the built client itself (as the e2e suite runs it).
+  const servingClientLocally = () => Object.assign(config, { isProduction: false, demoMode: false, serveClient: true, publicUrl: '' });
 
-  it('regression: a production server that serves the client links to its own address, not localhost', async () => {
-    Object.assign(config, { isProduction: true, isLocal: false, demoMode: false, serveClient: true, publicUrl: '' });
+  it('regression: production without PUBLIC_URL never takes the address from the request, it uses the first CLIENT_ORIGIN', async () => {
+    production();
     const res = await api()
       .post('/api/auth/forgot-password')
       .set('Host', 'gym.example.com')
@@ -386,13 +389,24 @@ describe('reset link address (reset-link-localhost-origin)', () => {
       .set('Origin', 'https://gym.example.com')
       .send({ email: personas.basic });
     expect(res.body.data.resetUrl).toBeUndefined();
+    expect(loggedLink().startsWith(`${config.corsOrigins[0]}/reset-password?token=`)).toBe(true);
+    expect(loggedLine()).not.toContain(CAUTION);
+  });
+
+  it('a development server serving the client links to its own address, flagged for staff to check', async () => {
+    servingClientLocally();
+    await api()
+      .post('/api/auth/forgot-password')
+      .set('Host', 'gym.example.com')
+      .set('X-Forwarded-Proto', 'https')
+      .send({ email: personas.basic });
     expect(loggedLink().startsWith('https://gym.example.com/reset-password?token=')).toBe(true);
     // Without PUBLIC_URL anyone can set that address, so staff are asked to check it.
     expect(loggedLine()).toContain(CAUTION);
   });
 
   it('behind a trusted reverse proxy, links to the forwarded host, not the upstream address', async () => {
-    production();
+    servingClientLocally();
     await api()
       .post('/api/auth/forgot-password')
       .set('Host', '127.0.0.1:5004') // what nginx's proxy_pass sends by default
@@ -403,7 +417,7 @@ describe('reset link address (reset-link-localhost-origin)', () => {
   });
 
   it('ignores X-Forwarded-Host when TRUST_PROXY is off', async () => {
-    production();
+    servingClientLocally();
     config.trustProxy = false;
     await api()
       .post('/api/auth/forgot-password')
@@ -414,7 +428,7 @@ describe('reset link address (reset-link-localhost-origin)', () => {
   });
 
   it('never builds a link on a host header that is not a plain host name', async () => {
-    production();
+    servingClientLocally();
     await api()
       .post('/api/auth/forgot-password')
       .set('Host', 'gym.example.com')

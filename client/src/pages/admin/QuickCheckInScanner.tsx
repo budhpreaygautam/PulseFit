@@ -35,7 +35,7 @@ const MemberSummary: React.FC<{ member: CheckInMember }> = ({ member }) => (
   <div className="flex items-start gap-3 min-w-0">
     <Avatar src={member.avatar_url} name={member.name} size="w-12 h-12" />
     <div className="min-w-0 space-y-1">
-      <p className="text-lg font-black text-slate-100 font-['Outfit'] break-words">{member.name}</p>
+      <p className="text-lg font-black text-slate-100 font-heading break-words">{member.name}</p>
       <p className="text-xs text-slate-400 break-all">{member.email}</p>
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <Badge size="sm" variant={statusVariant(member.membership_status)}>{STATUS_LABELS[member.membership_status]}</Badge>
@@ -49,7 +49,7 @@ const MemberSummary: React.FC<{ member: CheckInMember }> = ({ member }) => (
 
 const TrialSummary: React.FC<{ trial: TrialPass }> = ({ trial }) => (
   <div className="space-y-1 min-w-0">
-    <p className="text-lg font-black text-slate-100 font-['Outfit'] break-words">
+    <p className="text-lg font-black text-slate-100 font-heading break-words">
       {trial.name} <Badge size="sm" variant="purple">Free trial</Badge>
     </p>
     <p className="text-xs text-slate-400 break-all">{trial.email} · {trial.phone}</p>

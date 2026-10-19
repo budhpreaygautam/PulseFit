@@ -35,7 +35,11 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        // Each web font is followed by a local font sized to match it (index.css), so text does not
+        // reflow, and the page does not jump, when the web font arrives.
+        sans: ['Inter', 'Inter Fallback', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        // Headings and big numbers.
+        heading: ['Outfit', 'Outfit Fallback', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
       },
       boxShadow: {
         'glow-lime': '0 0 25px -5px rgba(132, 204, 22, 0.45)',

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useDeferredValue, useMemo, useState } from 'react';
 import { ChevronRight, Dumbbell, Search } from 'lucide-react';
 import { Exercise } from '../../types/index.js';
 import { api } from '../../api/client.js';
@@ -25,7 +25,18 @@ const Thumbnail: React.FC<{ exercise: Exercise; className: string }> = ({ exerci
       </div>
     );
   }
-  return <img src={exercise.thumbnail_url} alt="" loading="lazy" onError={() => setFailed(true)} className={`${className} object-cover`} />;
+  // Decorative: the exercise's name is right next to it. className fixes the box (w-full h-40 / h-48),
+  // so an image that arrives late never moves the layout.
+  return (
+    <img
+      src={exercise.thumbnail_url}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+      className={`${className} object-cover`}
+    />
+  );
 };
 
 const Chip: React.FC<{ pressed: boolean; onClick: () => void; children: React.ReactNode }> = ({ pressed, onClick, children }) => (
@@ -48,9 +59,12 @@ export const ExerciseLibraryView: React.FC<ExerciseLibraryViewProps> = ({ setCur
   const [difficulty, setDifficulty] = useState<string>('All');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Exercise | null>(null);
+  // The box shows each keystroke at once; the grid of cards (and their images) follows when the
+  // browser has time, so typing does not wait for the whole library to re-render.
+  const deferredSearch = useDeferredValue(search);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
     return (exercises.data ?? []).filter(
       ex =>
         (category === 'All' || ex.category === category) &&
@@ -58,7 +72,36 @@ export const ExerciseLibraryView: React.FC<ExerciseLibraryViewProps> = ({ setCur
         (difficulty === 'All' || ex.difficulty === difficulty) &&
         (!q || ex.name.toLowerCase().includes(q) || ex.target_muscles.some(m => m.toLowerCase().includes(q)))
     );
-  }, [exercises.data, category, equipment, difficulty, search]);
+  }, [exercises.data, category, equipment, difficulty, deferredSearch]);
+
+  // Memoised with the deferred search, so a keystroke's urgent render skips the card grid.
+  const cards = useMemo(
+    () =>
+      filtered.map(ex => (
+        <li key={ex.id}>
+          <button
+            type="button"
+            onClick={() => setSelected(ex)}
+            className="w-full h-full text-left neu-flat rounded-3xl overflow-hidden flex flex-col group hover:border-lime-500/50 transition-all"
+          >
+            <Thumbnail exercise={ex} className="w-full h-40" />
+            <div className="p-5 space-y-3 flex-1 flex flex-col">
+              <div className="flex flex-wrap gap-1.5 text-[10px] font-bold uppercase tracking-wider">
+                <span className="px-2 py-0.5 rounded-full bg-lime-500/10 border border-lime-500/40 text-lime-700 dark:text-lime-400">{ex.category}</span>
+                <span className="px-2 py-0.5 rounded-full border border-slate-700/60 text-slate-300">{ex.equipment}</span>
+                <span className="px-2 py-0.5 rounded-full border border-slate-700/60 text-slate-400">{ex.difficulty}</span>
+              </div>
+              <h2 className="text-base font-extrabold text-slate-100 font-heading">{ex.name}</h2>
+              <p className="text-xs text-slate-400 flex-1">{ex.target_muscles.join(', ')}</p>
+              <span className="text-xs font-bold text-lime-700 dark:text-lime-400 inline-flex items-center gap-1">
+                How to do it <ChevronRight className="w-4 h-4" aria-hidden="true" />
+              </span>
+            </div>
+          </button>
+        </li>
+      )),
+    [filtered]
+  );
 
   // Only offer filter values that the catalogue actually contains.
   const present = <K extends keyof Exercise>(key: K, all: readonly Exercise[K][]) =>
@@ -83,7 +126,7 @@ export const ExerciseLibraryView: React.FC<ExerciseLibraryViewProps> = ({ setCur
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6 sm:space-y-8">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-slate-100 tracking-tight font-['Outfit']">Exercise library</h1>
+          <h1 className="text-3xl sm:text-4xl font-black text-slate-100 tracking-tight font-heading">Exercise library</h1>
           <p className="text-sm text-slate-400 mt-1 max-w-xl">How to perform each movement on our floor, and which muscles it works.</p>
         </div>
         <div className="w-full md:w-72">
@@ -157,29 +200,7 @@ export const ExerciseLibraryView: React.FC<ExerciseLibraryViewProps> = ({ setCur
             {filtered.length} of {exercises.data.length} exercises
           </p>
           <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filtered.map(ex => (
-              <li key={ex.id}>
-                <button
-                  type="button"
-                  onClick={() => setSelected(ex)}
-                  className="w-full h-full text-left neu-flat rounded-3xl overflow-hidden flex flex-col group hover:border-lime-500/50 transition-all"
-                >
-                  <Thumbnail exercise={ex} className="w-full h-40" />
-                  <div className="p-5 space-y-3 flex-1 flex flex-col">
-                    <div className="flex flex-wrap gap-1.5 text-[10px] font-bold uppercase tracking-wider">
-                      <span className="px-2 py-0.5 rounded-full bg-lime-500/10 border border-lime-500/40 text-lime-700 dark:text-lime-400">{ex.category}</span>
-                      <span className="px-2 py-0.5 rounded-full border border-slate-700/60 text-slate-300">{ex.equipment}</span>
-                      <span className="px-2 py-0.5 rounded-full border border-slate-700/60 text-slate-400">{ex.difficulty}</span>
-                    </div>
-                    <h2 className="text-base font-extrabold text-slate-100 font-['Outfit']">{ex.name}</h2>
-                    <p className="text-xs text-slate-400 flex-1">{ex.target_muscles.join(', ')}</p>
-                    <span className="text-xs font-bold text-lime-700 dark:text-lime-400 inline-flex items-center gap-1">
-                      How to do it <ChevronRight className="w-4 h-4" aria-hidden="true" />
-                    </span>
-                  </div>
-                </button>
-              </li>
-            ))}
+            {cards}
           </ul>
         </>
       )}

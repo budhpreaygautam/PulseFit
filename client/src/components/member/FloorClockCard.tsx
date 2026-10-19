@@ -181,7 +181,8 @@ export const FloorClockCard: React.FC<FloorClockCardProps> = ({ user, stats, pla
   if (!stats.data && stats.error) {
     control = <ErrorState message={stats.error} onRetry={stats.reload} />;
   } else if (!stats.data) {
-    control = <LoadingState label="Loading floor time…" className="py-8" />;
+    // About the height of the clock-in panel that usually replaces it, so the dashboard below does not jump.
+    control = <LoadingState label="Loading floor time…" className="py-8 min-h-[13rem]" />;
   } else if (active) {
     control = (
       <div className="neu-pressed-sm rounded-2xl p-4 sm:p-5 border border-lime-500/40 space-y-4">
@@ -303,7 +304,7 @@ export const FloorClockCard: React.FC<FloorClockCardProps> = ({ user, stats, pla
   return (
     <section aria-labelledby="floor-heading" className="neu-flat rounded-3xl p-5 sm:p-8 space-y-5">
       <div>
-        <h2 id="floor-heading" className="text-lg sm:text-xl font-black text-slate-100 font-['Outfit'] flex items-center gap-2">
+        <h2 id="floor-heading" className="text-lg sm:text-xl font-black text-slate-100 font-heading flex items-center gap-2">
           <Timer className="w-5 h-5 text-lime-700 dark:text-lime-400" aria-hidden="true" /> Floor time
         </h2>
         <p className="text-xs text-slate-400 mt-1">Clock in when you start training and out when you leave. A completed session counts towards your streak.</p>
@@ -327,15 +328,15 @@ export const FloorClockCard: React.FC<FloorClockCardProps> = ({ user, stats, pla
         <dl className="lg:col-span-5 grid grid-cols-3 lg:grid-cols-2 gap-3 content-start">
           <div className="neu-pressed-sm rounded-2xl p-3 sm:p-4">
             <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">This week</dt>
-            <dd className="text-lg sm:text-2xl font-black text-slate-100 font-['Outfit'] mt-1">{s ? hours(s.totalTimeMinutesThisWeek) : '—'}</dd>
+            <dd className="text-lg sm:text-2xl font-black text-slate-100 font-heading mt-1">{s ? hours(s.totalTimeMinutesThisWeek) : '—'}</dd>
           </div>
           <div className="neu-pressed-sm rounded-2xl p-3 sm:p-4">
             <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">This month</dt>
-            <dd className="text-lg sm:text-2xl font-black text-slate-100 font-['Outfit'] mt-1">{s ? hours(s.totalTimeMinutesThisMonth) : '—'}</dd>
+            <dd className="text-lg sm:text-2xl font-black text-slate-100 font-heading mt-1">{s ? hours(s.totalTimeMinutesThisMonth) : '—'}</dd>
           </div>
           <div className="neu-pressed-sm rounded-2xl p-3 sm:p-4 lg:col-span-2">
             <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sessions</dt>
-            <dd className="text-lg sm:text-2xl font-black text-slate-100 font-['Outfit'] mt-1">{s ? s.totalSessionsCompleted.toLocaleString('en-IN') : '—'}</dd>
+            <dd className="text-lg sm:text-2xl font-black text-slate-100 font-heading mt-1">{s ? s.totalSessionsCompleted.toLocaleString('en-IN') : '—'}</dd>
           </div>
         </dl>
       </div>

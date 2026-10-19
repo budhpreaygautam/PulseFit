@@ -9,15 +9,18 @@ import { abortableGet } from '../lib/abortableGet.js';
 // switch those features off for the whole visit.
 
 const DEFAULT_CONFIG: AppConfig = {
-  demoMode: false,
+  // A demo deployment says so in the page's HTML (server/src/lib/seo.ts), so the "Demo accounts" bar
+  // is there from the first render instead of pushing the page down when /api/config answers.
+  demoMode: document.querySelector('meta[name="pulsefit-demo-mode"]') !== null,
   googleClientId: null,
-  payments: { enabled: false, keyId: null },
+  payments: { enabled: false, provider: null, keyId: null },
   gym: {
     name: 'PulseFit Athletics',
     timezone: 'Asia/Kolkata',
     currency: 'INR',
     hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: true }
-  }
+  },
+  androidApp: null
 };
 
 interface ConfigContextType {

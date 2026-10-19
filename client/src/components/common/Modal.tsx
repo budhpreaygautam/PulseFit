@@ -104,7 +104,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, descriptio
             <div className="flex shrink-0 items-start justify-between gap-3 px-5 py-4 sm:p-6 border-b border-slate-800/80 neu-pressed-sm">
               <div className="min-w-0">
                 {title && (
-                  <h2 id={titleId} className="text-lg sm:text-xl font-black text-slate-100 font-['Outfit'] break-words">
+                  <h2 id={titleId} className="text-lg sm:text-xl font-black text-slate-100 font-heading break-words">
                     {title}
                   </h2>
                 )}

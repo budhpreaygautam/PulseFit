@@ -47,6 +47,15 @@ describe('API smoke', () => {
     expect((await api().get('/api/members').set(authHeader(personas.admin))).status).toBe(200);
   });
 
+  it('lets the web client and the Android/iOS apps call the API, and no other origin', async () => {
+    const allowed = async (origin: string) =>
+      (await api().get('/api/health').set('Origin', origin)).headers['access-control-allow-origin'] === origin;
+    expect(await allowed('http://localhost:5173')).toBe(true);
+    expect(await allowed('https://localhost')).toBe(true);
+    expect(await allowed('capacitor://localhost')).toBe(true);
+    expect(await allowed('https://evil.example.com')).toBe(false);
+  });
+
   it('answers unknown API routes with a JSON 404', async () => {
     const res = await api().get('/api/does-not-exist');
     expect(res.status).toBe(404);

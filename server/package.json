@@ -1,6 +1,6 @@
 {
   "name": "pulsefit-server",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Backend REST API for PulseFit Athletics Gurugram",
   "type": "module",
   "main": "src/index.ts",

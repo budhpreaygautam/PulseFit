@@ -1,7 +1,8 @@
 import React from 'react';
 import { CalendarDays, Clock, Users } from 'lucide-react';
 import { ClassOccurrence } from '../../types/index.js';
-import { EmptyState, ErrorState, LoadingState } from '../common/States.js';
+import { EmptyState, ErrorState } from '../common/States.js';
+import { CardSkeletons } from './CardSkeletons.js';
 import { DAY_NAMES, formatClock, formatDate } from '../../lib/format.js';
 import { mondayOf } from './gymInfo.js';
 
@@ -16,7 +17,7 @@ interface WeeklyClassesProps {
 
 /** A category's weekly classes from the API, each with its next session's real occupancy. */
 export const WeeklyClasses: React.FC<WeeklyClassesProps> = ({ classes, isLoading, error, onRetry, onOpen, emptyTitle }) => {
-  if (isLoading) return <LoadingState label="Loading this week's classes…" />;
+  if (isLoading) return <CardSkeletons label="Loading this week's classes…" count={3} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" cardClassName="h-48 rounded-2xl" />;
   if (error) return <ErrorState message={error} onRetry={onRetry} />;
   if (!classes || classes.length === 0) return <EmptyState title={emptyTitle} body="Check the full timetable for other classes." />;
 
@@ -36,7 +37,7 @@ export const WeeklyClasses: React.FC<WeeklyClassesProps> = ({ classes, isLoading
                 <Clock className="w-3.5 h-3.5" aria-hidden="true" /> {c.duration_minutes} min
               </span>
             </div>
-            <h3 className="text-base font-black text-slate-100 font-['Outfit']">{c.title}</h3>
+            <h3 className="text-base font-black text-slate-100 font-heading">{c.title}</h3>
             <p className="text-xs text-slate-400">
               {c.trainer_name ?? 'Coach to be confirmed'} · {c.intensity} intensity · {c.room}
             </p>

@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, Edit2, Eye, KeyRound, Plus, Search, Trash2 } from 'lucide-react';
+import { Download, Edit2, Eye, KeyRound, Plus, ShieldOff, Trash2 } from 'lucide-react';
 import { User, UserRole } from '../../types/index.js';
 import { ApiError, api, downloadFile, errorMessage } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
-import { AdminNav, Avatar, PageHeader, focusRing, inputClass, sideEffectTone } from '../../components/admin/ui.js';
+import { AdminNav, Avatar, PageHeader, SearchForm, focusRing, sideEffectTone } from '../../components/admin/ui.js';
 import { CreateMemberModal, EditMemberModal } from '../../components/admin/MemberForms.js';
 import { MemberDetailModal } from '../../components/admin/MemberDetailModal.js';
 import { TempPasswordModal } from '../../components/admin/TempPasswordModal.js';
@@ -52,7 +52,6 @@ export const MemberManagement: React.FC = () => {
     tier: 'all',
     role: 'member' as RoleFilter
   });
-  const [searchInput, setSearchInput] = useState('');
   const [members, setMembers] = useState<User[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,6 +62,7 @@ export const MemberManagement: React.FC = () => {
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<User | null>(null);
   const [resetting, setResetting] = useState<User | null>(null);
+  const [mfaResetting, setMfaResetting] = useState<User | null>(null);
   const [credentials, setCredentials] = useState<Credentials>(null);
   // Opened only once the confirm dialog has closed: two modals swapping across renders would
   // restore each other's scroll lock and focus in the wrong order.
@@ -117,6 +117,17 @@ export const MemberManagement: React.FC = () => {
     }
   };
 
+  const confirmMfaReset = async () => {
+    if (!mfaResetting) return;
+    try {
+      const { message } = await api.adminResetMfa(mfaResetting.id);
+      showToast(message || `Two-step sign-in is off for ${mfaResetting.name}.`, 'success');
+    } catch (err) {
+      showToast(errorMessage(err), 'error', 'Could not turn off two-step sign-in');
+    }
+    load();
+  };
+
   const filterLabel = ROLE_FILTERS.find(r => r.value === filters.role)!.label.toLowerCase();
 
   const rowActions = (m: User) => (
@@ -130,6 +141,11 @@ export const MemberManagement: React.FC = () => {
       <button type="button" onClick={() => setResetting(m)} className={`p-2 neu-btn rounded-lg ${focusRing}`} aria-label={`Reset password for ${m.name}`} title="Reset password">
         <KeyRound className="w-3.5 h-3.5" aria-hidden="true" />
       </button>
+      {m.mfa_enabled && (
+        <button type="button" onClick={() => setMfaResetting(m)} className={`p-2 neu-btn rounded-lg ${focusRing}`} aria-label={`Turn off two-step sign-in for ${m.name}`} title="Turn off two-step sign-in">
+          <ShieldOff className="w-3.5 h-3.5" aria-hidden="true" />
+        </button>
+      )}
       <button
         type="button"
         onClick={() => setDeleting(m)}
@@ -147,7 +163,7 @@ export const MemberManagement: React.FC = () => {
     <div className="flex items-center gap-3 min-w-0">
       <Avatar src={m.avatar_url} name={m.name} />
       <div className="min-w-0">
-        <div className="font-extrabold text-sm text-slate-100 flex flex-wrap items-center gap-1.5 font-['Outfit']">
+        <div className="font-extrabold text-sm text-slate-100 flex flex-wrap items-center gap-1.5 font-heading">
           <span className="truncate">{m.name}</span>
           {m.role !== 'member' && (
             <Badge size="sm" variant={m.role === 'admin' ? 'purple' : 'cyan'}>
@@ -195,23 +211,13 @@ export const MemberManagement: React.FC = () => {
           ))}
         </div>
         <div className="flex flex-col md:flex-row md:items-end gap-3">
-          <form
-            role="search"
-            onSubmit={e => {
-              e.preventDefault();
-              setFilters(f => ({ ...f, search: searchInput.trim() }));
-            }}
+          <SearchForm
+            id="member-search"
+            label="Search by name, email, phone or pass code"
+            placeholder="Name, email, phone or pass code"
+            onSearch={search => setFilters(f => ({ ...f, search }))}
             className="flex-1 flex gap-2"
-          >
-            <label htmlFor="member-search" className="sr-only">Search by name, email, phone or pass code</label>
-            <div className="relative flex-1 min-w-0">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" aria-hidden="true" />
-              <input id="member-search" type="search" value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="Name, email, phone or pass code" className={`${inputClass} pl-10`} />
-            </div>
-            <button type="submit" className={`px-4 neu-btn rounded-xl text-xs font-bold shrink-0 ${focusRing}`}>
-              Search
-            </button>
-          </form>
+          />
           <div className="flex gap-3">
             <div>
               <label htmlFor="tier-filter" className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Plan</label>
@@ -355,6 +361,22 @@ export const MemberManagement: React.FC = () => {
           if (pendingCredentials.current) setCredentials(pendingCredentials.current);
           pendingCredentials.current = null;
         }}
+      />
+      <ConfirmDialog
+        isOpen={mfaResetting !== null}
+        title="Turn off two-step sign-in?"
+        message={
+          mfaResetting && (
+            <p>
+              Only do this after checking it is really <strong>{mfaResetting.name}</strong> asking (they lost their phone and backup codes). They are signed out
+              everywhere and can sign in with just their password.
+            </p>
+          )
+        }
+        confirmLabel="Turn off"
+        tone="danger"
+        onConfirm={confirmMfaReset}
+        onClose={() => setMfaResetting(null)}
       />
     </div>
   );

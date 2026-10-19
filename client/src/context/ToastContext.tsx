@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { CheckCircle2, AlertCircle, Info, X, AlertTriangle } from 'lucide-react';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
@@ -192,8 +192,12 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const paused = isPointerOver || isFocusWithin || isPageHidden;
 
+  // Stable between toasts: hovering or focusing a toast re-renders only this provider, not every
+  // component that shows toasts (AuthProvider among them, and so the whole app).
+  const value = useMemo(() => ({ toasts, showToast, removeToast }), [toasts, showToast, removeToast]);
+
   return (
-    <ToastContext.Provider value={{ toasts, showToast, removeToast }}>
+    <ToastContext.Provider value={value}>
       {children}
       {/* Phones: full width along the top, below the status bar, in the strip a bottom-sheet dialog
           always leaves free. From 640px: bottom-right corner. Above dialogs (z-50). Toasts never block
