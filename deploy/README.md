@@ -1,4 +1,24 @@
-# Putting PulseFit live (free)
+# Deploying PulseFit
+
+## Railway (the live site)
+
+PulseFit runs on Railway at <https://pulsefit.up.railway.app> (project `pulsefit`, service `pulsefit`).
+
+- **Updates deploy themselves.** The service is connected to `main` on GitHub with *Wait for CI* on: each push
+  runs the GitHub Actions checks, and Railway builds the `Dockerfile` and deploys once they pass. A failed
+  check or build leaves the current version running.
+- **Data** lives on the volume `pulsefit-volume` at `/data` (`/data/gym-db.json`, and the app at
+  `/data/downloads/pulsefit.apk`). Settings are Railway variables (`railway variable list --service pulsefit`).
+- **First admin:**
+  `railway ssh --service pulsefit "cd /app/server && node dist/db/create-admin.js --email you@example.com --name 'Your Name'"`,
+  then `railway restart --service pulsefit --yes`.
+- **Free plan:** the app sleeps after ~10 minutes without visitors and wakes on the next visit in a few seconds.
+- **`railway.json`** is Railway's older settings format and keeps working until 2026-12-01; move it to their
+  new format (`railway config migrate`) before then.
+
+## Your own server (free alternative)
+
+The rest of this guide puts PulseFit on a free Oracle Cloud server behind Cloudflare Tunnel instead.
 
 | Part | Service | Why |
 |---|---|---|
