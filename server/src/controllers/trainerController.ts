@@ -4,6 +4,7 @@ import db from '../db/database.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler, badRequest, conflict, notFound, ok, parse } from '../lib/http.js';
 import { newId, defaultAvatar } from '../lib/users.js';
+import { isAllowedRemoteImageUrl } from '../lib/imageValidation.js';
 import { byStart, nextOccurrenceOf, publicTrainer, toOccurrence } from '../lib/occurrences.js';
 import { Trainer } from '../types/index.js';
 
@@ -16,7 +17,7 @@ const trainerFields = {
   experience_years: z.number().int().min(0).max(60),
   rating: z.number().min(0).max(5),
   reviews_count: z.number().int().min(0),
-  avatar_url: z.url({ protocol: /^https?$/ }),
+  avatar_url: z.string().trim().refine(isAllowedRemoteImageUrl, 'Use an https:// image address on a public website.'),
   instagram: z.string().trim().max(60),
   // Links the trainer record to a user account with role 'trainer' (the trainer portal login).
   user_id: z.string().min(1).nullable()

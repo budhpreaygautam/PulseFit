@@ -39,7 +39,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ booking, onCancel, com
 
     <div className="flex-1 min-w-0 space-y-1">
       <div className="flex items-center gap-2 flex-wrap">
-        <h3 className="font-extrabold text-sm text-slate-100 font-['Outfit'] break-words">{booking.class_title || 'Class'}</h3>
+        <h3 className="font-extrabold text-sm text-slate-100 font-heading break-words">{booking.class_title || 'Class'}</h3>
         <BookingStatusChip status={booking.status} startsAt={booking.starts_at} />
       </div>
       <p className="text-xs text-slate-400 flex flex-wrap gap-x-3 gap-y-0.5">

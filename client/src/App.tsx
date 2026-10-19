@@ -1,36 +1,55 @@
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Lock, RefreshCw, ShieldAlert, WifiOff } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
-import { ToastProvider } from './context/ToastContext.js';
+import { ToastProvider, useToast } from './context/ToastContext.js';
 import { ThemeProvider } from './context/ThemeContext.js';
 import { ConfigProvider } from './context/ConfigContext.js';
 import { NavigationProvider, useNavigation } from './context/NavigationContext.js';
 import { canAccess, homeTabFor, routeForTab } from './routes.js';
 import { Navbar } from './components/layout/Navbar.js';
 import { Footer } from './components/layout/Footer.js';
+import { AndroidAppBanner } from './components/layout/AndroidAppBanner.js';
 import { ErrorBoundary } from './components/common/ErrorBoundary.js';
+import { clearPendingPlan } from './components/public/pendingPlan.js';
 
-// Public pages ship in the main bundle; signed-in areas load on demand.
+// Only the home page ships in the main bundle, so the first visit to / downloads and runs as little
+// as possible. Every other page loads on demand; the public ones are also fetched in the background
+// once the first page has loaded (see MainAppContent), so moving around the site stays instant.
 import { LandingPage } from './pages/public/LandingPage.js';
-import { WorkoutPage } from './pages/public/WorkoutPage.js';
-import { ZumbaPage } from './pages/public/ZumbaPage.js';
-import { FitnessGuidePage } from './pages/public/FitnessGuidePage.js';
-import { SchedulePage } from './pages/public/SchedulePage.js';
-import { PricingPage } from './pages/public/PricingPage.js';
-import { TrainersPage } from './pages/public/TrainersPage.js';
-import { AuthModal } from './pages/public/AuthModal.js';
-import { FreeTrialModal } from './pages/public/FreeTrialModal.js';
-import { ResetPasswordPage } from './pages/public/ResetPasswordPage.js';
-import { LegalPage } from './pages/public/LegalPage.js';
 import { NotFoundPage } from './pages/NotFoundPage.js';
 
 const named = <T extends Record<string, unknown>>(loader: () => Promise<T>, name: keyof T) =>
   lazy(() => loader().then(m => ({ default: m[name] as React.ComponentType<any> })));
 
+/** Loaders of the public pages and dialogs, fetched in the background after the first page. */
+const warmUpLoaders: Array<() => Promise<unknown>> = [];
+const publicPage = <T extends Record<string, unknown>>(loader: () => Promise<T>, name: keyof T) => {
+  warmUpLoaders.push(loader);
+  return named(loader, name);
+};
+
+const WorkoutPage = publicPage(() => import('./pages/public/WorkoutPage.js'), 'WorkoutPage');
+const ZumbaPage = publicPage(() => import('./pages/public/ZumbaPage.js'), 'ZumbaPage');
+const FitnessGuidePage = publicPage(() => import('./pages/public/FitnessGuidePage.js'), 'FitnessGuidePage');
+const SchedulePage = publicPage(() => import('./pages/public/SchedulePage.js'), 'SchedulePage');
+const PricingPage = publicPage(() => import('./pages/public/PricingPage.js'), 'PricingPage');
+const TrainersPage = publicPage(() => import('./pages/public/TrainersPage.js'), 'TrainersPage');
+const ResetPasswordPage = publicPage(() => import('./pages/public/ResetPasswordPage.js'), 'ResetPasswordPage');
+const PaymentStatusPage = publicPage(() => import('./pages/public/PaymentStatusPage.js'), 'PaymentStatusPage');
+const LegalPage = publicPage(() => import('./pages/public/LegalPage.js'), 'LegalPage');
+
+// The sign-in and free-trial dialogs load the first time they are opened. As with the QR pass in the
+// navbar, React remembers a load that failed, so a failure gets a fresh loader for the next try.
+const loadAuthModal = () => import('./pages/public/AuthModal.js');
+const loadFreeTrialModal = () => import('./pages/public/FreeTrialModal.js');
+const lazyAuthModal = () => lazy(() => loadAuthModal().then(m => ({ default: m.AuthModal })));
+const lazyFreeTrialModal = () => lazy(() => loadFreeTrialModal().then(m => ({ default: m.FreeTrialModal })));
+warmUpLoaders.push(loadAuthModal, loadFreeTrialModal);
+
 const MemberDashboard = named(() => import('./pages/member/MemberDashboard.js'), 'MemberDashboard');
 const MyBookingsPage = named(() => import('./pages/member/MyBookingsPage.js'), 'MyBookingsPage');
 const WorkoutLogger = named(() => import('./pages/member/WorkoutLogger.js'), 'WorkoutLogger');
-const ExerciseLibraryView = named(() => import('./pages/member/ExerciseLibraryView.js'), 'ExerciseLibraryView');
+const ExerciseLibraryView = publicPage(() => import('./pages/member/ExerciseLibraryView.js'), 'ExerciseLibraryView');
 const MemberProfilePage = named(() => import('./pages/member/MemberProfilePage.js'), 'MemberProfilePage');
 const TrainerDashboard = named(() => import('./pages/trainer/TrainerDashboard.js'), 'TrainerDashboard');
 const AdminDashboard = named(() => import('./pages/admin/AdminDashboard.js'), 'AdminDashboard');
@@ -41,8 +60,10 @@ const ClassManagement = named(() => import('./pages/admin/ClassManagement.js'), 
 const PlanManagement = named(() => import('./pages/admin/PlanManagement.js'), 'PlanManagement');
 const TrialLeads = named(() => import('./pages/admin/TrialLeads.js'), 'TrialLeads');
 
+// At least a screen tall, so the footer stays below the fold while a page loads instead of showing
+// and then jumping down when the page arrives (a layout shift).
 const PageLoader: React.FC = () => (
-  <div className="flex items-center justify-center py-32" role="status" aria-live="polite">
+  <div className="flex items-start justify-center pt-32 min-h-screen" role="status" aria-live="polite">
     <div className="w-10 h-10 rounded-full border-4 border-lime-500/30 border-t-lime-400 animate-spin" aria-hidden="true" />
     <span className="sr-only">Loading…</span>
   </div>
@@ -58,7 +79,7 @@ const AccessPanel: React.FC<{ icon: React.ReactNode; title: string; body: string
   <section className="max-w-lg mx-auto my-24 px-6 text-center">
     <div className="neu-flat-lg rounded-3xl p-10 border border-slate-800/80">
       <div className="mx-auto mb-5 w-14 h-14 rounded-2xl neu-pressed-sm flex items-center justify-center text-lime-400">{icon}</div>
-      <h1 className="text-2xl font-black text-slate-100 font-['Outfit']">{title}</h1>
+      <h1 className="text-2xl font-black text-slate-100 font-heading">{title}</h1>
       <p className="mt-3 text-sm text-slate-400">{body}</p>
       <button type="button" onClick={onAction} className="mt-6 neu-btn-lime px-6 py-3 rounded-xl font-bold text-sm">
         {action}
@@ -70,17 +91,53 @@ const AccessPanel: React.FC<{ icon: React.ReactNode; title: string; body: string
 function MainAppContent() {
   const { tab, navigate } = useNavigation();
   const { user, isInitializing, isServerUnreachable, retrySessionRestore } = useAuth();
+  const { showToast } = useToast();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [isFreeTrialOpen, setIsFreeTrialOpen] = useState(false);
+  // Each dialog stays mounted once it has been opened (AuthModal tidies up when it closes), and is
+  // unmounted again only when it could not be loaded.
+  const [AuthModal, setAuthModal] = useState(lazyAuthModal);
+  const [FreeTrialModal, setFreeTrialModal] = useState(lazyFreeTrialModal);
+  const [isAuthModalMounted, setIsAuthModalMounted] = useState(false);
+  const [isFreeTrialMounted, setIsFreeTrialMounted] = useState(false);
 
   const setCurrentTab = useCallback((next: string) => navigate(next), [navigate]);
 
   const openAuthModal = useCallback((mode: 'login' | 'register' = 'login') => {
     setAuthMode(mode);
+    setIsAuthModalMounted(true);
     setIsAuthModalOpen(true);
   }, []);
-  const openFreeTrialModal = useCallback(() => setIsFreeTrialOpen(true), []);
+  const openFreeTrialModal = useCallback(() => {
+    setIsFreeTrialMounted(true);
+    setIsFreeTrialOpen(true);
+  }, []);
+
+  // A plan picked as a guest belongs to the sign-in dialog opened for it, so one left over from before
+  // a refresh is dropped (AuthModal used to do this when it mounted closed, on page load).
+  useEffect(() => clearPendingPlan(), []);
+
+  // Once the first page has loaded, fetch the other public pages and the dialogs while the browser is
+  // idle, so opening them later does not wait on the network. Skipped offline and on data saver.
+  useEffect(() => {
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+    if (connection?.saveData || !navigator.onLine) return;
+    let idle: number | undefined;
+    const warmUp = () => {
+      const run = () => warmUpLoaders.forEach(load => void load().catch(() => undefined));
+      // Safari (and the iOS app's WebView) has no requestIdleCallback.
+      idle = typeof window.requestIdleCallback === 'function' ? window.requestIdleCallback(run, { timeout: 5_000 }) : window.setTimeout(run, 1_500);
+    };
+    if (document.readyState === 'complete') warmUp();
+    else window.addEventListener('load', warmUp, { once: true });
+    return () => {
+      window.removeEventListener('load', warmUp);
+      if (idle === undefined) return;
+      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idle);
+      else window.clearTimeout(idle);
+    };
+  }, []);
 
   // After signing in from the home page, take people to their own area. Signing in while on
   // a specific page (a class, the pricing page, a protected page) keeps them there. Restoring the
@@ -220,6 +277,8 @@ function MainAppContent() {
         return <ExerciseLibraryView setCurrentTab={setCurrentTab} />;
       case 'reset-password':
         return <ResetPasswordPage />;
+      case 'payment-status':
+        return <PaymentStatusPage onOpenAuthModal={openAuthModal} />;
       case 'privacy':
       case 'terms':
       case 'refunds':
@@ -254,7 +313,7 @@ function MainAppContent() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col overflow-x-clip bg-gym-950 text-slate-100">
+    <div className="min-h-screen flex flex-col overflow-x-clip pt-[env(safe-area-inset-top)] bg-gym-950 text-slate-100">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] neu-btn-lime px-4 py-2 rounded-lg text-sm font-bold">
         Skip to content
       </a>
@@ -299,16 +358,46 @@ function MainAppContent() {
         {announcement}
       </div>
 
-      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} initialMode={authMode} />
+      {/* A dialog that cannot be fetched says so in a toast and leaves the page as it was, rather
+          than reaching the app-wide error screen. */}
+      {isAuthModalMounted && (
+        <ErrorBoundary
+          fallback={null}
+          onError={() => {
+            setIsAuthModalOpen(false);
+            setIsAuthModalMounted(false);
+            setAuthModal(() => lazyAuthModal());
+            showToast("Couldn't open sign-in. Check your connection, then reload the page and try again.", 'error');
+          }}
+        >
+          <Suspense fallback={null}>
+            <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} initialMode={authMode} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
 
-      <FreeTrialModal
-        isOpen={isFreeTrialOpen}
-        onClose={() => setIsFreeTrialOpen(false)}
-        onRegisterInstead={() => {
-          setIsFreeTrialOpen(false);
-          openAuthModal('register');
-        }}
-      />
+      {isFreeTrialMounted && (
+        <ErrorBoundary
+          fallback={null}
+          onError={() => {
+            setIsFreeTrialOpen(false);
+            setIsFreeTrialMounted(false);
+            setFreeTrialModal(() => lazyFreeTrialModal());
+            showToast("Couldn't open the free-trial form. Check your connection, then reload the page and try again.", 'error');
+          }}
+        >
+          <Suspense fallback={null}>
+            <FreeTrialModal
+              isOpen={isFreeTrialOpen}
+              onClose={() => setIsFreeTrialOpen(false)}
+              onRegisterInstead={() => {
+                setIsFreeTrialOpen(false);
+                openAuthModal('register');
+              }}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      )}
 
       <Footer setCurrentTab={setCurrentTab} />
     </div>
@@ -323,6 +412,8 @@ export default function App() {
           <ThemeProvider>
             <NavigationProvider>
               <MainAppContent />
+              {/* After the app root: its spacer then adds to the end of the page and moves nothing. */}
+              <AndroidAppBanner />
             </NavigationProvider>
           </ThemeProvider>
         </AuthProvider>

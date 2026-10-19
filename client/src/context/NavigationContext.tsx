@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { NOT_FOUND_TAB, routeForTab, tabForPath } from '../routes.js';
+import { applyPageHead } from '../lib/seo.js';
 
 interface Location {
   tab: string;
@@ -42,9 +43,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     window.scrollTo({ top: 0 });
   }, []);
 
+  // Title, description, canonical address and robots/Open Graph tags follow the page.
   useEffect(() => {
-    const title = routeForTab(location.tab)?.title ?? 'Page not found';
-    document.title = `${title} · PulseFit Athletics`;
+    applyPageHead(routeForTab(location.tab));
   }, [location.tab]);
 
   const value = useMemo(() => ({ tab: location.tab, params: location.params, navigate }), [location, navigate]);

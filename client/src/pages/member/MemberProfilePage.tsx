@@ -12,8 +12,9 @@ import { IdCardModal } from '../../components/qr/IdCardModal.js';
 import { MembershipStatusBadge } from '../../components/member/MembershipStatusBadge.js';
 import { InvoiceModal } from '../../components/member/InvoiceModal.js';
 import { useApiResource } from '../../components/member/useApiResource.js';
-import { resizeAvatar } from '../../components/member/avatarImage.js';
+import { fallbackAvatar, resizeAvatar } from '../../components/member/avatarImage.js';
 import { copyText } from '../../components/member/clipboard.js';
+import { TwoStepPanel } from '../../components/member/TwoStepPanel.js';
 import { formatDate, formatDateTime, formatINR, TIER_LABELS, tierLabel } from '../../lib/format.js';
 
 interface MemberProfilePageProps {
@@ -26,7 +27,7 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'details', label: 'Profile', icon: <UserIcon className="w-4 h-4" aria-hidden="true" /> },
   { id: 'membership', label: 'Membership', icon: <Award className="w-4 h-4" aria-hidden="true" /> },
   { id: 'billing', label: 'Invoices & billing', icon: <CreditCard className="w-4 h-4" aria-hidden="true" /> },
-  { id: 'security', label: 'Password', icon: <KeyRound className="w-4 h-4" aria-hidden="true" /> }
+  { id: 'security', label: 'Sign-in & security', icon: <KeyRound className="w-4 h-4" aria-hidden="true" /> }
 ];
 
 const CYCLE_LABELS: Record<string, string> = { monthly: 'Monthly', annual: 'Annual' };
@@ -121,7 +122,7 @@ const ProfileDetails: React.FC<{ user: User; onOpenPass: () => void; onOpenIdCar
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <form onSubmit={save} noValidate className="lg:col-span-8 neu-flat p-5 sm:p-8 rounded-3xl space-y-5">
-        <h2 className="text-lg font-black text-slate-100 font-['Outfit']">Personal details</h2>
+        <h2 className="text-lg font-black text-slate-100 font-heading">Personal details</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label htmlFor="profile-name" className="block text-xs font-bold text-slate-300 mb-1.5">Full name</label>
@@ -171,7 +172,7 @@ const ProfileDetails: React.FC<{ user: User; onOpenPass: () => void; onOpenIdCar
       </form>
 
       <section aria-labelledby="pass-heading" className="lg:col-span-4 neu-flat p-5 sm:p-6 rounded-3xl space-y-4">
-        <h2 id="pass-heading" className="text-sm font-extrabold text-slate-100 font-['Outfit'] flex items-center gap-2">
+        <h2 id="pass-heading" className="text-sm font-extrabold text-slate-100 font-heading flex items-center gap-2">
           <QrCode className="w-4 h-4 text-lime-700 dark:text-lime-400" aria-hidden="true" /> Check-in pass
         </h2>
         <p className="text-xs text-slate-400">The front desk scans this code (or types it in) to check you in.</p>
@@ -265,7 +266,7 @@ const MembershipPanel: React.FC<{ user: User; onOpenPricing: () => void }> = ({ 
     <section aria-labelledby="membership-heading" className="neu-flat p-5 sm:p-8 rounded-3xl space-y-6 max-w-3xl">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h2 id="membership-heading" className="text-lg font-black text-slate-100 font-['Outfit']">
+          <h2 id="membership-heading" className="text-lg font-black text-slate-100 font-heading">
             {plan?.name ?? TIER_LABELS[user.membership_tier] ?? user.membership_tier}
           </h2>
           {plan?.description && <p className="text-xs text-slate-400 mt-1">{plan.description}</p>}
@@ -411,7 +412,7 @@ const BillingPanel: React.FC<{ onOpenPricing: () => void }> = ({ onOpenPricing }
   return (
     <section aria-labelledby="billing-heading" className="neu-flat p-5 sm:p-8 rounded-3xl space-y-5">
       <div>
-        <h2 id="billing-heading" className="text-lg font-black text-slate-100 font-['Outfit']">Invoices & billing</h2>
+        <h2 id="billing-heading" className="text-lg font-black text-slate-100 font-heading">Invoices & billing</h2>
         <p className="text-xs text-slate-400 mt-1">Every membership payment, newest first. Open one to print it or save it as a PDF.</p>
       </div>
       {body}
@@ -469,7 +470,7 @@ const PasswordPanel: React.FC = () => {
   return (
     <form onSubmit={submit} noValidate aria-labelledby="password-heading" className="max-w-2xl neu-flat p-5 sm:p-8 rounded-3xl space-y-5">
       <div>
-        <h2 id="password-heading" className="text-lg font-black text-slate-100 font-['Outfit']">Change password</h2>
+        <h2 id="password-heading" className="text-lg font-black text-slate-100 font-heading">Change password</h2>
         <p className="text-xs text-slate-400 mt-1">Changing your password signs you out on every other device.</p>
       </div>
       <div>
@@ -600,12 +601,15 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
       <section className="neu-flat rounded-3xl p-5 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-5">
         <div className="flex items-center gap-4 min-w-0">
           <img
-            src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`}
+            src={user.avatar_url || fallbackAvatar(user.name)}
             alt="Your profile photo"
+            width={96}
+            height={96}
+            decoding="async"
             className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover bg-slate-800 border-2 border-lime-500/50 shrink-0"
           />
           <div className="min-w-0 space-y-1">
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit'] break-words">{user.name}</h1>
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-100 font-heading break-words">{user.name}</h1>
             <p className="text-xs text-slate-400 break-all">{user.email}</p>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-slate-300">{TIER_LABELS[user.membership_tier] ?? user.membership_tier}</span>
@@ -667,7 +671,12 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
         {activeTab === 'details' && <ProfileDetails user={user} onOpenPass={() => setIsQrModalOpen(true)} onOpenIdCard={() => setIsIdCardOpen(true)} />}
         {activeTab === 'membership' && <MembershipPanel user={user} onOpenPricing={openPricing} />}
         {activeTab === 'billing' && <BillingPanel onOpenPricing={openPricing} />}
-        {activeTab === 'security' && <PasswordPanel />}
+        {activeTab === 'security' && (
+          <div className="space-y-6">
+            <PasswordPanel />
+            <TwoStepPanel />
+          </div>
+        )}
       </div>
 
       <DigitalQrPassModal isOpen={isQrModalOpen} onClose={() => setIsQrModalOpen(false)} user={user} />

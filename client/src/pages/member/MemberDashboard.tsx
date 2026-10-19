@@ -14,6 +14,7 @@ import { FloorClockCard } from '../../components/member/FloorClockCard.js';
 import { ProgressSection } from '../../components/member/ProgressSection.js';
 import { useApiResource } from '../../components/member/useApiResource.js';
 import { formatDate, formatDateTime, gymToday, tierLabel } from '../../lib/format.js';
+import { fallbackAvatar } from '../../components/member/avatarImage.js';
 
 interface MemberDashboardProps {
   setCurrentTab: (tab: string) => void;
@@ -97,12 +98,15 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
       <section className="neu-flat rounded-3xl p-5 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-5">
         <div className="flex items-center gap-4 min-w-0">
           <img
-            src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`}
+            src={user.avatar_url || fallbackAvatar(user.name)}
             alt=""
+            width={80}
+            height={80}
+            decoding="async"
             className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover bg-slate-800 border-2 border-lime-500/50 shrink-0"
           />
           <div className="min-w-0 space-y-1">
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit'] break-words">Hi, {user.name.split(' ')[0]}</h1>
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-100 font-heading break-words">Hi, {user.name.split(' ')[0]}</h1>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-slate-300">{tierLabel(user.membership_tier, plans.data)}</span>
               <MembershipStatusBadge status={user.membership_status} />
@@ -193,7 +197,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <section aria-labelledby="upcoming-heading" className="lg:col-span-7 neu-flat rounded-3xl p-5 sm:p-6 space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <h2 id="upcoming-heading" className="text-lg font-black text-slate-100 font-['Outfit'] flex items-center gap-2">
+            <h2 id="upcoming-heading" className="text-lg font-black text-slate-100 font-heading flex items-center gap-2">
               <Calendar className="w-5 h-5 text-lime-700 dark:text-lime-400" aria-hidden="true" /> Upcoming classes
             </h2>
             <button type="button" onClick={() => setCurrentTab('my-bookings')} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1 shrink-0">
@@ -231,7 +235,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
         </section>
 
         <section aria-labelledby="notes-heading" className="lg:col-span-5 neu-flat rounded-3xl p-5 sm:p-6 space-y-4">
-          <h2 id="notes-heading" className="text-lg font-black text-slate-100 font-['Outfit'] flex items-center gap-2">
+          <h2 id="notes-heading" className="text-lg font-black text-slate-100 font-heading flex items-center gap-2">
             <MessageSquareText className="w-5 h-5 text-lime-700 dark:text-lime-400" aria-hidden="true" /> Notes from your coaches
           </h2>
           {!notes.data && notes.error ? (
@@ -274,7 +278,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
       <ProgressSection analytics={analytics} onLogWorkout={() => setCurrentTab('workout-logger')} />
 
       <section aria-labelledby="checkins-heading" className="neu-flat rounded-3xl p-5 sm:p-6 space-y-4">
-        <h2 id="checkins-heading" className="text-lg font-black text-slate-100 font-['Outfit'] flex items-center gap-2">
+        <h2 id="checkins-heading" className="text-lg font-black text-slate-100 font-heading flex items-center gap-2">
           <CalendarCheck className="w-5 h-5 text-lime-700 dark:text-lime-400" aria-hidden="true" /> My recent check-ins
         </h2>
         {!attendance.data && attendance.error ? (

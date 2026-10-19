@@ -398,7 +398,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
       {/* 1. Page Header */}
       <div className="text-center max-w-3xl mx-auto space-y-4">
         <Badge variant="lime">SCIENCE-BACKED ATHLETIC GUIDES</Badge>
-        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-white tracking-tight font-['Outfit']">
+        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-white tracking-tight font-heading">
           TRAINING PLANS, DIETS & SUPPLEMENTS
         </h1>
         <p className="text-xs sm:text-sm md:text-base text-slate-400 leading-relaxed">
@@ -451,8 +451,9 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
                   </Badge>
                   <span className="text-[10px] text-slate-400 font-mono">{plan.frequency.split('•')[0]}</span>
                 </div>
-                <h3 className="font-black text-sm sm:text-base text-white">{plan.name}</h3>
-                <p className="text-xs text-slate-400 mt-1 line-clamp-2">{plan.goal}</p>
+                {/* A button may only hold phrasing content, so its title is a span, not a heading. */}
+                <span className="block font-black text-sm sm:text-base text-white">{plan.name}</span>
+                <span className="block text-xs text-slate-400 mt-1 line-clamp-2">{plan.goal}</span>
               </button>
             ))}
           </div>
@@ -466,7 +467,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
                     <Badge variant="lime">{workoutPlans[selectedPlanIdx].level}</Badge>
                     <span className="text-xs font-mono text-slate-400 font-bold">{workoutPlans[selectedPlanIdx].frequency}</span>
                   </div>
-                  <h2 className="text-2xl sm:text-3xl font-black text-white mt-1 font-['Outfit']">
+                  <h2 className="text-2xl sm:text-3xl font-black text-white mt-1 font-heading">
                     {workoutPlans[selectedPlanIdx].name}
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
@@ -551,8 +552,8 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
                   </Badge>
                   <span className="text-[10px] text-lime-400 font-mono font-bold">≈ {dayTotalKcal(diet.meals).toLocaleString('en-IN')} kcal/day</span>
                 </div>
-                <h3 className="font-black text-sm sm:text-base text-white">{diet.title}</h3>
-                <p className="text-xs text-slate-400 mt-1 line-clamp-2">{diet.desc}</p>
+                <span className="block font-black text-sm sm:text-base text-white">{diet.title}</span>
+                <span className="block text-xs text-slate-400 mt-1 line-clamp-2">{diet.desc}</span>
               </button>
             ))}
           </div>
@@ -566,7 +567,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
                     <Badge variant="lime">{dietCharts[selectedDietIdx].type}</Badge>
                     <span className="text-xs font-mono text-slate-400 font-bold">≈ {dayTotalKcal(dietCharts[selectedDietIdx].meals).toLocaleString('en-IN')} kcal a day</span>
                   </div>
-                  <h2 className="text-2xl sm:text-3xl font-black text-white mt-1 font-['Outfit']">
+                  <h2 className="text-2xl sm:text-3xl font-black text-white mt-1 font-heading">
                     {dietCharts[selectedDietIdx].title}
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
@@ -623,9 +624,9 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
 
               {/* Quick Nutrition Rules */}
               <div className="p-5 rounded-2xl neu-pressed-sm border border-lime-500/30 space-y-2">
-                <h4 className="text-xs font-bold text-lime-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4" /> Golden Hydration & Nutrition Rules:
-                </h4>
+                <h3 className="text-xs font-bold text-lime-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4" aria-hidden="true" /> Golden Hydration & Nutrition Rules:
+                </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-slate-300 pt-1">
                   <div>💧 <strong>Water Intake:</strong> Drink 3.5 to 4.5 Liters of water daily for optimal nutrient transport and digestion.</div>
                   <div>🧂 <strong>Electrolytes:</strong> Add pinch of pink Himalayan salt & lemon in morning water.</div>
@@ -642,7 +643,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
         <div className="space-y-8" role="tabpanel" id="guide-panel-supplements" aria-labelledby="guide-tab-supplements">
           <div className="neu-flat p-6 sm:p-8 rounded-3xl space-y-3 text-center max-w-3xl mx-auto">
             <Badge variant="cyan">EVIDENCE-BASED NUTRACEUTICALS</Badge>
-            <h2 className="text-2xl sm:text-3xl font-black text-white font-['Outfit']">
+            <h2 className="text-2xl sm:text-3xl font-black text-white font-heading">
               THE TRUTH ABOUT FITNESS SUPPLEMENTS
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
@@ -704,7 +705,7 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
       {/* 5. Call to Action */}
       <div className="p-8 sm:p-12 rounded-3xl neu-flat border-2 border-lime-500/50 shadow-glow-lime text-center space-y-6">
         <Badge variant="lime">START YOUR TRANSFORMATION</Badge>
-        <h2 className="text-3xl sm:text-5xl font-black text-white font-['Outfit']">
+        <h2 className="text-3xl sm:text-5xl font-black text-white font-heading">
           TRAIN SMARTER WITH A COACH
         </h2>
         <p className="text-xs sm:text-sm text-slate-300 max-w-xl mx-auto">

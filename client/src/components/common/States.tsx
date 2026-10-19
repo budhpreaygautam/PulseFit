@@ -11,6 +11,14 @@ export const LoadingState: React.FC<{ label?: string; className?: string }> = ({
   </div>
 );
 
+/**
+ * A placeholder block the size of content still on its way, so the page does not jump when it
+ * arrives. Decorative: pair it with a LoadingState or a status message for screen readers.
+ */
+export const Skeleton: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <div className={`neu-pressed-sm rounded-3xl animate-pulse motion-reduce:animate-none ${className}`} aria-hidden="true" />
+);
+
 export const ErrorState: React.FC<{ message: string; onRetry?: () => void; className?: string }> = ({ message, onRetry, className = '' }) => (
   <div className={`neu-pressed-sm rounded-2xl p-6 text-center ${className}`} role="alert">
     <AlertTriangle className="w-6 h-6 text-amber-400 mx-auto" aria-hidden="true" />

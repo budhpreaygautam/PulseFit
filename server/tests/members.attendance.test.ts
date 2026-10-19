@@ -54,11 +54,11 @@ describe('attendance API', () => {
       expect(res.body.data.member.streak_days).toBe(after.streak_days);
     });
 
-    it('matches by member id and by email (case-insensitive), and accepts tokenOrId', async () => {
+    it('matches by member id and by email (case-insensitive) when staff type it, and accepts tokenOrId', async () => {
       const vip = userByEmail(personas.vip);
-      expect((await checkIn({ code: vip.id })).body.data.member.id).toBe(vip.id);
+      expect((await checkIn({ code: vip.id, method: 'manual' })).body.data.member.id).toBe(vip.id);
       const rohan = userByEmail(personas.basic);
-      expect((await checkIn({ code: `  ${rohan.email.toUpperCase()} ` })).body.data.member.id).toBe(rohan.id);
+      expect((await checkIn({ code: `  ${rohan.email.toUpperCase()} `, method: 'manual' })).body.data.member.id).toBe(rohan.id);
       const maya = userByEmail('maya.patel@example.com');
       const legacy = await checkIn({ tokenOrId: maya.qr_code_token, method: 'manual' });
       expect(legacy.status).toBe(200);

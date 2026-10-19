@@ -28,6 +28,20 @@ jobs:
       - name: Build
         run: npm run build
 
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Audit runtime dependencies (root, server, client)
+        run: |
+          npm audit --omit=dev --audit-level=high
+          npm audit --omit=dev --audit-level=high --prefix server
+          npm audit --omit=dev --audit-level=high --prefix client
+
   e2e:
     name: End-to-end (Playwright)
     needs: test

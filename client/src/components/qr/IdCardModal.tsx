@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { AlertTriangle, Download, RotateCw } from 'lucide-react';
 import { Modal } from '../common/Modal.js';
@@ -7,6 +7,7 @@ import { api } from '../../api/client.js';
 import { useToast } from '../../context/ToastContext.js';
 import { useTheme } from '../../context/ThemeContext.js';
 import { STATUS_LABELS, formatDate, tierLabel } from '../../lib/format.js';
+import { saveFile } from '../../lib/native.js';
 import { CARD_HEIGHT, CARD_WIDTH, CardHolder, IdCardFaces, PhysicalCard, cardNumber, deactivatedWhen, renderIdCard, roleStyleOf, stackedPng } from './idCard.js';
 
 interface IdCardModalProps {
@@ -42,6 +43,9 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user,
   const [showBack, setShowBack] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0, gx: 50, gy: 50, active: false });
+  const pointer = useRef<{ x: number; y: number; target: HTMLElement } | null>(null);
+  const tiltFrame = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(tiltFrame.current), []);
   // The signed-in person's own issued card, looked up each time the dialog opens (undefined while
   // asking). If the answer does not come, the card shows the app pass, which always works.
   const [ownCard, setOwnCard] = useState<MyIdCard | null | undefined>(undefined);
@@ -135,12 +139,7 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user,
     if (!faces) return;
     setDownloading(true);
     try {
-      const blob = await stackedPng(faces);
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `${fileBase}.png`;
-      link.click();
-      URL.revokeObjectURL(link.href);
+      await saveFile(await stackedPng(faces), `${fileBase}.png`);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'The card could not be downloaded.', 'error');
     } finally {
@@ -148,15 +147,27 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user,
     }
   };
 
-  // Tilt towards the pointer, with a glare that follows it.
+  // Tilt towards the pointer, with a glare that follows it. Pointer moves come faster than the screen
+  // redraws and each tilt re-renders the dialog, so only the latest position is applied, once a frame.
   const onPointerMove = (e: React.PointerEvent<HTMLElement>) => {
     if (e.pointerType !== 'mouse' || prefersReducedMotion()) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width;
-    const py = (e.clientY - r.top) / r.height;
-    setTilt({ x: (0.5 - py) * 10, y: (px - 0.5) * 16, gx: px * 100, gy: py * 100, active: true });
+    pointer.current = { x: e.clientX, y: e.clientY, target: e.currentTarget };
+    if (tiltFrame.current) return;
+    tiltFrame.current = requestAnimationFrame(() => {
+      tiltFrame.current = 0;
+      const p = pointer.current;
+      if (!p) return;
+      const r = p.target.getBoundingClientRect();
+      const px = (p.x - r.left) / r.width;
+      const py = (p.y - r.top) / r.height;
+      setTilt({ x: (0.5 - py) * 10, y: (px - 0.5) * 16, gx: px * 100, gy: py * 100, active: true });
+    });
   };
-  const resetTilt = () => setTilt(t => ({ ...t, x: 0, y: 0, active: false }));
+  const resetTilt = () => {
+    cancelAnimationFrame(tiltFrame.current);
+    tiltFrame.current = 0;
+    setTilt(t => ({ ...t, x: 0, y: 0, active: false }));
+  };
 
   const corner = 'rounded-[5.3%/3.4%]';
   const [c0, c1, c2] = roleStyleOf(user.role).gradient;
@@ -236,8 +247,8 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user,
                   <span
                     className={`absolute inset-0 [transform-style:preserve-3d] transition-transform duration-700 motion-reduce:transition-none ${showBack ? '[transform:rotateY(180deg)]' : ''}`}
                   >
-                    <img src={faces.front} alt="" className={face} draggable={false} />
-                    <img src={faces.back} alt="" className={`${face} [transform:rotateY(180deg)]`} draggable={false} />
+                    <img src={faces.front} alt="" width={CARD_WIDTH} height={CARD_HEIGHT} className={face} draggable={false} />
+                    <img src={faces.back} alt="" width={CARD_WIDTH} height={CARD_HEIGHT} className={`${face} [transform:rotateY(180deg)]`} draggable={false} />
                   </span>
                 ) : (
                   <span className={`absolute inset-0 ${corner} neu-pressed-sm animate-pulse`} role="status" aria-label="Drawing the card" />

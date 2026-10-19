@@ -1,5 +1,5 @@
-import React from 'react';
-import { Activity, CalendarDays, Gauge, IdCard, QrCode, Tag, Users, UserPlus } from 'lucide-react';
+import React, { useState } from 'react';
+import { Activity, CalendarDays, Gauge, IdCard, QrCode, Search, Tag, Users, UserPlus } from 'lucide-react';
 import { ApiError, errorMessage } from '../../api/client.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 
@@ -79,7 +79,7 @@ export const PageHeader: React.FC<{ eyebrow: string; title: string; description?
   <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-800/80 pb-6">
     <div className="min-w-0">
       <p className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-400">{eyebrow}</p>
-      <h1 className="text-3xl sm:text-4xl font-black text-slate-100 tracking-tight mt-1 font-['Outfit']">{title}</h1>
+      <h1 className="text-3xl sm:text-4xl font-black text-slate-100 tracking-tight mt-1 font-heading">{title}</h1>
       {description && <p className="text-sm text-slate-400 mt-1 max-w-2xl">{description}</p>}
     </div>
     {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
@@ -128,6 +128,41 @@ export const AdminNav: React.FC = () => {
   );
 };
 
+/**
+ * A search box that searches on submit. It keeps what is typed to itself, so a keystroke re-renders
+ * this form only and not the page's member or card list (hundreds of rows) underneath it.
+ */
+export const SearchForm: React.FC<{ id: string; label: string; placeholder: string; onSearch: (query: string) => void; className?: string }> = ({
+  id,
+  label,
+  placeholder,
+  onSearch,
+  className = ''
+}) => {
+  const [value, setValue] = useState('');
+  return (
+    <form
+      role="search"
+      onSubmit={e => {
+        e.preventDefault();
+        onSearch(value.trim());
+      }}
+      className={className}
+    >
+      <label htmlFor={id} className="sr-only">
+        {label}
+      </label>
+      <div className="relative flex-1 min-w-0">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" aria-hidden="true" />
+        <input id={id} type="search" value={value} onChange={e => setValue(e.target.value)} placeholder={placeholder} className={`${inputClass} pl-10`} />
+      </div>
+      <button type="submit" className={`px-4 neu-btn rounded-xl text-xs font-bold shrink-0 ${focusRing}`}>
+        Search
+      </button>
+    </form>
+  );
+};
+
 /** Copies text and reports whether it worked (clipboard access can be refused). */
 export async function copyText(text: string): Promise<boolean> {
   try {
@@ -150,7 +185,7 @@ export const SectionCard: React.FC<{ title: string; icon?: React.ReactNode; desc
   <section className={`neu-flat p-5 sm:p-7 rounded-3xl border border-slate-800/80 space-y-4 min-w-0 ${className}`} aria-labelledby={id}>
     <div className="flex items-start justify-between gap-3">
       <div className="flex-1 min-w-0">
-        <h2 id={id} className="text-base font-extrabold text-slate-100 flex items-center gap-2 font-['Outfit']">
+        <h2 id={id} className="text-base font-extrabold text-slate-100 flex items-center gap-2 font-heading">
           {icon}
           {title}
         </h2>
@@ -162,9 +197,22 @@ export const SectionCard: React.FC<{ title: string; icon?: React.ReactNode; desc
   </section>
 );
 
+/** Tailwind's w-N is N × 4 px; the img gets that as its intrinsic size too, so the box is known before the photo loads. */
+const pixelsOf = (size: string) => Number(/\bw-(\d+)\b/.exec(size)?.[1] ?? 10) * 4;
+
+// Decorative (alt=""): the name is always written next to it. Avatars mostly sit in long lists, so
+// they load as they scroll into view and decode off the main thread.
 export const Avatar: React.FC<{ src?: string | null; name: string; size?: string }> = ({ src, name, size = 'w-10 h-10' }) =>
   src ? (
-    <img src={src} alt="" className={`${size} rounded-xl object-cover border border-slate-700 bg-slate-800 shrink-0`} />
+    <img
+      src={src}
+      alt=""
+      width={pixelsOf(size)}
+      height={pixelsOf(size)}
+      loading="lazy"
+      decoding="async"
+      className={`${size} rounded-xl object-cover border border-slate-700 bg-slate-800 shrink-0`}
+    />
   ) : (
     <span aria-hidden="true" className={`${size} rounded-xl neu-pressed-sm flex items-center justify-center text-xs font-black text-lime-400 shrink-0`}>
       {name

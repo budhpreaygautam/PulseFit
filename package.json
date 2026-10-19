@@ -1,6 +1,6 @@
 {
   "name": "pulsefit",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": true,
   "scripts": {
     "install:all": "npm install && npm run install:server && npm run install:client",
@@ -16,7 +16,11 @@
     "start": "npm --prefix server start",
     "test:e2e": "playwright test",
     "test:all": "npm test && npm run test:e2e",
-    "create-admin": "npm --prefix server run create-admin --"
+    "create-admin": "npm --prefix server run create-admin --",
+    "mobile:sync": "npm --prefix client run mobile:sync --",
+    "mobile:run": "npm --prefix client run mobile:run --",
+    "mobile:android": "npm --prefix client run mobile:android",
+    "mobile:ios": "npm --prefix client run mobile:ios"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -28,6 +32,6 @@
     "shell-quote": "^1.11.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }

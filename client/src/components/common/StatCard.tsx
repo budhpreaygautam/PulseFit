@@ -43,7 +43,7 @@ export const StatCard: React.FC<StatCardProps> = ({
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{title}</p>
-          <div className="text-3xl font-black text-slate-100 mt-2 tracking-tight font-['Outfit']">{value}</div>
+          <div className="text-3xl font-black text-slate-100 mt-2 tracking-tight font-heading">{value}</div>
         </div>
         <div className={`glass-tint p-3.5 rounded-2xl border ${iconBg[accentColor]}`}>{icon}</div>
       </div>

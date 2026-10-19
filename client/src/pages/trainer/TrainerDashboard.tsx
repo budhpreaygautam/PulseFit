@@ -3,7 +3,7 @@ import { Activity, CalendarDays, ClipboardList, IdCard, NotebookPen, QrCode, Ref
 import { ClassOccurrence, TrainerClient, TrainerDashboard as Dashboard } from '../../types/index.js';
 import { ApiError, api, errorMessage } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
-import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
+import { EmptyState, ErrorState, LoadingState, Skeleton } from '../../components/common/States.js';
 import { AdminNav, Avatar, PageHeader, focusRing } from '../../components/admin/ui.js';
 import { KpiTile } from '../../components/admin/KpiTile.js';
 import { statusVariant } from '../../components/admin/memberStatus.js';
@@ -63,7 +63,7 @@ const SessionRow: React.FC<SessionRowProps & { onOpen: () => void }> = ({ title,
       <p className="text-xs text-slate-400">{time} · {durationMinutes} min</p>
     </div>
     <div className="flex-1 min-w-0">
-      <p className="font-extrabold text-slate-100 font-['Outfit'] break-words">{title}</p>
+      <p className="font-extrabold text-slate-100 font-heading break-words">{title}</p>
       <p className="text-xs text-slate-400">
         {room} · {category} · {summary}
       </p>
@@ -223,7 +223,18 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
           }
         />
         {isLoading ? (
-          <LoadingState label={isAdmin ? 'Loading the coach’s dashboard…' : 'Loading your dashboard…'} />
+          // The coach card, tiles, tabs and panel at their loaded size, so nothing jumps when they arrive.
+          <div role="status" aria-live="polite" className="space-y-6">
+            <span className="sr-only">{isAdmin ? 'Loading the coach’s dashboard…' : 'Loading your dashboard…'}</span>
+            <Skeleton className="h-[10.25rem] sm:h-[6.5rem]" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[0, 1, 2, 3].map(i => (
+                <Skeleton key={i} className="h-[7rem]" />
+              ))}
+            </div>
+            <Skeleton className="h-[2.875rem] max-w-sm" />
+            <Skeleton className="h-72" />
+          </div>
         ) : error?.notLinked && isAdmin ? (
           <>
             <EmptyState title="We could not find that coach" body="They may have been removed. Choose another coach." />
@@ -271,7 +282,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
       <div className="neu-flat p-5 rounded-3xl flex flex-col sm:flex-row sm:items-center gap-4">
         <Avatar src={trainer.avatar_url} name={trainer.name} size="w-16 h-16" />
         <div className="min-w-0">
-          <p className="text-lg font-black text-slate-100 font-['Outfit']">{trainer.name}</p>
+          <p className="text-lg font-black text-slate-100 font-heading">{trainer.name}</p>
           <p className="text-xs text-slate-400">
             {trainer.experience_years} years coaching{trainer.specialties?.length ? ` · ${trainer.specialties.join(' · ')}` : ''}
           </p>
@@ -315,7 +326,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
         {tab === 'classes' && (
           <div className="space-y-6">
             <section aria-labelledby="upcoming-heading" className="space-y-3">
-              <h2 id="upcoming-heading" className="text-base font-extrabold text-slate-100 font-['Outfit']">Next 7 days</h2>
+              <h2 id="upcoming-heading" className="text-base font-extrabold text-slate-100 font-heading">Next 7 days</h2>
               {data.upcoming.length === 0 ? (
                 <EmptyState title="No classes in the next 7 days" body={isAdmin ? 'Assign classes to this coach under Classes & coaches.' : 'Ask an admin to assign classes to you.'} />
               ) : (
@@ -328,7 +339,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
             </section>
             <section aria-labelledby="recent-heading" className="space-y-3">
               <div>
-                <h2 id="recent-heading" className="text-base font-extrabold text-slate-100 font-['Outfit']">Last 14 days</h2>
+                <h2 id="recent-heading" className="text-base font-extrabold text-slate-100 font-heading">Last 14 days</h2>
                 <p className="text-xs text-slate-400">Sessions members booked in the last 14 days, newest first. Open any of them to mark who attended and who did not show.</p>
               </div>
               {recent.length === 0 ? (

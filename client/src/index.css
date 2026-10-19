@@ -3,6 +3,40 @@
 @tailwind utilities;
 
 /*
+ * Stand-ins for Inter and Outfit (Google Fonts, display=swap) while they load: Arial scaled to the
+ * same width and line metrics, so the text keeps its size and nothing below it moves (layout
+ * shift) when the web font replaces it. Measured against Inter 400/700 and Outfit 900. Devices
+ * without Arial skip these and use the next font in the stack.
+ */
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial'), local('ArialMT');
+  font-weight: 100 500;
+  size-adjust: 104.75%;
+  ascent-override: 92.6%;
+  descent-override: 22.9%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial Bold'), local('Arial-BoldMT');
+  font-weight: 600 900;
+  size-adjust: 101.5%;
+  ascent-override: 95.6%;
+  descent-override: 23.7%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Outfit Fallback';
+  src: local('Arial Bold'), local('Arial-BoldMT');
+  font-weight: 100 900;
+  size-adjust: 97.1%;
+  ascent-override: 103%;
+  descent-override: 26.8%;
+  line-gap-override: 0%;
+}
+
+/*
  * ==================================================================
  * NEUMORPHIC DESIGN SYSTEM (DARK & LIGHT THEME TOKENS)
  * ==================================================================
@@ -794,6 +828,14 @@ input[type='checkbox']:not(.sr-only):disabled {
   .glass-toast { animation: none; }
 }
 
+/* The "Get the PulseFit app" bar rises into place over the page (it never pushes anything). */
+.app-banner > * {
+  animation: toast-in-up 0.32s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-banner > * { animation: none; }
+}
+
 /* ------------------------------------------------------------------ */
 /* Dialogs: bottom sheet on phones, centred card from 640px            */
 /* ------------------------------------------------------------------ */
@@ -807,6 +849,10 @@ input[type='checkbox']:not(.sr-only):disabled {
 .modal-body {
   /* Keep the last button clear of the phone's home indicator. */
   padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+}
+/* The Android/iOS app draws edge to edge: keep the page end clear of the gesture bar. */
+body {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 @media (min-width: 640px) {
   .modal-panel {

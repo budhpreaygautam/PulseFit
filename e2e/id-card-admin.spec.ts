@@ -1,5 +1,5 @@
 import { test, expect, APIRequestContext, Page, TestInfo } from '@playwright/test';
-import { signInAs } from './helpers';
+import { signInAs, useSession } from './helpers';
 
 // The physical ID cards the front desk hands out: the ID cards page, issuing, deactivating and
 // reactivating a card, the scanner refusing a deactivated one, and a card's history in the member's
@@ -349,7 +349,7 @@ test('a member whose card was deactivated is told to ask the desk for a new one,
     const login = await request.post('/api/auth/login', { data: { email: member.email, password: member.password } });
     expect(login.ok(), await login.text()).toBeTruthy();
     const token = (await login.json()).data.token as string;
-    await page.addInitScript(t => window.localStorage.setItem('pulsefit_token', t), token);
+    await useSession(page, token);
 
     await page.goto('/profile');
     await page.getByRole('button', { name: 'ID card' }).first().click();

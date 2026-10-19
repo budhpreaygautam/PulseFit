@@ -1,15 +1,17 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { AuthSession, User, UserRole } from '../types/index.js';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { AuthSession, isMfaChallenge, MfaChallenge, User, UserRole } from '../types/index.js';
 import { api, isApiError, UNAUTHORIZED_EVENT } from '../api/client.js';
-import { storage, TOKEN_KEY } from '../lib/storage.js';
+import { forgetSession, hasSavedSession, rememberSession } from '../lib/authToken.js';
 import { abortableGet } from '../lib/abortableGet.js';
 import { useToast } from './ToastContext.js';
 
 type DemoRole = 'member' | 'vip' | 'trainer' | 'admin';
 
+/** A finished sign-in, or (two-step sign-in on) the token to send with the code to verifyMfa. */
+export type SignInOutcome = { user: User; mfaToken?: undefined } | { user?: undefined; mfaToken: string };
+
 interface AuthContextType {
   user: User | null;
-  token: string | null;
   isAuthenticated: boolean;
   /** True only while the saved session is being restored on page load (also while the server cannot be reached). */
   isInitializing: boolean;
@@ -21,13 +23,15 @@ interface AuthContextType {
   /** Check the saved session again now (the "Try again" button of the offline state). */
   retrySessionRestore: () => void;
   role: UserRole | 'guest';
-  login: (credentials: { email: string; password: string }) => Promise<User>;
+  login: (credentials: { email: string; password: string }) => Promise<SignInOutcome>;
   register: (payload: { name: string; email: string; password: string; phone?: string }) => Promise<User>;
   /** Sign in with a Google Identity Services credential (see GoogleSignInButton). */
-  loginWithGoogle: (credential: string) => Promise<{ user: User; created: boolean; message?: string }>;
+  loginWithGoogle: (credential: string) => Promise<SignInOutcome & { created: boolean; message?: string }>;
+  /** Second step of a sign-in with two-step sign-in on: an authenticator code or a backup code. */
+  verifyMfa: (mfaToken: string, code: string) => Promise<{ user: User; message?: string }>;
   demoLogin: (role: DemoRole) => Promise<User>;
   forgotPassword: (email: string) => Promise<{ message: string; resetUrl?: string }>;
-  resetPassword: (token: string, newPassword: string) => Promise<User>;
+  resetPassword: (token: string, newPassword: string) => Promise<SignInOutcome>;
   changePassword: (currentPassword: string | undefined, newPassword: string) => Promise<void>;
   /** Store a session returned by the API (login, payment verification, password change). */
   setSession: (session: AuthSession) => void;
@@ -50,8 +54,7 @@ const RESTORE_TIMEOUT_MS = 15_000;
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { showToast } = useToast();
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(() => storage.get(TOKEN_KEY));
-  const [isInitializing, setIsInitializing] = useState<boolean>(() => Boolean(storage.get(TOKEN_KEY)));
+  const [isInitializing, setIsInitializing] = useState<boolean>(hasSavedSession);
   const [isServerUnreachable, setIsServerUnreachable] = useState(false);
   const userRef = useRef<User | null>(null);
   userRef.current = user;
@@ -69,20 +72,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearSession = useCallback(() => {
     restoreControls.current?.stop();
-    storage.remove(TOKEN_KEY);
-    setToken(null);
+    forgetSession();
     setUser(null);
   }, []);
 
   const setSession = useCallback((session: AuthSession) => {
     restoreControls.current?.stop();
-    storage.set(TOKEN_KEY, session.token);
-    setToken(session.token);
+    rememberSession(session.token);
     setUser(session.user);
   }, []);
 
   const refreshUser = useCallback(async () => {
-    if (!storage.get(TOKEN_KEY)) {
+    if (!hasSavedSession()) {
       setUser(null);
       return;
     }
@@ -102,7 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 15 s (or sooner when one of those "try now" moments comes once it has hung for 5 s), and an answer
   // that arrives before then still counts.
   useEffect(() => {
-    if (!storage.get(TOKEN_KEY)) return;
+    if (!hasSavedSession()) return;
     let done = false;
     let failures = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -202,7 +203,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [setSession, triggerCelebration]
   );
 
-  const login = useCallback(async (credentials: { email: string; password: string }) => startSession(await api.login(credentials)), [startSession]);
+  const outcome = useCallback(
+    (result: AuthSession | MfaChallenge): SignInOutcome => (isMfaChallenge(result) ? { mfaToken: result.mfa_token } : { user: startSession(result) }),
+    [startSession]
+  );
+  const login = useCallback(async (credentials: { email: string; password: string }) => outcome(await api.login(credentials)), [outcome]);
+  const verifyMfa = useCallback(
+    async (mfaToken: string, code: string) => {
+      const { data, message } = await api.verifyMfa({ mfa_token: mfaToken, code });
+      return { user: startSession(data), message };
+    },
+    [startSession]
+  );
   const register = useCallback(
     async (payload: { name: string; email: string; password: string; phone?: string }) => startSession(await api.register(payload)),
     [startSession]
@@ -210,15 +222,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithGoogle = useCallback(
     async (credential: string) => {
       const result = await api.googleSignIn(credential);
-      return { user: startSession(result), created: result.created, message: result.message };
+      return { ...outcome(result), created: result.created, message: result.message };
     },
-    [startSession]
+    [outcome]
   );
   const demoLogin = useCallback(async (role: DemoRole) => startSession(await api.demoLogin(role)), [startSession]);
   const forgotPassword = useCallback((email: string) => api.forgotPassword(email), []);
   const resetPassword = useCallback(
-    async (resetToken: string, newPassword: string) => startSession(await api.resetPassword({ token: resetToken, newPassword })),
-    [startSession]
+    async (resetToken: string, newPassword: string) => outcome(await api.resetPassword({ token: resetToken, newPassword })),
+    [outcome]
   );
   const changePassword = useCallback(
     async (currentPassword: string | undefined, newPassword: string) => {
@@ -229,37 +241,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const updateUser = useCallback((next: User) => setUser(next), []);
-  const logout = useCallback(() => clearSession(), [clearSession]);
+  const logout = useCallback(() => {
+    // Clears the website's httpOnly session cookie; the apps just forget their token.
+    api.logout().catch(() => undefined);
+    clearSession();
+  }, [clearSession]);
 
-  const role: UserRole | 'guest' = user ? user.role : 'guest';
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        isAuthenticated: !!user,
-        isInitializing,
-        isServerUnreachable,
-        retrySessionRestore,
-        role,
-        login,
-        register,
-        loginWithGoogle,
-        demoLogin,
-        forgotPassword,
-        resetPassword,
-        changePassword,
-        setSession,
-        updateUser,
-        logout,
-        refreshUser,
-        triggerCelebration
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  // Nearly every component reads this context, so its value changes only when the session does: this
+  // provider also re-renders whenever a toast comes or goes (useToast), and that alone must not
+  // re-render the whole app.
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      isAuthenticated: !!user,
+      isInitializing,
+      isServerUnreachable,
+      retrySessionRestore,
+      role: user ? user.role : 'guest',
+      login,
+      register,
+      loginWithGoogle,
+      verifyMfa,
+      demoLogin,
+      forgotPassword,
+      resetPassword,
+      changePassword,
+      setSession,
+      updateUser,
+      logout,
+      refreshUser,
+      triggerCelebration
+    }),
+    [
+      user,
+      isInitializing,
+      isServerUnreachable,
+      retrySessionRestore,
+      login,
+      register,
+      loginWithGoogle,
+      verifyMfa,
+      demoLogin,
+      forgotPassword,
+      resetPassword,
+      changePassword,
+      setSession,
+      updateUser,
+      logout,
+      refreshUser,
+      triggerCelebration
+    ]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

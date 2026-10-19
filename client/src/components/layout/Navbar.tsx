@@ -163,6 +163,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
 
   return (
     <>
+      {/* Behind the phone's status bar in the app (zero height on the website). */}
+      <div aria-hidden="true" className="fixed inset-x-0 top-0 z-50 h-[env(safe-area-inset-top)] glass-bar" />
       {config.demoMode && (
         <div className="bg-gym-950 border-b border-slate-800/60 px-4 py-1.5 text-xs">
           <div className="max-w-7xl mx-auto flex items-center gap-3 overflow-x-auto [scrollbar-width:none]">
@@ -206,7 +208,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
         </div>
       )}
 
-      <header className="sticky top-0 z-40 glass-bar border-b border-slate-800/60 shadow-[0_4px_16px_var(--neu-shadow-dark)] transition-colors">
+      {/* z-[45]: above the app download bar (z-40), so the open mobile menu is never under it. */}
+      <header className="sticky top-[env(safe-area-inset-top)] z-[45] glass-bar border-b border-slate-800/60 shadow-[0_4px_16px_var(--neu-shadow-dark)] transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
           <TabLink
             tab="home"
@@ -219,7 +222,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
             </span>
             {/* Below 360px only the logo mark fits next to the buttons; the link keeps its aria-label. */}
             <span className="text-left max-[359px]:hidden">
-              <span className="block text-lg font-black tracking-tight text-slate-100 font-['Outfit'] leading-tight">
+              <span className="block text-lg font-black tracking-tight text-slate-100 font-heading leading-tight">
                 PULSE<span className="text-lime-400">FIT</span>
               </span>
               <span className="hidden md:block text-[10px] text-slate-400 font-medium leading-none">Sector 29 · Gurugram</span>
@@ -263,7 +266,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
                   }`}
                 >
                   {user.avatar_url ? (
-                    <img src={user.avatar_url} alt="" className="w-7 h-7 rounded-lg object-cover bg-slate-800" />
+                    <img src={user.avatar_url} alt="" width={28} height={28} decoding="async" className="w-7 h-7 rounded-lg object-cover bg-slate-800" />
                   ) : (
                     <span aria-hidden="true" className="w-7 h-7 rounded-lg neu-btn-lime flex items-center justify-center text-[11px] font-black">
                       {initials(user.name)}

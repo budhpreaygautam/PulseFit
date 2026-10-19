@@ -10,9 +10,22 @@ export function formatINR(amount: number): string {
   return inr.format(amount);
 }
 
+// Building an Intl.DateTimeFormat is far slower than using one, and lists format a date or two per
+// row on every render, so each locale and set of options gets one formatter, reused from then on.
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+function dateFormatter(locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = `${locale}|${JSON.stringify(options)}`;
+  let formatter = dateFormatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, options);
+    dateFormatters.set(key, formatter);
+  }
+  return formatter;
+}
+
 /** Today's date at the gym as YYYY-MM-DD (not the device's local date). */
 export function gymToday(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: GYM_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+  return dateFormatter('en-CA', { timeZone: GYM_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
 }
 
 /** Add days to a YYYY-MM-DD date. */
@@ -26,12 +39,12 @@ export function addDays(date: string, days: number): string {
 export function formatDate(date: string | null | undefined, options: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }): string {
   if (!date) return '—';
   // Calendar dates carry no time; format them at UTC midnight so no timezone can shift the day.
-  return new Intl.DateTimeFormat('en-IN', { ...options, timeZone: 'UTC' }).format(new Date(`${date.slice(0, 10)}T00:00:00Z`));
+  return dateFormatter('en-IN', { ...options, timeZone: 'UTC' }).format(new Date(`${date.slice(0, 10)}T00:00:00Z`));
 }
 
 /** '6:30 pm' for an ISO instant, at the gym. */
 export function formatTime(iso: string): string {
-  return new Intl.DateTimeFormat('en-IN', { timeZone: GYM_TIMEZONE, hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+  return dateFormatter('en-IN', { timeZone: GYM_TIMEZONE, hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
 }
 
 /** '6:30 pm' for a gym-local 'HH:MM'. */
@@ -48,7 +61,7 @@ export function formatDay(iso: string): string {
 
 /** '12 Oct 2026, 6:30 pm' for an ISO instant, at the gym. */
 export function formatDateTime(iso: string): string {
-  return new Intl.DateTimeFormat('en-IN', { timeZone: GYM_TIMEZONE, day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+  return dateFormatter('en-IN', { timeZone: GYM_TIMEZONE, day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
 }
 
 export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

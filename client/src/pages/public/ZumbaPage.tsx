@@ -3,6 +3,7 @@ import { ArrowRight, Heart, Smile, Sparkles, Zap } from 'lucide-react';
 import { Badge } from '../../components/common/Badge.js';
 import { StatTile } from '../../components/public/StatTile.js';
 import { WeeklyClasses } from '../../components/public/WeeklyClasses.js';
+import { HERO_PHOTOS, HIGH_FETCH_PRIORITY, unsplashSrcSet } from '../../components/public/media.js';
 import { useApiData } from '../../components/public/useApiData.js';
 import { cheapestPlanFor } from '../../components/public/plans.js';
 import { HOURS_DAYS, HOURS_TIME } from '../../components/public/gymInfo.js';
@@ -15,6 +16,8 @@ interface ZumbaPageProps {
   onOpenAuthModal: (mode: 'login' | 'register') => void;
   onOpenFreeTrialModal: () => void;
 }
+
+const HERO_PHOTO = HERO_PHOTOS['/zumba'];
 
 const CATEGORY = 'Zumba & Cardio';
 
@@ -70,8 +73,12 @@ export const ZumbaPage: React.FC<ZumbaPageProps> = ({ onOpenFreeTrialModal }) =>
   return (
     <div className="space-y-16 pb-20">
       <section className="relative min-h-[460px] sm:min-h-[540px] flex items-center justify-center overflow-hidden bg-black">
+        {/* The page's largest image: fetched first, never lazy. */}
         <img
-          src="https://images.unsplash.com/photo-1518611012118-696072aa579a?w=1600&auto=format&fit=crop&q=80"
+          src={HERO_PHOTO}
+          width={1600}
+          height={900}
+          {...HIGH_FETCH_PRIORITY}
           alt=""
           className="absolute inset-0 w-full h-full object-cover opacity-40"
         />
@@ -82,7 +89,7 @@ export const ZumbaPage: React.FC<ZumbaPageProps> = ({ onOpenFreeTrialModal }) =>
           <span className="inline-block px-3 py-1 rounded-full bg-black/45 backdrop-blur-md border border-pink-400/40 text-pink-300 text-xs font-bold tracking-wide">
             ZUMBA & CARDIO STUDIO
           </span>
-          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-zinc-50 tracking-tight font-['Outfit'] uppercase leading-none">
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-zinc-50 tracking-tight font-heading uppercase leading-none">
             DANCE. SWEAT. <span className="text-pink-300">FEEL THE BEAT.</span>
           </h1>
           <p className="text-sm sm:text-base md:text-lg text-zinc-300 max-w-2xl mx-auto leading-relaxed font-medium">
@@ -121,7 +128,7 @@ export const ZumbaPage: React.FC<ZumbaPageProps> = ({ onOpenFreeTrialModal }) =>
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
           <div>
             <Badge variant="purple">CLASSES</Badge>
-            <h2 className="text-2xl sm:text-4xl font-black text-slate-100 font-['Outfit'] mt-2">ZUMBA & CARDIO EVERY WEEK</h2>
+            <h2 className="text-2xl sm:text-4xl font-black text-slate-100 font-heading mt-2">ZUMBA & CARDIO EVERY WEEK</h2>
             <p className="text-sm text-slate-400 mt-1">Spots shown are for each class's next session.</p>
           </div>
           <button type="button" onClick={() => navigate('schedule', { category: CATEGORY })} className="neu-btn px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1 shrink-0 self-start sm:self-auto">
@@ -141,16 +148,26 @@ export const ZumbaPage: React.FC<ZumbaPageProps> = ({ onOpenFreeTrialModal }) =>
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="text-center space-y-3 max-w-2xl mx-auto">
           <Badge variant="purple">THE STUDIO</Badge>
-          <h2 className="text-3xl sm:text-4xl font-black text-slate-100 font-['Outfit']">WHAT A CLASS IS LIKE</h2>
+          <h2 className="text-3xl sm:text-4xl font-black text-slate-100 font-heading">WHAT A CLASS IS LIKE</h2>
         </div>
         <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {MOMENTS.map(moment => (
             <li key={moment.title} className="neu-flat overflow-hidden rounded-3xl border border-slate-800/80">
               <div className="h-52 overflow-hidden bg-slate-900">
-                <img src={moment.url} alt="" loading="lazy" className="w-full h-full object-cover" />
+                <img
+                  src={moment.url}
+                  srcSet={unsplashSrcSet(moment.url, [480, 800, 1200])}
+                  sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                  width={800}
+                  height={416}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div className="p-5 space-y-2">
-                <h3 className="text-base font-extrabold text-slate-100 font-['Outfit']">{moment.title}</h3>
+                <h3 className="text-base font-extrabold text-slate-100 font-heading">{moment.title}</h3>
                 <p className="text-xs text-slate-400 leading-relaxed">{moment.desc}</p>
               </div>
             </li>
@@ -163,7 +180,7 @@ export const ZumbaPage: React.FC<ZumbaPageProps> = ({ onOpenFreeTrialModal }) =>
         <div className="p-6 sm:p-12 rounded-3xl neu-flat space-y-8 border border-slate-800/80">
           <div className="text-center max-w-2xl mx-auto space-y-2">
             <Badge variant="lime">WHY DANCE CARDIO</Badge>
-            <h2 className="text-2xl sm:text-4xl font-black text-slate-100 font-['Outfit']">MORE THAN A CALORIE BURN</h2>
+            <h2 className="text-2xl sm:text-4xl font-black text-slate-100 font-heading">MORE THAN A CALORIE BURN</h2>
           </div>
           <ul className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {BENEFITS.map(item => (
@@ -171,7 +188,7 @@ export const ZumbaPage: React.FC<ZumbaPageProps> = ({ onOpenFreeTrialModal }) =>
                 <div className="glass-tint w-10 h-10 rounded-xl bg-pink-500/10 border border-pink-500/20 text-pink-400 flex items-center justify-center">
                   <item.icon className="w-5 h-5" aria-hidden="true" />
                 </div>
-                <h3 className="text-sm font-black text-slate-100 font-['Outfit']">{item.title}</h3>
+                <h3 className="text-sm font-black text-slate-100 font-heading">{item.title}</h3>
                 <p className="text-xs text-slate-400 leading-relaxed">{item.desc}</p>
               </li>
             ))}
@@ -181,7 +198,7 @@ export const ZumbaPage: React.FC<ZumbaPageProps> = ({ onOpenFreeTrialModal }) =>
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="p-8 sm:p-12 rounded-3xl neu-flat border-2 border-pink-500/50 text-center space-y-6">
-          <h2 className="text-3xl sm:text-5xl font-black text-slate-100 font-['Outfit']">READY TO DANCE?</h2>
+          <h2 className="text-3xl sm:text-5xl font-black text-slate-100 font-heading">READY TO DANCE?</h2>
           <p className="text-sm text-slate-300 max-w-xl mx-auto">
             {plan
               ? `The ${plan.name} includes every Zumba & Cardio class for ${formatINR(plan.price_monthly)} a month.`

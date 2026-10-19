@@ -20,6 +20,8 @@ import {
   MembershipPlan,
   MembershipStatus,
   MembershipTier,
+  MfaChallenge,
+  MfaSetup,
   MyBooking,
   MyIdCard,
   NewWorkout,
@@ -38,11 +40,24 @@ import {
   UserRole,
   UserTimeTrackingStats,
   Workout,
-  WorkoutAnalytics
+  WorkoutAnalytics,
+  YoupiOrderStatus
 } from '../types/index.js';
-import { storage, TOKEN_KEY } from '../lib/storage.js';
+import { getAuthToken, hasSavedSession } from '../lib/authToken.js';
+import { saveFile } from '../lib/native.js';
 
-const API_BASE = '/api';
+// Empty for the website (same origin, or Vite's proxy). The Android/iOS build sets the server's
+// full address, e.g. http://192.168.1.20:5004 or https://gym.example.com.
+export const API_BASE = `${String(import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '')}/api`;
+
+/**
+ * Headers for every API request: the app's bearer token, if any, and the header the server's CSRF
+ * guard requires on cookie-authenticated writes.
+ */
+export function authHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  return { 'X-Requested-With': 'PulseFit', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+}
 
 /** Fired when the API rejects our token; AuthContext signs the user out. */
 export const UNAUTHORIZED_EVENT = 'pulsefit:unauthorized';
@@ -98,10 +113,8 @@ export interface WithMessage<T> {
 }
 
 async function send<T>(endpoint: string, options: RequestInit = {}): Promise<WithMessage<T>> {
-  const token = storage.get(TOKEN_KEY);
-  const headers: Record<string, string> = { ...(options.headers as Record<string, string>) };
+  const headers: Record<string, string> = { ...(options.headers as Record<string, string>), ...authHeaders() };
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
-  if (token) headers.Authorization = `Bearer ${token}`;
 
   let response: Response;
   try {
@@ -123,7 +136,7 @@ async function send<T>(endpoint: string, options: RequestInit = {}): Promise<Wit
 
   if (!response.ok || !body || body.success === false) {
     const status = response.status;
-    if (status === 401 && token) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+    if (status === 401 && hasSavedSession()) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
     const message = body?.error || STATUS_MESSAGES[status] || `The server returned an error (${status}). Please try again.`;
     throw new ApiError(message, status, body?.code, body?.data);
   }
@@ -158,12 +171,12 @@ export const api = {
   getConfig: () => get<AppConfig>('/config'),
 
   // --- Auth & account ---
-  login: (credentials: { email: string; password: string }) => post<AuthSession>('/auth/login', credentials),
+  login: (credentials: { email: string; password: string }) => post<AuthSession | MfaChallenge>('/auth/login', credentials),
   register: (payload: { name: string; email: string; password: string; phone?: string }) =>
     post<AuthSession>('/auth/register', payload),
   /** `message` is set when an existing password account was linked (its password was removed). */
   googleSignIn: (credential: string) =>
-    send<AuthSession & { created: boolean }>('/auth/google', { method: 'POST', body: JSON.stringify({ credential }) }).then(r => ({
+    send<(AuthSession | MfaChallenge) & { created: boolean }>('/auth/google', { method: 'POST', body: JSON.stringify({ credential }) }).then(r => ({
       ...r.data,
       message: r.message
     })),
@@ -172,7 +185,17 @@ export const api = {
   updateProfile: (profile: { name?: string; phone?: string; avatar_url?: string }) => put<User>('/auth/profile', profile),
   changePassword: (payload: { currentPassword?: string; newPassword: string }) => put<AuthSession>('/auth/password', payload),
   forgotPassword: (email: string) => post<{ message: string; resetUrl?: string }>('/auth/forgot-password', { email }),
-  resetPassword: (payload: { token: string; newPassword: string }) => post<AuthSession>('/auth/reset-password', payload),
+  resetPassword: (payload: { token: string; newPassword: string }) => post<AuthSession | MfaChallenge>('/auth/reset-password', payload),
+  logout: () => post<{ signedOut: true }>('/auth/logout'),
+
+  // --- Two-step sign-in (MFA) ---
+  verifyMfa: (payload: { mfa_token: string; code: string }) => send<AuthSession>('/auth/mfa/verify', { method: 'POST', body: JSON.stringify(payload) }),
+  getMfaStatus: () => get<{ enabled: boolean; recovery_codes_left: number }>('/auth/mfa'),
+  setupMfa: (password?: string) => post<MfaSetup>('/auth/mfa/setup', password ? { password } : {}),
+  enableMfa: (code: string) => send<AuthSession & { recovery_codes: string[] }>('/auth/mfa/enable', { method: 'POST', body: JSON.stringify({ code }) }),
+  disableMfa: (payload: { code: string; password?: string }) => send<User>('/auth/mfa/disable', { method: 'POST', body: JSON.stringify(payload) }),
+  regenerateRecoveryCodes: (code: string) => post<{ recovery_codes: string[] }>('/auth/mfa/recovery-codes', { code }),
+  adminResetMfa: (userId: string) => postWithMessage<User>(`/members/${userId}/mfa/reset`),
 
   // --- Plans, payments & membership ---
   getPlans: () => get<MembershipPlan[]>('/plans'),
@@ -180,7 +203,8 @@ export const api = {
     putWithMessage<MembershipPlan>(`/plans/${id}`, payload),
   createPaymentOrder: (payload: { tier: PaidTier; billing_cycle: BillingCycle }) => post<PaymentOrder>('/payment/create-order', payload),
   verifyPayment: (payload: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) =>
-    post<AuthSession & { payment: Payment; message: string }>('/payment/verify', payload),
+    post<{ user: User; payment: Payment; message: string }>('/payment/verify', payload),
+  confirmYoupiPayment: (orderId: string) => post<YoupiOrderStatus>('/payment/youpi/confirm', { order_id: orderId }),
   getMyPayments: () => get<Payment[]>('/payments/my'),
   getPayments: (params: { user_id?: string } = {}) => get<Payment[]>(`/payments${qs(params)}`),
   freezeMembership: () => postWithMessage<User>('/membership/freeze'),
@@ -282,13 +306,7 @@ export const api = {
 
 /** Download an authenticated file (e.g. the attendance CSV) without exposing the token in a URL. */
 export async function downloadFile(url: string, filename: string): Promise<void> {
-  const token = storage.get(TOKEN_KEY);
-  const response = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const response = await fetch(url, { headers: authHeaders() });
   if (!response.ok) throw new ApiError(STATUS_MESSAGES[response.status] || 'Download failed.', response.status);
-  const blob = await response.blob();
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(link.href);
+  await saveFile(await response.blob(), filename);
 }

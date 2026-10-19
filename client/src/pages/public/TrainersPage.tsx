@@ -2,7 +2,8 @@ import React from 'react';
 import { AtSign, Calendar, Star } from 'lucide-react';
 import { api } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
-import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
+import { EmptyState, ErrorState } from '../../components/common/States.js';
+import { CardSkeletons } from '../../components/public/CardSkeletons.js';
 import { useApiData } from '../../components/public/useApiData.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 
@@ -18,14 +19,14 @@ export const TrainersPage: React.FC<TrainersPageProps> = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-12">
       <div className="text-center max-w-3xl mx-auto space-y-3">
         <Badge variant="lime">OUR COACHES</Badge>
-        <h1 className="text-4xl sm:text-6xl font-black text-slate-100 tracking-tight font-['Outfit']">MEET THE COACHES</h1>
+        <h1 className="text-4xl sm:text-6xl font-black text-slate-100 tracking-tight font-heading">MEET THE COACHES</h1>
         <p className="text-sm sm:text-base text-slate-400 leading-relaxed font-medium">
           The people who run every Workout & Strength and Zumba & Cardio class on the timetable.
         </p>
       </div>
 
       {isLoading ? (
-        <LoadingState label="Loading coaches…" />
+        <CardSkeletons label="Loading coaches…" count={3} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" cardClassName="h-[34rem] sm:h-[36rem] rounded-3xl" />
       ) : error ? (
         <ErrorState message={error} onRetry={reload} className="max-w-xl mx-auto" />
       ) : !trainers || trainers.length === 0 ? (
@@ -38,7 +39,17 @@ export const TrainersPage: React.FC<TrainersPageProps> = () => {
               <li key={trainer.id} className="neu-flat rounded-3xl overflow-hidden border border-slate-800/80 flex flex-col justify-between">
                 <div>
                   <div className="relative h-72 sm:h-80 overflow-hidden bg-slate-900">
-                    {trainer.avatar_url && <img src={trainer.avatar_url} alt={`Portrait of ${trainer.name}`} className="w-full h-full object-cover object-top" loading="lazy" />}
+                    {trainer.avatar_url && (
+                      <img
+                        src={trainer.avatar_url}
+                        alt={`Portrait of ${trainer.name}`}
+                        width={400}
+                        height={320}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover object-top"
+                      />
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
 
                     {trainer.reviews_count > 0 && (
@@ -53,7 +64,7 @@ export const TrainersPage: React.FC<TrainersPageProps> = () => {
                     )}
 
                     <div className="absolute bottom-4 left-4 right-4">
-                      <h2 className="text-2xl font-black text-zinc-50 font-['Outfit']">{trainer.name}</h2>
+                      <h2 className="text-2xl font-black text-zinc-50 font-heading">{trainer.name}</h2>
                       <div className="text-xs font-bold flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                         {trainer.instagram && (
                           <span className="text-lime-300 flex items-center gap-1">

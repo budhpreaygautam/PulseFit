@@ -13,8 +13,20 @@ Common codes: `VALIDATION_ERROR` (400, `data.issues = [{ path, message }]`), `UN
 invalid, expired or revoked token; the client signs the user out), `FORBIDDEN` (403), `NOT_FOUND` (404),
 `RATE_LIMITED` (429), `INTERNAL` (500).
 
-**Auth.** `Authorization: Bearer <token>`. Tokens last 7 days and are revoked when the password changes
-or is reset (`token_version`).
+**Auth.** A sign-in starts a session in one of two forms, chosen by the request's `Origin`:
+- **Website** (any other browser origin): an httpOnly cookie `pulsefit_session` (`Path=/api`, `SameSite=Lax`, `Secure` in
+  production, `Max-Age` = the token's lifetime). The response body has **no** `token`; page scripts never see it.
+- **Android/iOS apps** (`APP_ORIGINS`, default `https://localhost` and `capacitor://localhost`) and API clients that send
+  no `Origin` (curl, tests): `data.token`, sent back as `Authorization: Bearer <token>`. The apps keep it in the Android
+  Keystore / iOS Keychain, never in `localStorage`. No cookie is set for the apps.
+
+The API accepts the bearer header first, then the cookie. **CSRF:** a `POST`/`PUT`/`PATCH`/`DELETE` that carries the session
+cookie (and no bearer header) must send `X-Requested-With: PulseFit`, else 403 `CSRF_REJECTED`. Cross-site pages cannot add
+that header without a CORS preflight, which the origin allowlist refuses; CORS never allows credentials.
+
+Tokens are HS256 JWTs (`iss: pulsefit`, `aud: pulsefit-session`). Members' last 7 days (`JWT_EXPIRES_IN`), admins' and
+coaches' 12 hours. They are revoked when the password changes or is reset, when two-step sign-in is switched on, or
+when an admin resets it (`token_version`). `POST /auth/logout` clears the cookie.
 
 **Dates.** `YYYY-MM-DD` strings are calendar days **at the gym** (`Asia/Kolkata`); `HH:MM` times are
 gym-local; instants are ISO-8601 UTC strings. "Today" always means today at the gym.
@@ -30,9 +42,13 @@ gym-local; instants are ISO-8601 UTC strings. "Today" always means today at the 
   frozen_since?: string | null,
   qr_code_token: string,             // the member's turnstile pass, rendered as a QR code
   created_at, streak_days: number,   // current streak (0 once lapsed)
-  last_active_date?: string | null
+  last_active_date?: string | null,
+  mfa_enabled: boolean,              // two-step sign-in is on
+  has_password: boolean              // false for Google-only accounts
 }
 ```
+
+Never included: the password hash, `token_version`, the Google subject id, MFA secrets and backup-code hashes.
 
 **Plans and entitlements.** `basic` = Workout & Strength Pass (books `Workout & Strength` classes),
 `pro` = Zumba & Cardio Pass (books `Zumba & Cardio`), `vip` = Dual All-Access (books everything).
@@ -43,32 +59,106 @@ Read from `membership_plans[].categories` (empty = all). Prices live only in the
 ## Runtime config — owner: platform
 
 ### `GET /config` (public)
-`{ demoMode: boolean, googleClientId: string | null, payments: { enabled: boolean, keyId: string | null }, gym: { name, timezone, currency, hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: boolean } } }`.
+`{ demoMode: boolean, googleClientId: string | null, payments: { enabled: boolean, provider: 'razorpay' | 'youpi' | null, keyId: string | null (Razorpay only) }, gym: { name, timezone, currency, hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: boolean } }, androidApp: { url: '/downloads/pulsefit.apk', version?: string, size: number } | null }`.
 The client hides the demo persona switcher, "Continue with Google" and checkout when they are off.
 `hours` is the gym's opening hours in gym time (`closedWeekdays`: 0 = Sunday). `enforced` mirrors `ENFORCE_OPENING_HOURS`:
 when on, check-ins, floor clock-ins and same-day free trials are refused while the gym is closed.
+`androidApp` is the APK the website offers (see `GET /downloads/pulsefit.apk`), with its size in bytes and `version` =
+`versionName` from `pulsefit.json` when present; `null` while there is none. Android browsers then show a "Get the PulseFit
+app" bar, and the footer a "Get the Android app" link (neither inside the app).
 
 ### `GET /health`
 `{ status: 'ok', timestamp }`.
 
 ---
 
+## Website, crawlers & HTTPS — owner: platform (server.ts, lib/seo.ts)
+
+These live outside `/api`. Every `/api` response carries `X-Robots-Tag: noindex, nofollow`; with
+`ALLOW_INDEXING` off (the default outside production, and the setting for staging) every response does.
+
+### `GET /robots.txt` (text/plain)
+Indexing on and the client served (`SERVE_CLIENT`): `Allow: /`, a `Disallow` line for `/api/`, `/downloads/` and for each
+private area (`/admin`, `/trainer`, `/dashboard`, `/bookings`, `/log-workout`, `/profile`, `/reset-password`,
+`/payment-status`), and `Sitemap: <PUBLIC_URL>/sitemap.xml`. Scripts, styles and images are never blocked.
+Indexing off, or an API-only host: `User-agent: *` / `Disallow: /`.
+
+### `GET /downloads/pulsefit.apk` (application/vnd.android.package-archive)
+The Android app, from the `downloads` folder next to the database (`dirname(PULSEFIT_DB_PATH)/downloads`, on the data
+volume in production), so copying a new `pulsefit.apk` there puts it live without a redeploy. An optional
+`pulsefit.json` beside it (`{ versionName, versionCode, sha256 }`) names the version for `GET /config`.
+`Content-Disposition: attachment; filename="PulseFit.apk"`, `Cache-Control: no-cache` (with `ETag`/`Last-Modified`, so a
+repeat check is a 304), `X-Content-Type-Options: nosniff`, `X-Robots-Tag: noindex, nofollow`; ranges are honoured. No APK
+(or an empty file): plain-text **404**, as is any other path under `/downloads/`.
+
+### `GET /sitemap.xml` (application/xml)
+A `<urlset>` (sitemaps.org 0.9) with one absolute, XML-escaped `<loc>` per indexable page (`/`, `/strength`,
+`/zumba`, `/guide`, `/schedule`, `/pricing`, `/coaches`, `/exercises`, `/privacy`, `/terms`,
+`/refund-policy`) and `<lastmod>` = the day `client/dist/index.html` was built. 404 when indexing is off,
+the client is not served, or neither `PUBLIC_URL` nor `CLIENT_ORIGIN` is set.
+
+### `GET /<any page>` (text/html)
+`client/dist/index.html`, with the page's `<title>`, `meta description`, `og:title` and `og:description`
+replaced in place, and at the `<!--app-head-->` marker: `link rel="canonical"` and `og:url`
+(`PUBLIC_URL` + the page's path, no query string) on indexable pages, `meta robots noindex, nofollow` on the
+others, and a JSON-LD `@graph` (Organization, WebSite, ExerciseGym with address, phone, email, opening hours
+and price range, WebPage; on `/pricing` the plans as `Offer`s in INR at the catalogue's prices). `/`, `/strength`
+and `/zumba` also preload their hero photo, and a demo deployment adds `meta name="pulsefit-demo-mode"`. Addresses
+are matched like the client's `tabForPath` (trailing slashes ignored). An unknown address answers **404**
+with the same app (it shows "Page not found") and `noindex`. `Cache-Control: no-cache`; hashed files under
+`/assets/` are `immutable` for a year, sent Brotli- or gzip-compressed when the client accepts it (compressed once,
+kept in memory), and a missing one is a plain-text 404. Base URL: `PUBLIC_URL`, else the first `CLIENT_ORIGIN`, never the
+request's Host header.
+
+### HTTPS
+`Strict-Transport-Security: max-age=31536000; includeSubDomains` (`HSTS`, off in local development). In
+production with an `https://` `PUBLIC_URL`, `TRUST_PROXY` set and `HTTPS_REDIRECT` on, a request the proxy
+reports as plain HTTP (`X-Forwarded-Proto: http`) gets a 301 (`GET`/`HEAD`) or 308 (other methods) to
+`PUBLIC_URL` + the original path and query. `/api/health` is never redirected.
+
+---
+
 ## Auth & account — owner: `auth` (routes/auth.ts, controllers/authController.ts)
 
-Rate limits (per IP, disabled in tests): login 10 per 15 min, register 5 per hour, forgot-password 5 per hour,
-google 20 per 15 min → `429 RATE_LIMITED`.
+Rate limits (disabled in tests) → `429 RATE_LIMITED`: login 10 per 15 min per IP **and** 10 failed attempts per 15 min per
+account, register 5 per hour, forgot-password 5 per hour, reset-password 10 per 15 min, google 20 per 15 min,
+demo-login 30 per 15 min, `POST /auth/mfa/verify` 10 per 15 min per IP, the other MFA writes 10 per 15 min per account.
+Every `/api` route also shares a limit of 300 requests per minute per IP (except `GET /health` and the Razorpay webhook).
+
+"Session" below means the cookie or `token` described under **Auth**, plus `user` (`SafeUser`).
 
 | Method & path | Body | Success `data` | Errors |
 |---|---|---|---|
-| `POST /auth/login` | `{ email, password }` | `{ token, user }` | 401 `INVALID_CREDENTIALS` |
-| `POST /auth/register` | `{ name (2–60), email, password (8–72, ≥1 letter and ≥1 digit), phone? }` | 201 `{ token, user }` with `membership_tier:'none'`, `membership_status:'pending'`, `membership_expiry:null` | 409 `EMAIL_TAKEN` |
-| `POST /auth/google` | `{ credential }` (Google Identity Services ID token) | `{ token, user, created: boolean }` | 503 `GOOGLE_SIGNIN_DISABLED`, 401 `INVALID_GOOGLE_TOKEN` |
-| `POST /auth/demo-login` | `{ role: 'member' \| 'vip' \| 'trainer' \| 'admin' }` | `{ token, user }` | 404 `DEMO_DISABLED` when demo mode is off |
+| `POST /auth/login` | `{ email, password }` | a session, or `{ mfa_required: true, mfa_token }` when two-step sign-in is on (no session yet; see below) | 401 `INVALID_CREDENTIALS`, 403 `DEMO_PASSWORD_BLOCKED` (the published demo password, outside demo mode) |
+| `POST /auth/register` | `{ name (2–60), email, password, phone? }` | 201 session, with `membership_tier:'none'`, `membership_status:'pending'`, `membership_expiry:null` | 409 `EMAIL_TAKEN` |
+| `POST /auth/google` | `{ credential }` (Google Identity Services ID token) | a session or MFA challenge, plus `created: boolean` | 503 `GOOGLE_SIGNIN_DISABLED`, 401 `INVALID_GOOGLE_TOKEN` |
+| `POST /auth/demo-login` | `{ role: 'member' \| 'vip' \| 'trainer' \| 'admin' }` | a session | 404 `DEMO_DISABLED` when demo mode is off |
+| `POST /auth/logout` | — | `{ signedOut: true }`; clears the session cookie | — |
 | `GET /auth/me` | — | `SafeUser` | 401 |
-| `PUT /auth/profile` | `{ name?, phone?, avatar_url? }` **only** (unknown keys → 400). `avatar_url`: https URL or `data:image/(png\|jpeg\|webp);base64,…` ≤ 350 000 chars | `SafeUser` | 400 |
-| `PUT /auth/password` | `{ currentPassword?, newPassword }` (`currentPassword` required when the account has a password) | `{ token, user }` (old tokens are revoked) | 400 `WRONG_PASSWORD`, 403 `DEMO_ACCOUNT_LOCKED` |
+| `PUT /auth/profile` | `{ name?, phone?, avatar_url? }` **only** (unknown keys → 400). `avatar_url`: a real PNG/JPEG/WebP image as `data:image/(png\|jpeg\|webp);base64,…` (magic bytes must match, at most 2048×2048 and 300 KB) or the generated default `https://api.dicebear.com/…`; no other addresses | `SafeUser` | 400 |
+| `PUT /auth/password` | `{ currentPassword?, newPassword }` (`currentPassword` required when the account has a password) | a session (old tokens are revoked) | 400 `WRONG_PASSWORD`, 403 `DEMO_ACCOUNT_LOCKED`, 403 `REAUTH_REQUIRED` (a Google-only account setting its first password more than 15 minutes after signing in) |
 | `POST /auth/forgot-password` | `{ email }` | `{ message, resetUrl? }`. The same message whether or not the account exists. `resetUrl` (`<address>/reset-password?token=…`) is returned only in local development (`NODE_ENV` development or test), because this server has no email delivery; it is always logged to the server console | 429 |
-| `POST /auth/reset-password` | `{ token, newPassword }` | `{ token, user }` | 400 `INVALID_RESET_TOKEN` (unknown, used, or older than 30 min), 403 `DEMO_ACCOUNT_LOCKED` |
+| `POST /auth/reset-password` | `{ token, newPassword }` | a session, or an MFA challenge when two-step sign-in is on | 400 `INVALID_RESET_TOKEN` (unknown, used, or older than 30 min), 403 `DEMO_ACCOUNT_LOCKED` |
+
+**Passwords** (`newPassword`, `password` on register): 8–72 characters (≤ 72 UTF-8 bytes), at least one letter and one
+digit, and not on the built-in list of common passwords (which includes the published demo password) → 400 `VALIDATION_ERROR`.
+
+### Two-step sign-in (MFA, optional for every account)
+
+Authenticator-app codes (TOTP, RFC 6238: SHA-1, 6 digits, 30 s, ±1 step) plus 10 one-time backup codes (`xxxx-xxxx`).
+Secrets and backup-code hashes never leave the server. A code is accepted once (replays are refused).
+
+| Method & path | Body | Success `data` | Errors |
+|---|---|---|---|
+| `POST /auth/mfa/verify` (public) | `{ mfa_token, code }`: `mfa_token` from login/google/reset (valid 5 minutes, `aud: pulsefit-mfa`, never accepted as a session); `code` = a 6-digit code or a backup code | a session; `message` says how many backup codes are left when one was used | 400 `INVALID_MFA_CODE`, 401 `MFA_TOKEN_EXPIRED` |
+| `GET /auth/mfa` | — | `{ enabled, recovery_codes_left }` | 401 |
+| `POST /auth/mfa/setup` | `{ password? }` (required when the account has a password; Google-only accounts must have signed in within 15 minutes) | `{ secret, otpauth_url }` (shown once; scan as a QR code) | 400 `WRONG_PASSWORD`, 403 `REAUTH_REQUIRED`, 403 `DEMO_ACCOUNT_LOCKED`, 409 `MFA_ALREADY_ENABLED` |
+| `POST /auth/mfa/enable` | `{ code }` from the app | a fresh session plus `recovery_codes: string[10]` (shown once). Other devices are signed out | 400 `INVALID_MFA_CODE`, 400 `MFA_SETUP_REQUIRED` |
+| `POST /auth/mfa/disable` | `{ code, password? }` (code or backup code; password as for setup) | `SafeUser` | 400 `INVALID_MFA_CODE`, 400 `WRONG_PASSWORD`, 409 `MFA_NOT_ENABLED` |
+| `POST /auth/mfa/recovery-codes` | `{ code }` | `{ recovery_codes }`; the old ones stop working | 400 `INVALID_MFA_CODE`, 409 `MFA_NOT_ENABLED` |
+| `POST /members/:id/mfa/reset` (admin) | — | `SafeUser` with `mfa_enabled:false`; signs the person out everywhere. For someone who lost their phone and backup codes | 404, 409 `MFA_NOT_ENABLED` |
+
+Demo personas cannot turn MFA on while demo mode is on. `POST /auth/demo-login` never asks for a code.
 
 Google accounts are matched by Google subject id, then by verified email (linking the account). New Google
 users are created like a registration (tier `none`, status `pending`). An existing user's name is never overwritten.
@@ -105,9 +195,11 @@ Additional rules:
 |---|---|---|---|
 | `GET /plans` | — | `MembershipPlan[]` sorted by monthly price | |
 | `PUT /plans/:id` (admin) | `{ name?, description?, price_monthly? (int 1–100000), price_annual? (int), features?: string[], categories?: ClassCategory[], is_popular?, badge? }` | `MembershipPlan` | 404 |
-| `POST /payment/create-order` | `{ tier: 'basic'\|'pro'\|'vip', billing_cycle: 'monthly'\|'annual' }` | `{ orderId, amount (paise), amount_inr, currency:'INR', keyId, tier, billing_cycle, plan_name, description }` | 503 `PAYMENTS_DISABLED` |
-| `POST /payment/verify` | `{ razorpay_order_id, razorpay_payment_id, razorpay_signature }` | `{ user, token, payment, message, cancelled_bookings }` | 400 `INVALID_SIGNATURE`, 404 `ORDER_NOT_FOUND`, 403 `ORDER_NOT_YOURS`, 409 `ALREADY_PROCESSED` (`data = { user, cancelled_bookings, message? }`: the current user and what the earlier activation did) |
+| `POST /payment/create-order` | `{ tier: 'basic'\|'pro'\|'vip', billing_cycle: 'monthly'\|'annual' }` | `{ provider, orderId, amount (paise), amount_inr, currency:'INR', tier, billing_cycle, plan_name, description }` plus `keyId` (Razorpay) or `checkoutUrl` (YouPI) | 503 `PAYMENTS_DISABLED`, 502 `PAYMENT_PROVIDER_ERROR` |
+| `POST /payment/verify` | `{ razorpay_order_id, razorpay_payment_id, razorpay_signature }` | `{ user, payment, message, cancelled_bookings }` (the session is unchanged) | 400 `INVALID_SIGNATURE`, 404 `ORDER_NOT_FOUND`, 403 `ORDER_NOT_YOURS`, 409 `ALREADY_PROCESSED` (`data = { user, cancelled_bookings, message? }`: the current user and what the earlier activation did) |
 | `POST /payment/webhook` | raw Razorpay webhook, header `X-Razorpay-Signature` | `{ received: true }` | 400 bad signature, 503 no webhook secret |
+| `POST /payment/youpi/confirm` | `{ order_id }` (a `ypo_…` id) | `{ status: 'pending' }`, `{ status: 'failed', reason: 'EXPIRED'\|'CANCELLED'\|'FAILED' }` or `{ status: 'paid', user, payment?, message?, cancelled_bookings }` | 404 `ORDER_NOT_FOUND`, 403 `ORDER_NOT_YOURS`, 409 `ORDER_REJECTED`, 502 `PAYMENT_PROVIDER_ERROR` |
+| `POST /payment/youpi/webhook` | raw YouPI webhook, header `X-Gateway-Signature: sha256=<hex>` | `{ received: true }` | 400 bad signature, 503 no webhook secret |
 | `GET /payments/my` | — | `Payment[]` newest first (the member's invoices) | |
 | `GET /payments` (admin) | query `user_id?` | `Payment[]` newest first | |
 | `POST /membership/freeze` | `{}` | `SafeUser` (status `frozen`, `frozen_since` today); see the freeze rules below for `message` | 409 `NOT_ACTIVE` |
@@ -118,7 +210,15 @@ order record when it is created; verify reads them from that record. A signature
 (checkout and webhook are idempotent with each other).
 
 Additional rules:
-- `POST /payment/create-order` answers 502 `PAYMENT_PROVIDER_ERROR` when Razorpay cannot be reached.
+- `POST /payment/create-order` uses the gateway `GET /config` reports as `payments.provider` (`PAYMENT_PROVIDER`;
+  default Razorpay when configured, else YouPI) and answers 502 `PAYMENT_PROVIDER_ERROR` when it cannot be reached.
+- **YouPI** (self-hosted UPI, experimental): create-order opens a YouPI session for our own `ypo_…` order id
+  (`Idempotency-Key` = that id, no personal details sent) and returns its `checkoutUrl`; YouPI sends the member back to
+  `/payment-status?order=<id>`. The order activates on a signed `SUCCESS` webhook (HMAC-SHA256 of the raw body with
+  `YOUPI_WEBHOOK_SECRET`) or when `confirm` looks the session up on YouPI (`GET /api/v1/payments/:id` with
+  `X-Merchant-Key`), whichever comes first, and only for the exact amount in INR (otherwise the order is `rejected`).
+  `FAILED`/`EXPIRED`/`CANCELLED` mark a `created` order `failed`; a later `SUCCESS` still activates it. The payment
+  records `provider: 'youpi'` and the `utr` when YouPI reports one.
 - `POST /payment/verify` answers 409 `ORDER_REJECTED` when the webhook already reported a payment for the order with a
   wrong amount or currency; such an order never activates a membership.
 - `POST /payment/webhook`: 503 `WEBHOOK_DISABLED`, 400 `INVALID_SIGNATURE`, 400 `BAD_PAYLOAD`. Events for unknown orders,

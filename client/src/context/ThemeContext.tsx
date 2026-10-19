@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { storage } from '../lib/storage.js';
+import { matchSystemBarsToTheme } from '../lib/native.js';
 
 type Theme = 'dark' | 'light';
 
@@ -16,14 +17,8 @@ const THEME_KEY = 'pulsefit_theme';
 
 const getInitialTheme = (): Theme => {
   const stored = storage.get(THEME_KEY);
-  if (stored === 'dark' || stored === 'light') {
-    return stored;
-  }
-  // Fall back to the system preference
-  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-    return 'light';
-  }
-  return 'dark';
+  // Light unless the visitor picked dark with the toggle (the system setting is not followed).
+  return stored === 'dark' ? 'dark' : 'light';
 };
 
 const applyThemeClass = (theme: Theme) => {
@@ -44,22 +39,16 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     applyThemeClass(theme);
   }, [theme]);
 
-  // Follow the OS setting until the visitor picks a theme themselves.
-  useEffect(() => {
-    if (storage.get(THEME_KEY) || !window.matchMedia) return;
-    const query = window.matchMedia('(prefers-color-scheme: light)');
-    const onChange = () => {
-      if (!storage.get(THEME_KEY)) setThemeState(query.matches ? 'light' : 'dark');
-    };
-    query.addEventListener?.('change', onChange);
-    return () => query.removeEventListener?.('change', onChange);
-  }, []);
-
   useEffect(() => {
     document.documentElement.style.colorScheme = theme;
+    matchSystemBarsToTheme(theme);
+    // The browser's address bar follows the theme (colours from index.css; index.html starts light).
+    document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach(tag => {
+      tag.content = theme === 'dark' ? '#0f141d' : '#e6ebf2';
+    });
   }, [theme]);
 
-  // An explicit choice is remembered; the OS preference is not saved.
+  // An explicit choice is remembered.
   const setTheme = useCallback((next: Theme) => {
     storage.set(THEME_KEY, next);
     setThemeState(next);
@@ -73,18 +62,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, []);
 
-  return (
-    <ThemeContext.Provider
-      value={{
-        theme,
-        isDark: theme === 'dark',
-        toggleTheme,
-        setTheme,
-      }}
-    >
-      {children}
-    </ThemeContext.Provider>
-  );
+  // Changes only with the theme, so the components using it re-render only then.
+  const value = useMemo(() => ({ theme, isDark: theme === 'dark', toggleTheme, setTheme }), [theme, toggleTheme, setTheme]);
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };
 
 export const useTheme = () => {

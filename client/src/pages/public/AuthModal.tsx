@@ -13,7 +13,7 @@ import { errorMessage, isApiError } from '../../api/client.js';
 import { homeTabFor } from '../../routes.js';
 import { User } from '../../types/index.js';
 
-type Mode = 'login' | 'register' | 'forgot';
+type Mode = 'login' | 'register' | 'forgot' | 'mfa';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -33,7 +33,8 @@ const DEMO_PERSONAS: { role: DemoRole; label: string; detail: string; icon: Reac
 const TITLES: Record<Mode, { title: string; description: string }> = {
   login: { title: 'Sign in to PulseFit', description: 'Book classes, show your entry pass and track your training.' },
   register: { title: 'Create your account', description: 'Free to create. Pick a membership afterwards to start booking classes.' },
-  forgot: { title: 'Reset your password', description: "Enter your account's email and we'll prepare a reset link." }
+  forgot: { title: 'Reset your password', description: "Enter your account's email and we'll prepare a reset link." },
+  mfa: { title: 'Enter your sign-in code', description: 'Open your authenticator app and enter the 6-digit PulseFit code, or use one of your backup codes.' }
 };
 
 const GOOGLE_ERRORS: Record<string, string> = {
@@ -53,8 +54,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const [suggestLogin, setSuggestLogin] = useState(false);
   const [resetResult, setResetResult] = useState<{ message: string; resetUrl?: string } | null>(null);
   const [busy, setBusy] = useState<'form' | 'google' | DemoRole | null>(null);
+  // Two-step sign-in: the token from the first step, the code typed, and Google's linking message.
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaCodeError, setMfaCodeError] = useState<string | undefined>();
+  const [pendingMessage, setPendingMessage] = useState<string | undefined>();
 
-  const { login, register, loginWithGoogle, demoLogin, forgotPassword } = useAuth();
+  const { login, register, loginWithGoogle, verifyMfa, demoLogin, forgotPassword } = useAuth();
   const { config } = useAppConfig();
   const { navigate } = useNavigation();
   const { showToast } = useToast();
@@ -74,6 +80,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setSuggestLogin(false);
     setResetResult(null);
     setBusy(null);
+    setMfaToken(null);
+    setMfaCode('');
+    setMfaCodeError(undefined);
+    setPendingMessage(undefined);
   }, [isOpen, initialMode]);
 
   const switchMode = (next: Mode) => {
@@ -83,6 +93,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setFormError(null);
     setSuggestLogin(false);
     setResetResult(null);
+    setMfaToken(null);
+    setMfaCode('');
+    setMfaCodeError(undefined);
+  };
+
+  const askForCode = (token: string, message?: string) => {
+    setMfaToken(token);
+    setMfaCode('');
+    setPendingMessage(message);
+    setMode('mfa');
   };
 
   /** After any sign-in: a plan picked as a guest takes them back to pricing to pay for it. */
@@ -137,16 +157,39 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     try {
       if (mode === 'forgot') {
         setResetResult(await forgotPassword(email.trim()));
+      } else if (mode === 'mfa') {
+        if (!mfaCode.trim()) {
+          setMfaCodeError('Enter the 6-digit code from your authenticator app, or a backup code.');
+          return;
+        }
+        const { user, message } = await verifyMfa(mfaToken!, mfaCode.trim());
+        if (message) showToast(message, 'warning');
+        if (pendingMessage) {
+          // Google linking removed the old password; send them where they can set a new one.
+          onClose();
+          showToast(pendingMessage, 'warning', 'Google account linked');
+          navigate('profile');
+        } else {
+          finishSignIn(user, `Welcome back, ${user.name.split(' ')[0]}!`);
+        }
       } else if (mode === 'login') {
-        const user = await login({ email: email.trim(), password });
-        finishSignIn(user, `Welcome back, ${user.name.split(' ')[0]}!`);
+        const result = await login({ email: email.trim(), password });
+        if (result.user) finishSignIn(result.user, `Welcome back, ${result.user.name.split(' ')[0]}!`);
+        else askForCode(result.mfaToken);
       } else {
         const normalizedPhone = phone.trim() ? normalizeIndianPhone(phone) ?? undefined : undefined;
         const user = await register({ name: name.trim(), email: email.trim(), password, phone: normalizedPhone });
         finishSignIn(user, `Welcome to PulseFit, ${user.name.split(' ')[0]}! Choose a membership to start booking classes.`);
       }
     } catch (err) {
-      showError(err);
+      if (mode === 'mfa' && isApiError(err) && err.code === 'MFA_TOKEN_EXPIRED') {
+        switchMode('login');
+        setFormError(err.message);
+      } else if (mode === 'mfa' && isApiError(err) && err.code === 'INVALID_MFA_CODE') {
+        setMfaCodeError(err.message);
+      } else {
+        showError(err);
+      }
     } finally {
       setBusy(null);
     }
@@ -157,13 +200,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setBusy('google');
     try {
       const result = await loginWithGoogle(credential);
-      if (result.message) {
+      if (result.mfaToken) {
+        askForCode(result.mfaToken, result.message);
+      } else if (result.message) {
         // Linking removed the old password; send them where they can set a new one.
         onClose();
         showToast(result.message, 'warning', 'Google account linked');
         navigate('profile');
       } else {
-        finishSignIn(result.user, result.created ? `Welcome to PulseFit, ${result.user.name.split(' ')[0]}!` : `Welcome back, ${result.user.name.split(' ')[0]}!`);
+        const user = result.user!;
+        finishSignIn(user, result.created ? `Welcome to PulseFit, ${user.name.split(' ')[0]}!` : `Welcome back, ${user.name.split(' ')[0]}!`);
       }
     } catch (err) {
       showError(err);
@@ -200,15 +246,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         navigate('reset-password', { token });
         return;
       }
+      // Only ever leave for a web page, never a javascript: or other scheme.
+      if (url.protocol === 'https:' || url.protocol === 'http:') window.location.assign(url.href);
     } catch {
-      /* fall through to a full page load */
+      /* not a valid link: stay here */
     }
-    window.location.assign(resetUrl);
   };
 
   const isBusy = busy !== null;
   const { title, description } = TITLES[mode];
-  const showAlternatives = mode !== 'forgot' && (Boolean(config.googleClientId) || config.demoMode);
+  const showAlternatives = (mode === 'login' || mode === 'register') && (Boolean(config.googleClientId) || config.demoMode);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} description={description} maxWidth="md">
@@ -299,21 +346,43 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               />
             )}
 
-            <FormField
-              id="auth-email"
-              label="Email address"
-              icon={Mail}
-              type="email"
-              autoComplete="email"
-              inputMode="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              error={fieldErrors.email}
-              required
-            />
+            {mode === 'mfa' ? (
+              <FormField
+                id="auth-mfa-code"
+                label="Sign-in code"
+                icon={ShieldCheck}
+                type="text"
+                autoComplete="one-time-code"
+                inputMode="text"
+                autoFocus
+                value={mfaCode}
+                onChange={e => {
+                  setMfaCode(e.target.value);
+                  setMfaCodeError(undefined);
+                }}
+                placeholder="123456"
+                maxLength={20}
+                hint="The code changes every 30 seconds. Lost your phone? Enter a backup code instead."
+                error={mfaCodeError}
+                required
+              />
+            ) : (
+              <FormField
+                id="auth-email"
+                label="Email address"
+                icon={Mail}
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                error={fieldErrors.email}
+                required
+              />
+            )}
 
-            {mode !== 'forgot' && (
+            {(mode === 'login' || mode === 'register') && (
               <FormField
                 id="auth-password"
                 label="Password"
@@ -375,7 +444,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               ) : (
                 <KeyRound className="w-4 h-4" aria-hidden="true" />
               )}
-              {mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : 'Get a reset link'}
+              {mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : mode === 'mfa' ? 'Verify and sign in' : 'Get a reset link'}
             </button>
           </form>
 
@@ -396,7 +465,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                 </button>
               </p>
             )}
-            {mode === 'forgot' && (
+            {(mode === 'forgot' || mode === 'mfa') && (
               <button type="button" onClick={() => switchMode('login')} className="text-lime-400 font-bold hover:underline rounded inline-flex items-center gap-1">
                 <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" /> Back to sign in
               </button>

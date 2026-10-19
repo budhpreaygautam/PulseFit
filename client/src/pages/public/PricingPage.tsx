@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, ChevronDown, Dumbbell, Info, Loader2, Lock, Music2, Sparkles, Store, XCircle, Zap } from 'lucide-react';
 import { Badge } from '../../components/common/Badge.js';
-import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
+import { EmptyState, ErrorState } from '../../components/common/States.js';
+import { CardSkeletons } from '../../components/public/CardSkeletons.js';
 import { useApiData } from '../../components/public/useApiData.js';
 import { annualPerMonth, annualSavingPercent, planCovers } from '../../components/public/plans.js';
 import { rememberPendingPlan } from '../../components/public/pendingPlan.js';
@@ -10,7 +11,7 @@ import { useAuth } from '../../context/AuthContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { useToast } from '../../context/ToastContext.js';
-import { useRazorpay } from '../../hooks/useRazorpay.js';
+import { useCheckout } from '../../hooks/useCheckout.js';
 import { api } from '../../api/client.js';
 import { addDays, formatDate, formatINR, gymToday, STATUS_LABELS } from '../../lib/format.js';
 import { BillingCycle, MembershipPlan, PaidTier, User } from '../../types/index.js';
@@ -90,7 +91,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
   const { user } = useAuth();
   const { config, isConfigLoaded } = useAppConfig();
   const { showToast } = useToast();
-  const { checkout, isProcessing, error, clearError } = useRazorpay();
+  const { checkout, isProcessing, error, clearError } = useCheckout();
   const { data: plans, error: loadError, isLoading, reload } = useApiData(() => api.getPlans());
 
   // A guest who picked a plan before creating an account comes back here with it in view.
@@ -166,7 +167,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-12 sm:space-y-16">
       <div className="text-center max-w-3xl mx-auto space-y-3 sm:space-y-4">
         <Badge variant="lime">MEMBERSHIPS</Badge>
-        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-slate-100 tracking-tight font-['Outfit']">CHOOSE YOUR PLAN</h1>
+        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-slate-100 tracking-tight font-heading">CHOOSE YOUR PLAN</h1>
         <p className="text-sm md:text-base text-slate-400 font-medium">
           Three plans, priced in rupees, with no sign-up fee. Pay monthly, or once for a full year.
         </p>
@@ -219,7 +220,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
       )}
 
       {isLoading ? (
-        <LoadingState label="Loading plans…" />
+        <CardSkeletons label="Loading plans…" count={3} className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8" cardClassName="h-[36rem] rounded-3xl" />
       ) : loadError ? (
         <ErrorState message={loadError} onRetry={reload} className="max-w-xl mx-auto" />
       ) : !plans || plans.length === 0 ? (
@@ -254,7 +255,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
                 <div className="space-y-5">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h2 id={`plan-${plan.tier}-name`} className="text-xl font-black text-slate-100 font-['Outfit']">
+                      <h2 id={`plan-${plan.tier}-name`} className="text-xl font-black text-slate-100 font-heading">
                         {plan.name}
                       </h2>
                       <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{plan.description}</p>
@@ -266,7 +267,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
 
                   <div className="py-3 border-y border-slate-800/80">
                     <div className="flex items-baseline gap-1.5 flex-wrap">
-                      <span className="text-4xl sm:text-5xl font-black text-slate-100 font-['Outfit']">{formatINR(amount)}</span>
+                      <span className="text-4xl sm:text-5xl font-black text-slate-100 font-heading">{formatINR(amount)}</span>
                       <span className="text-xs text-slate-400 font-medium">{billingCycle === 'annual' ? 'for 12 months, billed once' : 'per month'}</span>
                     </div>
                     {billingCycle === 'annual' ? (
@@ -351,7 +352,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
 
       <div className="p-6 sm:p-8 rounded-3xl neu-flat text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6 border border-lime-500/20">
         <div className="space-y-1">
-          <h2 className="text-lg sm:text-xl font-bold text-slate-100 flex items-center gap-2 justify-center sm:justify-start font-['Outfit']">
+          <h2 className="text-lg sm:text-xl font-bold text-slate-100 flex items-center gap-2 justify-center sm:justify-start font-heading">
             <Sparkles className="w-5 h-5 text-lime-400" aria-hidden="true" /> Want to try PulseFit first?
           </h2>
           <p className="text-xs text-slate-400 font-medium">Claim a free 1-day pass for the Strength floor or a Zumba & Cardio class.</p>
@@ -364,7 +365,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
       <div className="max-w-3xl mx-auto space-y-6 pt-4">
         <div className="text-center space-y-2">
           <Badge variant="cyan">QUESTIONS</Badge>
-          <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-['Outfit']">GOOD TO KNOW</h2>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-heading">GOOD TO KNOW</h2>
         </div>
 
         <div className="space-y-3">

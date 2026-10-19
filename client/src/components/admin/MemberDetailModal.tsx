@@ -146,7 +146,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ memberId, 
             ].map(([label, value]) => (
               <div key={label} className="neu-pressed-sm rounded-xl p-3">
                 <dt className="text-slate-400 font-semibold">{label}</dt>
-                <dd className="mt-1 text-lg font-black text-slate-100 font-['Outfit']">{value}</dd>
+                <dd className="mt-1 text-lg font-black text-slate-100 font-heading">{value}</dd>
               </div>
             ))}
           </dl>
@@ -154,7 +154,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ memberId, 
           <section aria-labelledby="id-cards-heading" className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
-                <h3 id="id-cards-heading" ref={cardsHeadingRef} tabIndex={-1} className="text-sm font-extrabold text-slate-100 font-['Outfit'] outline-none">
+                <h3 id="id-cards-heading" ref={cardsHeadingRef} tabIndex={-1} className="text-sm font-extrabold text-slate-100 font-heading outline-none">
                   ID cards
                 </h3>
                 <p className="text-xs text-slate-400">Physical cards handed out at the desk, newest first.</p>
@@ -231,7 +231,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ memberId, 
 
           <section aria-labelledby="recent-attendance-heading" className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 id="recent-attendance-heading" className="text-sm font-extrabold text-slate-100 font-['Outfit']">
+              <h3 id="recent-attendance-heading" className="text-sm font-extrabold text-slate-100 font-heading">
                 Recent check-ins
               </h3>
               {member.attendance_count > 0 && (
@@ -260,7 +260,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ memberId, 
           </section>
 
           <section aria-labelledby="payments-heading" className="space-y-2">
-            <h3 id="payments-heading" className="text-sm font-extrabold text-slate-100 font-['Outfit']">
+            <h3 id="payments-heading" className="text-sm font-extrabold text-slate-100 font-heading">
               Payments
             </h3>
             {member.payments.length > 0 ? (

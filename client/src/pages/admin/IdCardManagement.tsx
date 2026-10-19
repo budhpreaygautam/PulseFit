@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Ban, BadgeCheck, Eye, Layers, Plus, RefreshCw, RotateCcw, Search, UserRound, UserX } from 'lucide-react';
+import { Ban, BadgeCheck, Eye, Layers, Plus, RefreshCw, RotateCcw, UserRound, UserX } from 'lucide-react';
 import { IdCardOverview, IdCardRow, IdCardStatus, UserRole } from '../../types/index.js';
 import { api, errorMessage } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
-import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
-import { AdminNav, Avatar, PageHeader, focusRing, inputClass } from '../../components/admin/ui.js';
+import { EmptyState, ErrorState, LoadingState, Skeleton } from '../../components/common/States.js';
+import { AdminNav, Avatar, PageHeader, SearchForm, focusRing } from '../../components/admin/ui.js';
 import { KpiTile } from '../../components/admin/KpiTile.js';
 import { MemberDetailModal } from '../../components/admin/MemberDetailModal.js';
 import { CardStatusBadge, IdCardAction, IdCardActionDialog, useFocusAfterReload } from '../../components/admin/IdCardActions.js';
@@ -35,7 +35,6 @@ const actionClass = `px-3 py-1.5 rounded-lg text-xs font-bold flex items-center 
 
 export const IdCardManagement: React.FC = () => {
   const [filters, setFilters] = useState({ status: 'all' as StatusFilter, role: 'member' as RoleFilter, search: '' });
-  const [searchInput, setSearchInput] = useState('');
   const [overview, setOverview] = useState<IdCardOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -101,7 +100,7 @@ export const IdCardManagement: React.FC = () => {
     <div className="flex items-center gap-3 min-w-0">
       <Avatar src={row.user.avatar_url} name={row.user.name} />
       <div className="min-w-0">
-        <div className="font-extrabold text-sm text-slate-100 flex flex-wrap items-center gap-1.5 font-['Outfit']">
+        <div className="font-extrabold text-sm text-slate-100 flex flex-wrap items-center gap-1.5 font-heading">
           <span id={nameId} className="min-w-0 break-words">
             {row.user.name}
           </span>
@@ -211,13 +210,23 @@ export const IdCardManagement: React.FC = () => {
       />
       <AdminNav />
 
-      {counts && (
+      {/* Until the first answer, tiles of the same size hold the space so the filters do not jump down.
+          A load that fails before any answer drops them: there is nothing to count. */}
+      {counts ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
           <KpiTile title="Active cards" value={counts.active} detail={`of ${counts.people} ${counts.people === 1 ? roleFilter.one : roleFilter.noun}`} icon={<BadgeCheck className="w-5 h-5" />} />
           <KpiTile title="Deactivated" value={counts.deactivated} detail="Refused at check-in" icon={<Ban className="w-5 h-5" />} accent="rose" />
           <KpiTile title="No card yet" value={counts.none} detail="Never issued a card" icon={<UserX className="w-5 h-5" />} accent="slate" />
           <KpiTile title="Cards issued" value={counts.cards_issued} detail="Every card handed out, replacements included" icon={<Layers className="w-5 h-5" />} accent="cyan" />
         </div>
+      ) : (
+        !error && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+            {[0, 1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-[9.5rem]" />
+            ))}
+          </div>
+        )
       )}
 
       <div className="neu-flat p-4 sm:p-5 rounded-3xl border border-slate-800/80 space-y-4">
@@ -237,32 +246,13 @@ export const IdCardManagement: React.FC = () => {
               </button>
             ))}
           </div>
-          <form
-            role="search"
-            onSubmit={e => {
-              e.preventDefault();
-              setFilters(prev => ({ ...prev, search: searchInput.trim() }));
-            }}
+          <SearchForm
+            id="id-card-search"
+            label="Search by name, email, phone, pass code or card number"
+            placeholder="Name, email, phone or card number"
+            onSearch={search => setFilters(prev => ({ ...prev, search }))}
             className="flex-1 flex gap-2 min-w-0"
-          >
-            <label htmlFor="id-card-search" className="sr-only">
-              Search by name, email, phone, pass code or card number
-            </label>
-            <div className="relative flex-1 min-w-0">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" aria-hidden="true" />
-              <input
-                id="id-card-search"
-                type="search"
-                value={searchInput}
-                onChange={e => setSearchInput(e.target.value)}
-                placeholder="Name, email, phone or card number"
-                className={`${inputClass} pl-10`}
-              />
-            </div>
-            <button type="submit" className={`px-4 neu-btn rounded-xl text-xs font-bold shrink-0 ${focusRing}`}>
-              Search
-            </button>
-          </form>
+          />
         </div>
       </div>
 

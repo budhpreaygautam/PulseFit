@@ -10,6 +10,17 @@ async function useTheme(page: Page, theme: 'light' | 'dark') {
   await page.addInitScript(t => window.localStorage.setItem('pulsefit_theme', t), theme);
 }
 
+test('light is the default theme, even when the device prefers dark; a picked dark theme is remembered', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveClass(/\blight\b/);
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#e6ebf2');
+
+  await page.evaluate(() => window.localStorage.setItem('pulsefit_theme', 'dark'));
+  await page.reload();
+  await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+});
+
 /** WCAG contrast ratio of an element's text against the background colours actually behind it. */
 async function contrastOf(locator: Locator): Promise<number> {
   return locator.evaluate(el => {
@@ -97,7 +108,10 @@ test.describe('session', () => {
     await expect(page.getByRole('heading', { name: "Can't reach PulseFit right now" })).toBeVisible({ timeout: 6_000 });
     expect(Date.now() - started).toBeLessThan(6_000);
     await expect(page.getByRole('heading', { name: /please sign in/i })).toHaveCount(0);
-    expect(await page.evaluate(() => window.localStorage.getItem('pulsefit_token'))).toBe(token);
+    // The session is kept (the cookie, and the marker that says to restore it); no token is in localStorage.
+    expect(await page.evaluate(() => window.localStorage.getItem('pulsefit_signed_in'))).toBe('1');
+    expect(await page.evaluate(() => window.localStorage.getItem('pulsefit_token'))).toBeNull();
+    expect((await page.context().cookies()).find(c => c.name === 'pulsefit_session')?.value).toBe(token);
 
     // The server is back: the page recovers without a reload or a click.
     await page.unroute('**/api/auth/me');
@@ -182,6 +196,23 @@ test.describe('parts that load on demand', () => {
     await expect(page.getByRole('dialog')).toBeVisible();
   });
 
+  test('a sign-in dialog that cannot be fetched says so, leaves the page working and opens after a reload', async ({ page }) => {
+    await page.route('**/assets/AuthModal-*.js', route => route.abort('connectionrefused'));
+    await page.goto('/');
+    const signIn = page.getByRole('button', { name: 'Sign in' }).first();
+    await signIn.click();
+
+    const toast = page.getByRole('alert').filter({ hasText: "Couldn't open sign-in." });
+    await expect(toast).toContainText('reload the page');
+    await expect(page.locator('main h1')).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+
+    await page.unroute('**/assets/AuthModal-*.js');
+    await page.reload();
+    await signIn.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+  });
+
   test('a page that cannot be fetched shows a reload panel, and other pages still open', async ({ page, request }) => {
     await signInAs(page, request, 'member');
     await page.route('**/assets/MyBookingsPage-*.js', route => route.abort('connectionrefused'));
@@ -202,7 +233,9 @@ test('a failed config request is retried, so demo mode and its account bar still
   });
   await page.goto('/pricing');
   await expect(page.getByRole('group', { name: /Demo accounts/ })).toBeVisible({ timeout: 8_000 });
-  expect(failed).toBeGreaterThan(1);
+  // The bar shows from the first render (the server marks a demo deployment in the HTML), so wait
+  // for the retry itself.
+  await expect.poll(() => failed, { timeout: 8_000 }).toBeGreaterThan(1);
 });
 
 test('a config request that hangs is called off after 8 seconds and tried again', async ({ page }) => {
@@ -214,9 +247,11 @@ test('a config request that hangs is called off after 8 seconds and tried again'
   // The first request is never answered.
   await page.route('**/api/config', route => (started++ === 0 ? undefined : route.continue()));
   await page.goto('/pricing');
-  await expect(page.getByRole('group', { name: /Demo accounts/ })).toBeVisible({ timeout: 12_000 });
-  expect(started).toBe(2);
+  // The demo bar shows from the first render (the server marks a demo deployment in the HTML), so
+  // wait for the second request itself.
+  await expect.poll(() => started, { timeout: 12_000 }).toBe(2);
   expect(calledOff).toBe(1);
+  await expect(page.getByRole('group', { name: /Demo accounts/ })).toBeVisible();
 });
 
 test('coming back to the window replaces a config request that has been waiting', async ({ page }) => {
@@ -226,8 +261,8 @@ test('coming back to the window replaces a config request that has been waiting'
   await page.waitForTimeout(3_500);
   expect(started).toBe(1);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await expect(page.getByRole('group', { name: /Demo accounts/ })).toBeVisible({ timeout: 2_500 });
-  expect(started).toBe(2);
+  await expect.poll(() => started, { timeout: 2_500 }).toBe(2);
+  await expect(page.getByRole('group', { name: /Demo accounts/ })).toBeVisible();
 });
 
 test('error toasts stay well past the old 4.5 seconds and pause while hovered', async ({ page }) => {

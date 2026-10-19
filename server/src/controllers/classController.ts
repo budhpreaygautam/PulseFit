@@ -6,6 +6,7 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import { ApiError, asyncHandler, badRequest, conflict, notFound, ok, parse } from '../lib/http.js';
 import { dayOfWeek, gymToday, isValidDate, isValidTime } from '../lib/dates.js';
 import { CLOSES_AT, OPENS_AT, isOpenWeekday, withinOpeningHours } from '../lib/hours.js';
+import { isAllowedRemoteImageUrl } from '../lib/imageValidation.js';
 import { newId } from '../lib/users.js';
 import {
   bookedCount,
@@ -50,7 +51,7 @@ const classFields = {
   capacity: z.number().int().min(1).max(200),
   intensity: z.enum(['Low', 'Medium', 'High', 'Extreme']),
   description: z.string().trim().max(1000),
-  image_url: z.url({ protocol: /^https?$/ }),
+  image_url: z.string().trim().refine(isAllowedRemoteImageUrl, 'Use an https:// image address on a public website.'),
   calories_burn_est: z.number().int().min(0).max(3000)
 };
 

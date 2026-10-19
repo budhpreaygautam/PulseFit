@@ -65,7 +65,9 @@ function emptyLike(): DatabaseSchema {
 describe('uploaded profile photos', () => {
   it('are not copied into floor sessions or the staff floor list', async () => {
     db.time_sessions = db.time_sessions.filter(s => s.status !== 'active');
-    const photo = `data:image/png;base64,${Buffer.alloc(30_000).toString('base64')}`;
+    // A real (1×1) PNG, padded to a realistic photo size: uploads must be genuine images.
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+    const photo = `data:image/png;base64,${Buffer.concat([png, Buffer.alloc(30_000)]).toString('base64')}`;
     expect((await api().put('/api/auth/profile').set(authHeader(personas.member)).send({ avatar_url: photo })).status).toBe(200);
 
     const clockIn = await api().post('/api/time-tracking/clock-in').set(authHeader(personas.member)).send({ category: 'Zumba & Cardio' });

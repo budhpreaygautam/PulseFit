@@ -24,14 +24,32 @@ export interface User {
   created_at: string;
   streak_days?: number;
   last_active_date?: string | null;
+  /** Two-step sign-in (authenticator app) is on. */
+  mfa_enabled?: boolean;
+  /** False for accounts created with Google that never set a password. */
+  has_password?: boolean;
 }
 
 export interface AppConfig {
   demoMode: boolean;
   googleClientId: string | null;
-  payments: { enabled: boolean; keyId: string | null };
+  payments: { enabled: boolean; provider: PaymentProvider | null; keyId: string | null };
   gym: { name: string; timezone: string; currency: string; hours: OpeningHours };
+  /** The Android app the website offers for download (an APK on this server), or null when there is none. */
+  androidApp: AndroidAppDownload | null;
 }
+
+export interface AndroidAppDownload {
+  /** Same-origin path of the APK. */
+  url: string;
+  /** Version name, when the server knows it. */
+  version?: string;
+  /** Bytes. */
+  size: number;
+}
+
+/** razorpay: card/UPI/netbanking through Razorpay. youpi: UPI straight to the gym's account (YouPI PG). */
+export type PaymentProvider = 'razorpay' | 'youpi';
 
 /** Gym-local opening hours; closedWeekdays uses 0 = Sunday. */
 export interface OpeningHours {
@@ -43,8 +61,22 @@ export interface OpeningHours {
 }
 
 export interface AuthSession {
-  token: string;
+  /** Only for the Android/iOS apps; the website's session is an httpOnly cookie. */
+  token?: string;
   user: User;
+}
+
+/** Sign-in answer for an account with two-step sign-in on: send a code to POST /auth/mfa/verify. */
+export interface MfaChallenge {
+  mfa_required: true;
+  mfa_token: string;
+}
+
+export const isMfaChallenge = (result: AuthSession | MfaChallenge): result is MfaChallenge => 'mfa_required' in result;
+
+export interface MfaSetup {
+  secret: string;
+  otpauth_url: string;
 }
 
 export interface Trainer {
@@ -340,17 +372,27 @@ export interface MembershipPlan {
   badge?: string;
 }
 
-export interface PaymentOrder {
+interface PaymentOrderBase {
   orderId: string;
   amount: number; // paise
   amount_inr: number;
   currency: 'INR';
-  keyId: string;
   tier: PaidTier;
   billing_cycle: BillingCycle;
   plan_name: string;
   description: string;
 }
+
+/** A checkout the server opened: Razorpay's modal needs the key; YouPI's is a page to go to. */
+export type PaymentOrder =
+  | (PaymentOrderBase & { provider: 'razorpay'; keyId: string })
+  | (PaymentOrderBase & { provider: 'youpi'; checkoutUrl: string });
+
+/** What the server learned from YouPI about an order (POST /payment/youpi/confirm). */
+export type YoupiOrderStatus =
+  | { status: 'pending' }
+  | { status: 'failed'; reason: string }
+  | { status: 'paid'; user: User; payment?: Payment; message?: string; cancelled_bookings: number };
 
 export interface Payment {
   id: string;
@@ -359,7 +401,11 @@ export interface Payment {
   user_name: string;
   user_email: string;
   order_id: string;
+  // The gateway's payment id (Razorpay's pay_…, or YouPI's session id).
   razorpay_payment_id: string;
+  provider?: PaymentProvider;
+  /** UPI transaction reference, for YouPI payments when it was reported. */
+  utr?: string;
   tier: PaidTier;
   plan_name: string;
   billing_cycle: BillingCycle;

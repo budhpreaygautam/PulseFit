@@ -4,28 +4,36 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2384cc16' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6.5 6.5 11 11'/><path d='m21 21-1-1'/><path d='m3 3 1 1'/><path d='m18 22 4-4'/><path d='m2 6 4-4'/><path d='m3 10 7-7'/><path d='m14 21 7-7'/></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>PULSEFIT — High Performance Gym & Training Hub</title>
-    <!-- Apply theme before React mounts to avoid a flash of the wrong theme -->
-    <script>
-      (function () {
-        try {
-          var stored = localStorage.getItem('pulsefit_theme');
-          var dark = stored ? stored === 'dark'
-            : !(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
-          var el = document.documentElement;
-          el.classList.add(dark ? 'dark' : 'light');
-          el.classList.remove(dark ? 'light' : 'dark');
-          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
-        } catch (e) {}
-      })();
-    </script>
-    <!-- Fonts -->
+    <!-- The home page's title and description. In production the server swaps in the requested page's
+         (see the routes in src/routes.ts), and the app keeps them in step as people move around. -->
+    <title>Strength &amp; Zumba gym in Gurugram · PulseFit Athletics</title>
+    <meta name="description" content="PulseFit Athletics in Sector 29, Gurugram: a Workout &amp; Strength floor and a Zumba &amp; Cardio studio, with coach-led classes you book in the app." />
+    <meta name="theme-color" content="#e6ebf2" />
+    <!-- Link previews -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PulseFit Athletics" />
+    <meta property="og:locale" content="en_IN" />
+    <meta property="og:title" content="Strength &amp; Zumba gym in Gurugram · PulseFit Athletics" />
+    <meta property="og:description" content="PulseFit Athletics in Sector 29, Gurugram: a Workout &amp; Strength floor and a Zumba &amp; Cardio studio, with coach-led classes you book in the app." />
+    <meta name="twitter:card" content="summary" />
+    <!-- Apply theme before React mounts to avoid a flash of the wrong theme (blocking on purpose) -->
+    <script src="/theme-init.js"></script>
+    <!-- Fonts: only the weights the app uses -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <!-- The hero photos on /, /strength and /zumba come from here (no crossorigin: images load without CORS) -->
+    <link rel="preconnect" href="https://images.unsplash.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <!-- The server adds the page's canonical link, og:url, robots tag and JSON-LD here. Keep this line. -->
+    <!--app-head-->
   </head>
   <body class="bg-gym-950 text-slate-100 antialiased selection:bg-lime-500 selection:text-black min-h-screen">
     <div id="root"></div>
+    <noscript>
+      <p style="max-width:32rem;margin:6rem auto;padding:0 1.5rem;font:16px/1.6 system-ui,sans-serif;text-align:center">
+        PulseFit Athletics needs JavaScript to show its pages. Turn JavaScript on in your browser and reload.
+      </p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

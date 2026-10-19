@@ -1,0 +1,19 @@
+# Keep the build context small and free of secrets and local data.
+**/node_modules
+**/dist
+**/dist-mobile
+**/.env
+**/.env.*
+!**/.env.example
+client/.mobile-api-url
+client/certs
+client/android
+client/ios
+server/data
+e2e
+test-results
+playwright-report
+.git
+.github
+.vscode
+*.log

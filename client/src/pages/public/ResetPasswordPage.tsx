@@ -46,9 +46,15 @@ export const ResetPasswordPage: React.FC = () => {
     }
     setIsSaving(true);
     try {
-      const user = await resetPassword(token, password);
-      showToast('Your password has been changed and you are signed in.', 'success');
-      navigate(homeTabFor(user.role), undefined, { replace: true });
+      const result = await resetPassword(token, password);
+      if (result.user) {
+        showToast('Your password has been changed and you are signed in.', 'success');
+        navigate(homeTabFor(result.user.role), undefined, { replace: true });
+      } else {
+        // Two-step sign-in is on: the new password plus a code from the app.
+        showToast('Your password has been changed. Sign in with it and a code from your authenticator app.', 'success');
+        navigate('home', undefined, { replace: true });
+      }
     } catch (err) {
       setLinkExpired(isApiError(err) && err.code === 'INVALID_RESET_TOKEN');
       setError(errorMessage(err));
@@ -73,7 +79,7 @@ export const ResetPasswordPage: React.FC = () => {
         <div className="mb-5 w-12 h-12 rounded-2xl neu-pressed-sm flex items-center justify-center text-lime-400">
           <KeyRound className="w-5 h-5" aria-hidden="true" />
         </div>
-        <h1 className="text-2xl font-black text-slate-100 font-['Outfit']">Choose a new password</h1>
+        <h1 className="text-2xl font-black text-slate-100 font-heading">Choose a new password</h1>
         {!token ? (
           <div className="mt-3 space-y-4">
             <p className="text-sm text-rose-300">This page needs the link from your password reset request. Ask for a new one below.</p>

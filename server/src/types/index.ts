@@ -28,10 +28,21 @@ export interface User {
   // Bumped on password change/reset; JWTs carrying an older value are rejected.
   token_version?: number;
   google_sub?: string;
+  // Authenticator-app MFA (lib/totp.ts). The secret and backup codes never leave the server.
+  mfa_enabled?: boolean;
+  mfa_secret?: string;
+  // Set by POST /auth/mfa/setup until the first code confirms it.
+  mfa_pending_secret?: string;
+  // sha256 hashes of the unused one-time backup codes.
+  mfa_recovery_codes?: string[];
+  // Last accepted 30-second step, so a code cannot be replayed.
+  mfa_last_step?: number;
 }
 
-/** A user as it may leave the API: never includes password_hash. */
-export type SafeUser = Omit<User, 'password_hash'>;
+/** A user as it may leave the API: no password hash, MFA secrets or other internal fields. */
+export type SafeUser = Omit<User, 'password_hash' | 'token_version' | 'google_sub' | 'mfa_secret' | 'mfa_pending_secret' | 'mfa_recovery_codes' | 'mfa_last_step'> & {
+  has_password: boolean;
+};
 
 export interface Trainer {
   id: string;
@@ -147,9 +158,15 @@ export interface MembershipPlan {
   badge?: string;
 }
 
-/** A Razorpay order created by the server; the price and plan are fixed here, never by the client. */
+export type PaymentProvider = 'razorpay' | 'youpi';
+
+/** A checkout order created by the server; the price and plan are fixed here, never by the client. */
 export interface PaymentOrder {
-  id: string; // Razorpay order id
+  id: string; // Razorpay order id, or our own ypo_… id for YouPI
+  /** Absent on orders from before YouPI support: Razorpay. */
+  provider?: PaymentProvider;
+  /** YouPI's payment session id for this order. */
+  provider_payment_id?: string;
   user_id: string;
   tier: Exclude<MembershipTier, 'none'>;
   billing_cycle: BillingCycle;
@@ -171,7 +188,12 @@ export interface Payment {
   user_name: string; // snapshot, so invoices survive member deletion
   user_email: string;
   order_id: string;
+  // The gateway's payment id: Razorpay's pay_…, or YouPI's session id (the name predates YouPI).
   razorpay_payment_id: string;
+  /** Absent on payments from before YouPI support: Razorpay (or seed data). */
+  provider?: PaymentProvider;
+  /** The UPI transaction reference (UTR) YouPI read from the bank alert, when it reported one. */
+  utr?: string;
   tier: Exclude<MembershipTier, 'none'>;
   plan_name: string;
   billing_cycle: BillingCycle;

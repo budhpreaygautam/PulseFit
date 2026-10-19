@@ -53,9 +53,11 @@ function memberSummary(user: User) {
  * pass token, then ID card number, then member id, then email, then trial code. Pass tokens,
  * emails and trial codes ignore case (tokens and trial codes are issued in capitals), so a code
  * typed in lower case works; card numbers also ignore spaces and hyphens. A card match carries
- * the card, because a deactivated card must not open the turnstile.
+ * the card, because a deactivated card must not open the turnstile. Member ids and emails are
+ * not secret, so only staff typing them (`byAccount`, method 'manual') may look them up; a
+ * scanned code must be a pass, a card or a trial code.
  */
-function resolveCode(code: string): { user: User; card?: IdCard } | { trial: TrialPass } | null {
+function resolveCode(code: string, byAccount: boolean): { user: User; card?: IdCard } | { trial: TrialPass } | null {
   const upper = code.toUpperCase();
   const lower = code.toLowerCase();
   const byToken = db.users.find(u => u.qr_code_token.toUpperCase() === upper);
@@ -63,7 +65,7 @@ function resolveCode(code: string): { user: User; card?: IdCard } | { trial: Tri
   const card = findCardByNumber(code);
   const holder = card && db.users.find(u => u.id === card.user_id);
   if (card && holder) return { user: holder, card };
-  const user = db.users.find(u => u.id === code) || db.users.find(u => u.email.toLowerCase() === lower);
+  const user = byAccount ? db.users.find(u => u.id === code) || db.users.find(u => u.email.toLowerCase() === lower) : undefined;
   if (user) return { user };
   const trial = db.trial_passes.find(t => t.code.toUpperCase() === upper);
   return trial ? { trial } : null;
@@ -133,7 +135,7 @@ export const checkIn = asyncHandler<AuthenticatedRequest>((req, res: Response) =
   // streak would see a gap and restart at 1 (the floor endpoints do the same).
   closeStaleSessions(now);
 
-  const match = resolveCode(code);
+  const match = resolveCode(code, body.method === 'manual');
   if (!match) {
     throw new ApiError(404, 'That pass was not recognised. Check the code or search the member by email.', 'PASS_NOT_FOUND');
   }
@@ -219,7 +221,9 @@ function csvCell(value: unknown): string {
   let s = value === undefined || value === null ? '' : String(value);
   // Names come from public forms; a leading = + - @ would run as a formula in Excel.
   if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  // Quote every separator a spreadsheet may split on (semicolon locales, tabs) too, so no
+  // formula can start a cell of its own.
+  return /[",;\t\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 function toCsv(logs: AttendanceLog[]): string {
