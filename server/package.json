@@ -24,7 +24,7 @@
     "jose": "^6.2.12",
     "jsonwebtoken": "^9.0.2",
     "razorpay": "^2.9.2",
-    "uuid": "^11.1.0",
+    "uuid": "^14.0.3",
     "zod": "^4.6.5"
   },
   "devDependencies": {
