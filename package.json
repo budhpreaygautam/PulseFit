@@ -23,9 +23,9 @@
     "mobile:ios": "npm --prefix client run mobile:ios"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.1",
     "@types/node": "^22.20.5",
-    "concurrently": "^10.0.5",
+    "concurrently": "^10.0.6",
     "typescript": "^5.9.3"
   },
   "overrides": {
