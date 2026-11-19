@@ -261,12 +261,13 @@ describe('personal data in answers', () => {
       expectNoSecrets(url, res.body);
     }
 
-    // The roster shows each attendee's email and phone, so the coach can reach them; check-in shows the email.
+    // The roster gives coaches names only (email and phone are null); check-in shows the email.
     const roster = await api().get('/api/bookings/class/cls_str_fri/roster').set(coach);
     expect(roster.status).toBe(200);
     expectNoSecrets('roster', roster.body);
     for (const a of roster.body.data.attendees) {
       expect(Object.keys(a).sort()).toEqual(['booked_at', 'booking_id', 'status', 'user_avatar', 'user_email', 'user_id', 'user_name', 'user_phone', 'user_tier']);
+      expect([a.user_email, a.user_phone]).toEqual([null, null]);
     }
     const checkIn = await api().post('/api/attendance/check-in').set(coach).send({ code: userByEmail(personas.member).qr_code_token });
     expect(checkIn.status).toBe(200);

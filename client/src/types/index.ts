@@ -155,8 +155,8 @@ export interface RosterEntry {
   booking_id: string;
   user_id: string;
   user_name: string;
-  user_email: string;
-  user_phone?: string;
+  user_email: string | null;
+  user_phone?: string | null;
   user_avatar?: string;
   user_tier: MembershipTier;
   status: BookingStatus;

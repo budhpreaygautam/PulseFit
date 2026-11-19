@@ -333,13 +333,19 @@ describe('classes: bookings', () => {
         booking_id: expect.any(String),
         user_id: expect.any(String),
         user_name: expect.any(String),
-        user_email: expect.any(String),
-        user_phone: expect.any(String),
+        user_email: null,
+        user_phone: null,
         user_avatar: expect.any(String),
         user_tier: expect.any(String),
         status: 'confirmed',
         booked_at: expect.any(String)
       });
+    });
+
+    it('shows attendees’ email and phone to admins only', async () => {
+      const res = await api().get('/api/bookings/class/cls_str_wed/roster').set(authHeader(personas.admin));
+      expect(res.status).toBe(200);
+      expect(res.body.data.attendees[0]).toMatchObject({ user_email: expect.any(String), user_phone: expect.any(String) });
     });
 
     it('filters by date instead of mixing every week (audit regression)', async () => {
