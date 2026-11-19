@@ -15,7 +15,8 @@ const EXPLORE = [
   { tab: 'schedule', label: 'Class timetable' },
   { tab: 'pricing', label: 'Memberships' },
   { tab: 'trainers', label: 'Coaches' },
-  { tab: 'exercise-library', label: 'Exercise library' }
+  { tab: 'exercise-library', label: 'Exercise library' },
+  { tab: 'contact', label: 'Contact us' }
 ];
 
 const LEGAL = [

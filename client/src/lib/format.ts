@@ -94,11 +94,10 @@ export function tierLabel(tier: string | null | undefined, plans?: ReadonlyArray
 export const STATUS_LABELS: Record<string, string> = { active: 'Active', expired: 'Expired', pending: 'No active plan', frozen: 'Frozen' };
 
 /** The gender choices, in the order forms offer them. */
-export const GENDER_OPTIONS: { value: Gender; label: string }[] = [
-  { value: 'male', label: 'Male' },
-  { value: 'female', label: 'Female' },
-  { value: 'other', label: 'Other' },
-  { value: 'prefer_not_to_say', label: 'Prefer not to say' }
+export const GENDER_OPTIONS: { value: Gender; label: string; emoji: string }[] = [
+  { value: 'male', label: 'Male', emoji: '♂️' },
+  { value: 'female', label: 'Female', emoji: '♀️' },
+  { value: 'other', label: 'Other', emoji: '⚧️' }
 ];
 
 export const genderLabel = (gender: Gender | null | undefined) => GENDER_OPTIONS.find(o => o.value === gender)?.label ?? 'Not given';

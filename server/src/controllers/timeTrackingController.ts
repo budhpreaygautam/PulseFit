@@ -134,6 +134,8 @@ export const getActiveFloorStatus = asyncHandler<AuthenticatedRequest>((req, res
     status.workoutUsers = workout.map(s => toFloorPresence(s, now));
     status.zumbaUsers = zumba.map(s => toFloorPresence(s, now));
   }
+  // The answer depends on the session: no shared cache may hand an admin's copy to anyone else.
+  res.set('Cache-Control', 'private, no-cache');
   return ok(res, status);
 });
 

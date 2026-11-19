@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { NOT_FOUND_TAB, routeForTab, tabForPath } from '../routes.js';
 import { applyPageHead } from '../lib/seo.js';
+import { hasSavedSession } from '../lib/authToken.js';
+import { rememberPendingPage } from '../components/public/pendingPage.js';
 
 interface Location {
   tab: string;
@@ -13,6 +15,8 @@ interface NavigationContextType {
   /** Query string of the current URL, e.g. ?date=2026-10-12 on a roster. */
   params: URLSearchParams;
   navigate: (tab: string, params?: Record<string, string>, options?: { replace?: boolean }) => void;
+  /** Counts the links to a page that needs an account that a guest has followed; App opens the sign-in dialog. */
+  signInRequests: number;
 }
 
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
@@ -23,6 +27,7 @@ function readLocation(): Location {
 
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [location, setLocation] = useState<Location>(readLocation);
+  const [signInRequests, setSignInRequests] = useState(0);
 
   useEffect(() => {
     const onPopState = () => setLocation(readLocation());
@@ -32,6 +37,15 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const navigate = useCallback((tab: string, params?: Record<string, string>, options?: { replace?: boolean }) => {
     const route = routeForTab(tab);
+    // Every link and button reaches its page through here, so this is where a guest is stopped: the
+    // page is not opened (nor mounted, nor its data or code fetched), the sign-in dialog opens instead,
+    // and the page opens after signing in (AuthModal). hasSavedSession is set the moment a sign-in
+    // succeeds, before the user state is, so the page that sign-in then opens is let through.
+    if (route && route.access !== 'public' && !hasSavedSession()) {
+      rememberPendingPage({ tab: route.tab, params });
+      setSignInRequests(n => n + 1);
+      return;
+    }
     const search = params ? new URLSearchParams(params) : new URLSearchParams();
     const path = route ? route.path : '/';
     const url = search.toString() ? `${path}?${search}` : path;
@@ -48,7 +62,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     applyPageHead(routeForTab(location.tab));
   }, [location.tab]);
 
-  const value = useMemo(() => ({ tab: location.tab, params: location.params, navigate }), [location, navigate]);
+  const value = useMemo(() => ({ tab: location.tab, params: location.params, navigate, signInRequests }), [location, navigate, signInRequests]);
   return <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>;
 };
 

@@ -231,7 +231,7 @@ test('a failed config request is retried, so demo mode and its account bar still
     if (failed++ === 0) return route.abort('connectionrefused');
     return route.continue();
   });
-  await page.goto('/pricing');
+  await page.goto('/exercises');
   await expect(page.getByRole('group', { name: /Demo accounts/ })).toBeVisible({ timeout: 8_000 });
   // The bar shows from the first render (the server marks a demo deployment in the HTML), so wait
   // for the retry itself.
@@ -246,7 +246,7 @@ test('a config request that hangs is called off after 8 seconds and tried again'
   });
   // The first request is never answered.
   await page.route('**/api/config', route => (started++ === 0 ? undefined : route.continue()));
-  await page.goto('/pricing');
+  await page.goto('/exercises');
   // The demo bar shows from the first render (the server marks a demo deployment in the HTML), so
   // wait for the second request itself.
   await expect.poll(() => started, { timeout: 12_000 }).toBe(2);
@@ -257,7 +257,7 @@ test('a config request that hangs is called off after 8 seconds and tried again'
 test('coming back to the window replaces a config request that has been waiting', async ({ page }) => {
   let started = 0;
   await page.route('**/api/config', route => (started++ === 0 ? undefined : route.continue()));
-  await page.goto('/pricing');
+  await page.goto('/exercises');
   await page.waitForTimeout(3_500);
   expect(started).toBe(1);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
@@ -269,7 +269,7 @@ test('error toasts stay well past the old 4.5 seconds and pause while hovered', 
   await page.route('**/api/auth/demo-login', route =>
     route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ success: false, error: 'Demo sign-in failed for this test.' }) })
   );
-  await page.goto('/pricing');
+  await page.goto('/exercises');
   await page.getByRole('group', { name: /Demo accounts/ }).getByRole('button', { name: 'Coach' }).click();
   const toast = page.getByRole('alert').filter({ hasText: 'Demo sign-in failed for this test.' });
   await expect(toast).toBeVisible();
@@ -287,7 +287,7 @@ test('error toasts stay well past the old 4.5 seconds and pause while hovered', 
 });
 
 test('dismissing a toast by click, tap or keyboard does not hold later toasts on screen', async ({ page, isMobile }) => {
-  await page.goto('/pricing');
+  await page.goto('/exercises');
   const region = page.getByRole('region', { name: 'Notifications' });
   const demo = page.getByRole('group', { name: /Demo accounts/ });
   const toastFor = (text: string) => region.getByRole('status').filter({ hasText: text });
@@ -327,7 +327,7 @@ test('dismissing a toast by click, tap or keyboard does not hold later toasts on
 });
 
 test('each toast is announced once: errors by their alert role, others by the always-present announcer', async ({ page }) => {
-  await page.goto('/pricing');
+  await page.goto('/exercises');
   const region = page.getByRole('region', { name: 'Notifications' });
   await expect(region).not.toHaveAttribute('aria-live', /.+/);
   await page.getByRole('group', { name: /Demo accounts/ }).getByRole('button', { name: 'Member', exact: true }).click();
@@ -338,7 +338,7 @@ test('each toast is announced once: errors by their alert role, others by the al
 });
 
 test('opening another page moves focus to its heading and announces it', async ({ page }) => {
-  await page.goto('/pricing');
+  await page.goto('/exercises');
   await page.getByRole('contentinfo').getByRole('link', { name: 'Privacy policy' }).click();
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page.locator('main h1')).toBeFocused();
@@ -378,7 +378,7 @@ test('the header lines up with the page at every width, and its icon-only links 
   const labels = ['Overview', 'Strength Floor', 'Zumba Studio', 'Plans & Diets', 'Timetable', 'Memberships', 'Coaches'];
   const roleLabels = {
     vip: ['Dashboard', 'My bookings', 'Log workout', 'Exercises', 'My account'],
-    admin: ['Dashboard', 'Members', 'ID cards', 'Check-in', 'Classes & coaches', 'Coach dashboards', 'Plans', 'Trial leads', 'My account']
+    admin: ['Dashboard', 'Members', 'ID cards', 'Check-in', 'Classes & coaches', 'Coach dashboards', 'Plans', 'Leads', 'My account']
   };
   const main = page.getByRole('navigation', { name: 'Main' });
   /** Whether a header link shows its label (else only its icon, the label being visually hidden). */
@@ -537,7 +537,7 @@ test('a touch tablet in landscape keeps the labelled menu; a desktop with a mous
   expect(await page.evaluate(() => matchMedia('(hover: hover)').matches)).toBe(true);
   for (const [width, menu] of [[1279, true], [1280, false]] as const) {
     await page.setViewportSize({ width, height: 800 });
-    await page.goto('/schedule');
+    await page.goto('/exercises');
     await expect(page.getByRole('button', { name: 'Open menu' })).toBeVisible({ visible: menu });
   }
 
@@ -595,15 +595,12 @@ test('a tapped header icon leaves no tooltip over the next page on a touch table
 });
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`${theme} theme: errors, notices, badges and legal headings are readable`, async ({ page }) => {
+  test(`${theme} theme: errors, notices, badges and legal headings are readable`, async ({ page, request }) => {
     await useTheme(page, theme);
 
     await page.goto('/privacy');
     expect(await contrastOf(page.locator('main strong').first())).toBeGreaterThanOrEqual(4.5);
     expect(await contrastOf(page.getByText('Sunday: closed'))).toBeGreaterThanOrEqual(4.5);
-
-    await page.goto('/pricing');
-    expect(await contrastOf(page.getByText('QUESTIONS', { exact: true }))).toBeGreaterThanOrEqual(4.5);
 
     await page.getByRole('button', { name: 'Sign in' }).first().click();
     const dialog = page.getByRole('dialog');
@@ -617,6 +614,10 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(formError).toBeVisible();
     expect(await contrastOf(formError)).toBeGreaterThanOrEqual(4.5);
     await dialog.getByRole('button', { name: 'Close dialog' }).click();
+
+    await signInAs(page, request, 'member');
+    await page.goto('/pricing');
+    expect(await contrastOf(page.getByText('QUESTIONS', { exact: true }))).toBeGreaterThanOrEqual(4.5);
 
     // Accent text laid over a photo keeps its light colour in both themes.
     await page.goto('/strength');

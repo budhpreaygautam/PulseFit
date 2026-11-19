@@ -349,8 +349,8 @@ async function trialDays(page: Page, enforced: boolean | null, instant: string) 
     });
   }
   await page.clock.setFixedTime(new Date(instant));
-  await page.goto('/pricing');
-  await page.getByRole('button', { name: 'Claim a free pass' }).click();
+  await page.goto('/');
+  await page.getByRole('main').getByRole('button', { name: 'Claim a free pass' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.locator('input[name="trial-date"]').first()).toBeAttached();
   return dialog;
@@ -379,7 +379,8 @@ test('the free-trial dialog keeps today when the server does not enforce opening
 // ---------------------------------------------------------------------------------------------
 // Timetable
 
-test('a class the timetable lists on a Sunday is shown, and an empty Sunday says closed', async ({ page }) => {
+test('a class the timetable lists on a Sunday is shown, and an empty Sunday says closed', async ({ page, request }) => {
+  await signInAs(page, request, 'member');
   const week = mondayOf(addDays(gymToday(), 7));
   const sunday = addDays(week, 6);
   let inject = true;
@@ -405,6 +406,7 @@ test('a class the timetable lists on a Sunday is shown, and an empty Sunday says
 });
 
 test('with a coach filter on, a closed day is not called closed when other coaches teach then', async ({ page, request }) => {
+  await signInAs(page, request, 'member');
   const week = mondayOf(addDays(gymToday(), 7));
   const sunday = addDays(week, 6);
   const trainers = (await (await request.get('/api/trainers')).json()).data as { id: string }[];
@@ -506,7 +508,8 @@ test('booking past the membership end date explains it with a readable date and 
   }
 });
 
-test('the month calendar and guide tabs work with the keyboard', async ({ page }) => {
+test('the month calendar and guide tabs work with the keyboard', async ({ page, request }) => {
+  await signInAs(page, request, 'member');
   await page.goto('/schedule');
   const grid = page.getByRole('grid');
   // One Tab stop in the calendar: the selected day.
@@ -588,16 +591,6 @@ test('the plan buttons keep a short label on one line and give screen readers th
   // padding animates after a resize, so each check waits for the layout to settle.
   const widths = [page.viewportSize()!.width, ...(isMobile ? [] : [768, 820, 1024])];
 
-  await page.goto('/pricing');
-  for (const width of widths) {
-    await page.setViewportSize({ width, height: 900 });
-    for (const plan of plans) {
-      const join = page.locator(`#plan-${plan.tier}`).getByRole('button', { name: `Create an account to join ${plan.name}`, exact: true });
-      await expect(join).toHaveText('Create an account to join');
-      await expect.poll(() => fitsOnOneLine(join), { message: `${plan.tier} at ${width}px` }).toBe(true);
-    }
-  }
-
   await signInAs(page, request, 'vip');
   await page.route('**/api/config', async route => {
     const response = await route.fetch();
@@ -618,7 +611,8 @@ test('the plan buttons keep a short label on one line and give screen readers th
   }
 });
 
-test('the open pricing FAQ stays open on the same question when the plans arrive', async ({ page }) => {
+test('the open pricing FAQ stays open on the same question when the plans arrive', async ({ page, request }) => {
+  await signInAs(page, request, 'member');
   let release!: () => void;
   const held = new Promise<void>(resolve => (release = resolve));
   await page.route('**/api/plans', async route => {
@@ -717,37 +711,44 @@ test('when the webhook applied the payment first, the member still hears what it
 // ---------------------------------------------------------------------------------------------
 // Sign-in and password reset
 
-const pendingPlan = (page: Page) => page.evaluate(() => window.sessionStorage.getItem('pulsefit_pending_plan'));
+const pendingPage = (page: Page) => page.evaluate(() => window.sessionStorage.getItem('pulsefit_pending_page'));
 
-test('a plan picked as a guest is dropped on a demo sign-in', async ({ page }) => {
-  await page.goto('/pricing');
-  await page.getByRole('button', { name: 'Create an account to join' }).first().click();
-  expect(await pendingPlan(page)).not.toBeNull();
-  await page.getByRole('dialog').getByRole('button', { name: /^Member/ }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
-  expect(await pendingPlan(page)).toBeNull();
-});
+/** A guest picks a plan on the home page: Memberships needs an account, so the sign-in dialog opens. */
+async function pickPlanAsGuest(page: Page) {
+  await page.goto('/');
+  await page.getByRole('main').getByRole('button', { name: /^See the / }).first().click();
+  await expect(page.getByRole('dialog').getByRole('heading', { name: 'Sign in to PulseFit' })).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe('/');
+  expect(JSON.parse((await pendingPage(page))!)).toMatchObject({ tab: 'pricing', params: { plan: expect.any(String) } });
+}
 
 test('a plan picked as a guest is dropped when the sign-in dialog is closed', async ({ page }) => {
-  await page.goto('/pricing');
-  await page.getByRole('button', { name: 'Create an account to join' }).first().click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  expect(await pendingPlan(page)).not.toBeNull();
+  await pickPlanAsGuest(page);
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  expect(await pendingPlan(page)).toBeNull();
+  expect(await pendingPage(page)).toBeNull();
+  // A later, unrelated sign-in stays on its own course.
+  await page.getByRole('banner').getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: /^Member/ }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
 });
 
-test('a plan picked as a guest still leads back to pricing after signing in from that dialog', async ({ page }) => {
-  await page.goto('/pricing');
-  await page.getByRole('button', { name: 'Create an account to join' }).first().click();
+test('a plan picked as a guest leads to pricing after signing in from that dialog, by email or demo account', async ({ page }) => {
+  await pickPlanAsGuest(page);
   const dialog = page.getByRole('dialog');
-  await dialog.getByRole('button', { name: 'Sign in', exact: true }).click();
   await dialog.locator('#auth-email').fill('vip@pulsefit.com');
   await dialog.locator('#auth-password').fill('pulse123');
   await dialog.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await expect(page).toHaveURL(/\/pricing\?plan=\w+&cycle=monthly/);
-  await expect(page.locator('.toast-message', { hasText: 'Finish choosing your plan below.' })).toBeVisible();
+  await expect(page).toHaveURL(/\/pricing\?plan=\w+$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'CHOOSE YOUR PLAN' })).toBeVisible();
+  expect(await pendingPage(page)).toBeNull();
+
+  await page.context().clearCookies();
+  await page.evaluate(() => window.localStorage.clear());
+  await pickPlanAsGuest(page);
+  await page.getByRole('dialog').getByRole('button', { name: /^Member/ }).click();
+  await expect(page).toHaveURL(/\/pricing\?plan=\w+$/);
+  expect(await pendingPage(page)).toBeNull();
 });
 
 test('the reset page shows the password rules and offers a new link when the link has expired', async ({ page }) => {

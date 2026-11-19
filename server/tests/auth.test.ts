@@ -222,6 +222,22 @@ describe('PUT /auth/profile', () => {
     expect(res.body.data.phone).toBe('');
   });
 
+  it('accepts each of the ten bundled avatars, and no other path', async () => {
+    for (let i = 1; i <= 10; i++) {
+      const avatar_url = `/avatars/preset-${String(i).padStart(2, '0')}.svg`;
+      const res = await api().put('/api/auth/profile').set(authHeader(personas.member)).send({ avatar_url });
+      expect(res.status, avatar_url).toBe(200);
+      expect(res.body.data.avatar_url).toBe(avatar_url);
+      expect(userByEmail(personas.member).avatar_url).toBe(avatar_url);
+    }
+    for (const avatar_url of ['/avatars/preset-11.svg', '/avatars/../x.svg', 'https://evil.example/avatars/preset-01.svg', '/avatars/male.svg']) {
+      const res = await api().put('/api/auth/profile').set(authHeader(personas.member)).send({ avatar_url });
+      expect(res.status, avatar_url).toBe(400);
+      expect(res.body.code, avatar_url).toBe('VALIDATION_ERROR');
+    }
+    expect(userByEmail(personas.member).avatar_url).toBe('/avatars/preset-10.svg');
+  });
+
   it('regression: rejects membership_tier / membership_status / password fields with 400 and changes nothing', async () => {
     const before = userByEmail(personas.basic);
     for (const body of [

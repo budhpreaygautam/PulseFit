@@ -32,12 +32,12 @@ test('signing up needs a gender, and the default picture matches the one picked'
   const errors = trackConsoleErrors(page);
   const dialog = await openSignUp(page);
 
-  // Right after the name: four choices in one labelled group.
-  const group = dialog.getByRole('group', { name: 'Gender' });
-  await expect(group.getByRole('radio')).toHaveCount(4);
-  for (const name of ['Male', 'Female', 'Other', 'Prefer not to say']) await expect(group.getByRole('radio', { name, exact: true })).toBeAttached();
-  const fields = await dialog.locator('#auth-name, fieldset, #auth-email').evaluateAll(els => els.map(el => el.id || el.tagName.toLowerCase()));
-  expect(fields).toEqual(['auth-name', 'fieldset', 'auth-email']);
+  // Right after the name: a labelled dropdown with the three choices after its "Choose…" prompt.
+  const select = dialog.getByLabel('Gender', { exact: true });
+  await expect(select).toHaveValue('');
+  await expect(select.locator('option')).toHaveText(['🚻 Choose…', '♂️ Male', '♀️ Female', '⚧️ Other']);
+  const fields = await dialog.locator('#auth-name, #auth-gender, #auth-email').evaluateAll(els => els.map(el => el.id));
+  expect(fields).toEqual(['auth-name', 'auth-gender', 'auth-email']);
 
   await dialog.locator('#auth-name').fill('Riya Kapoor');
   await dialog.locator('#auth-email').fill(`gender-e2e-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`);
@@ -45,12 +45,12 @@ test('signing up needs a gender, and the default picture matches the one picked'
 
   // Without a gender the form says so in place, like the other fields, and sends nothing.
   await dialog.getByRole('button', { name: 'Create account' }).click();
-  await expect(dialog.locator('#auth-gender-error')).toHaveText('Choose your gender, or "Prefer not to say".');
-  await expect(group.getByRole('radio', { name: 'Female', exact: true })).toHaveAttribute('aria-invalid', 'true');
+  await expect(dialog.locator('#auth-gender-error')).toHaveText('Choose your gender.');
+  await expect(select).toHaveAttribute('aria-invalid', 'true');
   await expect(dialog).toBeVisible();
 
-  await group.getByText('Female', { exact: true }).click();
-  await expect(group.getByRole('radio', { name: 'Female', exact: true })).toBeChecked();
+  await select.selectOption('female');
+  await expect(select).toHaveValue('female');
   await expect(dialog.locator('#auth-gender-error')).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Create account' }).click();
   await expect(dialog).toBeHidden();
@@ -67,7 +67,7 @@ test('signing up needs a gender, and the default picture matches the one picked'
     const photo = page.getByRole('img', { name: 'Your profile photo' });
     await expect(photo).toHaveAttribute('src', /\/avatars\/female\.svg$/);
     await expect(page.locator('#profile-gender')).toHaveValue('female');
-    await page.locator('#profile-gender').selectOption('prefer_not_to_say');
+    await page.locator('#profile-gender').selectOption('other');
     await page.getByRole('button', { name: 'Save changes' }).click();
     await expect(page.locator('.toast-message', { hasText: 'Your profile was updated.' })).toBeVisible();
     await expect(photo).toHaveAttribute('src', /\/avatars\/neutral\.svg$/);
@@ -141,17 +141,12 @@ test('a new Google account is sent to My account to choose a gender; a returning
   }
 });
 
-test('the gender choices fit a 360px phone', async ({ page }) => {
+test('the gender dropdown fits a 360px phone', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   const dialog = await openSignUp(page);
-  const group = dialog.getByRole('group', { name: 'Gender' });
-  const box = (await group.boundingBox())!;
+  const box = (await dialog.getByLabel('Gender', { exact: true }).boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(360);
-  for (const label of await group.locator('label').all()) {
-    const b = (await label.boundingBox())!;
-    expect(b.x + b.width).toBeLessThanOrEqual(box.x + box.width + 0.5);
-    expect(b.height).toBeGreaterThanOrEqual(24);
-  }
+  expect(box.height).toBeGreaterThanOrEqual(24);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
 });

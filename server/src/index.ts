@@ -1,4 +1,4 @@
-import config, { paymentProvider, youpiConfigured } from './config.js';
+import config, { emailConfigured, paymentProvider, youpiConfigured } from './config.js';
 import db from './db/database.js';
 import { addCatalogueIfMissing, seedDatabase } from './db/seed.js';
 import app from './server.js';
@@ -87,6 +87,7 @@ function onListening() {
     `⚡ PulseFit API listening on http://${shown}:${config.port}${everywhere ? ' (all network interfaces)' : ''} (${config.nodeEnv})`
   );
   console.log(`   demo mode: ${config.demoMode ? 'ON (1-click personas enabled)' : 'off'}`);
+  console.log(`   enquiry email: ${emailConfigured() ? 'on (Brevo)' : 'off: enquiries are saved for Admin › Leads (set BREVO_API_KEY and MAIL_FROM)'}`);
   if (config.demoMode && !LOOPBACK.test(host)) {
     console.warn(
       `⚠️  Demo mode is on and the API accepts connections from the network (${host}): anyone who can reach this machine ` +

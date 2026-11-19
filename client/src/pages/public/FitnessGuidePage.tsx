@@ -4,7 +4,7 @@ import { api } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
 import { ErrorState } from '../../components/common/States.js';
 import { CardSkeletons } from '../../components/public/CardSkeletons.js';
-import { SignInPrompt } from '../../components/public/SignInPrompt.js';
+import { PlanPrompt } from '../../components/public/PlanPrompt.js';
 import { useApiData } from '../../components/public/useApiData.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { FitnessGuide, GuideMeal } from '../../types/index.js';
@@ -18,14 +18,14 @@ const GUIDE_TABS: { id: GuideTab; label: string; icon: React.ComponentType<{ cla
 ];
 
 /**
- * What guests see of each section: the names and one line each, never the charts. The full guide
- * is only sent by the server, to signed-in accounts (GET /api/guide), so it is not in this bundle;
- * the server's tests/guide.test.ts checks the plan and diet names here against it.
+ * What members without a plan see of each section: the names and one line each, never the charts.
+ * The full guide is only sent by the server, to staff and members with a plan (GET /api/guide), so it
+ * is not in this bundle; the server's tests/guide.test.ts checks the plan and diet names here against it.
  */
 const TEASERS: Record<GuideTab, { prompt: { title: string; body: string }; items: { name: string; tag: string; summary: string }[] }> = {
   'workout-plans': {
     prompt: {
-      title: 'Sign in to open the full workout plans',
+      title: 'Choose a plan to open the full workout plans',
       body: 'Each plan day by day: every exercise with its sets, reps, rest time and a coaching cue.'
     },
     items: [
@@ -36,7 +36,7 @@ const TEASERS: Record<GuideTab, { prompt: { title: string; body: string }; items
   },
   'diet-charts': {
     prompt: {
-      title: 'Sign in to open the full diet charts',
+      title: 'Choose a plan to open the full diet charts',
       body: "Meal-by-meal charts built on Indian staples, with timings, portions, calories and the day's protein, carbs and fats."
     },
     items: [
@@ -47,7 +47,7 @@ const TEASERS: Record<GuideTab, { prompt: { title: string; body: string }; items
   },
   supplements: {
     prompt: {
-      title: 'Sign in to read the full supplements guide',
+      title: 'Choose a plan to read the full supplements guide',
       body: 'How much to take, when to take it, why it works, and answers to the common myths.'
     },
     items: [
@@ -63,7 +63,7 @@ const TEASERS: Record<GuideTab, { prompt: { title: string; body: string }; items
 /** Total kcal of a day's meals. */
 const dayTotalKcal = (meals: GuideMeal[]) => meals.reduce((sum, m) => sum + m.calories, 0);
 
-const GuideTeaser: React.FC<{ tab: GuideTab; onOpenAuthModal: (mode: 'login' | 'register') => void }> = ({ tab, onOpenAuthModal }) => {
+const GuideTeaser: React.FC<{ tab: GuideTab; onChoosePlan: () => void }> = ({ tab, onChoosePlan }) => {
   const { prompt, items } = TEASERS[tab];
   return (
     <>
@@ -78,25 +78,23 @@ const GuideTeaser: React.FC<{ tab: GuideTab; onOpenAuthModal: (mode: 'login' | '
           </li>
         ))}
       </ul>
-      <SignInPrompt title={prompt.title} body={prompt.body} onOpenAuthModal={onOpenAuthModal} />
+      <PlanPrompt title={prompt.title} body={prompt.body} onChoosePlan={onChoosePlan} />
     </>
   );
 };
 
 interface FitnessGuidePageProps {
   setCurrentTab: (tab: string) => void;
-  onOpenAuthModal: (mode: 'login' | 'register') => void;
 }
 
-export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTab, onOpenAuthModal }) => {
+export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTab }) => {
   const [activeCategory, setActiveCategory] = useState<GuideTab>('workout-plans');
-  const { user, isInitializing } = useAuth();
+  const { user } = useAuth();
   const [selectedPlanIdx, setSelectedPlanIdx] = useState<number>(0);
   const [selectedDietIdx, setSelectedDietIdx] = useState<number>(0);
-  // The full guide is fetched only for a signed-in account (guests would get a 401). Signing in
-  // here loads it without a reload; a saved session still being restored waits on a skeleton.
-  const guide = useApiData(() => (user ? api.getGuide() : Promise.resolve(null)), [user?.id]);
-  const isGuest = !user && !isInitializing;
+  // Only signed-in accounts reach this page. Without a plan the server sends none of the guide (null);
+  // a plan bought meanwhile (the account's status changes) loads it without a reload.
+  const guide = useApiData(() => api.getGuide(), [user?.membership_status]);
 
   // WAI-ARIA tabs: arrow keys (and Home/End) move between sections; only the selected one is a Tab stop.
   const onTabKeyDown = (e: React.KeyboardEvent) => {
@@ -112,17 +110,17 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
     document.getElementById(`guide-tab-${GUIDE_TABS[next].id}`)?.focus();
   };
 
-  // A section's panel: the teaser and a call to sign in for guests, else the full content.
+  // A section's panel: the full content, or the teaser and a way to choose a plan for a member without one.
   const panel = (id: GuideTab, render: (content: FitnessGuide) => React.ReactNode) => (
     <div className="space-y-8" role="tabpanel" id={`guide-panel-${id}`} aria-labelledby={`guide-tab-${id}`}>
-      {isGuest ? (
-        <GuideTeaser tab={id} onOpenAuthModal={onOpenAuthModal} />
-      ) : guide.error ? (
+      {guide.error ? (
         <ErrorState message={guide.error} onRetry={guide.reload} className="max-w-xl mx-auto" />
       ) : guide.data ? (
         render(guide.data)
-      ) : (
+      ) : guide.isLoading ? (
         <CardSkeletons label="Loading the guide…" count={3} className="grid grid-cols-1 md:grid-cols-3 gap-4" cardClassName="h-36 rounded-2xl" />
+      ) : (
+        <GuideTeaser tab={id} onChoosePlan={() => setCurrentTab('pricing')} />
       )}
     </div>
   );

@@ -289,6 +289,55 @@ main h1[tabindex='-1']:focus {
     box-shadow: inset 3px 3px 6px var(--neu-shadow-dark), inset -3px -3px 6px var(--neu-shadow-light), 0 0 0 2px rgba(132, 204, 22, 0.5) !important;
     outline: none;
   }
+
+  /* The open list in the app's colours where the browser allows it (Chrome/Edge 135+, which
+     includes the Android app); other browsers keep their own list. */
+  @supports (appearance: base-select) {
+    select,
+    ::picker(select) {
+      appearance: base-select;
+    }
+    select::picker-icon {
+      color: #64748b;
+      transition: rotate 0.2s ease;
+    }
+    select:open::picker-icon {
+      rotate: 180deg;
+    }
+    ::picker(select) {
+      margin-block: 0.375rem;
+      padding: 0.375rem;
+      background-color: var(--gym-900);
+      border: 1px solid var(--neu-border);
+      border-radius: 0.875rem;
+      box-shadow: 8px 8px 18px var(--neu-shadow-dark), -8px -8px 18px var(--neu-shadow-light);
+    }
+    option {
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.625rem;
+      font-size: 0.875rem;
+    }
+    option:hover,
+    option:focus-visible {
+      background-color: rgba(132, 204, 22, 0.15);
+      outline: none;
+    }
+    option:checked {
+      background-color: rgba(132, 204, 22, 0.22);
+      color: #a3e635;
+      font-weight: 700;
+    }
+    .light option:checked {
+      color: #4d7c0f;
+    }
+    option::checkmark {
+      color: inherit;
+    }
+    option:disabled {
+      color: #64748b;
+      background-color: transparent;
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ */

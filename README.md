@@ -118,6 +118,9 @@ Set **one** of these; `PAYMENT_PROVIDER` picks when both are set.
 
 🔑 Google sign-in: set `GOOGLE_CLIENT_ID` and add your site as an authorised JavaScript origin.
 
+✉️ Enquiry email: set `BREVO_API_KEY` and `MAIL_FROM` (optionally `ENQUIRY_INBOX`); see `server/.env.example`. Without them
+enquiries are only saved, under Admin › Leads.
+
 ---
 
 ## 📱 Android & iOS Apps

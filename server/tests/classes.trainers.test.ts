@@ -30,14 +30,14 @@ describe('classes: trainers and trainer portal', () => {
 
   describe('GET /trainers', () => {
     it('lists trainers with their real class counts', async () => {
-      const res = await api().get('/api/trainers');
+      const res = await api().get('/api/trainers').set(authHeader(personas.member));
       expect(res.status).toBe(200);
       const counts = Object.fromEntries(res.body.data.map((t: any) => [t.id, t.classes_count]));
       expect(counts).toEqual({ trn_vikram: 4, trn_kavya: 3, trn_rohan: 2, trn_simran: 3 });
     });
 
     it('keeps staff contact details and the account link from everyone but admins (review regression)', async () => {
-      for (const headers of [{}, authHeader(personas.member), authHeader(personas.trainer)]) {
+      for (const headers of [authHeader(personas.member), authHeader(personas.trainer)]) {
         const res = await api().get('/api/trainers').set(headers);
         expect(res.status).toBe(200);
         for (const t of res.body.data) {
@@ -57,14 +57,14 @@ describe('classes: trainers and trainer portal', () => {
 
     it('reports 0 for a trainer without classes', async () => {
       await api().post('/api/trainers').set(authHeader(personas.admin)).send(newTrainer);
-      const res = await api().get('/api/trainers');
+      const res = await api().get('/api/trainers').set(authHeader(personas.member));
       expect(res.body.data.find((t: any) => t.name === 'Neha Iyer').classes_count).toBe(0);
     });
   });
 
   describe('GET /trainers/:id', () => {
     it('returns the trainer with upcoming class occurrences', async () => {
-      const res = await api().get('/api/trainers/trn_vikram');
+      const res = await api().get('/api/trainers/trn_vikram').set(authHeader(personas.member));
       expect(res.status).toBe(200);
       expect(res.body.data.name).toBe('Coach Vikram Rathore');
       expect(res.body.data.classes.map((c: any) => c.id)).toEqual(['cls_str_wed', 'cls_str_fri', 'cls_str_sat', 'cls_str_mon']);
@@ -72,16 +72,14 @@ describe('classes: trainers and trainer portal', () => {
     });
 
     it('shows contact details and the account link only to admins (review regression)', async () => {
-      const anon = await api().get('/api/trainers/trn_vikram');
-      for (const key of ['email', 'phone', 'user_id']) expect(anon.body.data).not.toHaveProperty(key);
       const member = await api().get('/api/trainers/trn_vikram').set(authHeader(personas.member));
-      expect(member.body.data).not.toHaveProperty('email');
+      for (const key of ['email', 'phone', 'user_id']) expect(member.body.data).not.toHaveProperty(key);
       const admin = await api().get('/api/trainers/trn_vikram').set(authHeader(personas.admin));
       expect(admin.body.data).toMatchObject({ email: expect.any(String), user_id: 'usr_trainer_1' });
     });
 
     it('404s for an unknown trainer', async () => {
-      expect((await api().get('/api/trainers/trn_nope')).status).toBe(404);
+      expect((await api().get('/api/trainers/trn_nope').set(authHeader(personas.member))).status).toBe(404);
     });
   });
 
@@ -143,7 +141,7 @@ describe('classes: trainers and trainer portal', () => {
       expect(res.status).toBe(200);
       expect(res.body.data).toMatchObject({ id: 'trn_kavya', name: 'Kavya Sen Rao', experience_years: 8 });
       expect(db.classes.filter(c => c.trainer_id === 'trn_kavya').every(c => c.trainer_name === 'Kavya Sen Rao')).toBe(true);
-      const cls = await api().get('/api/classes/cls_zumba_mon');
+      const cls = await api().get('/api/classes/cls_zumba_mon').set(authHeader(personas.member));
       expect(cls.body.data.trainer_name).toBe('Kavya Sen Rao');
     });
 
@@ -197,7 +195,7 @@ describe('classes: trainers and trainer portal', () => {
       expect(res.status).toBe(200);
       expect(res.body.data).toEqual({ deleted: true, reassigned_classes: 2 });
       expect(db.trainers.some(t => t.id === 'trn_rohan')).toBe(false);
-      const cls = await api().get('/api/classes/cls_str_tue');
+      const cls = await api().get('/api/classes/cls_str_tue').set(authHeader(personas.member));
       expect(cls.body.data.trainer_id).toBe('trn_vikram');
       expect(cls.body.data.trainer.id).toBe('trn_vikram');
       expect(cls.body.data.trainer_name).toBe('Coach Vikram Rathore');

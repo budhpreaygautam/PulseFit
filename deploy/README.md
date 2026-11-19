@@ -13,6 +13,12 @@ PulseFit runs on Railway at <https://pulsefit.up.railway.app> (project `pulsefit
   `railway ssh --service pulsefit "cd /app/server && node dist/db/create-admin.js --email you@example.com --name 'Your Name'"`,
   then `railway restart --service pulsefit --yes`.
 - **Free plan:** the app sleeps after ~10 minutes without visitors and wakes on the next visit in a few seconds.
+- **Enquiry email:** set the Railway variables `BREVO_API_KEY`, `MAIL_FROM` and optionally `ENQUIRY_INBOX` in the
+  dashboard (service `pulsefit` → Variables), then redeploy. Railway blocks SMTP below the Pro plan, which is why
+  PulseFit uses Brevo's HTTPS API. In Brevo, turn off IP blocking for API keys, because Railway's outbound address
+  changes. The startup log says `enquiry email: on (Brevo)`; a failed send logs
+  `✉️  Enquiry enq_…: the notification email failed (Brevo answered 401)`: 401 means the key or IP blocking, 400 means
+  the sender is not verified.
 - **`railway.json`** is Railway's older settings format and keeps working until 2026-12-01; move it to their
   new format (`railway config migrate`) before then.
 

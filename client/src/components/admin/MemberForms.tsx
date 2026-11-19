@@ -46,7 +46,7 @@ const GenderSelect: React.FC<{ id: string; value: Gender | ''; onChange: (value:
     <select id={id} value={value} onChange={e => onChange(e.target.value as Gender | '')} className={inputClass} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined}>
       <option value="">Not given</option>
       {GENDER_OPTIONS.map(o => (
-        <option key={o.value} value={o.value}>{o.label}</option>
+        <option key={o.value} value={o.value}>{o.emoji} {o.label}</option>
       ))}
     </select>
     <FieldError id={`${id}-error`} message={error} />

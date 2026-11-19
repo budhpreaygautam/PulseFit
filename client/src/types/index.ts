@@ -6,7 +6,7 @@ export type PaidTier = Exclude<MembershipTier, 'none'>;
 export type MembershipStatus = 'active' | 'expired' | 'pending' | 'frozen';
 export type BillingCycle = 'monthly' | 'annual';
 export type ClassCategory = 'Workout & Strength' | 'Zumba & Cardio';
-export type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
+export type Gender = 'male' | 'female' | 'other';
 
 export interface User {
   id: string;
@@ -38,7 +38,8 @@ export interface AppConfig {
   demoMode: boolean;
   googleClientId: string | null;
   payments: { enabled: boolean; provider: PaymentProvider | null; keyId: string | null };
-  gym: { name: string; timezone: string; currency: string; hours: OpeningHours };
+  /** classesPerWeek: classes on the weekly timetable (the home page's count); absent until /api/config answers. */
+  gym: { name: string; timezone: string; currency: string; hours: OpeningHours; classesPerWeek?: number };
   /** The Android app the website offers for download (an APK on this server), or null when there is none. */
   androidApp: AndroidAppDownload | null;
 }
@@ -235,6 +236,19 @@ export interface TrialPass {
   status: 'issued' | 'redeemed';
   created_at: string;
   redeemed_at?: string;
+}
+
+export type EnquiryStatus = 'new' | 'contacted' | 'closed';
+export interface Enquiry {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  interest: ClassCategory | 'All-Access' | 'Not sure yet';
+  contact_time: 'Any time' | 'Morning' | 'Afternoon' | 'Evening';
+  message: string;
+  status: EnquiryStatus;
+  created_at: string;
 }
 
 export interface CheckInMember {

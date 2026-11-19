@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- PulseFit avatar 9: long straight black hair with a fringe, on lime. -->
+  <rect width="128" height="128" fill="#bef264"/>
+  <path d="M56 70h16v26H56z" fill="#e8c19a"/>
+  <path d="M16 128c0-22 16-36 40-38 2 5 14 5 16 0 24 2 40 16 40 38z" fill="#db2777"/>
+  <path d="M42 58c0-16 9-25 22-25s22 9 22 25v32c-4 3-9 3-12 0V60H54v30c-3 3-8 3-12 0z" fill="#111827"/>
+  <circle cx="64" cy="56" r="20" fill="#f8d9b8"/>
+  <path d="M44 54c0-12 8-20 20-20s20 8 20 20c-1-4-2-6-4-7H48c-2 1-3 3-4 7z" fill="#111827"/>
+  <g fill="#1f2937"><circle cx="57" cy="58" r="2.2"/><circle cx="71" cy="58" r="2.2"/></g>
+  <path d="M58.5 65.5q5.5 4.5 11 0" fill="none" stroke="#1f2937" stroke-width="2.2" stroke-linecap="round"/>
+</svg>

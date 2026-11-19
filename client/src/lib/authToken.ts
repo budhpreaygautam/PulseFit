@@ -12,6 +12,9 @@ const SIGNED_IN_KEY = 'pulsefit_signed_in';
 const LEGACY_TOKEN_KEY = 'pulsefit_token';
 
 let token: string | null = null;
+// Website: signed in during this page load. Browsers that block localStorage (cookies allowed) cannot
+// keep the marker, and without this the app would treat them as guests right after signing in.
+let signedIn = false;
 
 // Never return a Capacitor plugin from an async function or a promise: awaiting it calls the
 // plugin's (missing) native `then` method.
@@ -32,10 +35,11 @@ export async function loadAuthToken(): Promise<void> {
 export const getAuthToken = (): string | null => token;
 
 /** Whether a session may exist and is worth restoring on load. */
-export const hasSavedSession = (): boolean => (isNativeApp ? token !== null : storage.get(SIGNED_IN_KEY) === '1');
+export const hasSavedSession = (): boolean => (isNativeApp ? token !== null : signedIn || storage.get(SIGNED_IN_KEY) === '1');
 
 export function rememberSession(newToken: string | undefined): void {
   if (!isNativeApp) {
+    signedIn = true;
     storage.set(SIGNED_IN_KEY, '1');
     return;
   }
@@ -45,6 +49,7 @@ export function rememberSession(newToken: string | undefined): void {
 }
 
 export function forgetSession(): void {
+  signedIn = false;
   storage.remove(SIGNED_IN_KEY);
   if (!isNativeApp) return;
   token = null;

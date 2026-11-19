@@ -31,7 +31,7 @@ const PRIVACY: Section[] = [
     body: (
       <p>
         {GYM_NAME} ("PulseFit", "we") runs a single gym in Gurugram, Haryana. This policy explains what personal data our website and app collect, why, how long we keep it
-        and what you can ask us to do with it. It applies to members, coaches, staff accounts and anyone who claims a free trial pass.
+        and what you can ask us to do with it. It applies to members, coaches, staff accounts and anyone who claims a free trial pass or sends us an enquiry.
       </p>
     )
   },
@@ -44,8 +44,8 @@ const PRIVACY: Section[] = [
           contact you about your membership. Your password is stored only as a one-way hash; we never see it.
         </li>
         <li>
-          <strong>Gender:</strong> asked when you create an account with your email (male, female, other or prefer not to say). We use it for one thing only: choosing
-          the default picture shown until you upload a photo, a male or female figure, or a neutral one for "other" and "prefer not to say". It is not
+          <strong>Gender:</strong> asked when you create an account with your email (male, female or other). We use it for one thing only: choosing
+          the default picture shown until you upload a photo, a male or female figure, or a neutral one for "other". It is not
           used for pricing, classes, marketing or anything else. Accounts created with Google start without one; the front desk may record it when creating your
           account if you tell them. You can choose or change it at any time on your account page.
         </li>
@@ -74,6 +74,10 @@ const PRIVACY: Section[] = [
           can make sure each person claims one pass.
         </li>
         <li>
+          <strong>Enquiries:</strong> name, email, mobile number, what you are interested in, the best time to call and your message, so our front desk can answer you.
+          We contact you only about your enquiry, because you agreed to it on the form.
+        </li>
+        <li>
           <strong>On your device:</strong> your browser keeps you signed in with a secure cookie that pages cannot read (the app keeps your sign-in in your phone's
           secure storage), and remembers your light/dark theme choice. We do not use advertising or tracking cookies.
         </li>
@@ -84,11 +88,14 @@ const PRIVACY: Section[] = [
     heading: 'Who can see it',
     body: (
       <ul>
-        <li>Front-desk and admin staff see member accounts, memberships, payments, visits and bookings so they can run the gym.</li>
+        <li>Front-desk and admin staff see member accounts, memberships, payments, visits, bookings and enquiries, so they can run the gym and answer you.</li>
         <li>Coaches see the names, contact details and attendance of members booked into their classes, and the notes they write.</li>
         <li>
           Razorpay processes card and online payments. UPI payments made straight to the gym's bank account are confirmed by a payment system the gym runs itself, from
           the bank's payment alert. Google processes sign-in if you use "Continue with Google".
+        </li>
+        <li>
+          Brevo sends our emails: each enquiry to the gym's mailbox, and a short confirmation to you, so it handles your name, contact details and enquiry.
         </li>
         <li>
           Your gender is sent only to you and to front-desk and admin staff. Until you upload a photo, your QR pass and ID card (also one the front desk prints) show the
@@ -118,6 +125,7 @@ const PRIVACY: Section[] = [
         </li>
         <li>Password-reset links expire after 30 minutes. Sign-in sessions expire after 7 days, and all of them end when your password changes.</li>
         <li>Free trial requests are kept so that each person can claim only one free pass.</li>
+        <li>Enquiries, and their copies in the gym's mailbox, are deleted 12 months after they are sent.</li>
       </ul>
     )
   },

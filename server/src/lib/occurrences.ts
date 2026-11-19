@@ -64,6 +64,16 @@ export function toOccurrence(cls: GymClass, date: string, viewerId?: string): Cl
   };
 }
 
+/**
+ * A session as guests get it (GET /classes without a session): only what the public home page shows
+ * of the next sessions. Descriptions, intensity, photos, coach ids and bookings are for signed-in
+ * accounts. An allowlist, so a field added to classes later stays out until it is added here.
+ */
+export function guestOccurrence(o: ClassOccurrence) {
+  const { id, title, category, day_of_week, start_time, duration_minutes, room, capacity, trainer_name, occurrence_date, starts_at, spots_left, is_full } = o;
+  return { id, title, category, day_of_week, start_time, duration_minutes, room, capacity, trainer_name, occurrence_date, starts_at, spots_left, is_full };
+}
+
 /** The next occurrence of a class that has not started yet. */
 export function nextOccurrenceOf(cls: Pick<GymClass, 'day_of_week' | 'start_time'>, now: Date = new Date()): string {
   return nextOccurrence(cls.day_of_week, cls.start_time, now);

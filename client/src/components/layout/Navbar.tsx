@@ -11,6 +11,7 @@ import {
   House,
   IdCard,
   LogOut,
+  Mail,
   Medal,
   Menu,
   Moon,
@@ -65,6 +66,8 @@ const PUBLIC_LINKS: NavItem[] = [
   { tab: 'pricing', label: 'Memberships', icon: BadgeIndianRupee },
   { tab: 'trainers', label: 'Coaches', icon: Medal }
 ];
+// The header row has no room for another link: Contact is in the menu and the footer.
+const MENU_LINKS: NavItem[] = [...PUBLIC_LINKS, { tab: 'contact', label: 'Contact us', icon: Mail }];
 
 const ROLE_LINKS: Record<UserRole, NavItem[]> = {
   member: [
@@ -88,7 +91,7 @@ const ROLE_LINKS: Record<UserRole, NavItem[]> = {
     { tab: 'admin-classes', label: 'Classes & coaches', icon: CalendarCheck },
     { tab: 'trainer-dashboard', label: 'Coach dashboards', icon: Activity },
     { tab: 'admin-plans', label: 'Plans', icon: Tags },
-    { tab: 'admin-trials', label: 'Trial leads', icon: ClipboardList },
+    { tab: 'admin-trials', label: 'Leads', icon: ClipboardList },
     { tab: 'profile', label: 'My account', icon: UserCircle }
   ]
 };
@@ -399,7 +402,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
           <div id="mobile-menu" className={`${MENU_HIDDEN} border-t border-slate-800/80 glass-bar px-4 py-4 shadow-2xl max-h-[80vh] overflow-y-auto`}>
             <nav aria-label="Main" className="space-y-1.5">
               <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 px-3 py-1 font-bold">Explore PulseFit</div>
-              {PUBLIC_LINKS.map(link => (
+              {MENU_LINKS.map(link => (
                 <TabLink key={link.tab} tab={link.tab} navigate={go} isCurrent={currentTab === link.tab} className={mobileLinkClass(currentTab === link.tab)}>
                   <link.icon className="w-4 h-4 text-lime-400" aria-hidden="true" />
                   {link.label}

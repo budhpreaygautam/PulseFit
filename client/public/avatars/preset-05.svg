@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- PulseFit avatar 5: plum hijab, on green. -->
+  <rect width="128" height="128" fill="#34d399"/>
+  <path d="M16 128c0-22 16-36 40-38 2 5 14 5 16 0 24 2 40 16 40 38z" fill="#701a75"/>
+  <path d="M64 31c-17 0-27 13-27 30 0 14 4 25 10 34 9 6 25 6 34 0 6-9 10-20 10-34 0-17-10-30-27-30z" fill="#a21caf"/>
+  <ellipse cx="64" cy="59" rx="18" ry="20" fill="#701a75"/>
+  <ellipse cx="64" cy="59" rx="16" ry="18" fill="#d9a066"/>
+  <g fill="#1f2937"><circle cx="57" cy="58" r="2.2"/><circle cx="71" cy="58" r="2.2"/></g>
+  <path d="M58.5 65.5q5.5 4.5 11 0" fill="none" stroke="#1f2937" stroke-width="2.2" stroke-linecap="round"/>
+</svg>

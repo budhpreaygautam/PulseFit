@@ -13,9 +13,9 @@ test('an API address opened in the address bar answers 404, while the page that 
   // The health check stays open for the host's monitoring.
   expect((await page.goto('/api/health'))!.status()).toBe(200);
 
-  // The coaches page reads the same answer through the app, which sends the header.
+  // The home page reads the same answer (its guest view) through the app, which sends the header.
   const trainers = page.waitForResponse(r => new URL(r.url()).pathname === '/api/trainers');
-  await page.goto('/coaches');
+  await page.goto('/');
   const res = await trainers;
   expect(res.status()).toBe(200);
   expect(await res.request().headerValue('x-requested-with')).toBe('PulseFit');

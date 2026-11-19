@@ -10,12 +10,13 @@ import {
   youpiWebhook
 } from '../controllers/paymentController.js';
 import { freezeMembership, unfreezeMembership } from '../controllers/membershipController.js';
-import { authenticate, requireRole } from '../middleware/auth.js';
+import { authenticate, optionalAuth, requireRole } from '../middleware/auth.js';
 
 // Owner: plans, payments and the membership lifecycle.
 const router = Router();
 
-router.get('/plans', getPlans);
+// Guests get the home page's trimmed catalogue (see getPlans).
+router.get('/plans', optionalAuth, getPlans);
 router.put('/plans/:id', authenticate, requireRole(['admin']), updatePlan);
 
 router.post('/payment/create-order', authenticate, createOrder);

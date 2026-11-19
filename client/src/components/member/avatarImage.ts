@@ -15,6 +15,23 @@ export function defaultAvatar(gender?: Gender | null): string {
   return `${import.meta.env.BASE_URL}avatars/${file}.svg`;
 }
 
+/**
+ * The ten avatars a member can choose on My account instead of a photo. The API accepts exactly these
+ * paths as avatar_url; they are absolute because the stored value is shared by the website and the apps.
+ */
+export const PRESET_AVATARS = [
+  'Short dark hair and a lime sweatband',
+  'Auburn ponytail',
+  'Buzz cut and a full beard',
+  'Big curly hair',
+  'Plum hijab',
+  'Red baseball cap',
+  'Hair in a bun and round glasses',
+  'Bald with a grey beard and a sweatband',
+  'Long straight black hair',
+  'Wavy auburn hair and a gym towel'
+].map((label, i) => ({ label, src: `/avatars/preset-${String(i + 1).padStart(2, '0')}.svg` }));
+
 /** Their photo when they have one (it always wins), else the default picture. */
 export const avatarOf = (person: { avatar_url?: string | null; gender?: Gender | null }): string =>
   person.avatar_url || defaultAvatar(person.gender);

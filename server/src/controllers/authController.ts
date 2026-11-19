@@ -45,8 +45,10 @@ const phoneSchema = z
   .max(20, 'Enter a valid phone number.')
   .refine(v => v === '' || /^\+?[0-9][0-9\s()-]{6,19}$/.test(v), 'Enter a valid phone number, for example +91 98110 12345.');
 
-// An uploaded photo, or '' to remove it (the apps then show the default picture). Never an address:
-// that would make staff browsers fetch a URL of the member's choosing.
+// An uploaded photo, one of the ten avatars bundled with the apps (client/public/avatars), or '' to
+// remove it (the apps then show the default picture). Never any other address: that would make staff
+// browsers fetch a URL of the member's choosing.
+const PRESET_AVATAR = /^\/avatars\/preset-(0[1-9]|10)\.svg$/;
 const avatarSchema = z
   .string()
   .max(350_000, 'The profile photo is too large. Please choose a smaller image.')
@@ -54,7 +56,7 @@ const avatarSchema = z
     if (v.startsWith('data:')) {
       const check = validateImageDataUrl(v);
       if (!check.ok) ctx.addIssue({ code: 'custom', message: check.error });
-    } else if (v !== '') {
+    } else if (v !== '' && !PRESET_AVATAR.test(v)) {
       ctx.addIssue({ code: 'custom', message: 'Upload a PNG, JPEG or WebP photo.' });
     }
   });
@@ -63,7 +65,7 @@ const avatarSchema = z
 // it: the apps released in 2.3.0 (and their downloadable APK) send no gender, and refusing them would
 // leave installed apps unable to create accounts. Such accounts, Google sign-ups and older accounts
 // have none ("not given") until the person sets it on their account page.
-const genderSchema = z.enum(GENDERS, { error: 'Choose your gender, or "Prefer not to say".' });
+const genderSchema = z.enum(GENDERS, { error: 'Choose your gender.' });
 
 const loginSchema = z.object({
   email: z.string({ error: 'Enter your email address.' }).trim().toLowerCase().min(1, 'Enter your email address.').max(254),

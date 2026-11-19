@@ -10,7 +10,9 @@ import { useApiData } from '../../components/public/useApiData.js';
 import { defaultAvatar } from '../../components/member/avatarImage.js';
 import { cheapestPlan, cheapestPlanFor } from '../../components/public/plans.js';
 import { HOURS_DAYS, HOURS_TIME, isGymOpenNow, mondayOf } from '../../components/public/gymInfo.js';
+import { TabLink } from '../../components/public/TabLink.js';
 import { useAuth } from '../../context/AuthContext.js';
+import { useAppConfig } from '../../context/ConfigContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { formatClock, formatDate, formatINR, formatTime, gymToday } from '../../lib/format.js';
 
@@ -72,6 +74,9 @@ const HERO_PHOTO = HERO_PHOTOS['/'];
 export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenFreeTrialModal, onOpenAuthModal }) => {
   const { user } = useAuth();
   const { navigate } = useNavigation();
+  const { config } = useAppConfig();
+  // For a guest these are the API's guest views: only the fields this page shows (docs/API.md, Guests),
+  // and only the next four classes, so the weekly count comes from the config.
   const classes = useApiData(() => api.getClasses());
   const trainers = useApiData(() => api.getTrainers());
   const plans = useApiData(() => api.getPlans());
@@ -177,7 +182,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
                 </div>
                 <div>
                   <dt className="text-[11px] text-slate-400 font-medium">Classes a week</dt>
-                  <dd className="text-lg sm:text-2xl font-black text-amber-600 dark:text-amber-400 font-heading">{classes.data ? classes.data.length : '—'}</dd>
+                  <dd className="text-lg sm:text-2xl font-black text-amber-600 dark:text-amber-400 font-heading">{config.gym.classesPerWeek ?? '—'}</dd>
                 </div>
               </dl>
             </div>
@@ -370,7 +375,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="neu-flat p-6 sm:p-10 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="space-y-2 text-center md:text-left">
-            <Badge variant="cyan">FREE WITH AN ACCOUNT</Badge>
+            <Badge variant="cyan">INCLUDED WITH EVERY PLAN</Badge>
             <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-heading">WORKOUT SPLITS, INDIAN DIET CHARTS & SUPPLEMENTS</h2>
             <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
               Muscle-gain, fat-loss and vegetarian high-protein meal plans built on Indian staples, plus 4- and 5-day training splits and a plain-language supplements guide.
@@ -571,6 +576,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
             <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-heading">TRY A STRENGTH OR ZUMBA SESSION FREE</h2>
             <p className="text-sm text-slate-300 leading-relaxed">
               Claim a free 1-day pass for any day in the next two weeks, Monday to Saturday. One pass per person.
+            </p>
+            <p className="text-xs text-slate-400">
+              Questions first?{' '}
+              <TabLink tab="contact" navigate={setCurrentTab} className="text-lime-400 underline">
+                Send us an enquiry
+              </TabLink>
+              .
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 shrink-0 w-full sm:w-auto">

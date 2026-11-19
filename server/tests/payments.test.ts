@@ -67,8 +67,8 @@ afterEach(() => {
 });
 
 describe('GET /plans', () => {
-  it('lists the catalogue sorted by monthly price, without auth', async () => {
-    const res = await api().get('/api/plans');
+  it('lists the catalogue sorted by monthly price (guests get the guest view, see guestView.test.ts)', async () => {
+    const res = await api().get('/api/plans').set(authHeader(personas.member));
     expect(res.status).toBe(200);
     expect(res.body.data.map((p: any) => p.tier)).toEqual(['basic', 'pro', 'vip']);
     expect(res.body.data[0]).toMatchObject({ price_monthly: 699, price_annual: 7188, categories: ['Workout & Strength'] });

@@ -6,7 +6,7 @@ import ts from 'typescript';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import config from '../src/config.js';
 import { CLOSES_AT, OPENS_AT } from '../src/lib/hours.js';
-import { GYM, NOT_FOUND_DESCRIPTION, PAGES, PUBLIC_API_PATHS, TITLE_SUFFIX, renderIndexHtml } from '../src/lib/seo.js';
+import { GYM, NOT_FOUND_DESCRIPTION, PAGES, PUBLIC_API_PATHS, TITLE_SUFFIX, escapeHtml, jsonForScript, renderIndexHtml } from '../src/lib/seo.js';
 import { api, db, resetDb } from './helpers.js';
 
 const CLIENT_SRC = fileURLToPath(new URL('../../client/src/', import.meta.url));
@@ -79,6 +79,8 @@ afterEach(() => {
 });
 
 const indexable = PAGES.filter(p => p.indexable);
+/** The service pages, which need an account: never indexed, and no service details before any script runs. */
+const SIGN_IN_PAGES = ['/strength', '/zumba', '/guide', '/schedule', '/pricing', '/coaches'];
 
 function jsonLd(html: string): any {
   const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
@@ -101,10 +103,10 @@ function crawlable(robots: string, url: string): boolean {
 }
 
 /**
- * API answers the public pages ask for only once someone is signed in (the full fitness guide on
- * /guide and /strength). A crawler is a guest and never reads them, so they stay shut.
+ * API answers only the pages that need an account read (the full fitness guide on /guide and
+ * /strength, a single class or coach). A crawler is a guest and never reads them, so they stay shut.
  */
-const SIGNED_IN_ONLY_API_PATHS = ['/api/guide'];
+const SIGNED_IN_ONLY_API_PATHS = ['/api/guide', '/api/classes/cls_str_mon', '/api/trainers/trn_vikram'];
 
 /**
  * The API paths the public pages read in the browser: every api.getX() called by a page App.tsx
@@ -149,6 +151,9 @@ describe('server copy of the client pages and gym facts', () => {
     expect(PAGES.map(({ heroImage: _hero, ...page }) => page)).toEqual(
       ROUTES.map((r: any) => ({ path: r.path, title: r.searchTitle ?? r.title, description: r.description, indexable: r.indexable }))
     );
+    // Only public pages may be indexed; the service pages need an account.
+    for (const r of ROUTES) if (r.indexable) expect(r.access, r.path).toBe('public');
+    expect(ROUTES.filter((r: any) => SIGN_IN_PAGES.includes(r.path)).map((r: any) => r.access)).toEqual(SIGN_IN_PAGES.map(() => 'auth'));
   });
 
   it('matches client/src/components/public/gymInfo.ts: name, address, phone, email and hours', () => {
@@ -188,7 +193,7 @@ describe('GET /robots.txt', () => {
     expect(lines).toContain('User-agent: *');
     expect(lines).toContain('Allow: /');
     expect(lines).not.toContain('Disallow: /');
-    for (const area of ['/api/', '/downloads/', '/admin', '/trainer', '/dashboard', '/bookings', '/log-workout', '/profile', '/reset-password', '/payment-status']) {
+    for (const area of ['/api/', '/downloads/', ...SIGN_IN_PAGES, '/admin', '/trainer', '/dashboard', '/bookings', '/log-workout', '/profile', '/reset-password', '/payment-status']) {
       expect(lines).toContain(`Disallow: ${area}`);
     }
     // /admin already covers its sub-pages; nothing public, and no script or style, is shut.
@@ -272,15 +277,15 @@ describe('GET /sitemap.xml', () => {
     expect(res.text.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')).toBe(true);
     const locs = [...res.text.matchAll(/<loc>([^<]*)<\/loc>/g)].map(m => m[1]);
     expect(locs).toEqual(indexable.map(p => SITE + p.path));
-    expect(locs).toHaveLength(11);
-    expect(locs).not.toContain(`${SITE}/dashboard`);
+    expect(locs).toEqual(['/', '/exercises', '/contact', '/privacy', '/terms', '/refund-policy'].map(p => SITE + p));
+    for (const path of ['/dashboard', ...SIGN_IN_PAGES]) expect(locs).not.toContain(SITE + path);
     expect(res.text).toMatch(/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/);
   });
 
   it('escapes the addresses as XML', async () => {
     config.publicUrl = 'https://gym.example.in/a&b';
     const res = await api().get('/sitemap.xml');
-    expect(res.text).toContain('<loc>https://gym.example.in/a&amp;b/pricing</loc>');
+    expect(res.text).toContain('<loc>https://gym.example.in/a&amp;b/exercises</loc>');
     expect(res.text).not.toContain('a&b');
   });
 
@@ -299,18 +304,18 @@ describe('GET /sitemap.xml', () => {
 
 describe('page head in the served index.html', () => {
   it('fills in the title, description, Open Graph tags and canonical link of an indexable page', async () => {
-    const res = await api().get('/pricing');
+    const res = await api().get('/exercises');
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/^text\/html/);
     expect(res.headers['cache-control']).toBe('no-cache');
     const html = res.text;
-    const page = PAGES.find(p => p.path === '/pricing')!;
-    expect(html).toContain('<title>Gym membership plans in Gurugram · PulseFit Athletics</title>');
+    const page = PAGES.find(p => p.path === '/exercises')!;
+    expect(html).toContain('<title>Exercise library · PulseFit Athletics</title>');
     expect(html).toContain(`<meta name="description" content="${page.description}" />`);
-    expect(html).toContain('<meta property="og:title" content="Gym membership plans in Gurugram · PulseFit Athletics" />');
+    expect(html).toContain('<meta property="og:title" content="Exercise library · PulseFit Athletics" />');
     expect(html).toContain(`<meta property="og:description" content="${page.description}" />`);
-    expect(html).toContain(`<link rel="canonical" href="${SITE}/pricing" />`);
-    expect(html).toContain(`<meta property="og:url" content="${SITE}/pricing" />`);
+    expect(html).toContain(`<link rel="canonical" href="${SITE}/exercises" />`);
+    expect(html).toContain(`<meta property="og:url" content="${SITE}/exercises" />`);
     expect(html).not.toContain('name="robots"');
     expect(html).not.toContain('<!--app-head-->');
     // Each tag once: replaced in place, not added again.
@@ -323,9 +328,9 @@ describe('page head in the served index.html', () => {
   });
 
   it('escapes the title and uses the clean path, without query string or trailing slash, as canonical', async () => {
-    const res = await api().get('/pricing/?plan=pro&utm_source=x');
+    const res = await api().get('/exercises/?category=legs&utm_source=x');
     expect(res.status).toBe(200);
-    expect(res.text).toContain(`<link rel="canonical" href="${SITE}/pricing" />`);
+    expect(res.text).toContain(`<link rel="canonical" href="${SITE}/exercises" />`);
     expect(res.text).not.toContain('utm_source');
     const home = await api().get('/');
     expect(home.text).toContain('<title>Strength &amp; Zumba gym in Gurugram · PulseFit Athletics</title>');
@@ -333,7 +338,7 @@ describe('page head in the served index.html', () => {
   });
 
   it('marks private pages noindex, with no canonical link', async () => {
-    for (const url of ['/dashboard', '/admin/members', '/reset-password?token=abc', '/payment-status']) {
+    for (const url of ['/dashboard', '/admin/members', '/reset-password?token=abc', '/payment-status', ...SIGN_IN_PAGES, '/pricing?plan=pro']) {
       const res = await api().get(url);
       expect(res.status, url).toBe(200);
       expect(res.text, url).toContain('<meta name="robots" content="noindex, nofollow" />');
@@ -481,29 +486,39 @@ describe('JSON-LD', () => {
     expect(page).toMatchObject({ url: `${SITE}/`, name: 'Strength & Zumba gym in Gurugram · PulseFit Athletics' });
   });
 
-  it('lists the membership plans as offers in rupees on /pricing, at the catalogue prices', async () => {
-    db.membership_plans = db.membership_plans.map(p => (p.tier === 'pro' ? { ...p, price_monthly: 2345, price_annual: 23450 } : p));
-    const [gym] = nodesOf(jsonLd((await api().get('/pricing')).text), 'ExerciseGym');
-    const offers = gym.hasOfferCatalog.itemListElement;
-    expect(offers).toHaveLength(db.membership_plans.length);
-    const pro = db.membership_plans.find(p => p.tier === 'pro')!;
-    const offer = offers.find((o: any) => o.name === pro.name);
-    expect(offer).toMatchObject({ '@type': 'Offer', price: 2345, priceCurrency: 'INR', url: `${SITE}/pricing` });
-    expect(offer.priceSpecification).toEqual([
-      { '@type': 'UnitPriceSpecification', price: 2345, priceCurrency: 'INR', billingDuration: 'P1M' },
-      { '@type': 'UnitPriceSpecification', price: 23450, priceCurrency: 'INR', billingDuration: 'P1Y' }
-    ]);
+  it('puts no plan, class or coach details in any page, the ones that need an account included', async () => {
+    // What only the service pages show (plan names, descriptions, features and annual prices, class
+    // titles and descriptions, coaches), in every form it could take in the HTML or the JSON-LD.
+    const details = [
+      ...db.membership_plans.flatMap(p => [p.name, p.description, ...p.features, `₹${new Intl.NumberFormat('en-IN').format(p.price_annual)}`]),
+      ...db.classes.flatMap(c => [c.title, c.description]),
+      ...db.trainers.flatMap(t => [t.name, t.bio])
+    ].filter(Boolean);
+    for (const page of PAGES) {
+      const html = (await api().get(page.path)).text;
+      const data = jsonLd(html);
+      expect(nodesOf(data, 'ExerciseGym')[0].hasOfferCatalog, page.path).toBeUndefined();
+      const graph = JSON.stringify(data);
+      for (const detail of details) {
+        expect(html, `${page.path}: ${detail}`).not.toContain(escapeHtml(detail));
+        expect(graph, `${page.path}: ${detail}`).not.toContain(detail);
+      }
+    }
   });
 
   it('cannot be broken out of by text in the catalogue', async () => {
-    const evil = '</script><script>alert(1)</script><!-- & "quoted"  ';
+    const evil = '</script><script>alert(1)</script><!-- & "quoted" \u2028';
     db.membership_plans = db.membership_plans.map((p, i) => (i === 0 ? { ...p, name: evil, description: evil } : p));
-    const html = (await api().get('/pricing')).text;
-    expect(html).not.toContain('<script>alert');
-    expect(html).not.toContain('<!-- &');
-    expect(html.match(/<\/script>/g)).toHaveLength(html.match(/<script[\s>]/g)!.length);
-    const [gym] = nodesOf(jsonLd(html), 'ExerciseGym');
-    expect(gym.hasOfferCatalog.itemListElement.some((o: any) => o.name === evil)).toBe(true);
+    for (const url of ['/', '/pricing']) {
+      const html = (await api().get(url)).text;
+      expect(html, url).not.toContain('<script>alert');
+      expect(html, url).not.toContain('<!-- &');
+      expect(html.match(/<\/script>/g), url).toHaveLength(html.match(/<script[\s>]/g)!.length);
+    }
+    // Whatever text reaches the JSON-LD cannot end its block or open a comment, and reads back the same.
+    const block = jsonForScript({ name: evil, line: '\u2028\u2029' });
+    expect(block).not.toMatch(/[<>&\u2028\u2029]/);
+    expect(JSON.parse(block)).toEqual({ name: evil, line: '\u2028\u2029' });
   });
 
   it('is a data block the Content Security Policy does not need to allow', async () => {

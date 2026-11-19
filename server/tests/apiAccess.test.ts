@@ -237,9 +237,7 @@ describe('personal data in answers', () => {
       '/api/config',
       '/api/plans',
       '/api/classes',
-      '/api/classes/cls_str_fri',
       '/api/trainers',
-      '/api/trainers/trn_vikram',
       '/api/exercises',
       '/api/time-tracking/active-floor'
     ]) {
@@ -248,11 +246,13 @@ describe('personal data in answers', () => {
       expect(othersIn(res.body), url).toEqual([]);
       expectNoSecrets(url, res.body);
     }
+    // A single class or coach is for signed-in accounts (checked for a coach below).
+    for (const url of ['/api/classes/cls_str_fri', '/api/trainers/trn_vikram']) expect((await api().get(url)).status, url).toBe(401);
   });
 
   it("a coach's dashboards carry no one's contact details or secrets; the roster and check-in carry what their screens show", async () => {
     const coach = authHeader(personas.trainer);
-    for (const url of ['/api/trainer/me', '/api/trainer/clients', '/api/trainer/notes', '/api/time-tracking/active-floor', '/api/classes', '/api/trainers']) {
+    for (const url of ['/api/trainer/me', '/api/trainer/clients', '/api/trainer/notes', '/api/time-tracking/active-floor', '/api/classes', '/api/classes/cls_str_fri', '/api/trainers', '/api/trainers/trn_vikram']) {
       const res = await api().get(url).set(coach);
       expect(res.status, url).toBe(200);
       // Client ids are how a coach picks whom a note is about; nothing else of theirs is listed.

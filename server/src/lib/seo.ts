@@ -37,8 +37,8 @@ export const PAGES: readonly PageMeta[] = [
     path: '/strength',
     title: 'Strength training gym in Gurugram',
     description:
-      'Racks, barbells and free weights near Cyber Hub, Gurugram. See the weekly strength classes and what is on the floor; sign in for a 4-day starter split.',
-    indexable: true,
+      'Racks, barbells and free weights near Cyber Hub, Gurugram. Sign in for the weekly strength classes and the floor; members with a plan get a 4-day split.',
+    indexable: false,
     heroImage: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=1600&auto=format&fit=crop&q=80'
   },
   {
@@ -46,42 +46,49 @@ export const PAGES: readonly PageMeta[] = [
     title: 'Zumba & cardio classes in Gurugram',
     description:
       'High-energy Zumba and dance cardio in our own studio in Sector 29, Gurugram. See the weekly classes, what a class is like, and book a spot in the app.',
-    indexable: true,
+    indexable: false,
     heroImage: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=1600&auto=format&fit=crop&q=80'
   },
   {
     path: '/guide',
     title: 'Workout plans & Indian diet charts',
     description:
-      'Workout splits, high-protein Indian diet charts and a supplements guide from PulseFit Athletics, Gurugram. Sign in with a free account to read them in full.',
-    indexable: true
+      'Workout splits, high-protein Indian diet charts and a supplements guide from PulseFit Athletics, Gurugram, included with every membership plan.',
+    indexable: false
   },
   {
     path: '/schedule',
     title: 'Gym class timetable & booking',
     description:
       'Workout & Strength and Zumba & Cardio classes at PulseFit, Gurugram, Monday to Saturday, with spots left for each date. Members book 14 days ahead.',
-    indexable: true
+    indexable: false
   },
   {
     path: '/pricing',
     title: 'Gym membership plans in Gurugram',
     description:
       'Compare the three PulseFit Athletics membership plans in Gurugram, priced in rupees with no sign-up fee. Pay monthly, or once for a full year.',
-    indexable: true
+    indexable: false
   },
   {
     path: '/coaches',
     title: 'Strength & Zumba coaches',
     description:
       'Meet the coaches who run every Workout & Strength and Zumba & Cardio class on the PulseFit Athletics timetable in Sector 29, Gurugram.',
-    indexable: true
+    indexable: false
   },
   {
     path: '/exercises',
     title: 'Exercise library',
     description:
       'How to perform each movement on the PulseFit floor and which muscles it works. Search, or filter the exercises by muscle group, equipment and level.',
+    indexable: true
+  },
+  {
+    path: '/contact',
+    title: 'Contact & membership enquiries',
+    description:
+      'Ask PulseFit Athletics in Sector 29, Gurugram about memberships, classes or a free trial. Leave your number and our front desk will call you back.',
     indexable: true
   },
   {
@@ -198,9 +205,9 @@ export const PAGES: readonly PageMeta[] = [
   },
   {
     path: '/admin/trials',
-    title: 'Free-trial leads',
+    title: 'Leads',
     description:
-      'Everyone who claimed a free trial day at PulseFit Athletics, newest first, filtered by status. Each free-trial pass works once, on its date.',
+      'New enquiries from the contact page and free-trial claims at PulseFit Athletics, newest first. Staff mark each enquiry contacted or closed.',
     indexable: false
   }
 ];
@@ -280,8 +287,8 @@ export function jsonForScript(value: unknown): string {
 const websiteIndexable = () => config.allowIndexing && config.serveClient;
 
 /**
- * The read-only API answers the public pages are drawn from in the browser (plans, classes, coaches,
- * exercises, the floor count and the app config). Google's renderer obeys robots.txt for these
+ * The read-only API answers the public pages are drawn from in the browser (the home page's plans,
+ * classes, coaches and floor count, trimmed for guests; the exercise library; the app config). Google's renderer obeys robots.txt for these
  * requests too, so they stay open or the indexed pages would show only their loading or error panels.
  * They are still never indexed themselves: every /api answer carries X-Robots-Tag: noindex. The
  * renderer runs the app, which sends its X-Requested-With header; a crawler fetching these addresses
@@ -314,6 +321,8 @@ export function robotsTxt(): string {
     'User-agent: *',
     'Allow: /',
     ...PUBLIC_API_PATHS.map(p => `Allow: ${p}`),
+    // Only those answers: a single class or coach (/api/classes/<id>) is for signed-in accounts.
+    ...PUBLIC_API_PATHS.map(p => `Disallow: ${p}/`),
     'Disallow: /api/',
     'Disallow: /downloads/',
     ...disallow.map(p => `Disallow: ${p}`),
@@ -393,27 +402,6 @@ export function structuredData(page: PageMeta): Record<string, unknown> {
     ...(GYM_PROFILE.geo ? { geo: { '@type': 'GeoCoordinates', ...GYM_PROFILE.geo } } : {}),
     ...sameAs
   };
-
-  // The pricing page also carries the plans, at the prices checkout charges today.
-  if (page.path === '/pricing' && plans.length) {
-    gym.hasOfferCatalog = {
-      '@type': 'OfferCatalog',
-      name: 'Membership plans',
-      itemListElement: plans.map(plan => ({
-        '@type': 'Offer',
-        name: plan.name,
-        description: plan.description,
-        url: at('/pricing'),
-        price: plan.price_monthly,
-        priceCurrency: 'INR',
-        priceSpecification: [
-          { '@type': 'UnitPriceSpecification', price: plan.price_monthly, priceCurrency: 'INR', billingDuration: 'P1M' },
-          { '@type': 'UnitPriceSpecification', price: plan.price_annual, priceCurrency: 'INR', billingDuration: 'P1Y' }
-        ],
-        itemOffered: { '@type': 'Service', name: plan.name, provider: { '@id': id('gym') } }
-      }))
-    };
-  }
 
   const website = {
     '@type': 'WebSite',

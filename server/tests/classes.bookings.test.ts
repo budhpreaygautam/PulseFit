@@ -409,7 +409,7 @@ describe('classes: gym-time dates between 00:00 and 05:30 IST (review regression
   it('uses the gym date for the timetable', async () => {
     expect(gymToday(EARLY)).toBe('2026-10-08');
     expect(nextOccurrence(4, '08:00', EARLY)).toBe('2026-10-08');
-    const res = await api().get('/api/classes');
+    const res = await api().get('/api/classes').set(authHeader(personas.member));
     expect(res.status).toBe(200);
     const byId = Object.fromEntries(res.body.data.map((c: any) => [c.id, c.occurrence_date]));
     expect(byId.cls_zumba_thu).toBe('2026-10-08');

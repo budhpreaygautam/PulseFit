@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Mail, Phone, RefreshCw } from 'lucide-react';
-import { TrialPass } from '../../types/index.js';
+import { Enquiry, EnquiryStatus, TrialPass } from '../../types/index.js';
 import { api, errorMessage } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
 import { AdminNav, PageHeader, focusRing } from '../../components/admin/ui.js';
+import { useToast } from '../../context/ToastContext.js';
 import { formatDate, formatDateTime, gymToday } from '../../lib/format.js';
 
 type StatusFilter = 'all' | TrialPass['status'];
@@ -22,19 +23,80 @@ function statusOf(trial: TrialPass, today: string): { label: string; variant: 'l
   return { label: 'Upcoming', variant: 'slate' };
 }
 
-const Contact: React.FC<{ trial: TrialPass }> = ({ trial }) => (
+const Contact: React.FC<{ lead: { email: string; phone: string } }> = ({ lead }) => (
   <div className="space-y-1 text-xs min-w-0">
-    <a href={`mailto:${trial.email}`} className={`flex items-center gap-1.5 text-slate-200 hover:text-lime-400 break-all rounded ${focusRing}`}>
-      <Mail className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {trial.email}
+    <a href={`mailto:${lead.email}`} className={`flex items-center gap-1.5 text-slate-200 hover:text-lime-400 break-all rounded ${focusRing}`}>
+      <Mail className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {lead.email}
     </a>
-    <a href={`tel:${trial.phone}`} className={`flex items-center gap-1.5 text-slate-300 hover:text-lime-400 rounded ${focusRing}`}>
-      <Phone className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {trial.phone}
+    <a href={`tel:${lead.phone}`} className={`flex items-center gap-1.5 text-slate-300 hover:text-lime-400 rounded ${focusRing}`}>
+      <Phone className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {lead.phone}
     </a>
   </div>
 );
 
+const ENQUIRY_STATUS: Record<EnquiryStatus, { label: string; variant: 'amber' | 'cyan' | 'slate' }> = {
+  new: { label: 'New', variant: 'amber' },
+  contacted: { label: 'Contacted', variant: 'cyan' },
+  closed: { label: 'Closed', variant: 'slate' }
+};
+
+const EnquiryList: React.FC<{ enquiries: Enquiry[]; onChange: (updated: Enquiry) => void }> = ({ enquiries, onChange }) => {
+  const { showToast } = useToast();
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  const setStatus = async (id: string, status: EnquiryStatus) => {
+    setSavingId(id);
+    try {
+      onChange(await api.updateEnquiryStatus(id, status));
+    } catch (err) {
+      showToast(errorMessage(err), 'error');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  return (
+    <ul className="grid gap-3 md:grid-cols-2">
+      {enquiries.map(e => (
+        <li key={e.id} className="neu-flat p-4 rounded-2xl space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="font-extrabold text-slate-100 font-heading break-words">{e.name}</h3>
+              <p className="text-xs text-slate-400">
+                {e.interest} · call: {e.contact_time} · {formatDateTime(e.created_at)}
+              </p>
+            </div>
+            <Badge size="sm" variant={ENQUIRY_STATUS[e.status].variant}>{ENQUIRY_STATUS[e.status].label}</Badge>
+          </div>
+          <Contact lead={e} />
+          {e.message && <p className="text-sm text-slate-300 whitespace-pre-wrap break-words">{e.message}</p>}
+          <div className="flex items-center gap-2">
+            <label htmlFor={`enquiry-status-${e.id}`} className="text-xs font-bold uppercase tracking-wider text-slate-300">
+              Status
+            </label>
+            <select
+              id={`enquiry-status-${e.id}`}
+              value={e.status}
+              disabled={savingId === e.id}
+              onChange={ev => setStatus(e.id, ev.target.value as EnquiryStatus)}
+              className="px-3 py-1.5 text-xs text-slate-100 rounded-xl disabled:opacity-60"
+            >
+              {(Object.keys(ENQUIRY_STATUS) as EnquiryStatus[]).map(s => (
+                <option key={s} value={s}>
+                  {ENQUIRY_STATUS[s].label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+};
+
 export const TrialLeads: React.FC = () => {
   const [trials, setTrials] = useState<TrialPass[] | null>(null);
+  const [enquiries, setEnquiries] = useState<Enquiry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [filter, setFilter] = useState<StatusFilter>('all');
@@ -43,7 +105,9 @@ export const TrialLeads: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      setTrials(await api.getTrials());
+      const [t, e] = await Promise.all([api.getTrials(), api.getEnquiries()]);
+      setTrials(t);
+      setEnquiries(e);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -63,8 +127,8 @@ export const TrialLeads: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
       <PageHeader
         eyebrow="Admin"
-        title="Free-trial leads"
-        description="Everyone who claimed a free trial day, newest first. Each pass works once, on its date."
+        title="Leads"
+        description="Enquiries from the contact page and free-trial claims, newest first."
         actions={
           <button type="button" onClick={load} disabled={isLoading} className={`px-4 py-2.5 neu-btn rounded-xl text-xs font-bold flex items-center gap-2 disabled:opacity-60 ${focusRing}`}>
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
@@ -73,6 +137,20 @@ export const TrialLeads: React.FC = () => {
       />
       <AdminNav />
 
+      {enquiries && (
+        <section aria-labelledby="enquiries-heading" className="space-y-3">
+          <h2 id="enquiries-heading" className="text-lg font-black text-slate-100 font-heading">
+            Enquiries
+          </h2>
+          {enquiries.length === 0 ? (
+            <EmptyState title="No enquiries yet" />
+          ) : (
+            <EnquiryList enquiries={enquiries} onChange={u => setEnquiries(list => list!.map(x => (x.id === u.id ? u : x)))} />
+          )}
+        </section>
+      )}
+
+      <h2 className="text-lg font-black text-slate-100 font-heading">Free-trial passes</h2>
       <div role="group" aria-label="Filter by status" className="flex flex-wrap gap-2">
         {FILTERS.map(f => (
           <button
@@ -89,9 +167,9 @@ export const TrialLeads: React.FC = () => {
       </div>
 
       {error ? (
-        <ErrorState message={`Could not load trial leads. ${error}`} onRetry={load} />
+        <ErrorState message={`Could not load leads. ${error}`} onRetry={load} />
       ) : !trials ? (
-        <LoadingState label="Loading trial leads…" />
+        <LoadingState label="Loading leads…" />
       ) : visible.length === 0 ? (
         <EmptyState title={trials.length === 0 ? 'No one has claimed a free trial yet' : 'No trial passes match this filter'} />
       ) : (
@@ -108,7 +186,7 @@ export const TrialLeads: React.FC = () => {
                     </div>
                     <Badge size="sm" variant={status.variant}>{status.label}</Badge>
                   </div>
-                  <Contact trial={t} />
+                  <Contact lead={t} />
                   <p className="text-xs text-slate-400">
                     Trial day {formatDate(t.valid_on)} · claimed {formatDateTime(t.created_at)}
                     {t.redeemed_at && ` · visited ${formatDateTime(t.redeemed_at)}`}
@@ -141,7 +219,7 @@ export const TrialLeads: React.FC = () => {
                         <p className="font-extrabold text-sm text-slate-100 font-heading">{t.name}</p>
                         <p className="font-mono text-[11px] text-slate-400">{t.code}</p>
                       </td>
-                      <td className="p-4"><Contact trial={t} /></td>
+                      <td className="p-4"><Contact lead={t} /></td>
                       <td className="p-4 whitespace-nowrap">{t.interest}</td>
                       <td className="p-4 whitespace-nowrap">{formatDate(t.valid_on)}</td>
                       <td className="p-4">

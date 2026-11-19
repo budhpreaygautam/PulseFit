@@ -10,11 +10,12 @@ import { Navbar } from './components/layout/Navbar.js';
 import { Footer } from './components/layout/Footer.js';
 import { AndroidAppBanner } from './components/layout/AndroidAppBanner.js';
 import { ErrorBoundary } from './components/common/ErrorBoundary.js';
-import { clearPendingPlan } from './components/public/pendingPlan.js';
+import { clearPendingPage, rememberPendingPage } from './components/public/pendingPage.js';
 
 // Only the home page ships in the main bundle, so the first visit to / downloads and runs as little
 // as possible. Every other page loads on demand; the public ones are also fetched in the background
-// once the first page has loaded (see MainAppContent), so moving around the site stays instant.
+// once the first page has loaded (see MainAppContent), so moving around the site stays instant. The
+// pages that need an account, the six service pages among them, are only fetched once opened.
 import { LandingPage } from './pages/public/LandingPage.js';
 import { NotFoundPage } from './pages/NotFoundPage.js';
 
@@ -28,15 +29,16 @@ const publicPage = <T extends Record<string, unknown>>(loader: () => Promise<T>,
   return named(loader, name);
 };
 
-const WorkoutPage = publicPage(() => import('./pages/public/WorkoutPage.js'), 'WorkoutPage');
-const ZumbaPage = publicPage(() => import('./pages/public/ZumbaPage.js'), 'ZumbaPage');
-const FitnessGuidePage = publicPage(() => import('./pages/public/FitnessGuidePage.js'), 'FitnessGuidePage');
-const SchedulePage = publicPage(() => import('./pages/public/SchedulePage.js'), 'SchedulePage');
-const PricingPage = publicPage(() => import('./pages/public/PricingPage.js'), 'PricingPage');
-const TrainersPage = publicPage(() => import('./pages/public/TrainersPage.js'), 'TrainersPage');
+const WorkoutPage = named(() => import('./pages/public/WorkoutPage.js'), 'WorkoutPage');
+const ZumbaPage = named(() => import('./pages/public/ZumbaPage.js'), 'ZumbaPage');
+const FitnessGuidePage = named(() => import('./pages/public/FitnessGuidePage.js'), 'FitnessGuidePage');
+const SchedulePage = named(() => import('./pages/public/SchedulePage.js'), 'SchedulePage');
+const PricingPage = named(() => import('./pages/public/PricingPage.js'), 'PricingPage');
+const TrainersPage = named(() => import('./pages/public/TrainersPage.js'), 'TrainersPage');
 const ResetPasswordPage = publicPage(() => import('./pages/public/ResetPasswordPage.js'), 'ResetPasswordPage');
 const PaymentStatusPage = publicPage(() => import('./pages/public/PaymentStatusPage.js'), 'PaymentStatusPage');
 const LegalPage = publicPage(() => import('./pages/public/LegalPage.js'), 'LegalPage');
+const ContactPage = publicPage(() => import('./pages/public/ContactPage.js'), 'ContactPage');
 
 // The sign-in and free-trial dialogs load the first time they are opened. As with the QR pass in the
 // navbar, React remembers a load that failed, so a failure gets a fresh loader for the next try.
@@ -89,7 +91,7 @@ const AccessPanel: React.FC<{ icon: React.ReactNode; title: string; body: string
 );
 
 function MainAppContent() {
-  const { tab, navigate } = useNavigation();
+  const { tab, params, navigate, signInRequests } = useNavigation();
   const { user, isInitializing, isServerUnreachable, retrySessionRestore } = useAuth();
   const { showToast } = useToast();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -114,9 +116,14 @@ function MainAppContent() {
     setIsFreeTrialOpen(true);
   }, []);
 
-  // A plan picked as a guest belongs to the sign-in dialog opened for it, so one left over from before
+  // A page a guest asked for belongs to the sign-in dialog opened for it, so one left over from before
   // a refresh is dropped (AuthModal used to do this when it mounted closed, on page load).
-  useEffect(() => clearPendingPlan(), []);
+  useEffect(() => clearPendingPage(), []);
+
+  // A guest followed a link to a page that needs an account: navigate kept them where they were.
+  useEffect(() => {
+    if (signInRequests > 0) openAuthModal('login');
+  }, [signInRequests, openAuthModal]);
 
   // Once the first page has loaded, fetch the other public pages and the dialogs while the browser is
   // idle, so opening them later does not wait on the network. Skipped offline and on data saver.
@@ -218,6 +225,17 @@ function MainAppContent() {
   const route = routeForTab(tab);
   const showOfflinePanel = Boolean(route && route.access !== 'public' && isInitializing && isServerUnreachable);
 
+  // Such a page opened by its address (or back/forward, or a session that ended there) shows "Please
+  // sign in" below, never the page, and opens the sign-in dialog for it straight away.
+  const needsSignIn = Boolean(route && route.access !== 'public' && !isInitializing && !user);
+  useEffect(() => {
+    if (!needsSignIn) return;
+    rememberPendingPage({ tab, params: Object.fromEntries(params) });
+    openAuthModal('login');
+    // Once per page: a dialog closed there stays closed until another page needs it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsSignIn, tab]);
+
   let page: React.ReactNode;
   if (!route) {
     page = <NotFoundPage setCurrentTab={setCurrentTab} />;
@@ -233,7 +251,7 @@ function MainAppContent() {
     );
   } else if (route.access !== 'public' && isInitializing) {
     page = <PageLoader />;
-  } else if (route.access !== 'public' && !user) {
+  } else if (needsSignIn) {
     page = (
       <AccessPanel
         icon={<Lock className="w-6 h-6" aria-hidden="true" />}
@@ -262,19 +280,21 @@ function MainAppContent() {
       case 'home':
         return <LandingPage setCurrentTab={setCurrentTab} onOpenFreeTrialModal={openFreeTrialModal} onOpenAuthModal={openAuthModal} />;
       case 'workout':
-        return <WorkoutPage setCurrentTab={setCurrentTab} onOpenAuthModal={openAuthModal} onOpenFreeTrialModal={openFreeTrialModal} />;
+        return <WorkoutPage setCurrentTab={setCurrentTab} onOpenFreeTrialModal={openFreeTrialModal} />;
       case 'zumba':
         return <ZumbaPage setCurrentTab={setCurrentTab} onOpenAuthModal={openAuthModal} onOpenFreeTrialModal={openFreeTrialModal} />;
       case 'guide':
-        return <FitnessGuidePage setCurrentTab={setCurrentTab} onOpenAuthModal={openAuthModal} />;
+        return <FitnessGuidePage setCurrentTab={setCurrentTab} />;
       case 'schedule':
         return <SchedulePage onOpenAuthModal={openAuthModal} />;
       case 'pricing':
-        return <PricingPage onOpenAuthModal={openAuthModal} onOpenFreeTrialModal={openFreeTrialModal} />;
+        return <PricingPage onOpenFreeTrialModal={openFreeTrialModal} />;
       case 'trainers':
         return <TrainersPage setCurrentTab={setCurrentTab} />;
       case 'exercise-library':
         return <ExerciseLibraryView setCurrentTab={setCurrentTab} />;
+      case 'contact':
+        return <ContactPage />;
       case 'reset-password':
         return <ResetPasswordPage />;
       case 'payment-status':

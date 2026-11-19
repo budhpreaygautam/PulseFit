@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- PulseFit avatar 2: auburn ponytail, on pink. -->
+  <rect width="128" height="128" fill="#f9a8d4"/>
+  <path d="M56 70h16v26H56z" fill="#f2c9ad"/>
+  <path d="M16 128c0-22 16-36 40-38 2 5 14 5 16 0 24 2 40 16 40 38z" fill="#7c3aed"/>
+  <path d="M78 40c14-1 21 12 17 27-1 6-4 10-8 12 2-10 0-21-9-29z" fill="#9a3412"/>
+  <g fill="#fde3cf"><circle cx="44.5" cy="58" r="4"/><circle cx="83.5" cy="58" r="4"/><circle cx="64" cy="56" r="20"/></g>
+  <path d="M44 57c-1-14 8-23 20-23s21 9 20 23c-3-7-9-11-17-12-5 4-14 6-23 12z" fill="#9a3412"/>
+  <circle cx="81" cy="42" r="3.5" fill="#facc15"/>
+  <g fill="#fb7185" opacity=".35"><circle cx="51" cy="64" r="3.5"/><circle cx="77" cy="64" r="3.5"/></g>
+  <g fill="#1f2937"><circle cx="57" cy="58" r="2.2"/><circle cx="71" cy="58" r="2.2"/></g>
+  <path d="M58.5 65.5q5.5 4.5 11 0" fill="none" stroke="#1f2937" stroke-width="2.2" stroke-linecap="round"/>
+</svg>

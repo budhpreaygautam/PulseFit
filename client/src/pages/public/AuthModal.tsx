@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Check, Dumbbell, ExternalLink, KeyRound, Loader2, Lock, Mail, Phone, ShieldCheck, Sparkles, User as UserIcon, Users } from 'lucide-react';
+import { ArrowLeft, Dumbbell, ExternalLink, KeyRound, Loader2, Lock, Mail, Phone, ShieldCheck, Sparkles, User as UserIcon, Users } from 'lucide-react';
 import { Modal } from '../../components/common/Modal.js';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton.js';
 import { FormField, issuesByField } from '../../components/public/FormField.js';
 import { emailError, nameError, normalizeIndianPhone, passwordError, PHONE_HINT } from '../../components/public/validation.js';
-import { clearPendingPlan, takePendingPlan } from '../../components/public/pendingPlan.js';
+import { clearPendingPage, takePendingPage } from '../../components/public/pendingPage.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
@@ -12,7 +12,6 @@ import { useToast } from '../../context/ToastContext.js';
 import { errorMessage, isApiError } from '../../api/client.js';
 import { homeTabFor } from '../../routes.js';
 import { GENDER_OPTIONS } from '../../lib/format.js';
-import { defaultAvatar } from '../../components/member/avatarImage.js';
 import { Gender, User } from '../../types/index.js';
 
 type Mode = 'login' | 'register' | 'forgot' | 'mfa';
@@ -70,9 +69,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
   // Every open starts clean in the mode the caller asked for; closing wipes what was typed.
   useEffect(() => {
-    // A plan picked as a guest belongs to the sign-in this dialog was opened for. Closed without
+    // A page a guest asked for belongs to the sign-in this dialog was opened for. Closed without
     // signing in (or on first load, after a refresh), it is dropped.
-    if (!isOpen) clearPendingPlan();
+    if (!isOpen) clearPendingPage();
     setMode(initialMode);
     setName('');
     setGender(null);
@@ -110,15 +109,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   };
 
   /**
-   * After any sign-in: a plan picked as a guest takes them back to pricing to pay for it. Otherwise
-   * askGender sends them to My account to choose the gender that picks their default picture.
+   * After any sign-in: the page a guest asked for (pricing with the plan they picked, the timetable…)
+   * opens. Otherwise askGender sends them to My account to choose the gender that picks their
+   * default picture.
    */
   const finishSignIn = (user: User, greeting: string, askGender = false) => {
-    const pending = takePendingPlan();
+    const pending = takePendingPage();
     onClose();
     if (pending) {
-      showToast(`${greeting} Finish choosing your plan below.`, 'success');
-      navigate('pricing', { plan: pending.tier, cycle: pending.cycle });
+      showToast(greeting, 'success');
+      navigate(pending.tab, pending.params);
     } else if (askGender) {
       showToast('Choose your gender under Personal details to pick your profile picture.', 'info', greeting);
       navigate('profile');
@@ -149,7 +149,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     if (mode === 'register') {
       const nameProblem = nameError(name);
       if (nameProblem) errors.name = nameProblem;
-      if (!gender) errors.gender = 'Choose your gender, or "Prefer not to say".';
+      if (!gender) errors.gender = 'Choose your gender.';
       const passwordProblem = passwordError(password);
       if (passwordProblem) errors.password = passwordProblem;
       if (phone.trim() && !normalizeIndianPhone(phone)) errors.phone = PHONE_HINT;
@@ -239,11 +239,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setBusy(role);
     try {
       const user = await demoLogin(role);
-      // A demo account is not the account the guest picked a plan for.
-      clearPendingPlan();
+      const pending = takePendingPage();
       onClose();
       showToast(`Signed in as the demo ${DEMO_PERSONAS.find(p => p.role === role)?.label.toLowerCase()}.`, 'success');
-      navigate(homeTabFor(user.role));
+      if (pending) navigate(pending.tab, pending.params);
+      else navigate(homeTabFor(user.role));
     } catch (err) {
       showError(err);
     } finally {
@@ -363,35 +363,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
             )}
 
             {mode === 'register' && (
-              <fieldset aria-describedby={fieldErrors.gender ? 'auth-gender-hint auth-gender-error' : 'auth-gender-hint'}>
-                <legend className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">Gender</legend>
-                <div className="grid grid-cols-2 gap-2">
-                  {GENDER_OPTIONS.map(option => (
-                    <label
-                      key={option.value}
-                      className={`flex items-center gap-2 px-2.5 py-2 rounded-xl cursor-pointer text-xs font-bold leading-tight transition-all has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-lime-500 ${
-                        gender === option.value ? 'neu-pressed-sm text-lime-400 border border-lime-500/60' : `neu-btn text-slate-200 ${fieldErrors.gender ? '!border-rose-500/70' : ''}`
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="auth-gender"
-                        value={option.value}
-                        checked={gender === option.value}
-                        onChange={() => {
-                          setGender(option.value);
-                          setFieldErrors(errors => ({ ...errors, gender: undefined }));
-                        }}
-                        aria-invalid={fieldErrors.gender ? true : undefined}
-                        required
-                        className="sr-only"
-                      />
-                      {/* The picture this choice gives them until they upload a photo. */}
-                      <img src={defaultAvatar(option.value)} alt="" width={20} height={20} className="w-5 h-5 rounded-md shrink-0" />
-                      {option.label}
-                      {gender === option.value && <Check className="w-3.5 h-3.5 ml-auto shrink-0" aria-hidden="true" />}
-                    </label>
-                  ))}
+              <div>
+                <label htmlFor="auth-gender" className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">
+                  Gender
+                </label>
+                <div className="relative">
+                  <select
+                    id="auth-gender"
+                    value={gender ?? ''}
+                    onChange={e => {
+                      setGender(e.target.value as Gender);
+                      setFieldErrors(errors => ({ ...errors, gender: undefined }));
+                    }}
+                    aria-invalid={fieldErrors.gender ? true : undefined}
+                    aria-describedby={fieldErrors.gender ? 'auth-gender-hint auth-gender-error' : 'auth-gender-hint'}
+                    required
+                    className={`w-full pl-3.5 pr-4 py-2.5 text-sm text-slate-100 rounded-xl ${fieldErrors.gender ? '!border-rose-500/70' : ''}`}
+                  >
+                    <option value="" disabled>
+                      🚻 Choose…
+                    </option>
+                    {GENDER_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.emoji} {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <p id="auth-gender-hint" className="mt-1 text-[11px] text-slate-500">
                   Picks your profile picture until you add a photo. Only you and the front desk can see it.
@@ -401,7 +398,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                     {fieldErrors.gender}
                   </p>
                 )}
-              </fieldset>
+              </div>
             )}
 
             {mode === 'mfa' ? (

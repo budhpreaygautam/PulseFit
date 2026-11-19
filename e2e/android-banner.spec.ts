@@ -52,7 +52,7 @@ test.describe('on an Android phone', () => {
 
   test('closing the bar keeps it closed after a reload, for 30 days', async ({ page }) => {
     await offerApp(page);
-    await page.goto('/pricing');
+    await page.goto('/exercises');
     await banner(page).getByRole('button', { name: 'Close the app download bar' }).click();
     await expect(banner(page)).toHaveCount(0);
     expect(Number(await page.evaluate(key => localStorage.getItem(key), DISMISSED_KEY))).toBeGreaterThan(0);

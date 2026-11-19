@@ -11,7 +11,7 @@ const router = Router();
 router.get('/exercises', getExercises);
 router.get('/exercises/:id', getExerciseById);
 
-// Workout plans, diet charts, supplements and the strength split: any signed-in account.
+// Workout plans, diet charts, supplements and the strength split: staff, and members with a plan.
 router.get('/guide', authenticate, getGuide);
 
 router.get('/workouts', authenticate, getWorkouts);

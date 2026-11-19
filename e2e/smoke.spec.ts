@@ -1,7 +1,9 @@
 import { expect } from '@playwright/test';
 import { signInAs, test, trackConsoleErrors } from './helpers';
 
-const PUBLIC_ROUTES = ['/', '/strength', '/zumba', '/guide', '/schedule', '/pricing', '/coaches', '/exercises', '/privacy', '/terms', '/refund-policy'];
+const PUBLIC_ROUTES = ['/', '/exercises', '/contact', '/privacy', '/terms', '/refund-policy'];
+/** The service pages, which need an account (see access.spec.ts for what guests get there). */
+const SIGN_IN_ROUTES = ['/strength', '/zumba', '/guide', '/schedule', '/pricing', '/coaches'];
 
 test.describe('public pages', () => {
   for (const path of PUBLIC_ROUTES) {
@@ -22,13 +24,30 @@ test.describe('public pages', () => {
   });
 
   test('back and forward move between pages', async ({ page }) => {
-    await page.goto('/pricing');
-    await page.goto('/schedule');
+    await page.goto('/exercises');
+    await page.goto('/privacy');
     await page.goBack();
-    await expect(page).toHaveURL(/\/pricing$/);
+    await expect(page).toHaveURL(/\/exercises$/);
     await page.goForward();
-    await expect(page).toHaveURL(/\/schedule$/);
+    await expect(page).toHaveURL(/\/privacy$/);
   });
+});
+
+test.describe('service pages, signed in', () => {
+  for (const path of SIGN_IN_ROUTES) {
+    test(`${path} renders without errors and survives a refresh`, async ({ page, request }) => {
+      const errors = trackConsoleErrors(page);
+      await signInAs(page, request, 'member');
+      await page.goto(path);
+      await expect(page.locator('main h1').first()).toBeVisible();
+      await expect(page.getByRole('heading', { name: /please sign in/i })).toHaveCount(0);
+      await expect(page).toHaveTitle(/PulseFit/);
+      await page.reload();
+      expect(new URL(page.url()).pathname).toBe(path);
+      await expect(page.locator('main h1').first()).toBeVisible();
+      expect(errors).toEqual([]);
+    });
+  }
 });
 
 test.describe('access rules', () => {

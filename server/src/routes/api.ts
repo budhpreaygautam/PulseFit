@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import config, { googleSignInEnabled, paymentProvider } from '../config.js';
+import db from '../db/database.js';
 import { notFoundHandler } from '../middleware/errorHandler.js';
 import { publicOpeningHours } from '../lib/hours.js';
 import { GYM } from '../lib/seo.js';
@@ -26,7 +27,8 @@ router.get('/config', (_req, res) => {
       demoMode: config.demoMode,
       googleClientId: googleSignInEnabled() ? config.googleClientId : null,
       payments: { enabled: provider !== null, provider, keyId: provider === 'razorpay' ? config.razorpay.keyId : null },
-      gym: { name: GYM.name, timezone: config.gymTimezone, currency: 'INR', hours: publicOpeningHours() },
+      // classesPerWeek: the home page's count; guests are not sent the week's timetable to count.
+      gym: { name: GYM.name, timezone: config.gymTimezone, currency: 'INR', hours: publicOpeningHours(), classesPerWeek: db.classes.length },
       // The Android app the website offers for download, or null while there is none.
       androidApp: androidAppInfo()
     }

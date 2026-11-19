@@ -57,7 +57,7 @@ describe('loading a v2.0 database', () => {
 function emptyLike(): DatabaseSchema {
   return {
     users: [], trainers: [], classes: [], bookings: [], attendance_logs: [], exercises: [], workouts: [], workout_sets: [],
-    membership_plans: [], time_sessions: [], payment_orders: [], payments: [], trial_passes: [], trainer_notes: [], password_resets: [],
+    membership_plans: [], time_sessions: [], payment_orders: [], payments: [], trial_passes: [], enquiries: [], trainer_notes: [], password_resets: [],
     id_cards: []
   };
 }

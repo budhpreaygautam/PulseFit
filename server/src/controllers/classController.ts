@@ -3,7 +3,7 @@ import { z } from 'zod';
 import db from '../db/database.js';
 import { releaseUnentitledBookings } from '../lib/bookingRules.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
-import { ApiError, asyncHandler, badRequest, conflict, notFound, ok, parse } from '../lib/http.js';
+import { ApiError, asyncHandler, badRequest, conflict, notFound, ok, parse, unauthorized } from '../lib/http.js';
 import { dayOfWeek, gymToday, isValidDate, isValidTime } from '../lib/dates.js';
 import { CLOSES_AT, OPENS_AT, isOpenWeekday, withinOpeningHours } from '../lib/hours.js';
 import { isAllowedRemoteImageUrl } from '../lib/imageValidation.js';
@@ -11,6 +11,7 @@ import { newId } from '../lib/users.js';
 import {
   bookedCount,
   byStart,
+  guestOccurrence,
   hasStarted,
   isSessionDate,
   nextOccurrenceOf,
@@ -22,6 +23,8 @@ import {
 import { GymClass } from '../types/index.js';
 
 const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80';
+/** Upcoming sessions the public home page lists, all a guest gets of the timetable. */
+const GUEST_SESSIONS = 4;
 
 // Query strings arrive as '' when a filter is cleared in a form; treat that as "no filter".
 const blankToUndefined = (v: unknown) => (v === '' ? undefined : v);
@@ -110,6 +113,10 @@ function matchesText(value: string | undefined, query: string) {
 }
 
 export const getClasses = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
+  // Guests get the home page's list only: the next GUEST_SESSIONS sessions, unfiltered (a filter on a
+  // field they do not get would let them search it) and trimmed to guestOccurrence. The week's
+  // timetable is for signed-in accounts; the home page's weekly count comes from GET /config.
+  if (!req.user && Object.keys(req.query).length > 0) throw unauthorized('Sign in to see the full timetable.');
   const q = parse(listQuery, req.query);
   const now = new Date();
   let classes = db.classes;
@@ -136,7 +143,9 @@ export const getClasses = asyncHandler<AuthenticatedRequest>((req, res: Response
     .map(c => toOccurrence(c, q.week_start ? occurrenceInWeek(c, q.week_start) : nextOccurrenceOf(c, now), req.user?.id))
     .sort(byStart);
 
-  ok(res, occurrences);
+  // The answer depends on the session: no shared cache may hand a member's copy to a guest.
+  res.set('Cache-Control', 'private, no-cache');
+  ok(res, req.user ? occurrences : occurrences.slice(0, GUEST_SESSIONS).map(guestOccurrence));
 });
 
 export const getClassById = asyncHandler<AuthenticatedRequest>((req, res: Response) => {

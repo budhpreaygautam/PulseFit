@@ -77,7 +77,8 @@ test('the front desk lets an active member in and turns an expired one away', as
 });
 
 test('pricing shows the plan catalogue from the server', async ({ page, request }) => {
-  const plans = (await (await request.get('/api/plans')).json()).data as Array<{ name: string; price_monthly: number }>;
+  const token = await signInAs(page, request, 'member');
+  const plans = (await (await request.get('/api/plans', { headers: auth(token) })).json()).data as Array<{ name: string; price_monthly: number }>;
   await page.goto('/pricing');
   const inr = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
   for (const plan of plans) {

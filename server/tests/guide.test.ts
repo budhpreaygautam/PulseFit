@@ -1,10 +1,14 @@
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import config from '../src/config.js';
 import { GUIDE } from '../src/content/guide.js';
+import { setRazorpayClientForTests } from '../src/controllers/paymentController.js';
+import { addDays, gymToday } from '../src/lib/dates.js';
 import { SESSION_COOKIE } from '../src/middleware/auth.js';
-import { api, authHeader, personas, resetDb, tokenFor } from './helpers.js';
+import { api, authHeader, db, personas, resetDb, tokenFor, userByEmail } from './helpers.js';
 
 const CLIENT_SRC = fileURLToPath(new URL('../../client/src/', import.meta.url));
 const readClient = (relative: string) => fs.readFileSync(path.join(CLIENT_SRC, relative), 'utf8');
@@ -80,11 +84,90 @@ describe('GET /api/guide', () => {
     }
   });
 
-  it('is open to every signed-in account, whatever its role or membership', async () => {
-    for (const email of [personas.trainer, personas.admin, personas.vip, personas.basic, personas.expired]) {
+  it('is open to coaches, admins and members with an active plan', async () => {
+    for (const email of [personas.trainer, personas.admin, personas.vip, personas.basic]) {
       const res = await api().get('/api/guide').set(authHeader(email));
       expect(res.status, email).toBe(200);
       expect(res.body.data, email).toEqual(GUIDE);
+    }
+  });
+
+  /** Set a seeded user's membership as stored in the database. */
+  function setMembership(email: string, fields: { membership_status: string; membership_expiry?: string | null; frozen_since?: string | null }) {
+    const id = userByEmail(email).id;
+    db.users = db.users.map(u => (u.id === id ? ({ ...u, ...fields } as typeof u) : u));
+  }
+
+  /** The 403 a member without a plan gets: the code to branch on and nothing of the guide. */
+  function expectPlanRequired(res: { status: number; body: unknown; headers: Record<string, string> }, label: string) {
+    expect(res.status, label).toBe(403);
+    expect(res.body, label).toEqual({ success: false, error: text, code: 'PLAN_REQUIRED' });
+    expect(res.headers['cache-control'], label).toBeUndefined();
+  }
+
+  it('is open to a member whose plan is frozen', async () => {
+    setMembership(personas.member, { membership_status: 'frozen', frozen_since: addDays(gymToday(), -3) });
+    const res = await api().get('/api/guide').set(authHeader(personas.member));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual(GUIDE);
+  });
+
+  it('stops at the paid end date of a frozen plan, and comes back when unfreezing adds the missed days', async () => {
+    // Frozen 60 days ago with 20 days left: the paid period ended 40 days ago, so a freeze cannot keep the guide for ever.
+    setMembership(personas.basic, { membership_status: 'frozen', frozen_since: addDays(gymToday(), -60), membership_expiry: addDays(gymToday(), -40) });
+    expectPlanRequired(await api().get('/api/guide').set(authHeader(personas.basic)), 'frozen past its end date');
+    // Its last paid day still counts.
+    setMembership(personas.basic, { membership_status: 'frozen', frozen_since: addDays(gymToday(), -60), membership_expiry: gymToday() });
+    expect((await api().get('/api/guide').set(authHeader(personas.basic))).status).toBe(200);
+
+    setMembership(personas.basic, { membership_status: 'frozen', frozen_since: addDays(gymToday(), -60), membership_expiry: addDays(gymToday(), -40) });
+    const unfrozen = await api().post('/api/membership/unfreeze').set(authHeader(personas.basic));
+    expect(unfrozen.body.data).toMatchObject({ membership_status: 'active' });
+    expect(unfrozen.body.data.membership_expiry >= gymToday()).toBe(true);
+    expect((await api().get('/api/guide').set(authHeader(personas.basic))).status).toBe(200);
+  });
+
+  it('answers 403 PLAN_REQUIRED, with none of the guide, to a member whose plan has ended', async () => {
+    expect(userByEmail(personas.expired).membership_status).toBe('expired');
+    expectPlanRequired(await api().get('/api/guide').set(authHeader(personas.expired)), 'stored expired');
+    // Still stored as active, but past its last day: expired today.
+    setMembership(personas.basic, { membership_status: 'active', membership_expiry: addDays(gymToday(), -1) });
+    expectPlanRequired(await api().get('/api/guide').set(authHeader(personas.basic)), 'active past expiry');
+  });
+
+  it('answers 403 PLAN_REQUIRED to a new account until it pays, then the full guide', async () => {
+    const originalRazorpay = { ...config.razorpay };
+    const keySecret = 'guide-test-secret';
+    Object.assign(config.razorpay, { keyId: 'rzp_test_guide', keySecret });
+    setRazorpayClientForTests({ orders: { create: async (params: { amount: number; currency: string }) => ({ id: 'order_guide_1', ...params }) } });
+    try {
+      // A new account has no plan yet: pending, tier none.
+      const registered = await api()
+        .post('/api/auth/register')
+        .send({ name: 'Meera Joshi', gender: 'female', email: 'meera.guide@example.com', password: 'strongpass1' });
+      expect(registered.status).toBe(201);
+      expect(registered.body.data.user).toMatchObject({ membership_status: 'pending', membership_tier: 'none' });
+      const auth = { Authorization: `Bearer ${registered.body.data.token}` };
+      expectPlanRequired(await api().get('/api/guide').set(auth), 'pending');
+
+      // Paying for a plan makes it active, and the same session reads the guide straight away.
+      const order = await api().post('/api/payment/create-order').set(auth).send({ tier: 'basic', billing_cycle: 'monthly' });
+      expect(order.status).toBe(200);
+      const signature = crypto.createHmac('sha256', keySecret).update('order_guide_1|pay_guide_1').digest('hex');
+      const paid = await api()
+        .post('/api/payment/verify')
+        .set(auth)
+        .send({ razorpay_order_id: 'order_guide_1', razorpay_payment_id: 'pay_guide_1', razorpay_signature: signature });
+      expect(paid.status).toBe(200);
+      expect(paid.body.data.user).toMatchObject({ membership_status: 'active', membership_tier: 'basic' });
+      // What the client's refreshUser() reads after paying.
+      expect((await api().get('/api/auth/me').set(auth)).body.data.membership_status).toBe('active');
+      const guide = await api().get('/api/guide').set(auth);
+      expect(guide.status).toBe(200);
+      expect(guide.body.data).toEqual(GUIDE);
+    } finally {
+      Object.assign(config.razorpay, originalRazorpay);
+      setRazorpayClientForTests(null);
     }
   });
 
@@ -94,6 +177,8 @@ describe('GET /api/guide', () => {
     expect(res.body.data.workout_plans).toEqual(GUIDE.workout_plans);
   });
 });
+
+afterEach(() => setRazorpayClientForTests(null));
 
 describe('the guide and the client', () => {
   it('keeps the full content out of the client source, so guests cannot read it from the bundle', () => {
@@ -109,7 +194,7 @@ describe('the guide and the client', () => {
     for (const line of content) expect(sources.some(source => source.includes(line)), line).toBe(false);
   });
 
-  it('names the same plans and split days as the guest teasers in the client', () => {
+  it('names the same plans and split days as the teasers the client shows members without a plan', () => {
     const guidePage = readClient('pages/public/FitnessGuidePage.tsx');
     for (const name of [...GUIDE.workout_plans.map(p => p.name), ...GUIDE.diet_charts.map(d => d.title)]) {
       expect(guidePage, name).toContain(`name: '${name}'`);

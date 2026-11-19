@@ -322,6 +322,7 @@ export const ClassManagement: React.FC = () => {
       </SectionCard>
 
       <ClassFormModal
+        key={classTarget === 'new' ? 'new' : classTarget?.id ?? 'closed'}
         target={classTarget}
         trainers={trainers ?? []}
         onClose={() => setClassTarget(null)}

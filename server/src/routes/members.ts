@@ -11,10 +11,12 @@ import {
 } from '../controllers/memberController.js';
 import { checkIn, getAttendanceLogs, getMyAttendance } from '../controllers/attendanceController.js';
 import { createTrial, listTrials } from '../controllers/trialController.js';
+import { createEnquiry, listEnquiries, updateEnquiryStatus } from '../controllers/enquiryController.js';
 import { adminResetMfa } from '../controllers/mfaController.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
+import { enquiryLimiter } from '../lib/authRateLimits.js';
 
-// Owner: member administration, turnstile check-in, attendance and free trials.
+// Owner: member administration, turnstile check-in, attendance, free trials and enquiries.
 const router = Router();
 
 const trialLimiter = rateLimit({
@@ -49,5 +51,9 @@ router.get('/attendance/my', authenticate, getMyAttendance);
 
 router.post('/trials', trialLimiter, createTrial);
 router.get('/trials', ...admin, listTrials);
+
+router.post('/enquiries', enquiryLimiter, createEnquiry);
+router.get('/enquiries', ...admin, listEnquiries);
+router.patch('/enquiries/:id', ...admin, updateEnquiryStatus);
 
 export default router;

@@ -4,16 +4,17 @@ All notable changes to PulseFit. Versions follow [Semantic Versioning](https://s
 
 ## [Unreleased]
 
-The fitness guide now comes with a free account, sign-up asks for gender to pick a default profile picture, the API
-stops answering casual direct access, and the header and pricing cards fit their space.
+The service pages now need an account and the fitness guide a plan, sign-up asks for gender to pick a default profile
+picture, the API stops answering casual direct access, the header and pricing cards fit their space, and there is a
+contact page with an enquiry form.
 
 ### Added
 
-- **Gender at sign-up.** Creating an account with email asks for gender (male, female, other or prefer not to say), as
-  four choices that each show the picture they give. It is used only to pick the default picture shown until the person
+- **Gender at sign-up.** Creating an account with email asks for gender (male, female or other), as
+  a dropdown. It is used only to pick the default picture shown until the person
   uploads a photo. Members can change it on My account; admins can set, change or clear it when adding or editing a
   member, and see it in the member's details. Google sign-ups and existing accounts start without one ("Not given"); a
-  new Google account is taken to My account to choose one, unless the person picked a plan first.
+  new Google account is taken to My account to choose one, unless the person was on the way to a page they had asked for.
   `POST /api/auth/register` takes an optional `gender`: the sign-up form always asks for it, but the apps installed from
   2.3.0 do not send one, and their sign-ups keep working (the account starts without one).
 - **Default profile pictures.** Three built-in pictures (male, female and neutral, at `/avatars/*.svg`) replace the
@@ -21,16 +22,41 @@ stops answering casual direct access, and the header and pricing cards fit their
   and details, rosters, coach lists, the timetable and the check-in scanner. An uploaded photo always wins. The gendered
   picture shows to the person and admins, and on the person's QR pass and ID card (also one the desk prints), so anyone
   they show those to sees it; coaches', other members' and visitors' screens always show the neutral one.
+- **Change avatar.** On My account, "Change photo" becomes "Change avatar", also on the profile picture itself: a small
+  window offers ten ready-made avatars, saved with one tap, and "Custom" to upload a photo as before.
+  `PUT /api/auth/profile` accepts their paths (`/avatars/preset-01.svg` … `/avatars/preset-10.svg`) as `avatar_url`.
 - **`GET /api/guide`** serves the fitness guide (workout plans, diet charts, nutrition rules, supplements and the
-  strength split) to any signed-in account.
+  strength split) to admins, coaches and members whose plan is active or frozen. Members without a plan (every new
+  account until its first payment) or whose plan has ended get 403 `PLAN_REQUIRED` and none of it. A freeze pauses a
+  plan without extending it: a frozen plan keeps the guide up to its paid end date, and unfreezing (which adds the
+  missed days back) opens it again.
+- **Contact page and enquiry form.** `/contact`, linked from the footer, the menu and the home page, lets anyone ask
+  about memberships without an account: name, mobile, email, interest, best time to call, an optional message and
+  consent to be contacted. Enquiries are saved before anything else, so none is lost if email fails. 5 per hour per
+  network, with a hidden spam trap. `POST /api/enquiries`, `GET /api/enquiries`, `PATCH /api/enquiries/:id`.
+- **Enquiry emails.** With `BREVO_API_KEY` and `MAIL_FROM` set, each enquiry goes to the gym's inbox (`ENQUIRY_INBOX`;
+  replying answers the enquirer), and the enquirer gets a short confirmation (at most one a day per address). Sent
+  through Brevo's HTTPS API, because Railway blocks SMTP below its Pro plan. Without these settings nothing is sent.
 
 ### Changed
 
-- **The fitness guide needs a free account.** Guests on `/guide` still see the intro and the three sections, with each
-  plan's name and a one-line summary, then a box to sign in or create a free account. Signed-in members, coaches and
-  admins see everything, straight after signing in, without a reload. On `/strength` guests see the starter split's four
-  days; the exercises and "Log this workout" need an account. The guide is no longer part of the website's code. The
-  home page banner says "FREE WITH AN ACCOUNT", and the search descriptions of `/guide` and `/strength` mention sign-in.
+- **"Trial leads" is now "Leads"** (`/admin/trials`): enquiries on top with a New/Contacted/Closed status, free-trial
+  passes below.
+- **The service pages need an account.** Strength Floor (`/strength`), Zumba Studio (`/zumba`), Plans & Diets
+  (`/guide`), Timetable (`/schedule`), Memberships (`/pricing`) and Coaches (`/coaches`) are for signed-in accounts. A
+  guest who follows a link to one (header, menu, footer, home page buttons and cards) stays where they are and gets the
+  sign-in dialog; after signing in or creating an account (also with Google or a demo account) they land on that page,
+  with its query (a plan picked on the home page opens Memberships with that plan in view). Opened by its address, such
+  a page shows "Please sign in" with the dialog already open, and opens once signed in. The page itself is never put on
+  screen for a guest, so removing the dialog in DevTools reveals nothing, and its code is only downloaded once it is
+  opened. The home page, the exercise library, the legal pages, the password reset page and the payment status page
+  (where YouPI sends people back) stay public. These six pages are no longer in the sitemap, are `noindex` and are
+  closed in `robots.txt`; `/pricing` no longer lists the plans in its JSON-LD.
+- **The fitness guide and the strength split come with a plan.** A member without one (none chosen yet, or ended) sees
+  the teaser on `/guide` (each plan's name and a one-line summary) and the four days of the split on `/strength`, with
+  "Choose a plan", which opens Memberships. Once a plan is active (a payment, or the front desk) the full content
+  loads without a reload. The guide is not part of the website's code. The home page banner says "INCLUDED WITH EVERY
+  PLAN", and the search descriptions of `/guide` and `/strength` mention the plan.
 - **Icons in the header.** Every link has an icon. From 1280 px the public links show only their icons (with their
   labels they would not fit next to the account buttons), with a tooltip on keyboard focus and, with a mouse or
   trackpad, on hover. The pointer can move onto a tooltip without it closing, and Escape hides it; tooltips never cover
@@ -41,6 +67,13 @@ stops answering casual direct access, and the header and pricing cards fit their
   `PUT /api/auth/profile` accepts `avatar_url: ''` to remove a photo. `POST/PUT /api/trainers` refuse DiceBear
   addresses for a coach's photo, since the server clears them whenever it starts.
 - `GET /api/notes/my` returns only what the member's dashboard shows: `{ id, trainer_name, category, note, created_at }`.
+- **Guests get only what the home page shows.** Without a session, `GET /api/classes` lists only the next four
+  sessions (not the week's timetable), with title, category, day and time, length, room, capacity, coach name and spots
+  left (no description, intensity, photo, calories, coach id or booking), and answers any filter with 401; the home
+  page's "Classes a week" comes from the new `gym.classesPerWeek` in `GET /api/config`; `GET /api/trainers` lists the
+  first four coaches with photo, bio, experience, rating and two specialties; `GET /api/plans` lists name, description,
+  monthly price, the first four features and the classes each plan covers (no annual price). Signed-in accounts get the
+  full answers as before. `GET /api/classes/:id` and `GET /api/trainers/:id` need a session.
 - The privacy policy explains the gender question and who sees it, and no longer mentions DiceBear (updated 19 Nov 2026).
   Each legal page now shows its own "last updated" date, the day its text last changed: the terms of service 9 Oct 2026
   and the refund policy 19 Oct 2026 (all three used to show 7 Oct 2026).
@@ -72,8 +105,9 @@ stops answering casual direct access, and the header and pricing cards fit their
   else.
 - Gender is sent only to the person and to admins, never to coaches, other members or visitors, not even as a picture
   address.
-- Guests cannot read the fitness guide from the website's code or the API (401), and its answer is never kept by a
-  shared cache (`Cache-Control: private, no-cache`). The downloadable Android app still contains it until it is rebuilt
+- Guests cannot read the fitness guide from the website's code or the API (401), members without a plan cannot either
+  (403 `PLAN_REQUIRED`), and its answer is never kept by a shared cache (`Cache-Control: private, no-cache`). The plans,
+  classes, coaches and floor answers, which now differ by session, are marked the same way. The downloadable Android app still contains it until it is rebuilt
   and uploaded again (see Upgrading); `npm run mobile:release` now refuses to build an app that contains it.
 - Source maps (`.map` addresses) are never served, even if a build contains some, also when the address encodes the
   `.map` (`%2Emap`) or adds a trailing slash, dot or space.
@@ -89,7 +123,13 @@ stops answering casual direct access, and the header and pricing cards fit their
   (and `pulsefit.json`) to the data volume in the same deploy (deploy/README.md › Android app). Do the same for an iOS
   build if one has been handed out.
 - Apps already installed from 2.3.0 keep working against this server: they send the app header, and their sign-up
-  form, which has no gender question, is still accepted. One exception: their coach form will not save a coach without
+  form, which has no gender question, is still accepted. Their service pages stay open to guests but get only the
+  guest answers, so guests see less there (nothing breaks): the timetable and the strength and Zumba class lists say
+  "Sign in to see the full timetable.", Memberships shows "₹NaN" where the annual prices were, and Coaches lists four
+  coaches, each with "No classes on the timetable right now"; the home page says 4 classes a week. The fitness guide and
+  the strength split are part of a 2.3.0 app's own code, so on it everyone, guests included, still sees all of them
+  until the app is updated (an app built after 2.3.0 shows a member without a plan the guide's 403 message with a Retry
+  button instead). The rebuilt app asks guests to sign in instead. One exception: their coach form will not save a coach without
   a photo (when editing it asks for an `https://` photo address), and coaches without a photo now have none (stored
   DiceBear addresses are cleared, and new coaches without one store `''`). Until the new app is installed, admins must
   edit such coaches on the website.

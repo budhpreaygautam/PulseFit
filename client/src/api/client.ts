@@ -10,6 +10,8 @@ import {
   ClassCategory,
   ClassOccurrence,
   ClassRoster,
+  Enquiry,
+  EnquiryStatus,
   Exercise,
   FitnessGuide,
   Gender,
@@ -288,6 +290,11 @@ export const api = {
   claimTrial: (payload: { name: string; email: string; phone: string; interest: ClassCategory; preferred_date: string }) =>
     post<TrialPass>('/trials', payload),
   getTrials: () => get<TrialPass[]>('/trials'),
+  sendEnquiry: (
+    payload: Pick<Enquiry, 'name' | 'email' | 'phone' | 'interest' | 'contact_time' | 'message'> & { consent: true; website: string }
+  ) => post<null>('/enquiries', payload),
+  getEnquiries: () => get<Enquiry[]>('/enquiries'),
+  updateEnquiryStatus: (id: string, status: EnquiryStatus) => patch<Enquiry>(`/enquiries/${id}`, { status }),
 
   // --- Workouts & exercises ---
   getExercises: (params: { category?: string; equipment?: string; difficulty?: string; search?: string } = {}) =>
@@ -298,8 +305,13 @@ export const api = {
   createWorkout: (payload: NewWorkout) => post<Workout>('/workouts', payload),
   deleteWorkout: (id: string) => del<{ deleted: true }>(`/workouts/${id}`),
   getWorkoutAnalytics: () => get<WorkoutAnalytics>('/workouts/analytics'),
-  // Signed-in accounts only (401 for guests): call it only when someone is signed in.
-  getGuide: () => get<FitnessGuide>('/guide'),
+  // Staff and members with a plan. A member without one (none chosen yet, or ended) gets 403
+  // PLAN_REQUIRED and none of the guide: null here, and the pages show their teaser instead.
+  getGuide: () =>
+    get<FitnessGuide>('/guide').catch((err: unknown): null => {
+      if (isApiError(err) && err.code === 'PLAN_REQUIRED') return null;
+      throw err;
+    }),
 
   // --- Floor time tracking ---
   clockIn: (category: ClassCategory, notes?: string) => post<TimeSession>('/time-tracking/clock-in', { category, notes }),

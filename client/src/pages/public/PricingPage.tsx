@@ -5,7 +5,6 @@ import { EmptyState, ErrorState } from '../../components/common/States.js';
 import { CardSkeletons } from '../../components/public/CardSkeletons.js';
 import { useApiData } from '../../components/public/useApiData.js';
 import { annualPerMonth, annualSavingPercent, planCovers } from '../../components/public/plans.js';
-import { rememberPendingPlan } from '../../components/public/pendingPlan.js';
 import { CATEGORIES, weekdayOf } from '../../components/public/gymInfo.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
@@ -17,7 +16,6 @@ import { addDays, formatDate, formatINR, gymToday, STATUS_LABELS } from '../../l
 import { BillingCycle, MembershipPlan, PaidTier, User } from '../../types/index.js';
 
 interface PricingPageProps {
-  onOpenAuthModal: (mode: 'login' | 'register') => void;
   onOpenFreeTrialModal: () => void;
 }
 
@@ -82,7 +80,7 @@ function planAction(plan: MembershipPlan, user: User | null, plans: MembershipPl
   return { label: 'Choose plan', note: 'Starts today.', isCurrent: false };
 }
 
-export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpenFreeTrialModal }) => {
+export const PricingPage: React.FC<PricingPageProps> = ({ onOpenFreeTrialModal }) => {
   const { params } = useNavigation();
   const requestedTier = params.get('plan') as PaidTier | null;
   const [billingCycle, setBillingCycle] = useState<BillingCycle>(params.get('cycle') === 'annual' ? 'annual' : 'monthly');
@@ -95,7 +93,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
   const { checkout, isProcessing, error, clearError } = useCheckout();
   const { data: plans, error: loadError, isLoading, reload } = useApiData(() => api.getPlans());
 
-  // A guest who picked a plan before creating an account comes back here with it in view.
+  // A plan picked on the home page (also by a guest, who comes here once signed in) is brought into view.
   useEffect(() => {
     if (!plans || !requestedTier) return;
     document.getElementById(`plan-${requestedTier}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -106,12 +104,6 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
 
   const handleChoosePlan = async (plan: MembershipPlan) => {
     clearError();
-    if (!user) {
-      rememberPendingPlan({ tier: plan.tier, cycle: billingCycle });
-      showToast('Create a free account first, then pay for your plan.', 'info');
-      onOpenAuthModal('register');
-      return;
-    }
     setPayingTier(plan.tier);
     await checkout({
       tier: plan.tier,
@@ -307,18 +299,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
 
                 {/* The button labels stay on one line (truncated as a last resort); their accessible names start with that text and add the plan's name. */}
                 <div className="mt-8 pt-6 border-t border-slate-800/80 space-y-2">
-                  {!user ? (
-                    <button
-                      type="button"
-                      onClick={() => handleChoosePlan(plan)}
-                      aria-label={`Create an account to join ${plan.name}`}
-                      className={`w-full px-3 py-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-2 whitespace-nowrap ${
-                        highlighted ? 'neu-btn-lime' : 'neu-btn text-slate-100'
-                      }`}
-                    >
-                      <span className="truncate">Create an account to join</span>
-                    </button>
-                  ) : !isConfigLoaded ? (
+                  {!isConfigLoaded ? (
                     <div className="h-11 rounded-2xl neu-pressed-sm animate-pulse" aria-hidden="true" />
                   ) : config.payments.enabled ? (
                     <button

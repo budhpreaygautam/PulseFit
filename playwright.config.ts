@@ -36,7 +36,9 @@ export default defineConfig({
       RATE_LIMIT: 'false',
       // The e2e flows check in and clock in, so they must not depend on the hour they run at.
       ENFORCE_OPENING_HOURS: 'false',
-      PULSEFIT_DB_PATH: dbPath
+      PULSEFIT_DB_PATH: dbPath,
+      // Never email from e2e runs, whatever server/.env says.
+      BREVO_API_KEY: ''
     }
   }
 });

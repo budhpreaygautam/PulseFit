@@ -3,13 +3,33 @@ import { z } from 'zod';
 import db from '../db/database.js';
 import { asyncHandler, notFound, ok, parse } from '../lib/http.js';
 import { MembershipPlan } from '../types/index.js';
+import { AuthenticatedRequest } from '../middleware/auth.js';
 import { releaseUnentitledBookings } from '../lib/bookingRules.js';
 
 // The plan catalogue (db.membership_plans) is the single source of truth for plan names,
 // prices and entitlements. The client renders pricing from GET /api/plans.
 
-export const getPlans = asyncHandler(async (_req: Request, res: Response) => {
-  ok(res, [...db.membership_plans].sort((a, b) => a.price_monthly - b.price_monthly));
+export const getPlans = asyncHandler<AuthenticatedRequest>(async (req, res: Response) => {
+  const plans = [...db.membership_plans].sort((a, b) => a.price_monthly - b.price_monthly);
+  // The answer depends on the session: no shared cache may hand a member's copy to a guest.
+  res.set('Cache-Control', 'private, no-cache');
+  if (req.user) return ok(res, plans);
+  // Guests get what the home page shows: monthly prices and the first four features (an allowlist).
+  // categories is not shown, but picks the plan named under each discipline.
+  ok(
+    res,
+    plans.map(({ id, tier, name, description, price_monthly, features, categories, is_popular, badge }) => ({
+      id,
+      tier,
+      name,
+      description,
+      price_monthly,
+      features: features.slice(0, 4),
+      categories,
+      is_popular,
+      badge
+    }))
+  );
 });
 
 // id and tier are fixed: orders, payments and members refer to a plan by its tier.

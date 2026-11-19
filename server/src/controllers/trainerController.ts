@@ -64,7 +64,30 @@ function assertLinkableUser(userId: string, exceptTrainerId?: string) {
   }
 }
 
+/** How many coaches the home page shows ("Meet the team"), and so all that guests get. */
+const GUEST_TRAINERS = 4;
+
 export const getTrainers = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
+  // The answer depends on the session: no shared cache may hand a member's copy to a guest.
+  res.set('Cache-Control', 'private, no-cache');
+  // Guests get what the home page shows of the first coaches, two specialties each; an allowlist.
+  if (!req.user) {
+    return ok(
+      res,
+      db.trainers
+        .slice(0, GUEST_TRAINERS)
+        .map(({ id, name, avatar_url, bio, specialties, experience_years, rating, reviews_count }) => ({
+          id,
+          name,
+          avatar_url,
+          bio,
+          specialties: specialties.slice(0, 2),
+          experience_years,
+          rating,
+          reviews_count
+        }))
+    );
+  }
   const trainers = db.trainers.map(t => ({
     ...publicTrainer(t, req.user),
     classes_count: db.classes.filter(c => c.trainer_id === t.id).length

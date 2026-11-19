@@ -1,18 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Award, Check, Copy, CreditCard, FileText, IdCard, KeyRound, QrCode, Upload, User as UserIcon } from 'lucide-react';
+import { Award, Check, Copy, CreditCard, Edit2, FileText, IdCard, KeyRound, Loader2, QrCode, Smile, Upload, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { useToast } from '../../context/ToastContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { api, isApiError } from '../../api/client.js';
 import { Gender, Payment, User } from '../../types/index.js';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog.js';
+import { Modal } from '../../components/common/Modal.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
 import { DigitalQrPassModal } from '../../components/qr/DigitalQrPassModal.js';
 import { IdCardModal } from '../../components/qr/IdCardModal.js';
 import { MembershipStatusBadge } from '../../components/member/MembershipStatusBadge.js';
 import { InvoiceModal } from '../../components/member/InvoiceModal.js';
 import { useApiResource } from '../../components/member/useApiResource.js';
-import { avatarOf, resizeAvatar } from '../../components/member/avatarImage.js';
+import { avatarOf, PRESET_AVATARS, resizeAvatar } from '../../components/member/avatarImage.js';
 import { copyText } from '../../components/member/clipboard.js';
 import { TwoStepPanel } from '../../components/member/TwoStepPanel.js';
 import { formatDate, formatDateTime, formatINR, GENDER_OPTIONS, TIER_LABELS, tierLabel } from '../../lib/format.js';
@@ -177,7 +178,7 @@ const ProfileDetails: React.FC<{ user: User; onOpenPass: () => void; onOpenIdCar
               )}
               {GENDER_OPTIONS.map(o => (
                 <option key={o.value} value={o.value}>
-                  {o.label}
+                  {o.emoji} {o.label}
                 </option>
               ))}
             </select>
@@ -292,7 +293,7 @@ const MembershipPanel: React.FC<{ user: User; onOpenPricing: () => void }> = ({ 
     );
 
   return (
-    <section aria-labelledby="membership-heading" className="neu-flat p-5 sm:p-8 rounded-3xl space-y-6 max-w-3xl">
+    <section aria-labelledby="membership-heading" className="neu-flat p-5 sm:p-8 rounded-3xl space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <h2 id="membership-heading" className="text-lg font-black text-slate-100 font-heading">
@@ -497,7 +498,7 @@ const PasswordPanel: React.FC = () => {
   };
 
   return (
-    <form onSubmit={submit} noValidate aria-labelledby="password-heading" className="max-w-2xl neu-flat p-5 sm:p-8 rounded-3xl space-y-5">
+    <form onSubmit={submit} noValidate aria-labelledby="password-heading" className="neu-flat p-5 sm:p-8 rounded-3xl space-y-5">
       <div>
         <h2 id="password-heading" className="text-lg font-black text-slate-100 font-heading">Change password</h2>
         <p className="text-xs text-slate-400 mt-1">Changing your password signs you out on every other device.</p>
@@ -580,6 +581,9 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
   const [isIdCardOpen, setIsIdCardOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [isAvatarOpen, setIsAvatarOpen] = useState(false);
+  // The ready-made avatar being saved, for its spinner.
+  const [savingAvatar, setSavingAvatar] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Membership status and expiry can change on the server (expiry, admin edits); start fresh.
@@ -615,6 +619,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
     try {
       const avatar = await resizeAvatar(file);
       updateUser(await api.updateProfile({ avatar_url: avatar }));
+      setIsAvatarOpen(false);
       showToast('Your photo was updated.', 'success');
     } catch (err) {
       setPhotoError(err instanceof Error ? err.message : 'Your photo could not be uploaded.');
@@ -623,20 +628,54 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
     }
   };
 
+  const choosePreset = async (src: string) => {
+    if (src === user.avatar_url) return setIsAvatarOpen(false);
+    setPhotoError(null);
+    setSavingAvatar(src);
+    try {
+      updateUser(await api.updateProfile({ avatar_url: src }));
+      setIsAvatarOpen(false);
+      showToast('Your avatar was updated.', 'success');
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : 'Your avatar could not be saved.');
+    } finally {
+      setSavingAvatar(null);
+    }
+  };
+
+  const isSavingAvatar = isUploading || savingAvatar !== null;
+  const openAvatars = () => {
+    setPhotoError(null);
+    setIsAvatarOpen(true);
+  };
+
   const openPricing = () => setCurrentTab('pricing');
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6 sm:space-y-8">
       <section className="neu-flat rounded-3xl p-5 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-5">
         <div className="flex items-center gap-4 min-w-0">
-          <img
-            src={avatarOf(user)}
-            alt="Your profile photo"
-            width={96}
-            height={96}
-            decoding="async"
-            className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover bg-slate-800 border-2 border-lime-500/50 shrink-0"
-          />
+          <div className="relative shrink-0">
+            <img
+              src={avatarOf(user)}
+              alt="Your profile photo"
+              width={96}
+              height={96}
+              decoding="async"
+              className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover bg-slate-800 border-2 border-lime-500/50"
+            />
+            <button
+              type="button"
+              onClick={openAvatars}
+              aria-label="Change avatar"
+              title="Change avatar"
+              className="group absolute inset-0 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-500"
+            >
+              <span className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-lime-500 text-black flex items-center justify-center shadow-md ring-2 ring-gym-900 group-hover:scale-110 transition-transform">
+                <Edit2 className="w-3.5 h-3.5" aria-hidden="true" />
+              </span>
+            </button>
+          </div>
           <div className="min-w-0 space-y-1">
             <h1 className="text-2xl sm:text-3xl font-black text-slate-100 font-heading break-words">{user.name}</h1>
             <p className="text-xs text-slate-400 break-all">{user.email}</p>
@@ -648,14 +687,8 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
           <input ref={fileInputRef} id="profile-photo" type="file" accept="image/png,image/jpeg,image/webp" onChange={onPhotoChosen} className="sr-only" tabIndex={-1} aria-hidden="true" />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            aria-describedby="profile-photo-hint"
-            className="neu-btn px-5 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-60"
-          >
-            <Upload className="w-4 h-4" aria-hidden="true" /> {isUploading ? 'Uploading…' : 'Change photo'}
+          <button type="button" onClick={openAvatars} className="neu-btn px-5 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
+            <Smile className="w-4 h-4" aria-hidden="true" /> Change avatar
           </button>
           <button type="button" onClick={() => setIsQrModalOpen(true)} className="neu-btn-lime px-5 py-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2">
             <QrCode className="w-4 h-4" aria-hidden="true" /> Check-in pass
@@ -665,14 +698,6 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
           </button>
         </div>
       </section>
-      <p id="profile-photo-hint" className="sr-only">
-        PNG, JPEG or WebP. Large photos are shrunk to 256 by 256 pixels before upload.
-      </p>
-      {photoError && (
-        <p role="alert" className="rounded-xl p-3 text-sm border border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200">
-          {photoError}
-        </p>
-      )}
 
       <div role="tablist" aria-label="Account sections" className="grid grid-cols-2 sm:flex gap-1 p-1.5 rounded-2xl neu-pressed-sm">
         {TABS.map(tab => (
@@ -701,7 +726,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
         {activeTab === 'membership' && <MembershipPanel user={user} onOpenPricing={openPricing} />}
         {activeTab === 'billing' && <BillingPanel onOpenPricing={openPricing} />}
         {activeTab === 'security' && (
-          <div className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2 items-start">
             <PasswordPanel />
             <TwoStepPanel />
           </div>
@@ -710,6 +735,49 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
 
       <DigitalQrPassModal isOpen={isQrModalOpen} onClose={() => setIsQrModalOpen(false)} user={user} />
       <IdCardModal isOpen={isIdCardOpen} onClose={() => setIsIdCardOpen(false)} user={user} />
+      <Modal isOpen={isAvatarOpen} onClose={isSavingAvatar ? () => undefined : () => setIsAvatarOpen(false)} title="Change avatar" maxWidth="md">
+        {photoError && (
+          <p role="alert" className="mb-4 rounded-xl p-3 text-sm border border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200">
+            {photoError}
+          </p>
+        )}
+        <div className="grid grid-cols-4 gap-2.5 sm:gap-3" aria-busy={isSavingAvatar}>
+          {PRESET_AVATARS.map(({ label, src }) => (
+            <button
+              key={src}
+              type="button"
+              onClick={() => choosePreset(src)}
+              disabled={isSavingAvatar}
+              aria-pressed={user.avatar_url === src}
+              className={`relative rounded-2xl p-1 border-2 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-500 ${
+                user.avatar_url === src ? 'neu-pressed-sm border-lime-500' : 'neu-btn border-transparent'
+              } ${savingAvatar === src ? '' : 'disabled:opacity-60'}`}
+            >
+              <img src={src} alt={label} width={72} height={72} decoding="async" className="w-full h-auto rounded-xl" />
+              {user.avatar_url === src && <Check className="absolute -top-1.5 -right-1.5 w-5 h-5 p-0.5 rounded-full bg-lime-500 text-black" aria-hidden="true" />}
+              {savingAvatar === src && (
+                <span className="absolute inset-0 rounded-2xl bg-black/40 flex items-center justify-center">
+                  <Loader2 className="w-6 h-6 text-white animate-spin" aria-hidden="true" />
+                </span>
+              )}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isSavingAvatar}
+            aria-label="Custom: upload your own photo"
+            aria-describedby="profile-photo-hint"
+            className="neu-btn rounded-2xl p-1 border-2 border-transparent flex flex-col items-center justify-center gap-1.5 text-xs font-bold text-slate-300 disabled:opacity-60"
+          >
+            {isUploading ? <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" /> : <Upload className="w-5 h-5" aria-hidden="true" />}
+            {isUploading ? 'Uploading…' : 'Custom'}
+          </button>
+        </div>
+        <p id="profile-photo-hint" className="sr-only">
+          PNG, JPEG or WebP. Large photos are shrunk to 256 by 256 pixels before upload.
+        </p>
+      </Modal>
     </div>
   );
 };

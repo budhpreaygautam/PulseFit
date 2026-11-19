@@ -14,6 +14,13 @@ invalid, expired or revoked token; the client signs the user out), `FORBIDDEN` (
 route, or a request without the app header: see **App header**),
 `RATE_LIMITED` (429), `INTERNAL` (500).
 
+**Guests.** The website's service pages (`/strength`, `/zumba`, `/guide`, `/schedule`, `/pricing`, `/coaches`) need an
+account, so the only API answers a guest (no session) gets are what the public pages show: the home page reads
+`GET /plans`, `GET /classes` and `GET /trainers` in a **guest view** (an allowlist of fields, listed with each endpoint)
+and the floor counts; the exercise library, the app config and the auth endpoints stay open. Everything else the
+service pages read needs a session (401 `UNAUTHORIZED`). Answers that differ by session carry
+`Cache-Control: private, no-cache`, so no shared cache hands one account's answer to another.
+
 **Auth.** A sign-in starts a session in one of two forms, chosen by the request's `Origin`:
 - **Website** (any other browser origin): an httpOnly cookie `pulsefit_session` (`Path=/api`, `SameSite=Lax`, `Secure` in
   production, `Max-Age` = the token's lifetime). The response body has **no** `token`; page scripts never see it.
@@ -51,7 +58,7 @@ gym-local; instants are ISO-8601 UTC strings. "Today" always means today at the 
 {
   id, email, name, role: 'member' | 'trainer' | 'admin', phone,
   avatar_url: string,                // their photo; '' = none (the apps show a default picture, see GET /avatars/…)
-  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say', // absent = not given
+  gender?: 'male' | 'female' | 'other', // absent = not given
   membership_tier: 'none' | 'basic' | 'pro' | 'vip',
   membership_status: 'active' | 'expired' | 'pending' | 'frozen', // effective today: past expiry => 'expired'
   membership_expiry: string | null,  // last day of access, inclusive
@@ -84,10 +91,12 @@ Read from `membership_plans[].categories` (empty = all). Prices live only in the
 ## Runtime config — owner: platform
 
 ### `GET /config` (public)
-`{ demoMode: boolean, googleClientId: string | null, payments: { enabled: boolean, provider: 'razorpay' | 'youpi' | null, keyId: string | null (Razorpay only) }, gym: { name, timezone, currency, hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: boolean } }, androidApp: { url: '/downloads/pulsefit.apk', version?: string, size: number } | null }`.
+`{ demoMode: boolean, googleClientId: string | null, payments: { enabled: boolean, provider: 'razorpay' | 'youpi' | null, keyId: string | null (Razorpay only) }, gym: { name, timezone, currency, hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: boolean }, classesPerWeek: number }, androidApp: { url: '/downloads/pulsefit.apk', version?: string, size: number } | null }`.
 The client hides the demo persona switcher, "Continue with Google" and checkout when they are off.
-`hours` is the gym's opening hours in gym time (`closedWeekdays`: 0 = Sunday). `enforced` mirrors `ENFORCE_OPENING_HOURS`:
-when on, check-ins, floor clock-ins and same-day free trials are refused while the gym is closed.
+`hours` is the gym's opening hours in gym time (`closedWeekdays`: 0 = Sunday). `classesPerWeek` is the number of classes
+on the weekly timetable, the home page's "Classes a week" (guests get only the next 4 sessions from `GET /classes`).
+`enforced` mirrors `ENFORCE_OPENING_HOURS`: when on, check-ins, floor clock-ins and same-day free trials are refused
+while the gym is closed.
 `androidApp` is the APK the website offers (see `GET /downloads/pulsefit.apk`), with its size in bytes and `version` =
 `versionName` from `pulsefit.json` when present; `null` while there is none. Android browsers then show a "Get the PulseFit
 app" bar, and the footer a "Get the Android app" link (neither inside the app).
@@ -104,10 +113,12 @@ These live outside `/api`. Every `/api` response carries `X-Robots-Tag: noindex,
 
 ### `GET /robots.txt` (text/plain)
 Indexing on and the client served (`SERVE_CLIENT`): `Allow: /`, an `Allow` line for each API answer the public pages
-render from (`/api/config`, `/api/plans`, `/api/classes`, `/api/trainers`, `/api/exercises`,
-`/api/time-tracking/active-floor`), a `Disallow` line for `/api/`, `/downloads/` and for each
-private area (`/admin`, `/trainer`, `/dashboard`, `/bookings`, `/log-workout`, `/profile`, `/reset-password`,
-`/payment-status`), and `Sitemap: <PUBLIC_URL>/sitemap.xml`. Scripts, styles and images are never blocked.
+render from (`/api/config`, `/api/plans`, `/api/classes`, `/api/trainers` (their guest views, for the home page),
+`/api/exercises`, `/api/time-tracking/active-floor`) and a `Disallow` line for each one's sub-paths
+(`/api/classes/<id>` and `/api/trainers/<id>` need a session), a `Disallow` line for `/api/`, `/downloads/` and for each
+page that needs an account (`/strength`, `/zumba`, `/guide`, `/schedule`, `/pricing`, `/coaches`, `/admin`, `/trainer`,
+`/dashboard`, `/bookings`, `/log-workout`, `/profile`) or a link (`/reset-password`, `/payment-status`), and
+`Sitemap: <PUBLIC_URL>/sitemap.xml`. Scripts, styles and images are never blocked.
 `/api/guide` stays disallowed: the pages read it only for a signed-in account, and crawlers are guests. Google's renderer
 runs the app, which sends the app header (see **App header**); fetched directly, the allowed API addresses answer 404.
 Indexing off, or an API-only host: `User-agent: *` / `Disallow: /`.
@@ -121,9 +132,9 @@ repeat check is a 304), `X-Content-Type-Options: nosniff`, `X-Robots-Tag: noinde
 (or an empty file): plain-text **404**, as is any other path under `/downloads/`.
 
 ### `GET /sitemap.xml` (application/xml)
-A `<urlset>` (sitemaps.org 0.9) with one absolute, XML-escaped `<loc>` per indexable page (`/`, `/strength`,
-`/zumba`, `/guide`, `/schedule`, `/pricing`, `/coaches`, `/exercises`, `/privacy`, `/terms`,
-`/refund-policy`) and `<lastmod>` = the day `client/dist/index.html` was built. 404 when indexing is off,
+A `<urlset>` (sitemaps.org 0.9) with one absolute, XML-escaped `<loc>` per indexable page (`/`, `/exercises`,
+`/contact`, `/privacy`, `/terms`, `/refund-policy`; the pages that need an account are `noindex` and left out) and
+`<lastmod>` = the day `client/dist/index.html` was built. 404 when indexing is off,
 the client is not served, or neither `PUBLIC_URL` nor `CLIENT_ORIGIN` is set.
 
 ### `GET /<any page>` (text/html)
@@ -131,8 +142,8 @@ the client is not served, or neither `PUBLIC_URL` nor `CLIENT_ORIGIN` is set.
 replaced in place, and at the `<!--app-head-->` marker: `link rel="canonical"` and `og:url`
 (`PUBLIC_URL` + the page's path, no query string) on indexable pages, `meta robots noindex, nofollow` on the
 others, and a JSON-LD `@graph` (Organization, WebSite, ExerciseGym with address, phone, email, opening hours
-and price range, WebPage; on `/pricing` the plans as `Offer`s in INR at the catalogue's prices). `/`, `/strength`
-and `/zumba` also preload their hero photo, and a demo deployment adds `meta name="pulsefit-demo-mode"`. Addresses
+and the monthly price range the home page shows, WebPage; no plan, class or coach details on any page). `/`,
+`/strength` and `/zumba` also preload their hero photo, and a demo deployment adds `meta name="pulsefit-demo-mode"`. Addresses
 are matched like the client's `tabForPath` (trailing slashes ignored). An unknown address answers **404**
 with the same app (it shows "Page not found") and `noindex`. `Cache-Control: no-cache`; hashed files under
 `/assets/` are `immutable` for a year, sent Brotli- or gzip-compressed when the client accepts it (compressed once,
@@ -168,12 +179,12 @@ Every `/api` route also shares a limit of 300 requests per minute per IP (except
 | Method & path | Body | Success `data` | Errors |
 |---|---|---|---|
 | `POST /auth/login` | `{ email, password }` | a session, or `{ mfa_required: true, mfa_token }` when two-step sign-in is on (no session yet; see below) | 401 `INVALID_CREDENTIALS`, 403 `DEMO_PASSWORD_BLOCKED` (the published demo password, outside demo mode) |
-| `POST /auth/register` | `{ name (2–60), email, password, phone?, gender? }` | 201 session, with `gender` as sent (absent when not sent), `avatar_url:''`, `membership_tier:'none'`, `membership_status:'pending'`, `membership_expiry:null` | 400 `VALIDATION_ERROR` (`gender` sent but not one of the four, `''` and `null` included: `data.issues = [{ path: 'gender', message: 'Choose your gender, or "Prefer not to say".' }]`), 409 `EMAIL_TAKEN` |
+| `POST /auth/register` | `{ name (2–60), email, password, phone?, gender? }` | 201 session, with `gender` as sent (absent when not sent), `avatar_url:''`, `membership_tier:'none'`, `membership_status:'pending'`, `membership_expiry:null` | 400 `VALIDATION_ERROR` (`gender` sent but not one of the three, `''` and `null` included: `data.issues = [{ path: 'gender', message: 'Choose your gender.' }]`), 409 `EMAIL_TAKEN` |
 | `POST /auth/google` | `{ credential }` (Google Identity Services ID token) | a session or MFA challenge, plus `created: boolean` | 503 `GOOGLE_SIGNIN_DISABLED`, 401 `INVALID_GOOGLE_TOKEN` |
 | `POST /auth/demo-login` | `{ role: 'member' \| 'vip' \| 'trainer' \| 'admin' }` | a session | 404 `DEMO_DISABLED` when demo mode is off |
 | `POST /auth/logout` | — | `{ signedOut: true }`; clears the session cookie | — |
 | `GET /auth/me` | — | `SafeUser` | 401 |
-| `PUT /auth/profile` | `{ name?, phone?, gender?, avatar_url? }` **only** (unknown keys → 400, "Only your name, phone number, gender and photo can be changed here."). `gender`: one of the four (`null` and `''` are refused: "Prefer not to say" covers it, and only an admin can clear it). `avatar_url`: a real PNG/JPEG/WebP image as `data:image/(png\|jpeg\|webp);base64,…` (magic bytes must match, at most 2048×2048 and 300 KB), or `''` to remove the photo; no addresses (DiceBear ones included) | `SafeUser` | 400 |
+| `PUT /auth/profile` | `{ name?, phone?, gender?, avatar_url? }` **only** (unknown keys → 400, "Only your name, phone number, gender and photo can be changed here."). `gender`: one of the three (`null` and `''` are refused; only an admin can clear it). `avatar_url`: a real PNG/JPEG/WebP image as `data:image/(png\|jpeg\|webp);base64,…` (magic bytes must match, at most 2048×2048 and 300 KB), one of the ten avatars bundled with the apps (exactly `/avatars/preset-01.svg` … `/avatars/preset-10.svg`, the choices under "Change avatar" on My account), or `''` to remove the photo; no other addresses (DiceBear ones included) | `SafeUser` | 400 |
 | `PUT /auth/password` | `{ currentPassword?, newPassword }` (`currentPassword` required when the account has a password) | a session (old tokens are revoked) | 400 `WRONG_PASSWORD`, 403 `DEMO_ACCOUNT_LOCKED`, 403 `REAUTH_REQUIRED` (a Google-only account setting its first password more than 15 minutes after signing in) |
 | `POST /auth/forgot-password` | `{ email }` | `{ message, resetUrl? }`. The same message whether or not the account exists. `resetUrl` (`<address>/reset-password?token=…`) is returned only in local development (`NODE_ENV` development or test), because this server has no email delivery; it is always logged to the server console | 429 |
 | `POST /auth/reset-password` | `{ token, newPassword }` | a session, or an MFA challenge when two-step sign-in is on | 400 `INVALID_RESET_TOKEN` (unknown, used, or older than 30 min), 403 `DEMO_ACCOUNT_LOCKED` |
@@ -181,7 +192,7 @@ Every `/api` route also shares a limit of 300 requests per minute per IP (except
 **Passwords** (`newPassword`, `password` on register): 8–72 characters (≤ 72 UTF-8 bytes), at least one letter and one
 digit, and not on the built-in list of common passwords (which includes the published demo password) → 400 `VALIDATION_ERROR`.
 
-**Gender** (`gender`): `'male' | 'female' | 'other' | 'prefer_not_to_say'`, exactly as written. Its only use is the default
+**Gender** (`gender`): `'male' | 'female' | 'other'`, exactly as written. Its only use is the default
 picture (see `GET /avatars/…`). Optional on `POST /auth/register`: the website and the apps ask for it at sign-up, but
 the apps released in 2.3.0 do not send it and their sign-ups must keep working, so an account registered without one
 has none, like one created by `POST /auth/google`. The person can set it later with `PUT /auth/profile`.
@@ -239,7 +250,7 @@ Additional rules:
 
 | Method & path | Body | Success `data` | Errors |
 |---|---|---|---|
-| `GET /plans` | — | `MembershipPlan[]` sorted by monthly price | |
+| `GET /plans` | optional auth | `MembershipPlan[]` sorted by monthly price. **Guest view** (no session): `{ id, tier, name, description, price_monthly, features (the first 4), categories, is_popular?, badge? }`, what the home page shows (`categories` picks the plan named under each discipline); no `price_annual` | |
 | `PUT /plans/:id` (admin) | `{ name?, description?, price_monthly? (int 1–100000), price_annual? (int), features?: string[], categories?: ClassCategory[], is_popular?, badge? }` | `MembershipPlan` | 404 |
 | `POST /payment/create-order` | `{ tier: 'basic'\|'pro'\|'vip', billing_cycle: 'monthly'\|'annual' }` | `{ provider, orderId, amount (paise), amount_inr, currency:'INR', tier, billing_cycle, plan_name, description }` plus `keyId` (Razorpay) or `checkoutUrl` (YouPI) | 503 `PAYMENTS_DISABLED`, 502 `PAYMENT_PROVIDER_ERROR` |
 | `POST /payment/verify` | `{ razorpay_order_id, razorpay_payment_id, razorpay_signature }` | `{ user, payment, message, cancelled_bookings }` (the session is unchanged) | 400 `INVALID_SIGNATURE`, 404 `ORDER_NOT_FOUND`, 403 `ORDER_NOT_YOURS`, 409 `ALREADY_PROCESSED` (`data = { user, cancelled_bookings, message? }`: the current user and what the earlier activation did) |
@@ -314,8 +325,8 @@ status `confirmed` or `attended` for that date. Stored classes carry no counter.
 
 | Method & path | Body / query | Success `data` | Errors |
 |---|---|---|---|
-| `GET /classes` | `day?, category?, trainerId?, intensity?, search?, week_start?` (a Monday). Without `week_start`, `occurrence_date` is the next occurrence that has not started yet | `ClassOccurrence[]` sorted by `starts_at` | 400 |
-| `GET /classes/:id` | `date?` | `ClassOccurrence & { trainer }` | 404 |
+| `GET /classes` | optional auth. `day?, category?, trainerId?, intensity?, search?, week_start?` (a Monday). Without `week_start`, `occurrence_date` is the next occurrence that has not started yet | `ClassOccurrence[]` sorted by `starts_at`. **Guest view** (no session, and no query: the home page's list): the next 4 sessions only (the week's timetable is for signed-in accounts; the weekly count is `GET /config` › `gym.classesPerWeek`), each as `{ id, title, category, day_of_week, start_time, duration_minutes, room, capacity, trainer_name?, occurrence_date, starts_at, spots_left, is_full }`; no description, intensity, photo, calories, coach id or photo, booked count or booking | 400; 401 `UNAUTHORIZED` for a guest sending any query parameter (a filter would let a guest search fields the guest view leaves out) |
+| `GET /classes/:id` (signed in) | `date?` | `ClassOccurrence & { trainer }` | 401, 404 |
 | `POST /classes` (admin) | `{ title, category, trainer_id, day_of_week (0–6), start_time (HH:MM), duration_minutes (15–180), room, capacity (1–200), intensity, description, image_url, calories_burn_est }`. The slot must fit opening hours (see below) | `GymClass` | 400 `TRAINER_NOT_FOUND`, 400 `VALIDATION_ERROR` |
 | `PUT /classes/:id` (admin) | any subset of the above (id is immutable) | `GymClass` | 400 `VALIDATION_ERROR` |
 | `DELETE /classes/:id` (admin) | — | `{ cancelled_bookings: number }` (future confirmed bookings are cancelled) | |
@@ -324,8 +335,8 @@ status `confirmed` or `attended` for that date. Stored classes carry no counter.
 | `DELETE /bookings/:id` | — (owner or admin) | `Booking` with status `cancelled` | 409 `ALREADY_CANCELLED`, 400 `CLASS_STARTED` |
 | `PATCH /bookings/:id/attendance` | `{ status: 'attended' \| 'no_show' \| 'confirmed' }` (admin or the class's trainer; from 15 min before start) | `Booking` | 400 `CLASS_NOT_STARTED`, 403 `NOT_YOUR_CLASS` |
 | `GET /bookings/class/:classId/roster` | `date?` (default next occurrence) (admin or the class's trainer) | `{ class: ClassOccurrence, date, attendees: [{ booking_id, user_id, user_name, user_email, user_phone, user_avatar, user_tier, status, booked_at }] }`; `user_email` and `user_phone` are `null` unless the caller is an admin | 403 `NOT_YOUR_CLASS` |
-| `GET /trainers` | — | `Trainer[]` + `classes_count` (real) | |
-| `GET /trainers/:id` | — | `Trainer & { classes: ClassOccurrence[] }` | 404 |
+| `GET /trainers` | optional auth | `Trainer[]` + `classes_count` (real). **Guest view** (no session): the first 4 coaches, as the home page's "Meet the team" shows them: `{ id, name, avatar_url, bio, specialties (the first 2), experience_years, rating, reviews_count }`; no Instagram, class count or other coaches | |
+| `GET /trainers/:id` (signed in) | — | `Trainer & { classes: ClassOccurrence[] }` | 401, 404 |
 | `POST/PUT /trainers(/:id)` (admin) | trainer fields, validated | `Trainer` | |
 | `DELETE /trainers/:id` (admin) | `reassign_to?` (query) | `{ deleted: true, reassigned_classes }` | 409 `TRAINER_HAS_CLASSES` (`data.classes = [{ id, title }]`) |
 
@@ -382,8 +393,8 @@ Additional rules:
   `avatar_url` is an `https://` image address on a public website, or `''` for no photo (the apps show the neutral default
   picture); `POST` without one stores `''`. A DiceBear address (`https://api.dicebear.com/…`) is 400 `VALIDATION_ERROR` on
   `avatar_url`: the server clears those whenever it loads the database (see `SafeUser`).
-- Public trainer data (`GET /trainers`, `GET /trainers/:id`, the `trainer` in `GET /classes/:id`) leaves out email, phone
-  and user_id unless the caller is an admin.
+- Trainer data for signed-in accounts (`GET /trainers`, `GET /trainers/:id`, the `trainer` in `GET /classes/:id`) leaves
+  out email, phone and user_id unless the caller is an admin.
 - `PATCH /bookings/:id/attendance` on a cancelled booking: 409 `ALREADY_CANCELLED`. `DELETE /bookings/:id` on an attended
   or no-show booking: 400 `CLASS_STARTED`.
 - Trainer notes: 404 `NO_TRAINER_PROFILE` for a trainer account not linked to a trainer record; 403 `NOT_YOUR_CLIENT` when
@@ -392,7 +403,7 @@ Additional rules:
 
 ---
 
-## Members, check-in, attendance & trials — owner: `members` (routes/members.ts, controllers/memberController.ts, attendanceController.ts, trialController.ts)
+## Members, check-in, attendance, trials & enquiries — owner: `members` (routes/members.ts, controllers/memberController.ts, attendanceController.ts, trialController.ts, enquiryController.ts)
 
 | Method & path | Body / query | Success `data` | Errors |
 |---|---|---|---|
@@ -407,6 +418,9 @@ Additional rules:
 | `GET /attendance/my` | — | the caller's `AttendanceLog[]`, newest first (≤ 100) | |
 | `POST /trials` (public, 5 per hour per IP) | `{ name, email, phone, interest: ClassCategory, preferred_date }` (today … today + 14, not a Sunday, not today once the gym has closed) | 201 `TrialPass` (`code` = `PULSE-TRIAL-XXXXXX`, valid only on `valid_on`, once) | 409 `TRIAL_ALREADY_CLAIMED` (same email or phone), 400 `GYM_CLOSED` |
 | `GET /trials` (admin) | — | `TrialPass[]` newest first | |
+| `POST /enquiries` (public, 5 per hour per IP) | `{ name, email, phone, interest: ClassCategory \| 'All-Access' \| 'Not sure yet', contact_time: 'Any time' \| 'Morning' \| 'Afternoon' \| 'Evening', message? (≤ 1000, default ''), consent: true, website? }` | 201 `null` with `message` | 400 `VALIDATION_ERROR`, 429 `RATE_LIMITED` |
+| `GET /enquiries` (admin) | — | `Enquiry[]` newest first, last 12 months | |
+| `PATCH /enquiries/:id` (admin) | `{ status: 'new' \| 'contacted' \| 'closed' }` | `Enquiry` | 404 `ENQUIRY_NOT_FOUND` |
 
 Additional rules:
 - `PUT /members/:id` answers 400 `VALIDATION_ERROR` on `membership_expiry` when the request sends
@@ -429,10 +443,17 @@ Additional rules:
   else out of them or turn `POST /auth/demo-login` into a different account. Other edits (name, plan, status) still work.
   The self and last-admin checks answer first.
 - A trial pass scanned again on the day it was redeemed is let through with `already_checked_in: true`.
+- `Enquiry` = `{ id, name, email, phone, interest, contact_time, message, status: 'new' | 'contacted' | 'closed', created_at }`.
+  `website` is a trap field the form hides from people: when it is filled the answer is the same 201, and nothing is
+  stored or emailed.
+- An enquiry is stored before any email. With `BREVO_API_KEY` and `MAIL_FROM` set it is then emailed, after the
+  response, to `ENQUIRY_INBOX` (Reply-To = the enquirer), with a fixed-text confirmation to the enquirer (Reply-To = the
+  inbox) at most once per address per 24 h. Email failures are logged by enquiry id and never change the response.
+- Enquiries older than 12 months are not listed and are removed from the database on the next `POST /enquiries`.
 - A trial `preferred_date` outside today … today + 14 is 400 `VALIDATION_ERROR`. The CSV export ignores `limit`/`offset`.
 - Request bodies are strict: unknown keys are 400 `VALIDATION_ERROR`. Staff skip membership checks at check-in.
-- `gender` on `POST /members` and `PUT /members/:id` is one of `male`, `female`, `other`, `prefer_not_to_say`, else 400
-  `VALIDATION_ERROR` on `gender` ("Choose male, female, other or prefer not to say."). `GET /members` and `GET /members/:id`
+- `gender` on `POST /members` and `PUT /members/:id` is one of `male`, `female`, `other`, else 400
+  `VALIDATION_ERROR` on `gender` ("Choose male, female or other."). `GET /members` and `GET /members/:id`
   carry it (as part of `SafeUser`) when given. The check-in `member` never does, for admins either.
 - Opening hours (when `ENFORCE_OPENING_HOURS` is on, the default): while the gym is closed (Sundays, and outside
   06:00–22:00 on other days) check-in refuses members and free-trial passes with 403 `GYM_CLOSED` ("The gym is closed
@@ -476,7 +497,7 @@ The admin's name is a snapshot, so the history still reads right after that admi
 | Method & path | Body / query | Success `data` | Errors |
 |---|---|---|---|
 | `GET /exercises`, `GET /exercises/:id` | filters `category, equipment, difficulty, search` | `Exercise[]` / `Exercise` | 404 |
-| `GET /guide` (any signed-in account) | — | `FitnessGuide` (see below), with `Cache-Control: private, no-cache` | 401 `UNAUTHORIZED` (guests) |
+| `GET /guide` (staff, and members with a plan) | — | `FitnessGuide` (see below), with `Cache-Control: private, no-cache` | 401 `UNAUTHORIZED` (guests), 403 `PLAN_REQUIRED` (a member whose status is `pending` or `expired`, or `frozen` past the paid end date; no `data`) |
 | `GET /workouts` | — | own `Workout[]` newest first | |
 | `GET /workouts/:id` | — | `Workout` (owner or admin) | 404, 403 |
 | `POST /workouts` | `{ title (1–100), date (not after today, not more than 365 days ago), duration_minutes (1–300), notes? (≤ 1000), sets: [{ exercise_id (must exist), set_number (1–50), weight_kg (0–500), reps (1–100), rpe? (1–10), is_warmup? }] (1–100 items) }` | 201 `Workout`; `set_number` is kept as sent (per exercise); volume = Σ weight × reps of working sets | 400 |
@@ -505,10 +526,15 @@ Additional rules:
   members, with the same message as check-in. Staff may clock in at any hour, and clocking out always works.
 
 **Fitness guide** (`GET /guide`). Workout plans, diet charts, nutrition rules, the supplements guide and the strength
-floor's starter split, for any signed-in account whatever its role or membership (plan-less and expired members too);
-guests get 401. The content lives only on the server (`server/src/content/guide.ts`), never in the client bundle. The
-website and the apps call it only when someone is signed in, and show guests a teaser of their own (plan names, diet
-titles and split days; `tests/guide.test.ts` keeps them in step with the server).
+floor's starter split, for admins, coaches and members whose effective `membership_status` is `active` or `frozen`.
+Members without a plan (`pending`: every new account until its first payment or an admin grants one) and members whose
+plan has ended (`expired`, also an `active` one past its expiry, and a `frozen` one past its `membership_expiry`: a freeze
+pauses a plan without extending it, and unfreezing adds the missed days back, and with them the guide) get 403
+`PLAN_REQUIRED` with none of it; guests get 401. A payment that activates a plan unlocks it at once (the client asks
+again when the account's status changes). The content lives only on the server (`server/src/content/guide.ts`), never
+in the client bundle. The website's pages that read it need an account; members without a plan see a teaser of the
+client's own (plan names, diet titles and split days; `tests/guide.test.ts` keeps them in step with the server) and a
+way to choose a plan.
 ```ts
 {
   workout_plans: [{ id, name, level, goal, frequency, description,

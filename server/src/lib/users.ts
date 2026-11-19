@@ -49,4 +49,4 @@ export function findUserByEmail(email: string): User | undefined {
   return db.users.find(u => u.email.toLowerCase() === normalized);
 }
 
-export const GENDERS = ['male', 'female', 'other', 'prefer_not_to_say'] as const satisfies readonly Gender[];
+export const GENDERS = ['male', 'female', 'other'] as const satisfies readonly Gender[];

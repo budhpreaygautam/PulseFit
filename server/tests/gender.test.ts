@@ -4,7 +4,7 @@ import config from '../src/config.js';
 import { migrate } from '../src/db/database.js';
 import { GoogleProfile, setGoogleVerifierForTests } from '../src/lib/google.js';
 import { nextOccurrenceOf } from '../src/lib/occurrences.js';
-import { TimeSession } from '../src/types/index.js';
+import { TimeSession, User } from '../src/types/index.js';
 import { api, authHeader, db, personas, resetDb, userByEmail } from './helpers.js';
 
 // Wednesday 7 Oct 2026, 10:00 at the gym (IST): open, so check-ins and floor clock-ins work.
@@ -38,16 +38,17 @@ describe('gender at registration', () => {
     ['a null', { gender: null }],
     ['an unknown', { gender: 'robot' }],
     ['a non-string', { gender: 1 }],
-    ['a wrongly cased', { gender: 'Female' }]
+    ['a wrongly cased', { gender: 'Female' }],
+    ['the retired "prefer not to say"', { gender: 'prefer_not_to_say' }]
   ])('refuses %s gender with a VALIDATION_ERROR on gender', async (_label, extra) => {
     const res = await register({ ...newcomer, ...extra });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('VALIDATION_ERROR');
-    expect(res.body.data.issues).toEqual([{ path: 'gender', message: 'Choose your gender, or "Prefer not to say".' }]);
+    expect(res.body.data.issues).toEqual([{ path: 'gender', message: 'Choose your gender.' }]);
     expect(db.users.some(u => u.email === newcomer.email)).toBe(false);
   });
 
-  it.each(['male', 'female', 'other', 'prefer_not_to_say'])('stores %s and returns it to the new member, with no photo', async gender => {
+  it.each(['male', 'female', 'other'])('stores %s and returns it to the new member, with no photo', async gender => {
     const res = await register({ ...newcomer, gender });
     expect(res.status).toBe(201);
     expect(res.body.data.user).toMatchObject({ gender, avatar_url: '' });
@@ -93,12 +94,12 @@ describe('accounts that are not asked for a gender', () => {
     const bad = await api().post('/api/members').set(admin).send({ name: 'Desk Bad', email: 'desk.bad@example.com', gender: 'x' });
     expect(bad.status).toBe(400);
     expect(bad.body.code).toBe('VALIDATION_ERROR');
-    expect(bad.body.data.issues).toEqual([{ path: 'gender', message: 'Choose male, female, other or prefer not to say.' }]);
+    expect(bad.body.data.issues).toEqual([{ path: 'gender', message: 'Choose male, female or other.' }]);
     expect(db.users.some(u => u.email === 'desk.bad@example.com')).toBe(false);
   });
 
   it('every seeded account that registered with a password has one; the Google sign-up has none', () => {
-    for (const u of db.users.filter(u => u.password_hash)) expect(u.gender, u.email).toMatch(/^(male|female|other|prefer_not_to_say)$/);
+    for (const u of db.users.filter(u => u.password_hash)) expect(u.gender, u.email).toMatch(/^(male|female|other)$/);
     expect(userByEmail('isha.nair@example.com').gender).toBeUndefined();
   });
 });
@@ -107,10 +108,10 @@ describe('changing it', () => {
   beforeEach(() => resetDb());
 
   it('the member changes their own on My account', async () => {
-    const res = await api().put('/api/auth/profile').set(authHeader(personas.member)).send({ gender: 'prefer_not_to_say' });
+    const res = await api().put('/api/auth/profile').set(authHeader(personas.member)).send({ gender: 'other' });
     expect(res.status).toBe(200);
-    expect(res.body.data.gender).toBe('prefer_not_to_say');
-    expect(userByEmail(personas.member).gender).toBe('prefer_not_to_say');
+    expect(res.body.data.gender).toBe('other');
+    expect(userByEmail(personas.member).gender).toBe('other');
   });
 
   it('a Google-only member can set one for the first time', async () => {
@@ -151,7 +152,7 @@ describe('changing it', () => {
       const res = await api().put(`/api/members/${id}`).set(admin).send({ gender, name: 'Renamed Rohan' });
       expect(res.status, String(gender)).toBe(400);
       expect(res.body.code, String(gender)).toBe('VALIDATION_ERROR');
-      expect(res.body.data.issues, String(gender)).toEqual([{ path: 'gender', message: 'Choose male, female, other or prefer not to say.' }]);
+      expect(res.body.data.issues, String(gender)).toEqual([{ path: 'gender', message: 'Choose male, female or other.' }]);
     }
     expect(userByEmail(personas.basic)).toMatchObject({ gender: 'male', name: 'Rohan Mehra' });
   });
@@ -224,9 +225,9 @@ describe('gender stays with the person and admins', () => {
     const vip = authHeader(personas.vip);
     for (const [label, call] of Object.entries({
       trainers: () => api().get('/api/trainers'),
-      trainer: () => api().get('/api/trainers/trn_vikram'),
+      trainer: () => api().get('/api/trainers/trn_vikram').set(vip),
       classes: () => api().get('/api/classes'),
-      class: () => api().get('/api/classes/cls_str_fri'),
+      class: () => api().get('/api/classes/cls_str_fri').set(vip),
       floor: () => api().get('/api/time-tracking/active-floor'),
       'classes for a member': () => api().get('/api/classes').set(vip),
       'trainers for a member': () => api().get('/api/trainers').set(vip)
@@ -274,6 +275,14 @@ describe('migrate', () => {
     expect(out.time_sessions[0].user_avatar).toBe('');
     expect(migrate(out)).toEqual(out);
   });
+
+  it('turns the retired "prefer not to say" into "not given" and keeps the three choices', () => {
+    const retired = { ...db.users[0], gender: 'prefer_not_to_say' } as unknown as User;
+    const out = migrate({ ...db.snapshot(), users: [retired, { ...db.users[1], gender: 'female' }] });
+    expect('gender' in out.users[0]).toBe(false);
+    expect(out.users[1].gender).toBe('female');
+    expect(migrate(out)).toEqual(out);
+  });
 });
 
 describe('the default pictures', () => {
@@ -283,7 +292,9 @@ describe('the default pictures', () => {
   it('are static files of the client, served from the site itself', async () => {
     // Vite copies client/public into every build (client/dist for the web, dist-mobile for the apps).
     Object.assign(config, { serveClient: true, clientDistPath: fileURLToPath(new URL('../../client/public/', import.meta.url)) });
-    for (const name of ['male', 'female', 'neutral']) {
+    // The ten avatars members can choose ship the same way (PUT /auth/profile accepts their paths).
+    const presets = Array.from({ length: 10 }, (_, i) => `preset-${String(i + 1).padStart(2, '0')}`);
+    for (const name of ['male', 'female', 'neutral', ...presets]) {
       const res = await api().get(`/avatars/${name}.svg`);
       expect(res.status, name).toBe(200);
       expect(res.headers['content-type']).toMatch(/^image\/svg\+xml/);

@@ -3,8 +3,8 @@ import { rateLimit, ipKeyGenerator, MemoryStore, type RateLimitRequestHandler } 
 import config from '../config.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 
-// Per-IP limits on the public auth routes (docs/API.md, "Auth & account"), per-account limits on
-// sign-in and password changes, and a generous per-IP limit on the whole API.
+// Per-IP limits on the public auth routes (docs/API.md, "Auth & account") and the public enquiry form,
+// per-account limits on sign-in and password changes, and a generous per-IP limit on the whole API.
 // config.rateLimit.enabled is read on every request so tests can switch them on.
 
 const MINUTE = 60_000;
@@ -60,6 +60,7 @@ export const forgotPasswordLimiter = limiter(60 * MINUTE, 5, 'Too many password 
 export const resetPasswordLimiter = limiter(15 * MINUTE, 10, 'Too many password reset attempts. Please wait 15 minutes and try again.');
 export const googleLimiter = limiter(15 * MINUTE, 20, 'Too many Google sign-in attempts. Please wait 15 minutes and try again.');
 export const demoLoginLimiter = limiter(15 * MINUTE, 30, 'Too many demo sign-ins. Please wait 15 minutes and try again.');
+export const enquiryLimiter = limiter(60 * MINUTE, 5, 'Too many enquiries from this network. Please try again in an hour, or call us.');
 
 // Second-factor codes: per IP during sign-in, and per account (after authenticate) while setting up.
 export const mfaVerifyLimiter = limiter(15 * MINUTE, 10, 'Too many verification attempts. Please wait 15 minutes and try again.');

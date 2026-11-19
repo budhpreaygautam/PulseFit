@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- PulseFit default picture (neutral): a person without an uploaded photo who chose "other",
-       "prefer not to say" or gave no gender, and everyone shown to coaches or the public. -->
+  <!-- PulseFit default picture (neutral): a person without an uploaded photo who chose "other"
+       or gave no gender, and everyone shown to coaches or the public. -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#334155"/>

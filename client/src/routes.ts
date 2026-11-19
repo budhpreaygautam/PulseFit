@@ -34,15 +34,17 @@ export const ROUTES: RouteDef[] = [
     indexable: true,
     access: 'public'
   },
+  // The six service pages need an account: a guest following a link to one is asked to sign in
+  // instead (navigate in context/NavigationContext.tsx), and the API trims or refuses their data.
   {
     tab: 'workout',
     path: '/strength',
     title: 'Strength floor',
     searchTitle: 'Strength training gym in Gurugram',
     description:
-      'Racks, barbells and free weights near Cyber Hub, Gurugram. See the weekly strength classes and what is on the floor; sign in for a 4-day starter split.',
-    indexable: true,
-    access: 'public'
+      'Racks, barbells and free weights near Cyber Hub, Gurugram. Sign in for the weekly strength classes and the floor; members with a plan get a 4-day split.',
+    indexable: false,
+    access: 'auth'
   },
   {
     tab: 'zumba',
@@ -51,8 +53,8 @@ export const ROUTES: RouteDef[] = [
     searchTitle: 'Zumba & cardio classes in Gurugram',
     description:
       'High-energy Zumba and dance cardio in our own studio in Sector 29, Gurugram. See the weekly classes, what a class is like, and book a spot in the app.',
-    indexable: true,
-    access: 'public'
+    indexable: false,
+    access: 'auth'
   },
   {
     tab: 'guide',
@@ -60,9 +62,9 @@ export const ROUTES: RouteDef[] = [
     title: 'Training plans & diets',
     searchTitle: 'Workout plans & Indian diet charts',
     description:
-      'Workout splits, high-protein Indian diet charts and a supplements guide from PulseFit Athletics, Gurugram. Sign in with a free account to read them in full.',
-    indexable: true,
-    access: 'public'
+      'Workout splits, high-protein Indian diet charts and a supplements guide from PulseFit Athletics, Gurugram, included with every membership plan.',
+    indexable: false,
+    access: 'auth'
   },
   {
     tab: 'schedule',
@@ -71,8 +73,8 @@ export const ROUTES: RouteDef[] = [
     searchTitle: 'Gym class timetable & booking',
     description:
       'Workout & Strength and Zumba & Cardio classes at PulseFit, Gurugram, Monday to Saturday, with spots left for each date. Members book 14 days ahead.',
-    indexable: true,
-    access: 'public'
+    indexable: false,
+    access: 'auth'
   },
   {
     tab: 'pricing',
@@ -81,8 +83,8 @@ export const ROUTES: RouteDef[] = [
     searchTitle: 'Gym membership plans in Gurugram',
     description:
       'Compare the three PulseFit Athletics membership plans in Gurugram, priced in rupees with no sign-up fee. Pay monthly, or once for a full year.',
-    indexable: true,
-    access: 'public'
+    indexable: false,
+    access: 'auth'
   },
   {
     tab: 'trainers',
@@ -91,8 +93,8 @@ export const ROUTES: RouteDef[] = [
     searchTitle: 'Strength & Zumba coaches',
     description:
       'Meet the coaches who run every Workout & Strength and Zumba & Cardio class on the PulseFit Athletics timetable in Sector 29, Gurugram.',
-    indexable: true,
-    access: 'public'
+    indexable: false,
+    access: 'auth'
   },
   {
     tab: 'exercise-library',
@@ -100,6 +102,16 @@ export const ROUTES: RouteDef[] = [
     title: 'Exercise library',
     description:
       'How to perform each movement on the PulseFit floor and which muscles it works. Search, or filter the exercises by muscle group, equipment and level.',
+    indexable: true,
+    access: 'public'
+  },
+  {
+    tab: 'contact',
+    path: '/contact',
+    title: 'Contact us',
+    searchTitle: 'Contact & membership enquiries',
+    description:
+      'Ask PulseFit Athletics in Sector 29, Gurugram about memberships, classes or a free trial. Leave your number and our front desk will call you back.',
     indexable: true,
     access: 'public'
   },
@@ -255,9 +267,9 @@ export const ROUTES: RouteDef[] = [
   {
     tab: 'admin-trials',
     path: '/admin/trials',
-    title: 'Free-trial leads',
+    title: 'Leads',
     description:
-      'Everyone who claimed a free trial day at PulseFit Athletics, newest first, filtered by status. Each free-trial pass works once, on its date.',
+      'New enquiries from the contact page and free-trial claims at PulseFit Athletics, newest first. Staff mark each enquiry contacted or closed.',
     indexable: false,
     access: ['admin']
   }

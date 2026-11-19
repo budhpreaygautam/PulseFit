@@ -15,6 +15,7 @@ import {
   PaymentOrder,
   Payment,
   TrialPass,
+  Enquiry,
   TrainerNote,
   PasswordReset,
   IdCard
@@ -34,6 +35,7 @@ export interface DatabaseSchema {
   payment_orders: PaymentOrder[];
   payments: Payment[];
   trial_passes: TrialPass[];
+  enquiries: Enquiry[];
   trainer_notes: TrainerNote[];
   password_resets: PasswordReset[];
   id_cards: IdCard[];
@@ -53,6 +55,7 @@ const emptySchema = (): DatabaseSchema => ({
   payment_orders: [],
   payments: [],
   trial_passes: [],
+  enquiries: [],
   trainer_notes: [],
   password_resets: [],
   id_cards: []
@@ -82,6 +85,8 @@ export function migrate(data: DatabaseSchema): DatabaseSchema {
     membership_plans: data.membership_plans.map(p => (Array.isArray(p.categories) ? p : { ...p, categories: DEFAULT_PLAN_CATEGORIES[p.tier] ?? [] })),
     users: data.users.map(u => {
       const user = { ...u, membership_expiry: u.membership_expiry || null, ...(isGeneratedAvatar(u.avatar_url) ? { avatar_url: '' } : {}) };
+      // "Prefer not to say" was offered briefly before release; it now reads as "not given".
+      if ((user.gender as string) === 'prefer_not_to_say') delete user.gender;
       return u.last_active_date === undefined ? { ...user, streak_days: 0, last_active_date: null } : user;
     }),
     trainers: data.trainers.map(t => (isGeneratedAvatar(t.avatar_url) ? { ...t, avatar_url: '' } : t)),
@@ -231,6 +236,9 @@ class GymDatabase {
 
   get trial_passes() { return this.data.trial_passes; }
   set trial_passes(val: TrialPass[]) { this.data.trial_passes = val; this.save(); }
+
+  get enquiries() { return this.data.enquiries; }
+  set enquiries(val: Enquiry[]) { this.data.enquiries = val; this.save(); }
 
   get trainer_notes() { return this.data.trainer_notes; }
   set trainer_notes(val: TrainerNote[]) { this.data.trainer_notes = val; this.save(); }

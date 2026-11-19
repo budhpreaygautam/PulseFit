@@ -5,7 +5,7 @@ export type MembershipTier = 'none' | 'basic' | 'pro' | 'vip';
 // (see lib/membership.ts), so a stored 'active' past its expiry date is treated as expired.
 export type MembershipStatus = 'active' | 'expired' | 'pending' | 'frozen';
 export type BillingCycle = 'monthly' | 'annual';
-export type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
+export type Gender = 'male' | 'female' | 'other';
 
 export interface User {
   id: string;
@@ -222,6 +222,19 @@ export interface TrialPass {
   status: 'issued' | 'redeemed';
   created_at: string;
   redeemed_at?: string;
+}
+
+export type EnquiryStatus = 'new' | 'contacted' | 'closed';
+export interface Enquiry {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  interest: ClassCategory | 'All-Access' | 'Not sure yet';
+  contact_time: 'Any time' | 'Morning' | 'Afternoon' | 'Evening';
+  message: string; // '' when none
+  status: EnquiryStatus;
+  created_at: string; // also when consent was given: the API refuses an enquiry without it
 }
 
 export type IdCardStatus = 'active' | 'deactivated';

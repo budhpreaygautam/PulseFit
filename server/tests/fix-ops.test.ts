@@ -294,7 +294,7 @@ describe('classes inside opening hours (classes-outside-opening-hours)', () => {
   it('keeps an older class outside the hours listed and lets it be renamed', async () => {
     const legacy: GymClass = { ...db.classes.find(c => c.id === 'cls_str_tue')!, id: 'cls_legacy_sun', day_of_week: 0, start_time: '23:00' };
     db.classes = [...db.classes, legacy];
-    expect((await api().get('/api/classes')).body.data.some((c: { id: string }) => c.id === 'cls_legacy_sun')).toBe(true);
+    expect((await api().get('/api/classes').set(authHeader(personas.member))).body.data.some((c: { id: string }) => c.id === 'cls_legacy_sun')).toBe(true);
     expect((await update('cls_legacy_sun', { title: 'Late Lifting' })).status).toBe(200);
     expect((await update('cls_legacy_sun', { start_time: '23:15' })).status).toBe(400);
   });

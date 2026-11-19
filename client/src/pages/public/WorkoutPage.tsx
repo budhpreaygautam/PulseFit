@@ -3,7 +3,7 @@ import { ArrowRight, CheckCircle2, Dumbbell, Layers, Sparkles, Target, Users } f
 import { Badge } from '../../components/common/Badge.js';
 import { ErrorState } from '../../components/common/States.js';
 import { CardSkeletons } from '../../components/public/CardSkeletons.js';
-import { SignInPrompt } from '../../components/public/SignInPrompt.js';
+import { PlanPrompt } from '../../components/public/PlanPrompt.js';
 import { StatTile } from '../../components/public/StatTile.js';
 import { WeeklyClasses } from '../../components/public/WeeklyClasses.js';
 import { HERO_PHOTOS, HIGH_FETCH_PRIORITY, unsplashSrcSet } from '../../components/public/media.js';
@@ -17,7 +17,6 @@ import { formatINR } from '../../lib/format.js';
 
 interface WorkoutPageProps {
   setCurrentTab: (tab: string) => void;
-  onOpenAuthModal: (mode: 'login' | 'register') => void;
   onOpenFreeTrialModal: () => void;
 }
 
@@ -65,8 +64,9 @@ const HIGHLIGHTS = [
   { icon: Layers, title: 'Room to train', desc: 'A separate strength floor, so lifting never competes with the dance studio.' }
 ];
 
-// What guests see of the sample split: the days, not the exercises. Signed-in accounts get the
-// full split from GET /api/guide (strength_split); the server's tests/guide.test.ts keeps the days in step.
+// What members without a plan see of the sample split: the days, not the exercises. Staff and members
+// with a plan get the full split from GET /api/guide (strength_split); the server's tests/guide.test.ts
+// keeps the days in step.
 const SPLIT_TEASER = [
   { day: 'Day 1', title: 'Chest & triceps' },
   { day: 'Day 2', title: 'Back & biceps' },
@@ -74,14 +74,13 @@ const SPLIT_TEASER = [
   { day: 'Day 4', title: 'Shoulders & arms' }
 ];
 
-export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenAuthModal, onOpenFreeTrialModal }) => {
+export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenFreeTrialModal }) => {
   const { navigate } = useNavigation();
-  const { user, isInitializing } = useAuth();
+  const { user } = useAuth();
   const classes = useApiData(() => api.getClasses({ category: CATEGORY }));
   const plans = useApiData(() => api.getPlans());
-  // The split's exercises are for signed-in accounts: fetched only then, and again on signing in.
-  const guide = useApiData(() => (user ? api.getGuide() : Promise.resolve(null)), [user?.id]);
-  const isGuest = !user && !isInitializing;
+  // The split's exercises come with a plan (null without one), and load once one is bought.
+  const guide = useApiData(() => api.getGuide(), [user?.membership_status]);
 
   const plan = plans.data ? cheapestPlanFor(plans.data, CATEGORY) : undefined;
   const coaches = classes.data ? new Set(classes.data.map(c => c.trainer_id)).size : null;
@@ -224,7 +223,11 @@ export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenA
           <h2 className="text-3xl sm:text-4xl font-black text-slate-100 font-heading">A 4-DAY BODY-PART SPLIT</h2>
           <p className="text-sm text-slate-400">A simple starting point. Ask a coach to adjust it to your level.</p>
         </div>
-        {isGuest ? (
+        {guide.error ? (
+          <ErrorState message={guide.error} onRetry={guide.reload} className="max-w-xl mx-auto" />
+        ) : guide.isLoading && !guide.data ? (
+          <CardSkeletons label="Loading the split…" count={4} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5" cardClassName="h-72 rounded-3xl" />
+        ) : !guide.data ? (
           <>
             <ul className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
               {SPLIT_TEASER.map(routine => (
@@ -234,17 +237,13 @@ export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenA
                 </li>
               ))}
             </ul>
-            <SignInPrompt
+            <PlanPrompt
               headingLevel="h3"
-              title="Sign in to see the full split"
+              title="Choose a plan to see the full split"
               body="Every day's exercises with sets and reps, ready to log in the app."
-              onOpenAuthModal={onOpenAuthModal}
+              onChoosePlan={() => navigate('pricing', plan ? { plan: plan.tier } : undefined)}
             />
           </>
-        ) : guide.error ? (
-          <ErrorState message={guide.error} onRetry={guide.reload} className="max-w-xl mx-auto" />
-        ) : !guide.data ? (
-          <CardSkeletons label="Loading the split…" count={4} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5" cardClassName="h-72 rounded-3xl" />
         ) : (
           <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {guide.data.strength_split.map(routine => (
