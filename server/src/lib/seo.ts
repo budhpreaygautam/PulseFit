@@ -155,6 +155,13 @@ export const PAGES: readonly PageMeta[] = [
     indexable: false
   },
   {
+    path: '/pass',
+    title: 'Entry pass',
+    description:
+      'Your PulseFit Athletics entry pass: the QR code the front desk scans to check you in, with your member ID, your plan and its status.',
+    indexable: false
+  },
+  {
     path: '/profile',
     title: 'My account',
     description:

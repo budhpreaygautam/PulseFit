@@ -31,6 +31,7 @@ import { useAuth } from '../../context/AuthContext.js';
 import { useToast } from '../../context/ToastContext.js';
 import { useTheme } from '../../context/ThemeContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
+import { useNavigation } from '../../context/NavigationContext.js';
 import { errorMessage } from '../../api/client.js';
 import { homeTabFor } from '../../routes.js';
 import { UserRole } from '../../types/index.js';
@@ -174,6 +175,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
   const { config } = useAppConfig();
   const { showToast } = useToast();
   const { isDark, toggleTheme } = useTheme();
+  // Signing out goes home instantly (no app transition), see NavigationContext.
+  const { navigate } = useNavigation();
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [DigitalQrPassModal, setDigitalQrPassModal] = useState(lazyQrPass);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -220,7 +223,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
   const handleLogout = () => {
     logout();
     setIsMobileMenuOpen(false);
-    setCurrentTab('home');
+    navigate('home', undefined, { instant: true });
     showToast('You have signed out.', 'info');
   };
 
@@ -245,7 +248,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
                 disabled={switchingTo !== null}
                 onClick={() => {
                   if (user) logout();
-                  setCurrentTab('home');
+                  navigate('home', undefined, { instant: true });
                 }}
                 className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
                   !user && !isInitializing ? 'neu-pressed-sm text-lime-400 border border-lime-500/30' : 'neu-btn text-slate-300'

@@ -110,6 +110,13 @@ const guideLeaks = filesIn(path.join(clientDir, 'dist-mobile')).filter(
 if (guideLeaks.length) {
   fail(`The app contains the fitness guide, which only staff and members with a plan may read:\n  ${guideLeaks.join('\n  ')}\nKeep the guide on the server (GET /api/guide), then build again.`);
 }
+// The browser switch that turns app mode on is kept only by e2e builds (client/src/lib/appMode.ts).
+const testSwitchLeaks = filesIn(path.join(clientDir, 'dist-mobile')).filter(
+  file => /\.(js|html|json)$/.test(file) && fs.readFileSync(file, 'utf8').includes('pulsefit_test_app_mode')
+);
+if (testSwitchLeaks.length) {
+  fail(`The app contains the test-only app-mode switch:\n  ${testSwitchLeaks.join('\n  ')}\nBuild it with mobile-sync (production mode), never --mode e2e.`);
+}
 
 console.log('🔨 Building the release APK...');
 // Full path: some Windows setups (NoDefaultCurrentDirectoryInExePath) never run a bare gradlew.bat.

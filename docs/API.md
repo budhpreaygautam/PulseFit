@@ -119,7 +119,7 @@ render from (`/api/config`, `/api/plans`, `/api/classes`, `/api/trainers` (their
 `/api/exercises`, `/api/time-tracking/active-floor`, `/api/promotions` (the home page's sale banner)) and a `Disallow` line for each one's sub-paths
 (`/api/classes/<id>` and `/api/trainers/<id>` need a session), a `Disallow` line for `/api/`, `/downloads/` and for each
 page that needs an account (`/strength`, `/zumba`, `/guide`, `/schedule`, `/pricing`, `/coaches`, `/admin`, `/trainer`,
-`/dashboard`, `/bookings`, `/log-workout`, `/rewards`, `/profile`) or a link (`/reset-password`, `/payment-status`), and
+`/dashboard`, `/bookings`, `/log-workout`, `/rewards`, `/pass`, `/profile`) or a link (`/reset-password`, `/payment-status`), and
 `Sitemap: <PUBLIC_URL>/sitemap.xml`. Scripts, styles and images are never blocked.
 `/api/guide` stays disallowed: the pages read it only for a signed-in account, and crawlers are guests. Google's renderer
 runs the app, which sends the app header (see **App header**); fetched directly, the allowed API addresses answer 404.
@@ -185,7 +185,7 @@ Every `/api` route also shares a limit of 300 requests per minute per IP (except
 | `POST /auth/google` | `{ credential, referral_code? }` (Google Identity Services ID token) | a session or MFA challenge, plus `created: boolean` | 503 `GOOGLE_SIGNIN_DISABLED`, 401 `INVALID_GOOGLE_TOKEN`, 400 `REFERRAL_CODE_INVALID` (only when the call would create the account) |
 | `POST /auth/demo-login` | `{ role: 'member' \| 'vip' \| 'trainer' \| 'admin' }` | a session | 404 `DEMO_DISABLED` when demo mode is off |
 | `POST /auth/logout` | — | `{ signedOut: true }`; clears the session cookie | — |
-| `GET /auth/me` | — | `SafeUser` | 401 |
+| `GET /auth/me` | — | `SafeUser` plus `active_days_this_week` (days this gym week, Monday–Sunday, with streak activity: staff check-in, attended class, completed floor session, workout logged on its own day) and `longest_streak_days` (the longest run by the streak rule over all history); no other answer carries these two | 401 |
 | `PUT /auth/profile` | `{ name?, phone?, gender?, avatar_url? }` **only** (unknown keys → 400, "Only your name, phone number, gender and photo can be changed here."). `gender`: one of the three (`null` and `''` are refused; only an admin can clear it). `avatar_url`: a real PNG/JPEG/WebP image as `data:image/(png\|jpeg\|webp);base64,…` (magic bytes must match, at most 2048×2048 and 300 KB), one of the ten avatars bundled with the apps (exactly `/avatars/preset-01.svg` … `/avatars/preset-10.svg`, the choices under "Change avatar" on My account), or `''` to remove the photo; no other addresses (DiceBear ones included) | `SafeUser` | 400 |
 | `PUT /auth/password` | `{ currentPassword?, newPassword }` (`currentPassword` required when the account has a password) | a session (old tokens are revoked) | 400 `WRONG_PASSWORD`, 403 `DEMO_ACCOUNT_LOCKED`, 403 `REAUTH_REQUIRED` (a Google-only account setting its first password more than 15 minutes after signing in) |
 | `POST /auth/forgot-password` | `{ email }` | `{ message, resetUrl? }`. The same message whether or not the account exists. `resetUrl` (`<address>/reset-password?token=…`) is returned only in local development (`NODE_ENV` development or test), because this server has no email delivery; it is always logged to the server console | 429 |

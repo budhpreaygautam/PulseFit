@@ -1,20 +1,11 @@
 import { expect, type Page } from '@playwright/test';
-import { test, trackConsoleErrors } from './helpers';
+import { offerApp, test, trackConsoleErrors } from './helpers';
 
 // The "Get the PulseFit app" bar and the footer link, offered when GET /api/config reports an APK
-// (androidApp). The test server has none, so /api/config is answered with one here. The mobile
-// project is a Pixel 7 (an Android user agent); the desktop project is Chrome on desktop.
+// (androidApp). The test server has none, so /api/config is answered with one here (offerApp). The
+// mobile project is a Pixel 7 (an Android user agent); the desktop project is Chrome on desktop.
 
-const APP = { url: '/downloads/pulsefit.apk', version: '2.2.0', size: 24 * 1024 * 1024 };
 const DISMISSED_KEY = 'pulsefit_app_banner_dismissed';
-
-async function offerApp(page: Page, androidApp: typeof APP | null = APP): Promise<void> {
-  await page.route('**/api/config', async route => {
-    const response = await route.fetch();
-    const body = await response.json();
-    await route.fulfill({ response, json: { ...body, data: { ...body.data, androidApp } } });
-  });
-}
 
 const banner = (page: Page) => page.getByRole('complementary', { name: 'PulseFit Android app' });
 const footerLink = (page: Page) => page.locator('footer').getByRole('link', { name: 'Get the Android app' });

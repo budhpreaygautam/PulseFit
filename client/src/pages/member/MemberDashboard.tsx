@@ -3,7 +3,7 @@ import { ArrowRight, CalendarCheck, Calendar, Dumbbell, Flame, Gift, IdCard, Mes
 import { useAuth } from '../../context/AuthContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { api } from '../../api/client.js';
-import { MyBooking, TrainerNoteCategory, User } from '../../types/index.js';
+import { MyBooking, TrainerNoteCategory } from '../../types/index.js';
 import { StatCard } from '../../components/common/StatCard.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
 import { DigitalQrPassModal } from '../../components/qr/DigitalQrPassModal.js';
@@ -14,7 +14,8 @@ import { FloorClockCard } from '../../components/member/FloorClockCard.js';
 import { ProgressSection } from '../../components/member/ProgressSection.js';
 import { useApiResource } from '../../components/member/useApiResource.js';
 import { useGiftCelebration } from '../../components/member/useGiftCelebration.js';
-import { formatDate, formatDateTime, gymToday, tierLabel } from '../../lib/format.js';
+import { membershipNotice } from '../../components/member/membershipNotice.js';
+import { formatDate, formatDateTime, tierLabel } from '../../lib/format.js';
 import { avatarOf } from '../../components/member/avatarImage.js';
 
 interface MemberDashboardProps {
@@ -24,50 +25,9 @@ interface MemberDashboardProps {
 const DASHBOARD_BOOKINGS = 3;
 const DASHBOARD_NOTES = 3;
 const DASHBOARD_CHECKINS = 5;
-const EXPIRY_WARNING_DAYS = 7;
 
 const NOTE_LABELS: Record<TrainerNoteCategory, string> = { assessment: 'Assessment', progress: 'Progress', injury: 'Injury', general: 'General' };
 const METHOD_LABELS: Record<string, string> = { qr: 'QR scan', manual: 'Front desk', kiosk: 'Kiosk', camera: 'Camera' };
-
-function daysUntil(date: string): number {
-  return Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${gymToday()}T00:00:00Z`)) / 86_400_000);
-}
-
-/** What the member should know (and do) about their membership, or null when all is well. */
-function membershipNotice(user: User): { tone: 'warn' | 'info'; text: string; action: string; tab: string; params?: Record<string, string> } | null {
-  switch (user.membership_status) {
-    case 'pending':
-      return { tone: 'info', text: 'You do not have an active plan yet. Choose one to book classes and use the gym floor.', action: 'Choose a plan', tab: 'pricing' };
-    case 'expired':
-      return {
-        tone: 'warn',
-        text: user.membership_expiry ? `Your membership expired on ${formatDate(user.membership_expiry)}. Renew to book classes and check in.` : 'Your membership has expired. Renew to book classes and check in.',
-        action: 'Renew membership',
-        tab: 'pricing'
-      };
-    case 'frozen':
-      return {
-        tone: 'info',
-        text: `Your membership is frozen${user.frozen_since ? ` since ${formatDate(user.frozen_since)}` : ''}. When you unfreeze, the days the gym was open while you were frozen are added to your end date.`,
-        action: 'Manage membership',
-        tab: 'profile',
-        params: { tab: 'membership' }
-      };
-    case 'active': {
-      if (!user.membership_expiry) return null;
-      const days = daysUntil(user.membership_expiry);
-      if (days > EXPIRY_WARNING_DAYS) return null;
-      return {
-        tone: 'warn',
-        text: days <= 0 ? 'Your membership ends today.' : `Your membership ends in ${days} day${days === 1 ? '' : 's'}, on ${formatDate(user.membership_expiry)}.`,
-        action: 'Renew membership',
-        tab: 'pricing'
-      };
-    }
-    default:
-      return null;
-  }
-}
 
 export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab }) => {
   const { user, refreshUser } = useAuth();

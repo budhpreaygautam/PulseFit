@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { CalendarCheck, Flame, Gift, History, Loader2, Share2, ShoppingBag, Sparkles, Users } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { useToast } from '../../context/ToastContext.js';
-import { API_BASE, api, errorMessage } from '../../api/client.js';
+import { api, errorMessage } from '../../api/client.js';
 import { ClaimStatus, GiftClaim, GiftSize, MyRewards, PointsEntry, StoreGift } from '../../types/index.js';
 import { Badge } from '../../components/common/Badge.js';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog.js';
@@ -10,8 +10,7 @@ import { GiftImage } from '../../components/common/GiftImage.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
 import { useApiResource } from '../../components/member/useApiResource.js';
 import { useGiftCelebration } from '../../components/member/useGiftCelebration.js';
-import { GYM_NAME } from '../../components/public/gymInfo.js';
-import { isNativeApp, shareText } from '../../lib/native.js';
+import { useShareReferral } from '../../components/member/useShareReferral.js';
 import { formatDateTime, formatDay } from '../../lib/format.js';
 
 const HISTORY_PAGE = 20;
@@ -50,9 +49,6 @@ function entryLabel(e: PointsEntry): string {
       return e.key.startsWith('milestone:') ? `Milestone${note}` : `Gift unlocked${note}`;
   }
 }
-
-/** The site to send friends to: the app's own pages live at a local address, so it names the server. */
-const siteAddress = () => (isNativeApp ? API_BASE.replace(/\/api$/, '') : window.location.origin);
 
 const ProgressCard: React.FC<{ icon: React.ReactNode; title: string; value: number; unit: string; type: 'visits' | 'streak'; rewards: MyRewards }> = ({
   icon,
@@ -161,6 +157,7 @@ export const RewardsPage: React.FC = () => {
   const [toClaim, setToClaim] = useState<{ gift: StoreGift; size?: GiftSize } | null>(null);
   const [toCancel, setToCancel] = useState<GiftClaim | null>(null);
   const [savingSize, setSavingSize] = useState<string | null>(null);
+  const share = useShareReferral();
 
   useGiftCelebration(user?.id ?? '', rewards.data?.claims ?? null);
 
@@ -215,12 +212,6 @@ export const RewardsPage: React.FC = () => {
       setSavingSize(null);
     }
     refresh();
-  };
-
-  const share = async (code: string) => {
-    const result = await shareText(`Join me at ${GYM_NAME}: use my code ${code} when you sign up. ${siteAddress()}`.trim());
-    if (result === 'copied') showToast('The invitation was copied. Paste it into a message to a friend.', 'success');
-    else if (result === 'failed') showToast(`Sharing is not available here. Your code is ${code}.`, 'warning');
   };
 
   const data = rewards.data;

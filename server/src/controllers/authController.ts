@@ -10,6 +10,8 @@ import { InvalidGoogleTokenError, verifyGoogleCredential } from '../lib/google.j
 import { isCommonPassword } from '../lib/passwordPolicy.js';
 import { validateImageDataUrl } from '../lib/imageValidation.js';
 import { referrerFor } from '../lib/referrals.js';
+import { activeDaysInWeek, activityDays } from '../lib/streak.js';
+import { longestRun } from '../lib/milestones.js';
 import { Gender, User } from '../types/index.js';
 
 export const BCRYPT_ROUNDS = 10;
@@ -272,8 +274,11 @@ export const logout = asyncHandler(async (_req: Request, res: Response) => {
   return ok(res, { signedOut: true });
 });
 
+// Only this answer carries the two streak-card numbers: they read the member's whole history.
 export const getMe = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  return ok(res, toSafeUser(req.user!));
+  const user = req.user!;
+  const days = activityDays(user.id);
+  return ok(res, { ...toSafeUser(user), active_days_this_week: activeDaysInWeek(days), longest_streak_days: longestRun(days) });
 });
 
 export const updateProfile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {

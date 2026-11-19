@@ -60,6 +60,56 @@ export async function freshMember(request: APIRequestContext, label: string): Pr
   return { id: member.id, email, token: (await login.json()).data.token, adminToken };
 }
 
+/**
+ * App mode on a phone-sized page (an e2e build honours the test-only switch); call before page.goto.
+ * `theme` picks the stored light/dark choice.
+ */
+export async function useAppMode(page: Page, options: { theme?: 'light' | 'dark' } = {}): Promise<void> {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.addInitScript(theme => {
+    window.localStorage.setItem('pulsefit_test_app_mode', '1');
+    if (theme) window.localStorage.setItem('pulsefit_theme', theme);
+  }, options.theme);
+}
+
+/** The app's bottom tab bar. */
+export const tabBar = (page: Page) => page.getByRole('navigation', { name: 'Tabs' });
+
+/** An APK to offer, as GET /api/config reports one (androidApp); the test server has none. */
+export const APP = { url: '/downloads/pulsefit.apk', version: '2.2.0', size: 24 * 1024 * 1024 };
+
+/** Answer GET /api/config with an APK to offer (or none). */
+export async function offerApp(page: Page, androidApp: typeof APP | null = APP): Promise<void> {
+  await page.route('**/api/config', async route => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ response, json: { ...body, data: { ...body.data, androidApp } } });
+  });
+}
+
+declare global {
+  interface Window {
+    /** Set by app-shell.spec.ts when the landing page's heading ever showed. */
+    __sawLanding?: boolean;
+    /** Counts document.startViewTransition calls (countTransitions). */
+    __vt?: number;
+  }
+}
+
+/** Count document.startViewTransition calls from page load on; read them with `transitions`. */
+export async function countTransitions(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    window.__vt = 0;
+    const start = Document.prototype.startViewTransition;
+    if (!start) return;
+    Document.prototype.startViewTransition = function (this: Document, ...args: Parameters<typeof start>) {
+      window.__vt = (window.__vt ?? 0) + 1;
+      return start.apply(this, args);
+    };
+  });
+}
+export const transitions = (page: Page) => page.evaluate(() => window.__vt ?? 0);
+
 /** Collect uncaught page errors and console errors (ignoring blocked remote images/fonts). */
 export function trackConsoleErrors(page: Page): string[] {
   const errors: string[] = [];

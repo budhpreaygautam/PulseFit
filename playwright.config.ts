@@ -25,7 +25,8 @@ export default defineConfig({
     { name: 'mobile', use: { ...devices['Pixel 7'] } }
   ],
   webServer: {
-    command: 'npm run build --prefix client && cd server && npx tsx src/index.ts',
+    // --mode e2e: the only build that honours the test-only app-mode switch (client/src/lib/appMode.ts).
+    command: 'npm run build --prefix client -- --mode e2e && cd server && npx tsx src/index.ts',
     url: `http://localhost:${PORT}/api/health`,
     timeout: 240_000,
     reuseExistingServer: false,

@@ -159,3 +159,12 @@ test('a browser that blocks web storage (cookies allowed) can still sign in and 
   await expect(page.getByRole('heading', { level: 1, name: 'BOOK A CLASS' })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
+
+// /pass is the app's Pass tab only: the website has no such page, so it is not one to sign in for.
+test('a guest opening /pass on the website gets the missing page, not the sign-in dialog', async ({ page }) => {
+  await page.goto('/pass');
+  await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Please sign in' })).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page).toHaveTitle(/^Page not found/);
+});

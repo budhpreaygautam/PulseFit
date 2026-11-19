@@ -3,6 +3,9 @@ import { NOT_FOUND_TAB, routeForTab, tabForPath } from '../routes.js';
 import { applyPageHead } from '../lib/seo.js';
 import { hasSavedSession } from '../lib/authToken.js';
 import { rememberPendingPage } from '../components/public/pendingPage.js';
+import { navKindFor } from '../components/app/tabs.js';
+import { withViewTransition } from '../lib/appMotion.js';
+import { isAppMode } from '../lib/appMode.js';
 
 interface Location {
   tab: string;
@@ -14,7 +17,8 @@ interface NavigationContextType {
   tab: string;
   /** Query string of the current URL, e.g. ?date=2026-10-12 on a roster. */
   params: URLSearchParams;
-  navigate: (tab: string, params?: Record<string, string>, options?: { replace?: boolean }) => void;
+  /** On the app's own screens the change animates (lib/appMotion.ts) unless `instant`. */
+  navigate: (tab: string, params?: Record<string, string>, options?: { replace?: boolean; instant?: boolean }) => void;
   /** Counts the links to a page that needs an account that a guest has followed; App opens the sign-in dialog. */
   signInRequests: number;
 }
@@ -22,7 +26,9 @@ interface NavigationContextType {
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
 
 function readLocation(): Location {
-  return { tab: tabForPath(window.location.pathname), params: new URLSearchParams(window.location.search) };
+  const tab = tabForPath(window.location.pathname);
+  // The Pass tab is the app's alone: on the website /pass is a missing page, not one to sign in for.
+  return { tab: tab === 'pass' && !isAppMode ? NOT_FOUND_TAB : tab, params: new URLSearchParams(window.location.search) };
 }
 
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -30,12 +36,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [signInRequests, setSignInRequests] = useState(0);
 
   useEffect(() => {
-    const onPopState = () => setLocation(readLocation());
+    const onPopState = () => withViewTransition('pop', () => setLocation(readLocation()));
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  const navigate = useCallback((tab: string, params?: Record<string, string>, options?: { replace?: boolean }) => {
+  const navigate = useCallback((tab: string, params?: Record<string, string>, options?: { replace?: boolean; instant?: boolean }) => {
     const route = routeForTab(tab);
     // Every link and button reaches its page through here, so this is where a guest is stopped: the
     // page is not opened (nor mounted, nor its data or code fetched), the sign-in dialog opens instead,
@@ -49,12 +55,20 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const search = params ? new URLSearchParams(params) : new URLSearchParams();
     const path = route ? route.path : '/';
     const url = search.toString() ? `${path}?${search}` : path;
-    if (url !== window.location.pathname + window.location.search) {
-      if (options?.replace) window.history.replaceState(null, '', url);
-      else window.history.pushState(null, '', url);
-    }
-    setLocation({ tab: route ? route.tab : NOT_FOUND_TAB, params: search });
-    window.scrollTo({ top: 0 });
+    const go = () => {
+      // Entries pushed here are marked, so the app's Back button knows an earlier page of this session
+      // exists (after a reload or a deep link there is none); a replace keeps the entry's mark.
+      if (url !== window.location.pathname + window.location.search) {
+        if (options?.replace) window.history.replaceState(window.history.state, '', url);
+        else window.history.pushState({ inApp: true }, '', url);
+      }
+      setLocation({ tab: route ? route.tab : NOT_FOUND_TAB, params: search });
+      window.scrollTo({ top: 0 });
+    };
+    // Signing out is instant: a transition renders its page change later, so the old (gated) page
+    // would first render signed out and open the sign-in dialog.
+    if (options?.instant) go();
+    else withViewTransition(navKindFor(route?.tab ?? '', search), go);
   }, []);
 
   // Title, description, canonical address and robots/Open Graph tags follow the page.

@@ -7,7 +7,8 @@ All notable changes to PulseFit. Versions follow [Semantic Versioning](https://s
 The service pages now need an account and the fitness guide a plan, sign-up asks for gender to pick a default profile
 picture, the API stops answering casual direct access, the header and pricing cards fit their space, and there is a
 contact page with an enquiry form. Members earn points and gifts for their visits, workouts and referrals, the gym can
-run sales and coupon codes, and the front desk records sales paid at the desk.
+run sales and coupon codes, and the front desk records sales paid at the desk. The Android app (1.1.0) gets the look of
+a phone app, with a bottom tab bar for members and a welcome screen for guests.
 
 ### Added
 
@@ -67,6 +68,12 @@ run sales and coupon codes, and the front desk records sales paid at the desk.
   at the desk") or the member editor (`POST /api/members/:id/desk-sale`). It creates an invoice ("Front desk (UPI)"),
   gives the joining gifts and counts for referrals; free time added by hand gives neither. The same sale recorded twice
   within 2 minutes is refused. Member details show the member's points, gifts and referrer, with "Adjust points".
+- **The app looks like an app (Android 1.1.0).** Inside the Android and iOS apps, members get a bottom tab bar (Home ·
+  Classes · Pass · Train · Me) and new screens in the soft neumorphic, lime look, in light and dark: a streak card with
+  this week's sessions, one-tap class booking on the gym's open days, the entry pass, a quick workout logger, and Me
+  with the ID card, freeze switch, plans, invoices, rewards and every page of the website. Guests get a welcome screen.
+  Screens animate smoothly, and not at all when the phone asks for reduced motion. Coaches, admins and the website are
+  unchanged. `GET /api/auth/me` adds `active_days_this_week` and `longest_streak_days`.
 
 ### Changed
 
@@ -154,10 +161,10 @@ run sales and coupon codes, and the front desk records sales paid at the desk.
 
 - **Rebuild and upload the Android app with this release.** The APK offered at `/downloads/pulsefit.apk` keeps the code
   it was built from, and a server deploy does not replace it. One built from 2.3.0 still contains the full fitness guide
-  (anyone can unzip it), still shows DiceBear pictures and does not ask for gender at sign-up. Raise `versionCode` and
-  `versionName` in `client/android/app/build.gradle`, run `npm --prefix client run mobile:release`, and upload the APK
-  (and `pulsefit.json`) to the data volume in the same deploy (deploy/README.md › Android app). Do the same for an iOS
-  build if one has been handed out.
+  (anyone can unzip it), still shows DiceBear pictures and does not ask for gender at sign-up. This release's app is
+  1.1.0 (versionCode 2, already set in `client/android/app/build.gradle`): run `npm --prefix client run mobile:release`
+  and upload the APK (and `pulsefit.json`) to the data volume in the same deploy (deploy/README.md › Android app). Do
+  the same for an iOS build if one has been handed out.
 - Apps already installed from 2.3.0 keep working against this server: they send the app header, and their sign-up
   form, which has no gender question, is still accepted. Their service pages stay open to guests but get only the
   guest answers, so guests see less there (nothing breaks): the timetable and the strength and Zumba class lists say
