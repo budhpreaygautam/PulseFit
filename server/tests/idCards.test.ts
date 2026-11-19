@@ -214,8 +214,9 @@ describe('ID cards', () => {
       setUser(personas.basic, { membership_status: 'active', membership_expiry: '2026-10-06' });
       const rows = (await list()).body.data.rows;
       for (const r of rows) {
+        // gender only when the person gave one (this list is for admins).
         expect(Object.keys(r.user).sort()).toEqual(
-          ['avatar_url', 'created_at', 'email', 'id', 'membership_expiry', 'membership_status', 'membership_tier', 'name', 'phone', 'role'].sort()
+          ['avatar_url', 'created_at', 'email', 'id', 'membership_expiry', 'membership_status', 'membership_tier', 'name', 'phone', 'role', ...(r.user.gender ? ['gender'] : [])].sort()
         );
       }
       expect(rows.find((r: any) => r.user.email === personas.basic).user.membership_status).toBe('expired');

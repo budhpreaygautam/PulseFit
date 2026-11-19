@@ -6,8 +6,14 @@ import { generateToken } from '../src/middleware/auth.js';
 
 export { db };
 
-/** supertest agent bound to the Express app (no port needed). */
-export const api = () => request(app);
+/** The header the website and the apps send on every API request; without it the API answers 404. */
+export const APP_HEADER = { 'X-Requested-With': 'PulseFit' } as const;
+
+/** supertest agent bound to the Express app (no port needed), sending APP_HEADER like the app does. */
+export const api = () => request.agent(app).set(APP_HEADER);
+
+/** The same without APP_HEADER: an API address opened in the browser, a link, another site, curl. */
+export const bareApi = () => request(app);
 
 /** Wipe the temporary database and load the demo data. Call in beforeEach. */
 export function resetDb(): void {

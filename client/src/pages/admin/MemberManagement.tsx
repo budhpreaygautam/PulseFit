@@ -161,7 +161,7 @@ export const MemberManagement: React.FC = () => {
 
   const nameCell = (m: User) => (
     <div className="flex items-center gap-3 min-w-0">
-      <Avatar src={m.avatar_url} name={m.name} />
+      <Avatar src={m.avatar_url} gender={m.gender} />
       <div className="min-w-0">
         <div className="font-extrabold text-sm text-slate-100 flex flex-wrap items-center gap-1.5 font-heading">
           <span className="truncate">{m.name}</span>

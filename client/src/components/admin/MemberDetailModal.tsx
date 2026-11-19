@@ -6,7 +6,7 @@ import { Modal } from '../common/Modal.js';
 import { Badge } from '../common/Badge.js';
 import { EmptyState, ErrorState, LoadingState } from '../common/States.js';
 import { useToast } from '../../context/ToastContext.js';
-import { STATUS_LABELS, TIER_LABELS, formatDate, formatDateTime, formatDay, formatINR } from '../../lib/format.js';
+import { STATUS_LABELS, TIER_LABELS, formatDate, formatDateTime, formatDay, formatINR, genderLabel } from '../../lib/format.js';
 import { Avatar, focusRing } from './ui.js';
 import { statusVariant } from './memberStatus.js';
 import { IdCardModal } from '../qr/IdCardModal.js';
@@ -95,7 +95,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ memberId, 
       ) : (
         <div className="space-y-6">
           <div className="flex flex-wrap items-start gap-4">
-            <Avatar src={member.avatar_url} name={member.name} size="w-14 h-14" />
+            <Avatar src={member.avatar_url} gender={member.gender} size="w-14 h-14" />
             <div className="min-w-0 flex-1 space-y-1 text-sm">
               <a href={`mailto:${member.email}`} className={`flex items-center gap-1.5 text-slate-200 hover:text-lime-400 break-all rounded ${focusRing}`}>
                 <Mail className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {member.email}
@@ -106,6 +106,9 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ memberId, 
                 </a>
               )}
               <p className="text-xs text-slate-400">Joined {formatDateTime(member.created_at)} · Pass code <span className="font-mono">{member.qr_code_token}</span></p>
+              <p className="text-xs text-slate-400">
+                Gender <span className="font-semibold text-slate-300">{genderLabel(member.gender)}</span>
+              </p>
             </div>
             <button
               type="button"

@@ -14,7 +14,7 @@ import { FloorClockCard } from '../../components/member/FloorClockCard.js';
 import { ProgressSection } from '../../components/member/ProgressSection.js';
 import { useApiResource } from '../../components/member/useApiResource.js';
 import { formatDate, formatDateTime, gymToday, tierLabel } from '../../lib/format.js';
-import { fallbackAvatar } from '../../components/member/avatarImage.js';
+import { avatarOf } from '../../components/member/avatarImage.js';
 
 interface MemberDashboardProps {
   setCurrentTab: (tab: string) => void;
@@ -98,7 +98,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
       <section className="neu-flat rounded-3xl p-5 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-5">
         <div className="flex items-center gap-4 min-w-0">
           <img
-            src={user.avatar_url || fallbackAvatar(user.name)}
+            src={avatarOf(user)}
             alt=""
             width={80}
             height={80}

@@ -7,7 +7,7 @@ const PASSWORD = 'Str0ng-Lane-Pass';
 
 async function newAccount() {
   const email = `mfa-${Math.random().toString(36).slice(2)}@example.com`;
-  const res = await api().post('/api/auth/register').send({ name: 'Mfa Tester', email, password: PASSWORD });
+  const res = await api().post('/api/auth/register').send({ name: 'Mfa Tester', email, password: PASSWORD, gender: 'prefer_not_to_say' });
   expect(res.status).toBe(201);
   return { email, token: res.body.data.token as string, id: res.body.data.user.id as string };
 }

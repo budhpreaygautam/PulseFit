@@ -1,6 +1,5 @@
 import db from '../database.js';
 import { addDays, gymDateTime, gymToday } from '../../lib/dates.js';
-import { defaultAvatar } from '../../lib/users.js';
 import { User } from '../../types/index.js';
 
 // Demo data owned by the auth domain. Called by seedDatabase() after the base data
@@ -8,7 +7,8 @@ import { User } from '../../types/index.js';
 //
 // Two fresh sign-ups that have not bought a plan yet, so the admin's "pending" view and the
 // member's "choose a plan" screen have something to show: one registered with email and
-// password (pulse123, like every demo account), one through Google (no password).
+// password (pulse123, like every demo account), one through Google (no password). Neither has
+// uploaded a photo, so they show the default pictures.
 export function seedAuth(): void {
   const today = gymToday();
   const demoHash = db.users.find(u => u.email === 'member@pulsefit.com')?.password_hash;
@@ -20,7 +20,8 @@ export function seedAuth(): void {
       ...(demoHash ? { password_hash: demoHash } : {}),
       name: 'Kabir Singh',
       role: 'member',
-      avatar_url: defaultAvatar('Kabir Singh'),
+      avatar_url: '',
+      gender: 'male',
       phone: '+91 98117 40213',
       membership_tier: 'none',
       membership_status: 'pending',
@@ -36,7 +37,8 @@ export function seedAuth(): void {
       email: 'isha.nair@example.com',
       name: 'Isha Nair',
       role: 'member',
-      avatar_url: defaultAvatar('Isha Nair'),
+      // Google sign-ups are not asked for a gender, so she gets the neutral default picture.
+      avatar_url: '',
       phone: '',
       membership_tier: 'none',
       membership_status: 'pending',

@@ -11,12 +11,15 @@ import {
   ClassOccurrence,
   ClassRoster,
   Exercise,
+  FitnessGuide,
+  Gender,
   GymClass,
   IdCardDeactivationReason,
   IdCardOverview,
   IdCardStatus,
   IssuedIdCard,
   MemberDetail,
+  MemberNote,
   MembershipPlan,
   MembershipStatus,
   MembershipTier,
@@ -172,7 +175,7 @@ export const api = {
 
   // --- Auth & account ---
   login: (credentials: { email: string; password: string }) => post<AuthSession | MfaChallenge>('/auth/login', credentials),
-  register: (payload: { name: string; email: string; password: string; phone?: string }) =>
+  register: (payload: { name: string; gender: Gender; email: string; password: string; phone?: string }) =>
     post<AuthSession>('/auth/register', payload),
   /** `message` is set when an existing password account was linked (its password was removed). */
   googleSignIn: (credential: string) =>
@@ -182,7 +185,8 @@ export const api = {
     })),
   demoLogin: (role: 'member' | 'vip' | 'trainer' | 'admin') => post<AuthSession>('/auth/demo-login', { role }),
   getMe: () => get<User>('/auth/me'),
-  updateProfile: (profile: { name?: string; phone?: string; avatar_url?: string }) => put<User>('/auth/profile', profile),
+  // avatar_url: '' removes the photo (the default picture shows again).
+  updateProfile: (profile: { name?: string; phone?: string; gender?: Gender; avatar_url?: string }) => put<User>('/auth/profile', profile),
   changePassword: (payload: { currentPassword?: string; newPassword: string }) => put<AuthSession>('/auth/password', payload),
   forgotPassword: (email: string) => post<{ message: string; resetUrl?: string }>('/auth/forgot-password', { email }),
   resetPassword: (payload: { token: string; newPassword: string }) => post<AuthSession | MfaChallenge>('/auth/reset-password', payload),
@@ -246,17 +250,18 @@ export const api = {
   createTrainerNote: (payload: { member_id: string; category: TrainerNoteCategory; note: string; visible_to_member: boolean }) =>
     post<TrainerNote>('/trainer/notes', payload),
   deleteTrainerNote: (id: string) => del<{ deleted: true }>(`/trainer/notes/${id}`),
-  getMyNotes: () => get<TrainerNote[]>('/notes/my'),
+  getMyNotes: () => get<MemberNote[]>('/notes/my'),
 
   // --- Members, check-in, attendance & trials ---
   getMembers: (params: { search?: string; tier?: string; status?: string; role?: UserRole | 'all' } = {}) =>
     get<User[]>(`/members${qs(params)}`),
   getMemberById: (id: string) => get<MemberDetail>(`/members/${id}`),
-  createMember: (payload: { name: string; email: string; phone?: string; role?: UserRole; membership_tier?: MembershipTier; expiry_months?: number }) =>
+  createMember: (payload: { name: string; email: string; phone?: string; gender?: Gender; role?: UserRole; membership_tier?: MembershipTier; expiry_months?: number }) =>
     post<{ member: User; tempPassword: string }>('/members', payload),
   updateMember: (
     id: string,
-    payload: Partial<{ name: string; phone: string; role: UserRole; membership_tier: MembershipTier; membership_status: MembershipStatus; membership_expiry: string | null }>
+    // gender: null clears it back to "not given".
+    payload: Partial<{ name: string; phone: string; gender: Gender | null; role: UserRole; membership_tier: MembershipTier; membership_status: MembershipStatus; membership_expiry: string | null }>
   ) => putWithMessage<User>(`/members/${id}`, payload),
   deleteMember: (id: string) => del<{ deleted: true }>(`/members/${id}`),
   resetMemberPassword: (id: string) => post<{ tempPassword: string }>(`/members/${id}/reset-password`),
@@ -293,6 +298,8 @@ export const api = {
   createWorkout: (payload: NewWorkout) => post<Workout>('/workouts', payload),
   deleteWorkout: (id: string) => del<{ deleted: true }>(`/workouts/${id}`),
   getWorkoutAnalytics: () => get<WorkoutAnalytics>('/workouts/analytics'),
+  // Signed-in accounts only (401 for guests): call it only when someone is signed in.
+  getGuide: () => get<FitnessGuide>('/guide'),
 
   // --- Floor time tracking ---
   clockIn: (category: ClassCategory, notes?: string) => post<TimeSession>('/time-tracking/clock-in', { category, notes }),

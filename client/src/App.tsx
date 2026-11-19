@@ -266,7 +266,7 @@ function MainAppContent() {
       case 'zumba':
         return <ZumbaPage setCurrentTab={setCurrentTab} onOpenAuthModal={openAuthModal} onOpenFreeTrialModal={openFreeTrialModal} />;
       case 'guide':
-        return <FitnessGuidePage setCurrentTab={setCurrentTab} />;
+        return <FitnessGuidePage setCurrentTab={setCurrentTab} onOpenAuthModal={openAuthModal} />;
       case 'schedule':
         return <SchedulePage onOpenAuthModal={openAuthModal} />;
       case 'pricing':

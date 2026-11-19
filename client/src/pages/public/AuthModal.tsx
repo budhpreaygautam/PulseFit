@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Dumbbell, ExternalLink, KeyRound, Loader2, Lock, Mail, Phone, ShieldCheck, Sparkles, User as UserIcon, Users } from 'lucide-react';
+import { ArrowLeft, Check, Dumbbell, ExternalLink, KeyRound, Loader2, Lock, Mail, Phone, ShieldCheck, Sparkles, User as UserIcon, Users } from 'lucide-react';
 import { Modal } from '../../components/common/Modal.js';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton.js';
 import { FormField, issuesByField } from '../../components/public/FormField.js';
@@ -11,7 +11,9 @@ import { useNavigation } from '../../context/NavigationContext.js';
 import { useToast } from '../../context/ToastContext.js';
 import { errorMessage, isApiError } from '../../api/client.js';
 import { homeTabFor } from '../../routes.js';
-import { User } from '../../types/index.js';
+import { GENDER_OPTIONS } from '../../lib/format.js';
+import { defaultAvatar } from '../../components/member/avatarImage.js';
+import { Gender, User } from '../../types/index.js';
 
 type Mode = 'login' | 'register' | 'forgot' | 'mfa';
 
@@ -21,7 +23,7 @@ interface AuthModalProps {
   initialMode?: Mode;
 }
 type DemoRole = 'member' | 'vip' | 'trainer' | 'admin';
-type Field = 'name' | 'email' | 'password' | 'phone';
+type Field = 'name' | 'gender' | 'email' | 'password' | 'phone';
 
 const DEMO_PERSONAS: { role: DemoRole; label: string; detail: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { role: 'member', label: 'Member', detail: 'Books classes', icon: UserIcon },
@@ -46,6 +48,7 @@ const GOOGLE_ERRORS: Record<string, string> = {
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode = 'login' }) => {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [name, setName] = useState('');
+  const [gender, setGender] = useState<Gender | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
@@ -72,6 +75,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     if (!isOpen) clearPendingPlan();
     setMode(initialMode);
     setName('');
+    setGender(null);
     setEmail('');
     setPassword('');
     setPhone('');
@@ -105,13 +109,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setMode('mfa');
   };
 
-  /** After any sign-in: a plan picked as a guest takes them back to pricing to pay for it. */
-  const finishSignIn = (user: User, greeting: string) => {
+  /**
+   * After any sign-in: a plan picked as a guest takes them back to pricing to pay for it. Otherwise
+   * askGender sends them to My account to choose the gender that picks their default picture.
+   */
+  const finishSignIn = (user: User, greeting: string, askGender = false) => {
     const pending = takePendingPlan();
     onClose();
     if (pending) {
       showToast(`${greeting} Finish choosing your plan below.`, 'success');
       navigate('pricing', { plan: pending.tier, cycle: pending.cycle });
+    } else if (askGender) {
+      showToast('Choose your gender under Personal details to pick your profile picture.', 'info', greeting);
+      navigate('profile');
     } else {
       showToast(greeting, 'success');
     }
@@ -121,7 +131,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const showError = (err: unknown) => {
     if (isApiError(err) && err.code === 'VALIDATION_ERROR') {
       const issues = issuesByField(err.data);
-      const known = (['name', 'email', 'password', 'phone'] as Field[]).filter(f => issues[f]);
+      const known = (['name', 'gender', 'email', 'password', 'phone'] as Field[]).filter(f => issues[f]);
       if (known.length > 0) {
         setFieldErrors(Object.fromEntries(known.map(f => [f, issues[f]])));
         return;
@@ -139,6 +149,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     if (mode === 'register') {
       const nameProblem = nameError(name);
       if (nameProblem) errors.name = nameProblem;
+      if (!gender) errors.gender = 'Choose your gender, or "Prefer not to say".';
       const passwordProblem = passwordError(password);
       if (passwordProblem) errors.password = passwordProblem;
       if (phone.trim() && !normalizeIndianPhone(phone)) errors.phone = PHONE_HINT;
@@ -178,7 +189,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         else askForCode(result.mfaToken);
       } else {
         const normalizedPhone = phone.trim() ? normalizeIndianPhone(phone) ?? undefined : undefined;
-        const user = await register({ name: name.trim(), email: email.trim(), password, phone: normalizedPhone });
+        const user = await register({ name: name.trim(), gender: gender!, email: email.trim(), password, phone: normalizedPhone });
         finishSignIn(user, `Welcome to PulseFit, ${user.name.split(' ')[0]}! Choose a membership to start booking classes.`);
       }
     } catch (err) {
@@ -209,7 +220,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         navigate('profile');
       } else {
         const user = result.user!;
-        finishSignIn(user, result.created ? `Welcome to PulseFit, ${user.name.split(' ')[0]}!` : `Welcome back, ${user.name.split(' ')[0]}!`);
+        // Google sign-up has no gender question, so a new account is asked for it on My account.
+        finishSignIn(
+          user,
+          result.created ? `Welcome to PulseFit, ${user.name.split(' ')[0]}!` : `Welcome back, ${user.name.split(' ')[0]}!`,
+          result.created && !user.gender
+        );
       }
     } catch (err) {
       showError(err);
@@ -344,6 +360,48 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                 error={fieldErrors.name}
                 required
               />
+            )}
+
+            {mode === 'register' && (
+              <fieldset aria-describedby={fieldErrors.gender ? 'auth-gender-hint auth-gender-error' : 'auth-gender-hint'}>
+                <legend className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">Gender</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {GENDER_OPTIONS.map(option => (
+                    <label
+                      key={option.value}
+                      className={`flex items-center gap-2 px-2.5 py-2 rounded-xl cursor-pointer text-xs font-bold leading-tight transition-all has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-lime-500 ${
+                        gender === option.value ? 'neu-pressed-sm text-lime-400 border border-lime-500/60' : `neu-btn text-slate-200 ${fieldErrors.gender ? '!border-rose-500/70' : ''}`
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="auth-gender"
+                        value={option.value}
+                        checked={gender === option.value}
+                        onChange={() => {
+                          setGender(option.value);
+                          setFieldErrors(errors => ({ ...errors, gender: undefined }));
+                        }}
+                        aria-invalid={fieldErrors.gender ? true : undefined}
+                        required
+                        className="sr-only"
+                      />
+                      {/* The picture this choice gives them until they upload a photo. */}
+                      <img src={defaultAvatar(option.value)} alt="" width={20} height={20} className="w-5 h-5 rounded-md shrink-0" />
+                      {option.label}
+                      {gender === option.value && <Check className="w-3.5 h-3.5 ml-auto shrink-0" aria-hidden="true" />}
+                    </label>
+                  ))}
+                </div>
+                <p id="auth-gender-hint" className="mt-1 text-[11px] text-slate-500">
+                  Picks your profile picture until you add a photo. Only you and the front desk can see it.
+                </p>
+                {fieldErrors.gender && (
+                  <p id="auth-gender-error" role="alert" className="mt-1 text-xs font-semibold text-rose-400">
+                    {fieldErrors.gender}
+                  </p>
+                )}
+              </fieldset>
             )}
 
             {mode === 'mfa' ? (

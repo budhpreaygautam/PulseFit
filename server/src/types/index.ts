@@ -5,6 +5,7 @@ export type MembershipTier = 'none' | 'basic' | 'pro' | 'vip';
 // (see lib/membership.ts), so a stored 'active' past its expiry date is treated as expired.
 export type MembershipStatus = 'active' | 'expired' | 'pending' | 'frozen';
 export type BillingCycle = 'monthly' | 'annual';
+export type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
 
 export interface User {
   id: string;
@@ -12,7 +13,11 @@ export interface User {
   password_hash?: string;
   name: string;
   role: UserRole;
+  // The person's photo, or '' for none: the apps then show a default picture (client/public/avatars).
   avatar_url: string;
+  // Asked at registration to pick that default picture. Absent = not given (Google sign-ups,
+  // accounts made by admins, older accounts). Personal data: only the person and admins see it.
+  gender?: Gender;
   phone: string;
   membership_tier: MembershipTier;
   membership_status: MembershipStatus;
@@ -290,7 +295,7 @@ export interface TimeSession {
   notes?: string;
 }
 
-/** A person on the floor as staff see them: no email, notes or ids. */
+/** A person on the floor as admins see them: no email, notes or ids. */
 export interface FloorPresence {
   user_name: string;
   user_avatar: string;
@@ -303,7 +308,7 @@ export interface ActiveFloorStatus {
   totalActive: number;
   workoutActive: number;
   zumbaActive: number;
-  // Only included for staff (admin/trainer); the public sees counts only.
+  // Only included for admins; everyone else (coaches too) sees counts only.
   workoutUsers?: FloorPresence[];
   zumbaUsers?: FloorPresence[];
 }
@@ -314,4 +319,61 @@ export interface UserTimeTrackingStats {
   totalTimeMinutesThisMonth: number;
   totalSessionsCompleted: number;
   recentSessions: TimeSession[];
+}
+
+// The fitness guide (GET /api/guide, signed-in accounts only): content in content/guide.ts.
+
+export interface GuideExercise {
+  name: string;
+  sets: string;
+  reps: string;
+  rest: string;
+  tip: string;
+}
+
+export interface GuideWorkoutPlan {
+  id: string;
+  name: string;
+  level: string;
+  goal: string;
+  frequency: string;
+  description: string;
+  days: { name: string; exercises: GuideExercise[] }[];
+}
+
+export interface GuideMeal {
+  timing: string;
+  name: string;
+  items: string[];
+  calories: number;
+}
+
+export interface GuideDietChart {
+  id: string;
+  title: string;
+  type: string;
+  macros: { protein_g: number; carbs_g: number; fats_g: number };
+  description: string;
+  meals: GuideMeal[];
+}
+
+export interface GuideSupplement {
+  name: string;
+  badge: string;
+  /** Out of 5. */
+  stars: number;
+  verdict: string;
+  dosage: string;
+  timing: string;
+  why: string;
+  faqs: { question: string; answer: string }[];
+}
+
+export interface FitnessGuide {
+  workout_plans: GuideWorkoutPlan[];
+  diet_charts: GuideDietChart[];
+  nutrition_rules: { emoji: string; title: string; text: string }[];
+  supplements: GuideSupplement[];
+  /** The 4-day body-part split on the strength floor page (/strength). */
+  strength_split: { day: string; title: string; exercises: string[] }[];
 }

@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import db from '../db/database.js';
 import { effectiveStatus } from './membership.js';
 import { currentStreak } from './streak.js';
-import { SafeUser, User } from '../types/index.js';
+import { Gender, SafeUser, User } from '../types/index.js';
 
 /** Unique-enough short id with a readable prefix, e.g. newId('bk') -> 'bk_3f9a1c2b7d4e'. */
 export function newId(prefix: string): string {
@@ -49,15 +49,4 @@ export function findUserByEmail(email: string): User | undefined {
   return db.users.find(u => u.email.toLowerCase() === normalized);
 }
 
-/** A generated picture seeded with initials only, so members' full names are not sent to the avatar service. */
-export function defaultAvatar(name: string): string {
-  const initials = name
-    .trim()
-    .split(/\s+/)
-    .map(part => part[0] ?? '')
-    .join('')
-    .toUpperCase()
-    .slice(0, 3);
-  const seed = `${initials || 'PF'}-${crypto.randomBytes(3).toString('hex')}`;
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`;
-}
+export const GENDERS = ['male', 'female', 'other', 'prefer_not_to_say'] as const satisfies readonly Gender[];

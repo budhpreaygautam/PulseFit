@@ -64,20 +64,29 @@ const DEFAULT_PLAN_CATEGORIES: Record<string, MembershipPlan['categories']> = {
   vip: []
 };
 
+// Up to v2.3 people and coaches without a photo were given a DiceBear cartoon (seeded with their
+// initials), which every viewer's browser fetched from api.dicebear.com. Nobody chose those, so they
+// become "no photo" and the apps show their own default picture instead. Nothing can store a new one
+// (the coach form and PUT /auth/profile refuse them), so clearing them on every load loses nothing.
+export const isGeneratedAvatar = (url: string | undefined) => Boolean(url?.startsWith('https://api.dicebear.com/'));
+
 /**
  * Bring a database written by an older version up to the current shape. Idempotent, so it runs on
  * every load. v2.0 files have plans without entitlements, '' for "no expiry", stored class counters
- * and streak numbers without the day they were earned.
+ * and streak numbers without the day they were earned; v2.3 files have DiceBear pictures. Accounts
+ * from before the gender question simply have none, which reads as "not given".
  */
 export function migrate(data: DatabaseSchema): DatabaseSchema {
   return {
     ...data,
     membership_plans: data.membership_plans.map(p => (Array.isArray(p.categories) ? p : { ...p, categories: DEFAULT_PLAN_CATEGORIES[p.tier] ?? [] })),
     users: data.users.map(u => {
-      const user = { ...u, membership_expiry: u.membership_expiry || null };
+      const user = { ...u, membership_expiry: u.membership_expiry || null, ...(isGeneratedAvatar(u.avatar_url) ? { avatar_url: '' } : {}) };
       return u.last_active_date === undefined ? { ...user, streak_days: 0, last_active_date: null } : user;
     }),
-    classes: data.classes.map(({ booked_count: _derived, ...c }) => c)
+    trainers: data.trainers.map(t => (isGeneratedAvatar(t.avatar_url) ? { ...t, avatar_url: '' } : t)),
+    classes: data.classes.map(({ booked_count: _derived, ...c }) => (isGeneratedAvatar(c.trainer_avatar) ? { ...c, trainer_avatar: '' } : c)),
+    time_sessions: data.time_sessions.map(s => (isGeneratedAvatar(s.user_avatar) ? { ...s, user_avatar: '' } : s))
   };
 }
 

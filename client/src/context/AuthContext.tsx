@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { AuthSession, isMfaChallenge, MfaChallenge, User, UserRole } from '../types/index.js';
+import { AuthSession, Gender, isMfaChallenge, MfaChallenge, User, UserRole } from '../types/index.js';
 import { api, isApiError, UNAUTHORIZED_EVENT } from '../api/client.js';
 import { forgetSession, hasSavedSession, rememberSession } from '../lib/authToken.js';
 import { abortableGet } from '../lib/abortableGet.js';
@@ -24,7 +24,7 @@ interface AuthContextType {
   retrySessionRestore: () => void;
   role: UserRole | 'guest';
   login: (credentials: { email: string; password: string }) => Promise<SignInOutcome>;
-  register: (payload: { name: string; email: string; password: string; phone?: string }) => Promise<User>;
+  register: (payload: { name: string; gender: Gender; email: string; password: string; phone?: string }) => Promise<User>;
   /** Sign in with a Google Identity Services credential (see GoogleSignInButton). */
   loginWithGoogle: (credential: string) => Promise<SignInOutcome & { created: boolean; message?: string }>;
   /** Second step of a sign-in with two-step sign-in on: an authenticator code or a backup code. */
@@ -216,7 +216,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [startSession]
   );
   const register = useCallback(
-    async (payload: { name: string; email: string; password: string; phone?: string }) => startSession(await api.register(payload)),
+    async (payload: { name: string; gender: Gender; email: string; password: string; phone?: string }) => startSession(await api.register(payload)),
     [startSession]
   );
   const loginWithGoogle = useCallback(

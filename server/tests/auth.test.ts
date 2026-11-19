@@ -57,7 +57,7 @@ describe('POST /auth/register', () => {
   it('creates a pending member with no plan and returns 201 { token, user }', async () => {
     const res = await api()
       .post('/api/auth/register')
-      .send({ name: 'Neha Rao', email: 'Neha.Rao@Example.com', password: strongPassword, phone: '+91 98765 43210' });
+      .send({ name: 'Neha Rao', email: 'Neha.Rao@Example.com', password: strongPassword, phone: '+91 98765 43210', gender: 'female' });
     expect(res.status).toBe(201);
     expect(res.body.data.token).toBeTruthy();
     expect(res.body.data.user).toMatchObject({
@@ -68,10 +68,12 @@ describe('POST /auth/register', () => {
       membership_tier: 'none',
       membership_status: 'pending',
       membership_expiry: null,
-      streak_days: 0
+      streak_days: 0,
+      gender: 'female'
     });
     expect(res.body.data.user.qr_code_token).toMatch(/^PULSE-MEM-NEHAR-[0-9A-F]{6}$/);
-    expect(res.body.data.user.avatar_url).toContain('dicebear');
+    // No photo yet: the apps show the default picture for her gender, not a third-party one.
+    expect(res.body.data.user.avatar_url).toBe('');
     expect(res.body.data.user.password_hash).toBeUndefined();
 
     const stored = db.users.find(u => u.email === 'neha.rao@example.com')!;
@@ -88,6 +90,7 @@ describe('POST /auth/register', () => {
       name: 'Sneaky Sam',
       email: 'sam@example.com',
       password: strongPassword,
+      gender: 'male',
       tier: 'vip',
       membership_tier: 'vip',
       membership_status: 'active',
@@ -99,13 +102,13 @@ describe('POST /auth/register', () => {
   });
 
   it('stores an empty phone, not a placeholder, when none is given', async () => {
-    const res = await api().post('/api/auth/register').send({ name: 'No Phone', email: 'nophone@example.com', password: strongPassword });
+    const res = await api().post('/api/auth/register').send({ name: 'No Phone', email: 'nophone@example.com', password: strongPassword, gender: 'other' });
     expect(res.status).toBe(201);
     expect(res.body.data.user.phone).toBe('');
   });
 
   it('answers 409 EMAIL_TAKEN for an existing email in any case', async () => {
-    const res = await api().post('/api/auth/register').send({ name: 'Copy Cat', email: 'MEMBER@pulsefit.com', password: strongPassword });
+    const res = await api().post('/api/auth/register').send({ name: 'Copy Cat', email: 'MEMBER@pulsefit.com', password: strongPassword, gender: 'male' });
     expect(res.status).toBe(409);
     expect(res.body.code).toBe('EMAIL_TAKEN');
   });
@@ -121,7 +124,7 @@ describe('POST /auth/register', () => {
     [{ name: 'Valid Name', email: 'a@example.com', password: strongPassword, phone: 'call me' }, 'phone'],
     [{ name: 42, email: 'a@example.com', password: strongPassword }, 'name']
   ])('rejects invalid input %# with 400 VALIDATION_ERROR on %s', async (body, field) => {
-    const res = await api().post('/api/auth/register').send(body);
+    const res = await api().post('/api/auth/register').send({ gender: 'female', ...body });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('VALIDATION_ERROR');
     expect(res.body.data.issues[0].path).toBe(field);
@@ -190,19 +193,20 @@ describe('GET /auth/me', () => {
 describe('PUT /auth/profile', () => {
   beforeEach(() => resetDb());
 
-  it('updates name, phone and avatar and returns the safe user', async () => {
+  it('updates name, phone, gender and avatar and returns the safe user', async () => {
     const res = await api()
       .put('/api/auth/profile')
       .set(authHeader(personas.member))
-      .send({ name: '  Aarav S. ', phone: '+91 99999 00000', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=AS' });
+      .send({ name: '  Aarav S. ', phone: '+91 99999 00000', gender: 'other', avatar_url: '' });
     expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ name: 'Aarav S.', phone: '+91 99999 00000', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=AS' });
+    // '' removes the photo: the default picture shows again.
+    expect(res.body.data).toMatchObject({ name: 'Aarav S.', phone: '+91 99999 00000', gender: 'other', avatar_url: '' });
     expect(res.body.data.password_hash).toBeUndefined();
     expect(userByEmail(personas.member).name).toBe('Aarav S.');
   });
 
   it('refuses photo addresses on other hosts and files that are not really images', async () => {
-    for (const avatar_url of ['https://images.example.com/me.png', 'https://192.168.1.10/x.png', 'data:image/png;base64,iVBORw0KGgo=', 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=']) {
+    for (const avatar_url of ['https://api.dicebear.com/7.x/avataaars/svg?seed=AS', 'https://images.example.com/me.png', 'https://192.168.1.10/x.png', 'data:image/png;base64,iVBORw0KGgo=', 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=']) {
       const res = await api().put('/api/auth/profile').set(authHeader(personas.member)).send({ avatar_url });
       expect(res.status, avatar_url).toBe(400);
     }

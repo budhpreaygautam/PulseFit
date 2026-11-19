@@ -33,7 +33,7 @@ const FEED_LIMIT = 20;
 
 const MemberSummary: React.FC<{ member: CheckInMember }> = ({ member }) => (
   <div className="flex items-start gap-3 min-w-0">
-    <Avatar src={member.avatar_url} name={member.name} size="w-12 h-12" />
+    <Avatar src={member.avatar_url} size="w-12 h-12" />
     <div className="min-w-0 space-y-1">
       <p className="text-lg font-black text-slate-100 font-heading break-words">{member.name}</p>
       <p className="text-xs text-slate-400 break-all">{member.email}</p>

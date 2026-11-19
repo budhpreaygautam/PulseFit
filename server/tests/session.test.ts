@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { api, authHeader, personas, resetDb, tokenFor } from './helpers.js';
+import { api, authHeader, bareApi, personas, resetDb, tokenFor } from './helpers.js';
 
 const WEB = 'http://localhost:5173';
 const ANDROID = 'https://localhost';
@@ -46,7 +46,7 @@ describe('sessions: httpOnly cookie for the website, bearer token for the apps',
 
   it('refuses a cookie-authenticated write without X-Requested-With (CSRF), and allows it with the header', async () => {
     const cookie = `pulsefit_session=${tokenFor(personas.member)}`;
-    const blocked = await api().put('/api/auth/profile').set('Cookie', cookie).send({ name: 'Forged Name' });
+    const blocked = await bareApi().put('/api/auth/profile').set('Cookie', cookie).send({ name: 'Forged Name' });
     expect(blocked.status).toBe(403);
     expect(blocked.body.code).toBe('CSRF_REJECTED');
 

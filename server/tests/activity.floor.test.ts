@@ -331,8 +331,14 @@ describe('floor time tracking', () => {
       expect(res.body.data.workoutUsers).toBeUndefined();
     });
 
-    it.each([personas.admin, personas.trainer])('lists who is on the floor for staff (%s), without emails, notes or ids', async email => {
-      const res = await api().get('/api/time-tracking/active-floor').set(authHeader(email));
+    it('gives a coach counts only (regression: coaches received the names, photos and plans of everyone on the floor, which no coach screen shows)', async () => {
+      const res = await api().get('/api/time-tracking/active-floor').set(authHeader(personas.trainer));
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({ totalActive: 3, workoutActive: 2, zumbaActive: 1 });
+    });
+
+    it('lists who is on the floor for admins, without emails, notes or ids', async () => {
+      const res = await api().get('/api/time-tracking/active-floor').set(authHeader(personas.admin));
       expect(res.status).toBe(200);
       expect(res.body.data.workoutUsers).toHaveLength(2);
       expect(res.body.data.zumbaUsers).toHaveLength(1);

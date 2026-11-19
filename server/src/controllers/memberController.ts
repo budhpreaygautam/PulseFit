@@ -8,7 +8,7 @@ import { asyncHandler, badRequest, conflict, forbidden, notFound, ok, parse } fr
 import { addDays, addMonths, gymDateTime, gymToday, isValidDate } from '../lib/dates.js';
 import { unfreezeMembership } from '../lib/billing.js';
 import { effectiveStatus } from '../lib/membership.js';
-import { defaultAvatar, findUserByEmail, generateQrToken, generateTempPassword, newId, toSafeUser } from '../lib/users.js';
+import { findUserByEmail, GENDERS, generateQrToken, generateTempPassword, newId, toSafeUser } from '../lib/users.js';
 import { closeOpenSession, releaseInvalidBookings } from '../lib/bookingRules.js';
 import { cardsOf } from '../lib/idCards.js';
 import { isLockedDemoAccount } from './authController.js';
@@ -30,6 +30,8 @@ const listQuery = z.object({
 
 const nameField = z.string().trim().min(2, 'Name must be at least 2 characters.').max(60, 'Name must be at most 60 characters.');
 const phoneField = z.string().trim().max(20, 'Phone number is too long.');
+// Optional for staff-made accounts; null (on update) clears it back to "not given".
+const genderField = z.enum(GENDERS, { error: 'Choose male, female, other or prefer not to say.' });
 // Trim before the format check: zod's z.email().trim() validates first and rejects pasted ' a@b.com '.
 const emailField = z.string().trim().toLowerCase().pipe(z.email('Enter a valid email address.'));
 // Forms may send "3", but z.coerce would also turn true into 1 and null or '' into 0.
@@ -43,6 +45,7 @@ const createBody = z
     name: nameField,
     email: emailField,
     phone: phoneField.optional(),
+    gender: genderField.optional(),
     role: z.enum(ROLES).default('member'),
     membership_tier: z.enum(TIERS).default('none'),
     expiry_months: monthsField.default(0)
@@ -53,6 +56,7 @@ const updateBody = z
   .object({
     name: nameField.optional(),
     phone: phoneField.optional(),
+    gender: genderField.nullable().optional(),
     role: z.enum(ROLES).optional(),
     membership_tier: z.enum(TIERS).optional(),
     membership_status: z.enum(STATUSES).optional(),
@@ -160,7 +164,8 @@ export const createMember = asyncHandler<AuthenticatedRequest>(async (req, res: 
     password_hash,
     name: body.name,
     role: body.role,
-    avatar_url: defaultAvatar(body.name),
+    avatar_url: '',
+    ...(body.gender ? { gender: body.gender } : {}),
     phone: body.phone ?? '',
     membership_tier: body.membership_tier,
     membership_status: paid ? 'active' : 'pending',
@@ -196,6 +201,8 @@ export const updateMember = asyncHandler<AuthenticatedRequest>((req, res: Respon
   const next: User = { ...existing };
   if (body.name !== undefined) next.name = body.name;
   if (body.phone !== undefined) next.phone = body.phone;
+  if (body.gender === null) delete next.gender;
+  else if (body.gender !== undefined) next.gender = body.gender;
   if (body.role !== undefined) next.role = body.role;
   if (body.membership_tier !== undefined) next.membership_tier = body.membership_tier;
   if (body.membership_expiry !== undefined) next.membership_expiry = body.membership_expiry;

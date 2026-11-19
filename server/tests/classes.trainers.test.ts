@@ -91,7 +91,27 @@ describe('classes: trainers and trainer portal', () => {
       expect(res.status).toBe(201);
       expect(res.body.data).toMatchObject({ ...newTrainer, rating: 0, reviews_count: 0 });
       expect(res.body.data.id).toMatch(/^trn_/);
-      expect(res.body.data.avatar_url).toMatch(/^https:/);
+      // No photo given: none is invented; the apps show the neutral default picture.
+      expect(res.body.data.avatar_url).toBe('');
+    });
+
+    it("stores an explicit avatar_url '' as no photo", async () => {
+      const res = await api().post('/api/trainers').set(authHeader(personas.admin)).send({ ...newTrainer, avatar_url: '' });
+      expect(res.status).toBe(201);
+      expect(res.body.data.avatar_url).toBe('');
+      expect(db.trainers.find(t => t.id === res.body.data.id)!.avatar_url).toBe('');
+    });
+
+    it('refuses a DiceBear picture, which the server would clear at its next start', async () => {
+      const res = await api()
+        .post('/api/trainers')
+        .set(authHeader(personas.admin))
+        .send({ ...newTrainer, avatar_url: 'https://api.dicebear.com/9.x/avataaars/svg?seed=Neha' });
+      expect(res.status).toBe(400);
+      expect(res.body.data.issues).toEqual([
+        { path: 'avatar_url', message: 'DiceBear pictures are no longer used. Use the address of a photo, or leave it empty for the default picture.' }
+      ]);
+      expect(db.trainers.some(t => t.email === newTrainer.email)).toBe(false);
     });
 
     it('validates the fields', async () => {
@@ -137,6 +157,26 @@ describe('classes: trainers and trainer portal', () => {
       const res = await api().put('/api/trainers/trn_vikram').set(authHeader(personas.admin)).send({ user_id: null });
       expect(res.status).toBe(200);
       expect(res.body.data.user_id).toBeUndefined();
+    });
+
+    it("removes the photo with avatar_url '', on the coach and on their classes", async () => {
+      const admin = authHeader(personas.admin);
+      const photo = 'https://images.example.com/kavya.jpg';
+      expect((await api().put('/api/trainers/trn_kavya').set(admin).send({ avatar_url: photo })).body.data.avatar_url).toBe(photo);
+      expect(db.classes.filter(c => c.trainer_id === 'trn_kavya').every(c => c.trainer_avatar === photo)).toBe(true);
+
+      const res = await api().put('/api/trainers/trn_kavya').set(admin).send({ avatar_url: '' });
+      expect(res.status).toBe(200);
+      expect(res.body.data.avatar_url).toBe('');
+      expect(db.classes.filter(c => c.trainer_id === 'trn_kavya').every(c => c.trainer_avatar === '')).toBe(true);
+    });
+
+    it('refuses a DiceBear picture and keeps the photo it had', async () => {
+      const before = db.trainers.find(t => t.id === 'trn_vikram')!.avatar_url;
+      const res = await api().put('/api/trainers/trn_vikram').set(authHeader(personas.admin)).send({ avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=VR' });
+      expect(res.status).toBe(400);
+      expect(res.body.data.issues[0].path).toBe('avatar_url');
+      expect(db.trainers.find(t => t.id === 'trn_vikram')!.avatar_url).toBe(before);
     });
   });
 
@@ -351,6 +391,16 @@ describe('classes: trainers and trainer portal', () => {
       expect(res.body.data.map((n: any) => n.id).sort()).toEqual(['note_seed_1', 'note_seed_2']);
       expect((await api().get('/api/notes/my').set(authHeader(personas.member))).body.data).toEqual([]);
       expect((await api().get('/api/notes/my')).status).toBe(401);
+    });
+
+    it("gives members what their dashboard shows, not the coach's account id (regression)", async () => {
+      const res = await api().get('/api/notes/my').set(authHeader(personas.basic));
+      expect(res.body.data.length).toBeGreaterThan(0);
+      for (const note of res.body.data) {
+        expect(Object.keys(note).sort()).toEqual(['category', 'created_at', 'id', 'note', 'trainer_name']);
+      }
+      const coachIds = new Set(db.trainer_notes.map(n => n.trainer_user_id));
+      for (const id of coachIds) expect(JSON.stringify(res.body)).not.toContain(id);
     });
   });
 

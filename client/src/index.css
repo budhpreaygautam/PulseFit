@@ -919,3 +919,75 @@ body {
     animation: none;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Header tooltips for icon-only links (Navbar). The text comes from  */
+/* data-tip through ::after and the element is aria-hidden, so the    */
+/* link's own visually hidden label stays its only text and its       */
+/* accessible name. Shown on hover and on keyboard focus.             */
+/* ------------------------------------------------------------------ */
+.nav-tip {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  z-index: 10;
+  /* The gap below the link is padding, not an offset, so the pointer can move from the link onto
+     the tooltip and stay on it (WCAG 1.4.13): the tooltip is inside the link, which keeps :hover.
+     Gap and bubble are kept small so a main-row tooltip ends about 3px above the signed-in row's
+     links (they start some 25px below a main icon) instead of covering their top edge. */
+  padding-top: 0.125rem;
+  transform: translate(-50%, -0.25rem);
+  opacity: 0;
+  visibility: hidden;
+  /* Only a hovered link's tooltip takes the pointer, so it stays hoverable. One shown for keyboard
+     focus, or fading out, lets clicks through to whatever is under it. */
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+}
+.nav-tip::after {
+  content: attr(data-tip);
+  display: block;
+  white-space: nowrap;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 0.875rem;
+  color: #f1f5f9;
+  background-color: rgb(var(--gym-700-rgb) / 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 20px -6px rgba(0, 0, 0, 0.6);
+}
+.light .nav-tip::after {
+  color: #f8fafc;
+  background-color: rgba(15, 23, 42, 0.92);
+  border-color: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 8px 20px -6px rgba(15, 23, 42, 0.35);
+}
+/* On hover only where the pointer can hover: touch browsers keep :hover on the last link tapped,
+   which would leave its tooltip over the next page. (Without hover the header keeps its labelled
+   menu at every width: MENU_HIDDEN in Navbar.) */
+@media (hover: hover) {
+  :hover > .nav-tip {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, 0);
+    pointer-events: auto;
+  }
+}
+:focus-visible > .nav-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
+/* Escape dismisses them (WCAG 1.4.13) until the pointer or focus moves to another link (Navbar). */
+[data-tips-dismissed] .nav-tip {
+  opacity: 0;
+  visibility: hidden;
+}
+/* No slide: the shown states above already use this transform. */
+@media (prefers-reduced-motion: reduce) {
+  .nav-tip {
+    transform: translate(-50%, 0);
+  }
+}

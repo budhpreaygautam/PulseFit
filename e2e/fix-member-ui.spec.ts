@@ -1,5 +1,5 @@
-import { test, expect, APIRequestContext, Page } from '@playwright/test';
-import { signInAs, useSession } from './helpers';
+import { expect, APIRequestContext, Locator, Page } from '@playwright/test';
+import { signInAs, test, useSession } from './helpers';
 
 // Regression checks for the member-facing fixes: freezing, the rest and floor timers, the
 // workout logger, the check-in pass, the free-trial days, the timetable, pricing, sign-in and
@@ -577,6 +577,45 @@ test('for a frozen member, pricing moves the end date by open days, stepping ove
 
   await page.goto('/pricing');
   await expect(page.locator('#plan-pro-note')).toContainText(`The new period starts on ${readable(addDays(end, 1))}, the day after your current one ends.`);
+});
+
+test('the plan buttons keep a short label on one line and give screen readers the plan and price', async ({ page, request, isMobile }) => {
+  const plans = (await (await request.get('/api/plans')).json()).data as Array<{ tier: string; name: string }>;
+  const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const fitsOnOneLine = (button: Locator) => button.locator('span').evaluate(label => label.scrollWidth <= label.clientWidth);
+  // The project's own width (1280 or 412 px), then on desktop the tablet widths where the three cards
+  // sit side by side at their narrowest (the cards are tighter there, from 768 to 1023 px). The cards'
+  // padding animates after a resize, so each check waits for the layout to settle.
+  const widths = [page.viewportSize()!.width, ...(isMobile ? [] : [768, 820, 1024])];
+
+  await page.goto('/pricing');
+  for (const width of widths) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const plan of plans) {
+      const join = page.locator(`#plan-${plan.tier}`).getByRole('button', { name: `Create an account to join ${plan.name}`, exact: true });
+      await expect(join).toHaveText('Create an account to join');
+      await expect.poll(() => fitsOnOneLine(join), { message: `${plan.tier} at ${width}px` }).toBe(true);
+    }
+  }
+
+  await signInAs(page, request, 'vip');
+  await page.route('**/api/config', async route => {
+    const response = await route.fetch();
+    const json = await response.json();
+    json.data.payments = { enabled: true, provider: 'razorpay', keyId: 'rzp_test_e2e' };
+    await route.fulfill({ response, json });
+  });
+  // Annual prices are the longest.
+  await page.goto('/pricing?cycle=annual');
+  for (const width of widths) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const plan of plans) {
+      // The name starts with the visible text, unbroken (WCAG 2.5.3 Label in Name), then adds the plan.
+      const pay = page.locator(`#plan-${plan.tier}`).getByRole('button', { name: new RegExp(`^(Choose|Switch|Renew) plan · ₹[\\d,]+, ${escape(plan.name)}$`) });
+      await expect(pay).toHaveText(/^(Choose|Switch|Renew) plan · ₹[\d,]+$/);
+      await expect.poll(() => fitsOnOneLine(pay), { message: `${plan.tier} at ${width}px` }).toBe(true);
+    }
+  }
 });
 
 test('the open pricing FAQ stays open on the same question when the plans arrive', async ({ page }) => {

@@ -2,6 +2,98 @@
 
 All notable changes to PulseFit. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+The fitness guide now comes with a free account, sign-up asks for gender to pick a default profile picture, the API
+stops answering casual direct access, and the header and pricing cards fit their space.
+
+### Added
+
+- **Gender at sign-up.** Creating an account with email asks for gender (male, female, other or prefer not to say), as
+  four choices that each show the picture they give. It is used only to pick the default picture shown until the person
+  uploads a photo. Members can change it on My account; admins can set, change or clear it when adding or editing a
+  member, and see it in the member's details. Google sign-ups and existing accounts start without one ("Not given"); a
+  new Google account is taken to My account to choose one, unless the person picked a plan first.
+  `POST /api/auth/register` takes an optional `gender`: the sign-up form always asks for it, but the apps installed from
+  2.3.0 do not send one, and their sign-ups keep working (the account starts without one).
+- **Default profile pictures.** Three built-in pictures (male, female and neutral, at `/avatars/*.svg`) replace the
+  initials badges and the DiceBear cartoons everywhere: header, dashboard, My account, QR pass, ID card, member lists
+  and details, rosters, coach lists, the timetable and the check-in scanner. An uploaded photo always wins. The gendered
+  picture shows to the person and admins, and on the person's QR pass and ID card (also one the desk prints), so anyone
+  they show those to sees it; coaches', other members' and visitors' screens always show the neutral one.
+- **`GET /api/guide`** serves the fitness guide (workout plans, diet charts, nutrition rules, supplements and the
+  strength split) to any signed-in account.
+
+### Changed
+
+- **The fitness guide needs a free account.** Guests on `/guide` still see the intro and the three sections, with each
+  plan's name and a one-line summary, then a box to sign in or create a free account. Signed-in members, coaches and
+  admins see everything, straight after signing in, without a reload. On `/strength` guests see the starter split's four
+  days; the exercises and "Log this workout" need an account. The guide is no longer part of the website's code. The
+  home page banner says "FREE WITH AN ACCOUNT", and the search descriptions of `/guide` and `/strength` mention sign-in.
+- **Icons in the header.** Every link has an icon. From 1280 px the public links show only their icons (with their
+  labels they would not fit next to the account buttons), with a tooltip on keyboard focus and, with a mouse or
+  trackpad, on hover. The pointer can move onto a tooltip without it closing, and Escape hides it; tooltips never cover
+  the signed-in row (Dashboard, My bookings, …), which shows only icons below 1280 px. The drop-down menu, used below
+  1280 px and at every width without a mouse or trackpad (touch tablets), keeps icons and labels, and screen readers
+  hear each link's name as before. The header and the demo bar line up with the page and the footer at every width.
+- New members, coaches and admins without a photo have none (`avatar_url: ''`) instead of a DiceBear cartoon, and
+  `PUT /api/auth/profile` accepts `avatar_url: ''` to remove a photo. `POST/PUT /api/trainers` refuse DiceBear
+  addresses for a coach's photo, since the server clears them whenever it starts.
+- `GET /api/notes/my` returns only what the member's dashboard shows: `{ id, trainer_name, category, note, created_at }`.
+- The privacy policy explains the gender question and who sees it, and no longer mentions DiceBear (updated 19 Nov 2026).
+  Each legal page now shows its own "last updated" date, the day its text last changed: the terms of service 9 Oct 2026
+  and the refund policy 19 Oct 2026 (all three used to show 7 Oct 2026).
+
+### Removed
+
+- DiceBear pictures. When the server loads an existing database, it replaces stored DiceBear addresses (on people,
+  coaches, classes and floor sessions) with "no photo", so everyone gets the new default pictures. The old addresses are
+  not kept.
+
+### Fixed
+
+- The pay buttons on the pricing cards wrapped onto two lines ("Choose Dual All-Access Pass (Strength + Zumba) ·
+  ₹999"). They now read "Choose plan", "Switch plan" or "Renew plan" and the price, on one line at every width; the
+  card's heading already names the plan, and screen readers hear the button's text and then the plan's name. The cards
+  are a little tighter between 768 and 1024 px.
+
+### Security
+
+- **The API no longer answers direct visits.** Every `/api` request must carry the `X-Requested-With: PulseFit` header
+  that the website and the apps (2.3.0 and later) already send; without it the answer is the same 404 as an unknown
+  address. The health check and the Razorpay and YouPI webhooks are exempt, and CORS preflights from the website and
+  the apps are answered as before; an `OPTIONS` request from any other site gets the 404 too, so it cannot list which
+  API addresses exist. This stops API answers opening in the address bar, from a link or from another site. It is a
+  deterrent only: a signed-in person's browser always shows them the app's own requests, so what each answer contains
+  is what protects the data. Scripts and monitors that call the API (other than the health check) must now send the
+  header.
+- Who is on the gym floor (names, photos and plans) is sent to admins only; coaches now get the counts, like everyone
+  else.
+- Gender is sent only to the person and to admins, never to coaches, other members or visitors, not even as a picture
+  address.
+- Guests cannot read the fitness guide from the website's code or the API (401), and its answer is never kept by a
+  shared cache (`Cache-Control: private, no-cache`). The downloadable Android app still contains it until it is rebuilt
+  and uploaded again (see Upgrading); `npm run mobile:release` now refuses to build an app that contains it.
+- Source maps (`.map` addresses) are never served, even if a build contains some, also when the address encodes the
+  `.map` (`%2Emap`) or adds a trailing slash, dot or space.
+- Default profile pictures are part of the site instead of loading from api.dicebear.com, so showing one sends nothing
+  to another service.
+
+### Upgrading
+
+- **Rebuild and upload the Android app with this release.** The APK offered at `/downloads/pulsefit.apk` keeps the code
+  it was built from, and a server deploy does not replace it. One built from 2.3.0 still contains the full fitness guide
+  (anyone can unzip it), still shows DiceBear pictures and does not ask for gender at sign-up. Raise `versionCode` and
+  `versionName` in `client/android/app/build.gradle`, run `npm --prefix client run mobile:release`, and upload the APK
+  (and `pulsefit.json`) to the data volume in the same deploy (deploy/README.md › Android app). Do the same for an iOS
+  build if one has been handed out.
+- Apps already installed from 2.3.0 keep working against this server: they send the app header, and their sign-up
+  form, which has no gender question, is still accepted. One exception: their coach form will not save a coach without
+  a photo (when editing it asks for an `https://` photo address), and coaches without a photo now have none (stored
+  DiceBear addresses are cleared, and new coaches without one store `''`). Until the new app is installed, admins must
+  edit such coaches on the website.
+
 ## [2.3.0] — 2026-10-19
 
 v2.3 takes PulseFit live: Android and iOS apps, a security pass, search-engine and speed work, free UPI

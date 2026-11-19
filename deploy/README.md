@@ -123,6 +123,8 @@ An optional `/downloads/pulsefit.json` beside it, `{ "versionName": "1.0.0", "ve
 
 **New version**: in `client/android/app/build.gradle`, raise `versionCode` by 1 and set `versionName` (e.g. `1.0.1`) before building. Android will not install an update whose `versionCode` is not higher than the installed one.
 
+**Rebuild it with every release that changes the app itself** (its pages, pictures or forms), and upload it in the same deploy: the APK keeps the code it was built from, and a server deploy leaves it in place. Anyone can download and unzip it, so it must not contain anything only signed-in accounts may see; `mobile:release` stops if the built app contains the fitness guide, which the server serves to signed-in accounts only (`GET /api/guide`). Until people install the new APK, the old one keeps its old forms: after 2.3.0, its coach form will not save a coach without a photo, so admins edit those coaches on the website.
+
 **Back up the release key.** The first `mobile:release` creates it, with a random password, in:
 
 - `%USERPROFILE%\.pulsefit\pulsefit-release.jks` (the keystore, outside the repo)

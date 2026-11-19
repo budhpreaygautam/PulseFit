@@ -9,7 +9,7 @@ import { formatDate, TIER_LABELS } from '../../lib/format.js';
 import { saveFile } from '../../lib/native.js';
 import { MembershipStatusBadge } from '../member/MembershipStatusBadge.js';
 import { copyText } from '../member/clipboard.js';
-import { fallbackAvatar } from '../member/avatarImage.js';
+import { avatarOf } from '../member/avatarImage.js';
 
 interface DigitalQrPassModalProps {
   isOpen: boolean;
@@ -156,7 +156,7 @@ export const DigitalQrPassModal: React.FC<DigitalQrPassModalProps> = ({ isOpen, 
       <div className="space-y-4">
         <div className="flex items-center gap-3 min-w-0">
           <img
-            src={user.avatar_url || fallbackAvatar(user.name)}
+            src={avatarOf(user)}
             alt=""
             width={48}
             height={48}

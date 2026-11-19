@@ -1,5 +1,5 @@
-import { test, expect, APIRequestContext, Page, TestInfo } from '@playwright/test';
-import { signInAs, useSession } from './helpers';
+import { expect, APIRequestContext, Page, TestInfo } from '@playwright/test';
+import { signInAs, test, useSession } from './helpers';
 
 // The physical ID cards the front desk hands out: the ID cards page, issuing, deactivating and
 // reactivating a card, the scanner refusing a deactivated one, and a card's history in the member's

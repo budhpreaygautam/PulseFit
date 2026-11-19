@@ -101,9 +101,16 @@ function crawlable(robots: string, url: string): boolean {
 }
 
 /**
+ * API answers the public pages ask for only once someone is signed in (the full fitness guide on
+ * /guide and /strength). A crawler is a guest and never reads them, so they stay shut.
+ */
+const SIGNED_IN_ONLY_API_PATHS = ['/api/guide'];
+
+/**
  * The API paths the public pages read in the browser: every api.getX() called by a page App.tsx
  * loads as a public page (or by the components/public widgets they share), mapped to its path
- * through client/src/api/client.ts, plus the app config every page loads.
+ * through client/src/api/client.ts, plus the app config every page loads. Calls made only for a
+ * signed-in account are left out.
  */
 function publicPageApiPaths(): string[] {
   const read = (relative: string) => fs.readFileSync(path.join(CLIENT_SRC, relative), 'utf8');
@@ -132,7 +139,7 @@ function publicPageApiPaths(): string[] {
     }
     for (const [, literal] of source.matchAll(/abortableGet<[^>]*>\('(\/[^']*)'/g)) paths.add(`/api${literal}`);
   }
-  return [...paths].sort();
+  return [...paths].filter(p => !SIGNED_IN_ONLY_API_PATHS.includes(p)).sort();
 }
 
 describe('server copy of the client pages and gym facts', () => {
@@ -218,6 +225,7 @@ describe('GET /robots.txt', () => {
       '/api/trainer/me',
       '/api/trainer/clients',
       '/api/workouts',
+      ...SIGNED_IN_ONLY_API_PATHS,
       '/api/time-tracking/my-stats',
       '/api/analytics/dashboard',
       '/api/trials',

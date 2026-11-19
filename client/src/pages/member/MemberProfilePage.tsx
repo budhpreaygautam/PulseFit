@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext.js';
 import { useToast } from '../../context/ToastContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { api, isApiError } from '../../api/client.js';
-import { Payment, User } from '../../types/index.js';
+import { Gender, Payment, User } from '../../types/index.js';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
 import { DigitalQrPassModal } from '../../components/qr/DigitalQrPassModal.js';
@@ -12,10 +12,10 @@ import { IdCardModal } from '../../components/qr/IdCardModal.js';
 import { MembershipStatusBadge } from '../../components/member/MembershipStatusBadge.js';
 import { InvoiceModal } from '../../components/member/InvoiceModal.js';
 import { useApiResource } from '../../components/member/useApiResource.js';
-import { fallbackAvatar, resizeAvatar } from '../../components/member/avatarImage.js';
+import { avatarOf, resizeAvatar } from '../../components/member/avatarImage.js';
 import { copyText } from '../../components/member/clipboard.js';
 import { TwoStepPanel } from '../../components/member/TwoStepPanel.js';
-import { formatDate, formatDateTime, formatINR, TIER_LABELS, tierLabel } from '../../lib/format.js';
+import { formatDate, formatDateTime, formatINR, GENDER_OPTIONS, TIER_LABELS, tierLabel } from '../../lib/format.js';
 
 interface MemberProfilePageProps {
   setCurrentTab: (tab: string) => void;
@@ -61,14 +61,17 @@ const ProfileDetails: React.FC<{ user: User; onOpenPass: () => void; onOpenIdCar
   const { showToast } = useToast();
   const [name, setName] = useState(user.name);
   const [phone, setPhone] = useState(user.phone ?? '');
-  const [errors, setErrors] = useState<{ name?: string; phone?: string; form?: string }>({});
+  // '' while it has never been given (Google sign-ups, older accounts).
+  const [gender, setGender] = useState<Gender | ''>(user.gender ?? '');
+  const [errors, setErrors] = useState<{ name?: string; phone?: string; gender?: string; form?: string }>({});
   const [isSaving, setIsSaving] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setName(user.name);
     setPhone(user.phone ?? '');
-  }, [user.name, user.phone]);
+    setGender(user.gender ?? '');
+  }, [user.name, user.phone, user.gender]);
 
   useEffect(() => {
     if (!copied) return;
@@ -78,7 +81,7 @@ const ProfileDetails: React.FC<{ user: User; onOpenPass: () => void; onOpenIdCar
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    const changes: { name?: string; phone?: string } = {};
+    const changes: { name?: string; phone?: string; gender?: Gender } = {};
     const next: typeof errors = {};
     const trimmedName = name.trim();
     const trimmedPhone = phone.trim();
@@ -89,6 +92,7 @@ const ProfileDetails: React.FC<{ user: User; onOpenPass: () => void; onOpenIdCar
 
     if (trimmedName !== user.name) changes.name = trimmedName;
     if (trimmedPhone !== (user.phone ?? '')) changes.phone = trimmedPhone;
+    if (gender && gender !== user.gender) changes.gender = gender;
     if (Object.keys(changes).length === 0) {
       showToast('Nothing has changed.', 'info');
       return;
@@ -103,6 +107,7 @@ const ProfileDetails: React.FC<{ user: User; onOpenPass: () => void; onOpenIdCar
       setErrors({
         name: issues.find(i => i.path === 'name')?.message,
         phone: issues.find(i => i.path === 'phone')?.message,
+        gender: issues.find(i => i.path === 'gender')?.message,
         form: issues.length ? undefined : isApiError(err) ? err.message : 'Your profile could not be saved.'
       });
     } finally {
@@ -154,6 +159,30 @@ const ProfileDetails: React.FC<{ user: User; onOpenPass: () => void; onOpenIdCar
               className={inputClass(Boolean(errors.phone))}
             />
             <FieldError id="profile-phone-error" message={errors.phone} />
+          </div>
+          <div>
+            <label htmlFor="profile-gender" className="block text-xs font-bold text-slate-300 mb-1.5">Gender</label>
+            <select
+              id="profile-gender"
+              value={gender}
+              onChange={e => setGender(e.target.value as Gender)}
+              aria-invalid={Boolean(errors.gender)}
+              aria-describedby={errors.gender ? 'profile-gender-hint profile-gender-error' : 'profile-gender-hint'}
+              className={inputClass(Boolean(errors.gender))}
+            >
+              {!user.gender && (
+                <option value="" disabled>
+                  Not given
+                </option>
+              )}
+              {GENDER_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <p id="profile-gender-hint" className="text-[11px] text-slate-500 mt-1">Picks your picture while you have no photo. Only you and the front desk see it.</p>
+            <FieldError id="profile-gender-error" message={errors.gender} />
           </div>
         </div>
         <div>
@@ -601,7 +630,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
       <section className="neu-flat rounded-3xl p-5 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-5">
         <div className="flex items-center gap-4 min-w-0">
           <img
-            src={user.avatar_url || fallbackAvatar(user.name)}
+            src={avatarOf(user)}
             alt="Your profile photo"
             width={96}
             height={96}

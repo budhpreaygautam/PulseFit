@@ -47,7 +47,7 @@ type Actor = Pick<IdCardEvent, 'by_id' | 'by_name'>;
 interface IdCardRow {
   user: Pick<
     SafeUser,
-    'id' | 'name' | 'email' | 'phone' | 'avatar_url' | 'role' | 'membership_tier' | 'membership_status' | 'membership_expiry' | 'created_at'
+    'id' | 'name' | 'email' | 'phone' | 'avatar_url' | 'gender' | 'role' | 'membership_tier' | 'membership_status' | 'membership_expiry' | 'created_at'
   >;
   card_status: CardStatus;
   card: IdCard | null;
@@ -115,6 +115,8 @@ function toRow(user: User, cards: IdCard[]): IdCardRow {
       email: safe.email,
       phone: safe.phone,
       avatar_url: safe.avatar_url,
+      // Admin-only list: the gender picks the default picture on the card the desk prints.
+      ...(safe.gender ? { gender: safe.gender } : {}),
       role: safe.role,
       membership_tier: safe.membership_tier,
       membership_status: safe.membership_status,

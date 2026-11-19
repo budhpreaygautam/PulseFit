@@ -151,7 +151,7 @@ export const RosterModal: React.FC<RosterModalProps> = ({ session, onClose, onCh
                 return (
                   <li key={a.booking_id} className="neu-pressed-sm rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <Avatar src={a.user_avatar} name={a.user_name} />
+                      <Avatar src={a.user_avatar} />
                       <div className="min-w-0">
                         <p className="font-bold text-sm text-slate-100 flex flex-wrap items-center gap-2">
                           <span className="break-words">{a.user_name}</span>

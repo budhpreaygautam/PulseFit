@@ -7,8 +7,6 @@ import { formatDate } from '../../lib/format.js';
 
 type Kind = 'privacy' | 'terms' | 'refunds';
 
-const LAST_UPDATED = '2026-10-07';
-
 interface Section {
   heading: string;
   body: React.ReactNode;
@@ -44,6 +42,12 @@ const PRIVACY: Section[] = [
         <li>
           <strong>Your account:</strong> name, email address, an optional mobile number and a profile picture. We use them to identify you at the front desk and to
           contact you about your membership. Your password is stored only as a one-way hash; we never see it.
+        </li>
+        <li>
+          <strong>Gender:</strong> asked when you create an account with your email (male, female, other or prefer not to say). We use it for one thing only: choosing
+          the default picture shown until you upload a photo, a male or female figure, or a neutral one for "other" and "prefer not to say". It is not
+          used for pricing, classes, marketing or anything else. Accounts created with Google start without one; the front desk may record it when creating your
+          account if you tell them. You can choose or change it at any time on your account page.
         </li>
         <li>
           <strong>Google sign-in (if you choose it):</strong> the Google account identifier, name and verified email address Google shares with us. We use them only to sign
@@ -87,8 +91,9 @@ const PRIVACY: Section[] = [
           the bank's payment alert. Google processes sign-in if you use "Continue with Google".
         </li>
         <li>
-          Until you choose your own photo, your account picture is a cartoon avatar drawn by DiceBear (api.dicebear.com). Only your initials and a random code are
-          sent to DiceBear, never your name, whenever the picture is shown. To stop this, upload your own photo on your account page.
+          Your gender is sent only to you and to front-desk and admin staff. Until you upload a photo, your QR pass and ID card (also one the front desk prints) show the
+          default picture for your gender, so anyone you show them to can see it. Everywhere else in our website and app, coaches, other members and visitors see the
+          same neutral picture for everyone without a photo. The default pictures are part of our website and app, so showing them sends nothing about you to anyone.
         </li>
         <li>
           Our pages load fonts from Google Fonts and photos from Unsplash. Like any website you visit, those services see your IP address and browser details, but not your
@@ -123,7 +128,7 @@ const PRIVACY: Section[] = [
         <p>Under India's Digital Personal Data Protection Act, 2023 you can:</p>
         <ul>
           <li>see the personal data we hold about you and how we use it;</li>
-          <li>correct it: you can change your name, phone number and photo yourself on your account page, and the front desk can fix anything else;</li>
+          <li>correct it: you can change your name, phone number, gender and photo yourself on your account page, and the front desk can fix anything else;</li>
           <li>ask us to delete your account and the data listed above (except records we must keep by law);</li>
           <li>withdraw consent you gave, for example by removing your phone number or asking us to delete your account;</li>
           <li>raise a complaint with us, and then with the Data Protection Board of India if you are not satisfied.</li>
@@ -330,10 +335,11 @@ const REFUNDS: Section[] = [
   }
 ];
 
-const CONTENT: Record<Kind, { title: string; intro: string; sections: Section[] }> = {
-  privacy: { title: 'Privacy policy', intro: 'What we collect, why, how long we keep it, and your rights.', sections: PRIVACY },
-  terms: { title: 'Terms of service', intro: 'The rules for using the gym, the website and your membership.', sections: TERMS },
-  refunds: { title: 'Refund & cancellation policy', intro: 'How payments, cancellations, freezes and refunds work.', sections: REFUNDS }
+// Each policy has its own "last updated" date: change it together with that policy's text only.
+const CONTENT: Record<Kind, { title: string; intro: string; sections: Section[]; updated: string }> = {
+  privacy: { title: 'Privacy policy', intro: 'What we collect, why, how long we keep it, and your rights.', sections: PRIVACY, updated: '2026-11-19' },
+  terms: { title: 'Terms of service', intro: 'The rules for using the gym, the website and your membership.', sections: TERMS, updated: '2026-10-09' },
+  refunds: { title: 'Refund & cancellation policy', intro: 'How payments, cancellations, freezes and refunds work.', sections: REFUNDS, updated: '2026-10-19' }
 };
 
 function TabLinkInline({ tab, children }: { tab: string; children: React.ReactNode }) {
@@ -347,7 +353,7 @@ function TabLinkInline({ tab, children }: { tab: string; children: React.ReactNo
 
 export const LegalPage: React.FC<{ kind: Kind }> = ({ kind }) => {
   const { navigate } = useNavigation();
-  const { title, intro, sections } = CONTENT[kind];
+  const { title, intro, sections, updated } = CONTENT[kind];
 
   return (
     <article className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
@@ -358,7 +364,7 @@ export const LegalPage: React.FC<{ kind: Kind }> = ({ kind }) => {
         <h1 className="text-3xl sm:text-4xl font-black text-slate-100 font-heading">{title}</h1>
         <p className="text-sm text-slate-400">{intro}</p>
         <p className="text-xs text-slate-500">
-          {GYM_NAME} · Last updated <time dateTime={LAST_UPDATED}>{formatDate(LAST_UPDATED, { day: 'numeric', month: 'long', year: 'numeric' })}</time>
+          {GYM_NAME} · Last updated <time dateTime={updated}>{formatDate(updated, { day: 'numeric', month: 'long', year: 'numeric' })}</time>
         </p>
       </header>
 

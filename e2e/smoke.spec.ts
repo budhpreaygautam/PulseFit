@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { signInAs, trackConsoleErrors } from './helpers';
+import { expect } from '@playwright/test';
+import { signInAs, test, trackConsoleErrors } from './helpers';
 
 const PUBLIC_ROUTES = ['/', '/strength', '/zumba', '/guide', '/schedule', '/pricing', '/coaches', '/exercises', '/privacy', '/terms', '/refund-policy'];
 

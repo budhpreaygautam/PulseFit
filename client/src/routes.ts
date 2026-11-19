@@ -40,7 +40,7 @@ export const ROUTES: RouteDef[] = [
     title: 'Strength floor',
     searchTitle: 'Strength training gym in Gurugram',
     description:
-      'Racks, barbells and free weights near Cyber Hub, Gurugram. See the weekly strength classes, what is on the floor and a 4-day split to start with.',
+      'Racks, barbells and free weights near Cyber Hub, Gurugram. See the weekly strength classes and what is on the floor; sign in for a 4-day starter split.',
     indexable: true,
     access: 'public'
   },
@@ -60,7 +60,7 @@ export const ROUTES: RouteDef[] = [
     title: 'Training plans & diets',
     searchTitle: 'Workout plans & Indian diet charts',
     description:
-      'Workout splits, high-protein Indian diet and meal charts with calories, and a research-backed supplements guide from PulseFit Athletics, Gurugram.',
+      'Workout splits, high-protein Indian diet charts and a supplements guide from PulseFit Athletics, Gurugram. Sign in with a free account to read them in full.',
     indexable: true,
     access: 'public'
   },

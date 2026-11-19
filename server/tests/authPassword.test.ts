@@ -72,8 +72,9 @@ describe('PUT /auth/password', () => {
       expect(res.status).toBe(400);
       expect(res.body.code).toBe('VALIDATION_ERROR');
     }
-    const reg = await api().post('/api/auth/register').send({ name: 'Zoë', email: 'zoe@example.com', password: 'ü'.repeat(35) + 'a12' });
+    const reg = await api().post('/api/auth/register').send({ name: 'Zoë', email: 'zoe@example.com', password: 'ü'.repeat(35) + 'a12', gender: 'female' });
     expect(reg.status).toBe(400);
+    expect(reg.body.data.issues.map((i: { path: string }) => i.path)).toEqual(['password']);
 
     const fits = 'é'.repeat(34) + 'a1';
     expect(Buffer.byteLength(fits)).toBe(70);

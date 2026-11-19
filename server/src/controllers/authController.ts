@@ -5,11 +5,11 @@ import config, { googleSignInEnabled } from '../config.js';
 import db from '../db/database.js';
 import { AuthenticatedRequest, clearSessionCookie, generateMfaToken, issueSession } from '../middleware/auth.js';
 import { ApiError, asyncHandler, conflict, forbidden, notFound, ok, parse, unauthorized, unavailable } from '../lib/http.js';
-import { defaultAvatar, findUserByEmail, generateQrToken, newId, toSafeUser } from '../lib/users.js';
+import { findUserByEmail, GENDERS, generateQrToken, newId, toSafeUser } from '../lib/users.js';
 import { InvalidGoogleTokenError, verifyGoogleCredential } from '../lib/google.js';
 import { isCommonPassword } from '../lib/passwordPolicy.js';
-import { isAllowedRemoteImageUrl, validateImageDataUrl } from '../lib/imageValidation.js';
-import { User } from '../types/index.js';
+import { validateImageDataUrl } from '../lib/imageValidation.js';
+import { Gender, User } from '../types/index.js';
 
 export const BCRYPT_ROUNDS = 10;
 
@@ -45,10 +45,8 @@ const phoneSchema = z
   .max(20, 'Enter a valid phone number.')
   .refine(v => v === '' || /^\+?[0-9][0-9\s()-]{6,19}$/.test(v), 'Enter a valid phone number, for example +91 98110 12345.');
 
-// The generated default picture is the only remote image a member may keep: any other address would
-// make staff browsers fetch a URL of the member's choosing.
-const DEFAULT_AVATAR_PREFIX = 'https://api.dicebear.com/';
-
+// An uploaded photo, or '' to remove it (the apps then show the default picture). Never an address:
+// that would make staff browsers fetch a URL of the member's choosing.
 const avatarSchema = z
   .string()
   .max(350_000, 'The profile photo is too large. Please choose a smaller image.')
@@ -56,10 +54,16 @@ const avatarSchema = z
     if (v.startsWith('data:')) {
       const check = validateImageDataUrl(v);
       if (!check.ok) ctx.addIssue({ code: 'custom', message: check.error });
-    } else if (!v.startsWith(DEFAULT_AVATAR_PREFIX) || !isAllowedRemoteImageUrl(v)) {
+    } else if (v !== '') {
       ctx.addIssue({ code: 'custom', message: 'Upload a PNG, JPEG or WebP photo.' });
     }
   });
+
+// Picks the default picture. The sign-up form always asks for it, but registering does not require
+// it: the apps released in 2.3.0 (and their downloadable APK) send no gender, and refusing them would
+// leave installed apps unable to create accounts. Such accounts, Google sign-ups and older accounts
+// have none ("not given") until the person sets it on their account page.
+const genderSchema = z.enum(GENDERS, { error: 'Choose your gender, or "Prefer not to say".' });
 
 const loginSchema = z.object({
   email: z.string({ error: 'Enter your email address.' }).trim().toLowerCase().min(1, 'Enter your email address.').max(254),
@@ -70,7 +74,8 @@ const registerSchema = z.object({
   name: nameSchema,
   email: emailSchema,
   password: newPasswordSchema,
-  phone: phoneSchema.optional()
+  phone: phoneSchema.optional(),
+  gender: genderSchema.optional()
 });
 
 const googleSchema = z.object({
@@ -107,11 +112,12 @@ const profileSchema = z.strictObject(
   {
     name: nameSchema.optional(),
     phone: phoneSchema.optional(),
+    gender: genderSchema.optional(),
     avatar_url: avatarSchema.optional()
   },
   {
     error: issue =>
-      issue.code === 'unrecognized_keys' ? 'Only your name, phone number and photo can be changed here.' : undefined
+      issue.code === 'unrecognized_keys' ? 'Only your name, phone number, gender and photo can be changed here.' : undefined
   }
 );
 
@@ -121,7 +127,7 @@ export function session(req: Request, res: Response, user: User) {
 }
 
 /** A new member account: no plan until they pay (or an admin grants one). */
-function newMember(fields: { name: string; email: string; phone?: string; password_hash?: string; google_sub?: string }): User {
+function newMember(fields: { name: string; email: string; phone?: string; gender?: Gender; password_hash?: string; google_sub?: string }): User {
   return {
     id: newId('usr'),
     name: fields.name,
@@ -129,7 +135,8 @@ function newMember(fields: { name: string; email: string; phone?: string; passwo
     ...(fields.password_hash ? { password_hash: fields.password_hash } : {}),
     ...(fields.google_sub ? { google_sub: fields.google_sub } : {}),
     role: 'member',
-    avatar_url: defaultAvatar(fields.name),
+    avatar_url: '',
+    ...(fields.gender ? { gender: fields.gender } : {}),
     phone: fields.phone ?? '',
     membership_tier: 'none',
     membership_status: 'pending',
@@ -175,14 +182,14 @@ export function signInResult(req: Request, res: Response, user: User) {
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   // Any tier, role or status in the body is ignored: the schema strips unknown keys.
-  const { name, email, password, phone } = parse(registerSchema, req.body);
+  const { name, email, password, phone, gender } = parse(registerSchema, req.body);
   if (findUserByEmail(email)) throw emailTaken();
 
   const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   // Another request may have registered the same email while we were hashing.
   if (findUserByEmail(email)) throw emailTaken();
 
-  const user = newMember({ name, email, phone, password_hash });
+  const user = newMember({ name, email, phone, gender, password_hash });
   db.users = [...db.users, user];
 
   return ok(res, session(req, res, user), 'Welcome to PulseFit! Choose a plan to start training.', 201);
@@ -258,6 +265,7 @@ export const updateProfile = asyncHandler(async (req: AuthenticatedRequest, res:
     ...current,
     ...(changes.name !== undefined ? { name: changes.name } : {}),
     ...(changes.phone !== undefined ? { phone: changes.phone } : {}),
+    ...(changes.gender !== undefined ? { gender: changes.gender } : {}),
     ...(changes.avatar_url !== undefined ? { avatar_url: changes.avatar_url } : {})
   };
   db.users = db.users.map(u => (u.id === updated.id ? updated : u));

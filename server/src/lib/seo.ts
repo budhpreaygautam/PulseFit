@@ -37,7 +37,7 @@ export const PAGES: readonly PageMeta[] = [
     path: '/strength',
     title: 'Strength training gym in Gurugram',
     description:
-      'Racks, barbells and free weights near Cyber Hub, Gurugram. See the weekly strength classes, what is on the floor and a 4-day split to start with.',
+      'Racks, barbells and free weights near Cyber Hub, Gurugram. See the weekly strength classes and what is on the floor; sign in for a 4-day starter split.',
     indexable: true,
     heroImage: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=1600&auto=format&fit=crop&q=80'
   },
@@ -53,7 +53,7 @@ export const PAGES: readonly PageMeta[] = [
     path: '/guide',
     title: 'Workout plans & Indian diet charts',
     description:
-      'Workout splits, high-protein Indian diet and meal charts with calories, and a research-backed supplements guide from PulseFit Athletics, Gurugram.',
+      'Workout splits, high-protein Indian diet charts and a supplements guide from PulseFit Athletics, Gurugram. Sign in with a free account to read them in full.',
     indexable: true
   },
   {
@@ -283,7 +283,9 @@ const websiteIndexable = () => config.allowIndexing && config.serveClient;
  * The read-only API answers the public pages are drawn from in the browser (plans, classes, coaches,
  * exercises, the floor count and the app config). Google's renderer obeys robots.txt for these
  * requests too, so they stay open or the indexed pages would show only their loading or error panels.
- * They are still never indexed themselves: every /api answer carries X-Robots-Tag: noindex.
+ * They are still never indexed themselves: every /api answer carries X-Robots-Tag: noindex. The
+ * renderer runs the app, which sends its X-Requested-With header; a crawler fetching these addresses
+ * directly gets a 404 (requireAppHeader in middleware/auth.ts), which costs nothing.
  */
 export const PUBLIC_API_PATHS = [
   '/api/config',

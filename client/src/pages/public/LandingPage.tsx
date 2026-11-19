@@ -7,6 +7,7 @@ import { EmptyState, ErrorState } from '../../components/common/States.js';
 import { CardSkeletons } from '../../components/public/CardSkeletons.js';
 import { HERO_PHOTOS, HIGH_FETCH_PRIORITY, unsplashSrcSet } from '../../components/public/media.js';
 import { useApiData } from '../../components/public/useApiData.js';
+import { defaultAvatar } from '../../components/member/avatarImage.js';
 import { cheapestPlan, cheapestPlanFor } from '../../components/public/plans.js';
 import { HOURS_DAYS, HOURS_TIME, isGymOpenNow, mondayOf } from '../../components/public/gymInfo.js';
 import { useAuth } from '../../context/AuthContext.js';
@@ -369,7 +370,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="neu-flat p-6 sm:p-10 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="space-y-2 text-center md:text-left">
-            <Badge variant="cyan">FREE GUIDES</Badge>
+            <Badge variant="cyan">FREE WITH AN ACCOUNT</Badge>
             <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-heading">WORKOUT SPLITS, INDIAN DIET CHARTS & SUPPLEMENTS</h2>
             <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
               Muscle-gain, fat-loss and vegetarian high-protein meal plans built on Indian staples, plus 4- and 5-day training splits and a plain-language supplements guide.
@@ -467,17 +468,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
             {trainers.data.slice(0, 4).map(trainer => (
               <li key={trainer.id} className="neu-flat rounded-2xl overflow-hidden border border-slate-800">
                 <div className="relative h-56 sm:h-60 overflow-hidden bg-black">
-                  {trainer.avatar_url && (
-                    <img
-                      src={trainer.avatar_url}
-                      alt={`Portrait of ${trainer.name}`}
-                      width={300}
-                      height={240}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-full object-cover object-top"
-                    />
-                  )}
+                  <img
+                    src={trainer.avatar_url || defaultAvatar()}
+                    alt={trainer.avatar_url ? `Portrait of ${trainer.name}` : ''}
+                    width={300}
+                    height={240}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover object-top"
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                   <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
                     <span className={`${photoChip} text-zinc-100`}>

@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../../components/common/ConfirmDialog.js';
 import { EmptyState, ErrorState } from '../../components/common/States.js';
 import { CardSkeletons } from '../../components/public/CardSkeletons.js';
 import { useApiData } from '../../components/public/useApiData.js';
+import { defaultAvatar } from '../../components/member/avatarImage.js';
 import { cheapestPlanFor, planCovers } from '../../components/public/plans.js';
 import { CATEGORIES, HOURS_DAYS, HOURS_TIME, mondayOf, weekdayOf } from '../../components/public/gymInfo.js';
 import { useAuth } from '../../context/AuthContext.js';
@@ -760,9 +761,9 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
                         </div>
                         <div className="flex items-center justify-between pt-2 text-xs border-t border-slate-800/80 gap-2">
                           <div className="flex items-center gap-2 min-w-0">
-                            {c.trainer_avatar && (
+                            {c.trainer_name && (
                               <img
-                                src={c.trainer_avatar}
+                                src={c.trainer_avatar || defaultAvatar()}
                                 alt=""
                                 width={28}
                                 height={28}
@@ -860,8 +861,8 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
             </dl>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-slate-800/80">
               <div className="flex items-center gap-3">
-                {detail.trainer_avatar && (
-                  <img src={detail.trainer_avatar} alt="" width={40} height={40} decoding="async" className="w-10 h-10 rounded-full object-cover border border-slate-700" />
+                {detail.trainer_name && (
+                  <img src={detail.trainer_avatar || defaultAvatar()} alt="" width={40} height={40} decoding="async" className="w-10 h-10 rounded-full object-cover border border-slate-700" />
                 )}
                 <div>
                   <div className="text-xs text-slate-400">Coach</div>

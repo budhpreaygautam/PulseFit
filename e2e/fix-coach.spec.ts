@@ -1,5 +1,5 @@
-import { test, expect, APIRequestContext, Page } from '@playwright/test';
-import { signInAs, trackConsoleErrors } from './helpers';
+import { expect, APIRequestContext, Page } from '@playwright/test';
+import { signInAs, test, trackConsoleErrors } from './helpers';
 
 // Coach portal fixes: admins open any coach's dashboard, every booked session of the last 14 days
 // can be opened, the roster keeps its booked count and unlocks itself (also after the computer

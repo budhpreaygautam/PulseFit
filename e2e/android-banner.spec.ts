@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-import { trackConsoleErrors } from './helpers';
+import { expect, type Page } from '@playwright/test';
+import { test, trackConsoleErrors } from './helpers';
 
 // The "Get the PulseFit app" bar and the footer link, offered when GET /api/config reports an APK
 // (androidApp). The test server has none, so /api/config is answered with one here. The mobile

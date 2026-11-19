@@ -104,7 +104,7 @@ describe('POST /auth/google', () => {
   it('regression: linking ends the access of whoever registered the email first', async () => {
     // The attacker registers the victim's address before the victim ever signs up.
     const victim = 'victim@gmail.com';
-    const squatted = await api().post('/api/auth/register').send({ name: 'Attacker', email: victim, password: 'Squat2026' });
+    const squatted = await api().post('/api/auth/register').send({ name: 'Attacker', email: victim, password: 'Squat2026', gender: 'other' });
     expect(squatted.status).toBe(201);
     const attackerHeader = { Authorization: `Bearer ${squatted.body.data.token}` };
     const reset = await api().post('/api/auth/forgot-password').send({ email: victim });

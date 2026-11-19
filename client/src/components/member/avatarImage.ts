@@ -1,13 +1,23 @@
+import { Gender } from '../../types/index.js';
+
 // The API accepts a profile photo as a data URL of at most 350 000 characters inside a 512 KB
 // JSON body, so photos are shrunk in the browser before upload.
 export const AVATAR_MAX_SIZE = 256;
 export const AVATAR_MAX_CHARS = 350_000;
 
-/** Picture for an account without a photo, seeded with initials only (no full name sent to DiceBear). */
-export function fallbackAvatar(name: string): string {
-  const initials = name.trim().split(/\s+/).map(p => p[0] ?? '').join('').toUpperCase().slice(0, 3) || 'PF';
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(initials)}`;
+/**
+ * The picture for someone without a photo, shipped with the app (client/public/avatars), so
+ * nothing about them goes to another service. Only the person and admins receive a gender; every
+ * other view (coaches, the public, the check-in scanner) passes none and gets the neutral one.
+ */
+export function defaultAvatar(gender?: Gender | null): string {
+  const file = gender === 'male' || gender === 'female' ? gender : 'neutral';
+  return `${import.meta.env.BASE_URL}avatars/${file}.svg`;
 }
+
+/** Their photo when they have one (it always wins), else the default picture. */
+export const avatarOf = (person: { avatar_url?: string | null; gender?: Gender | null }): string =>
+  person.avatar_url || defaultAvatar(person.gender);
 
 function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {

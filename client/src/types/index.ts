@@ -6,13 +6,17 @@ export type PaidTier = Exclude<MembershipTier, 'none'>;
 export type MembershipStatus = 'active' | 'expired' | 'pending' | 'frozen';
 export type BillingCycle = 'monthly' | 'annual';
 export type ClassCategory = 'Workout & Strength' | 'Zumba & Cardio';
+export type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
 
 export interface User {
   id: string;
   email: string;
   name: string;
   role: UserRole;
+  /** Their photo; '' or missing = none (the default picture shows, see avatarImage.ts). */
   avatar_url?: string;
+  /** Sent only to the person and to admins. Missing = not given. Picks the default picture. */
+  gender?: Gender;
   phone?: string;
   membership_tier: MembershipTier;
   // Effective today: a membership past its expiry date arrives as 'expired'.
@@ -201,6 +205,9 @@ export interface TrainerNote {
   created_at: string;
 }
 
+/** A coach's note as the member it is about receives it (GET /notes/my). */
+export type MemberNote = Pick<TrainerNote, 'id' | 'trainer_name' | 'category' | 'note' | 'created_at'>;
+
 export interface AttendanceLog {
   id: string;
   user_id: string;
@@ -299,7 +306,7 @@ export interface IssuedIdCard {
 }
 
 export interface IdCardRow {
-  user: Pick<User, 'id' | 'name' | 'email' | 'phone' | 'avatar_url' | 'role' | 'membership_tier' | 'membership_status' | 'membership_expiry' | 'created_at'>;
+  user: Pick<User, 'id' | 'name' | 'email' | 'phone' | 'avatar_url' | 'gender' | 'role' | 'membership_tier' | 'membership_status' | 'membership_expiry' | 'created_at'>;
   // Status of the current card; 'none' when no card was ever issued.
   card_status: IdCardStatus | 'none';
   // The active card, else the most recently issued one.
@@ -471,7 +478,7 @@ export interface TimeSession {
   notes?: string;
 }
 
-/** Who is on the floor (staff only): no emails, notes or session ids. */
+/** Who is on the floor (admins only): no emails, notes or session ids. */
 export interface FloorPresence {
   user_name: string;
   user_avatar: string;
@@ -484,7 +491,7 @@ export interface ActiveFloorStatus {
   totalActive: number;
   workoutActive: number;
   zumbaActive: number;
-  // Only sent to staff.
+  // Only sent to admins.
   workoutUsers?: FloorPresence[];
   zumbaUsers?: FloorPresence[];
 }
@@ -495,4 +502,62 @@ export interface UserTimeTrackingStats {
   totalTimeMinutesThisMonth: number;
   totalSessionsCompleted: number;
   recentSessions: TimeSession[];
+}
+
+// GET /api/guide: the full fitness guide, for signed-in accounts only. Guests see a teaser.
+
+export interface GuideExercise {
+  name: string;
+  sets: string;
+  reps: string;
+  rest: string;
+  tip: string;
+}
+
+export interface GuideWorkoutPlan {
+  id: string;
+  name: string;
+  level: string;
+  goal: string;
+  frequency: string;
+  description: string;
+  days: { name: string; exercises: GuideExercise[] }[];
+}
+
+export interface GuideMeal {
+  timing: string;
+  name: string;
+  items: string[];
+  /** kcal for this meal. */
+  calories: number;
+}
+
+export interface GuideDietChart {
+  id: string;
+  title: string;
+  type: string;
+  macros: { protein_g: number; carbs_g: number; fats_g: number };
+  description: string;
+  meals: GuideMeal[];
+}
+
+export interface GuideSupplement {
+  name: string;
+  badge: string;
+  /** Out of 5. */
+  stars: number;
+  verdict: string;
+  dosage: string;
+  timing: string;
+  why: string;
+  faqs: { question: string; answer: string }[];
+}
+
+export interface FitnessGuide {
+  workout_plans: GuideWorkoutPlan[];
+  diet_charts: GuideDietChart[];
+  nutrition_rules: { emoji: string; title: string; text: string }[];
+  supplements: GuideSupplement[];
+  /** The 4-day body-part split on the strength floor page. */
+  strength_split: { day: string; title: string; exercises: string[] }[];
 }

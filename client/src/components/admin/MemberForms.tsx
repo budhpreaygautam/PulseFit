@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { MembershipStatus, MembershipTier, User, UserRole } from '../../types/index.js';
+import { Gender, MembershipStatus, MembershipTier, User, UserRole } from '../../types/index.js';
 import { ApiError, api } from '../../api/client.js';
 import { Modal } from '../common/Modal.js';
-import { STATUS_LABELS, TIER_LABELS, gymToday } from '../../lib/format.js';
+import { GENDER_OPTIONS, STATUS_LABELS, TIER_LABELS, gymToday } from '../../lib/format.js';
 import { FieldError, FormError, focusRing, formErrorsFrom, hintClass, inputClass, labelClass, sideEffectsOf } from './ui.js';
 
 const TIERS: MembershipTier[] = ['none', 'basic', 'pro', 'vip'];
@@ -17,8 +17,8 @@ const ROLES: { value: UserRole; label: string }[] = [
 type Errors = Record<string, string>;
 
 // The fields each form shows a FieldError for; any other server issue goes to the form-level error.
-const CREATE_FIELDS = ['name', 'email', 'phone', 'expiry_months'];
-const EDIT_FIELDS = ['name', 'phone', 'role', 'membership_tier', 'membership_status', 'membership_expiry'];
+const CREATE_FIELDS = ['name', 'email', 'phone', 'gender', 'expiry_months'];
+const EDIT_FIELDS = ['name', 'phone', 'gender', 'role', 'membership_tier', 'membership_status', 'membership_expiry'];
 
 const FormButtons: React.FC<{ onCancel: () => void; isSaving: boolean; submitLabel: string }> = ({ onCancel, isSaving, submitLabel }) => (
   <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4 border-t border-slate-800/80">
@@ -39,6 +39,20 @@ const FormButtons: React.FC<{ onCancel: () => void; isSaving: boolean; submitLab
 const describedBy = (id: string, errors: Errors, key: string, hint?: boolean) =>
   [errors[key] ? `${id}-error` : '', hint ? `${id}-hint` : ''].filter(Boolean).join(' ') || undefined;
 
+/** Gender is optional for accounts the desk creates; '' = not given. It only picks the default picture. */
+const GenderSelect: React.FC<{ id: string; value: Gender | ''; onChange: (value: Gender | '') => void; error?: string }> = ({ id, value, onChange, error }) => (
+  <div>
+    <label htmlFor={id} className={labelClass}>Gender (optional)</label>
+    <select id={id} value={value} onChange={e => onChange(e.target.value as Gender | '')} className={inputClass} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined}>
+      <option value="">Not given</option>
+      {GENDER_OPTIONS.map(o => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
+    <FieldError id={`${id}-error`} message={error} />
+  </div>
+);
+
 // ---------------------------------------------------------------------------------------------
 
 interface CreateMemberModalProps {
@@ -48,14 +62,14 @@ interface CreateMemberModalProps {
 }
 
 export const CreateMemberModal: React.FC<CreateMemberModalProps> = ({ isOpen, onClose, onCreated }) => {
-  const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'member' as UserRole, membership_tier: 'none' as MembershipTier, expiry_months: '0' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', gender: '' as Gender | '', role: 'member' as UserRole, membership_tier: 'none' as MembershipTier, expiry_months: '0' });
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      setForm({ name: '', email: '', phone: '', role: 'member', membership_tier: 'none', expiry_months: '0' });
+      setForm({ name: '', email: '', phone: '', gender: '', role: 'member', membership_tier: 'none', expiry_months: '0' });
       setErrors({});
       setFormError(null);
     }
@@ -87,6 +101,7 @@ export const CreateMemberModal: React.FC<CreateMemberModalProps> = ({ isOpen, on
         name: form.name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim() || undefined,
+        gender: form.gender || undefined,
         role: form.role,
         membership_tier: form.membership_tier,
         expiry_months: Number(form.expiry_months)
@@ -125,6 +140,7 @@ export const CreateMemberModal: React.FC<CreateMemberModalProps> = ({ isOpen, on
           <input id="new-phone" type="tel" autoComplete="off" value={form.phone} onChange={e => set('phone', e.target.value)} className={inputClass} aria-invalid={!!errors.phone} aria-describedby={describedBy('new-phone', errors, 'phone')} />
           <FieldError id="new-phone-error" message={errors.phone} />
         </div>
+        <GenderSelect id="new-gender" value={form.gender} onChange={v => set('gender', v)} error={errors.gender} />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label htmlFor="new-role" className={labelClass}>Role</label>
@@ -170,7 +186,7 @@ interface EditMemberModalProps {
 }
 
 export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, currentUserId, onClose, onSaved }) => {
-  const [form, setForm] = useState({ name: '', phone: '', role: 'member' as UserRole, membership_tier: 'none' as MembershipTier, membership_status: 'pending' as MembershipStatus, expiry: '', noExpiry: false });
+  const [form, setForm] = useState({ name: '', phone: '', gender: '' as Gender | '', role: 'member' as UserRole, membership_tier: 'none' as MembershipTier, membership_status: 'pending' as MembershipStatus, expiry: '', noExpiry: false });
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -180,6 +196,7 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, curren
     setForm({
       name: member.name,
       phone: member.phone ?? '',
+      gender: member.gender ?? '',
       role: member.role,
       membership_tier: member.membership_tier,
       membership_status: member.membership_status,
@@ -239,6 +256,7 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, curren
     const changes: Parameters<typeof api.updateMember>[1] = {};
     if (form.name.trim() !== member.name) changes.name = form.name.trim();
     if (form.phone.trim() !== (member.phone ?? '')) changes.phone = form.phone.trim();
+    if (form.gender !== (member.gender ?? '')) changes.gender = form.gender || null;
     if (form.role !== member.role) changes.role = form.role;
     if (form.membership_tier !== member.membership_tier) changes.membership_tier = form.membership_tier;
     if (expiry !== member.membership_expiry) changes.membership_expiry = expiry;
@@ -286,6 +304,7 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, curren
           <input id="edit-phone" type="tel" value={form.phone} onChange={e => set('phone', e.target.value)} className={inputClass} aria-invalid={!!errors.phone} aria-describedby={describedBy('edit-phone', errors, 'phone')} />
           <FieldError id="edit-phone-error" message={errors.phone} />
         </div>
+        <GenderSelect id="edit-gender" value={form.gender} onChange={v => set('gender', v)} error={errors.gender} />
         <div>
           <label htmlFor="edit-role" className={labelClass}>Role</label>
           <select id="edit-role" value={form.role} disabled={isSelf} onChange={e => set('role', e.target.value as UserRole)} className={inputClass} aria-invalid={!!errors.role} aria-describedby={describedBy('edit-role', errors, 'role', isSelf)}>

@@ -10,7 +10,8 @@ Failure: `{ "success": false, "error": "<sentence a member can read>", "code"?: 
 Clients branch on `code`, never on the `error` text.
 
 Common codes: `VALIDATION_ERROR` (400, `data.issues = [{ path, message }]`), `UNAUTHORIZED` (401: missing,
-invalid, expired or revoked token; the client signs the user out), `FORBIDDEN` (403), `NOT_FOUND` (404),
+invalid, expired or revoked token; the client signs the user out), `FORBIDDEN` (403), `NOT_FOUND` (404; also an unknown
+route, or a request without the app header: see **App header**),
 `RATE_LIMITED` (429), `INTERNAL` (500).
 
 **Auth.** A sign-in starts a session in one of two forms, chosen by the request's `Origin`:
@@ -24,6 +25,19 @@ The API accepts the bearer header first, then the cookie. **CSRF:** a `POST`/`PU
 cookie (and no bearer header) must send `X-Requested-With: PulseFit`, else 403 `CSRF_REJECTED`. Cross-site pages cannot add
 that header without a CORS preflight, which the origin allowlist refuses; CORS never allows credentials.
 
+**App header.** Every other `/api` request must send `X-Requested-With: PulseFit` too (exactly that value; the website
+and the apps send it on every call), signed in or not, else the same 404 `NOT_FOUND` as an unknown route
+(`No API route for GET /api/plans.`), before anything is read or written. Exempt paths, matched ignoring case and a
+trailing slash: `/health` (uptime checks) and the payment webhooks `/payment/webhook` and `/payment/youpi/webhook`
+(Razorpay and YouPI call them server to server). CORS preflights from allowed origins (the website and the apps), and
+any `OPTIONS` request without an `Origin` header, are answered with 204 before this check (identically for every path);
+an `OPTIONS` request from any other origin without the header gets the same 404, so it cannot tell real routes from
+unknown ones. The CSRF check runs first, so a cookie-authenticated write without the header still gets
+403 `CSRF_REJECTED`. This keeps API answers away from the address bar, links and other sites' requests; it is a deterrent,
+not a security boundary (anyone can add the header, and a signed-in person's browser shows them the app's own requests),
+so what an answer may contain is decided by authentication, roles and each endpoint's response shape. Scripts and
+monitors that call the API directly must send it.
+
 Tokens are HS256 JWTs (`iss: pulsefit`, `aud: pulsefit-session`). Members' last 7 days (`JWT_EXPIRES_IN`), admins' and
 coaches' 12 hours. They are revoked when the password changes or is reset, when two-step sign-in is switched on, or
 when an admin resets it (`token_version`). `POST /auth/logout` clears the cookie.
@@ -35,7 +49,9 @@ gym-local; instants are ISO-8601 UTC strings. "Today" always means today at the 
 
 ```ts
 {
-  id, email, name, role: 'member' | 'trainer' | 'admin', avatar_url, phone,
+  id, email, name, role: 'member' | 'trainer' | 'admin', phone,
+  avatar_url: string,                // their photo; '' = none (the apps show a default picture, see GET /avatars/…)
+  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say', // absent = not given
   membership_tier: 'none' | 'basic' | 'pro' | 'vip',
   membership_status: 'active' | 'expired' | 'pending' | 'frozen', // effective today: past expiry => 'expired'
   membership_expiry: string | null,  // last day of access, inclusive
@@ -49,6 +65,15 @@ gym-local; instants are ISO-8601 UTC strings. "Today" always means today at the 
 ```
 
 Never included: the password hash, `token_version`, the Google subject id, MFA secrets and backup-code hashes.
+
+A `SafeUser` goes only to the person themselves and to admins. Coaches, other members and guests get the narrower
+shapes listed with each endpoint (roster attendees, `GET /trainer/clients`, the check-in `member`, the floor, trainers
+and classes), and none of them carries `gender`, not even as a picture address. `gender` only picks the default
+picture; it is absent for Google sign-ups, sign-ups from apps that do not send it (2.3.0), accounts from
+`npm run create-admin`, accounts an admin made without one and accounts from before the question. When a database from
+v2.3 or older loads, its generated DiceBear pictures (`https://api.dicebear.com/…` on people, coaches, classes'
+`trainer_avatar` and floor sessions) become `''`; no gender is added. This runs on every load, so nothing may store a
+new one: `PUT /auth/profile` takes no addresses and `POST/PUT /trainers` refuse DiceBear ones.
 
 **Plans and entitlements.** `basic` = Workout & Strength Pass (books `Workout & Strength` classes),
 `pro` = Zumba & Cardio Pass (books `Zumba & Cardio`), `vip` = Dual All-Access (books everything).
@@ -68,7 +93,7 @@ when on, check-ins, floor clock-ins and same-day free trials are refused while t
 app" bar, and the footer a "Get the Android app" link (neither inside the app).
 
 ### `GET /health`
-`{ status: 'ok', timestamp }`.
+`{ status: 'ok', timestamp }`. Answers without the app header (Railway and `deploy/install-release.sh` call it).
 
 ---
 
@@ -78,9 +103,13 @@ These live outside `/api`. Every `/api` response carries `X-Robots-Tag: noindex,
 `ALLOW_INDEXING` off (the default outside production, and the setting for staging) every response does.
 
 ### `GET /robots.txt` (text/plain)
-Indexing on and the client served (`SERVE_CLIENT`): `Allow: /`, a `Disallow` line for `/api/`, `/downloads/` and for each
+Indexing on and the client served (`SERVE_CLIENT`): `Allow: /`, an `Allow` line for each API answer the public pages
+render from (`/api/config`, `/api/plans`, `/api/classes`, `/api/trainers`, `/api/exercises`,
+`/api/time-tracking/active-floor`), a `Disallow` line for `/api/`, `/downloads/` and for each
 private area (`/admin`, `/trainer`, `/dashboard`, `/bookings`, `/log-workout`, `/profile`, `/reset-password`,
 `/payment-status`), and `Sitemap: <PUBLIC_URL>/sitemap.xml`. Scripts, styles and images are never blocked.
+`/api/guide` stays disallowed: the pages read it only for a signed-in account, and crawlers are guests. Google's renderer
+runs the app, which sends the app header (see **App header**); fetched directly, the allowed API addresses answer 404.
 Indexing off, or an API-only host: `User-agent: *` / `Disallow: /`.
 
 ### `GET /downloads/pulsefit.apk` (application/vnd.android.package-archive)
@@ -107,8 +136,17 @@ and `/zumba` also preload their hero photo, and a demo deployment adds `meta nam
 are matched like the client's `tabForPath` (trailing slashes ignored). An unknown address answers **404**
 with the same app (it shows "Page not found") and `noindex`. `Cache-Control: no-cache`; hashed files under
 `/assets/` are `immutable` for a year, sent Brotli- or gzip-compressed when the client accepts it (compressed once,
-kept in memory), and a missing one is a plain-text 404. Base URL: `PUBLIC_URL`, else the first `CLIENT_ORIGIN`, never the
+kept in memory), and a missing one is a plain-text 404. Any address whose decoded path ends in `.map`, or has `.map` followed by a
+slash, dot, space or `:` (`x.js%2Emap`, `x.js.map/`), is a plain-text 404 as well: the build has no source maps, and one
+that does still never serves them. Base URL: `PUBLIC_URL`, else the first `CLIENT_ORIGIN`, never the
 request's Host header.
+
+### `GET /avatars/male.svg`, `/avatars/female.svg`, `/avatars/neutral.svg` (image/svg+xml)
+The default pictures, static files of the client (`client/public/avatars`, copied into the web and app builds), served
+from the site itself and self-contained, so showing one sends nothing to another service. The client shows a person's
+photo when `avatar_url` is set. Otherwise, where the answer carries `gender` (the person's own `SafeUser`, an admin's
+member list and details and `GET /id-cards`) it shows the picture for it (`male`, `female`, else `neutral`), and everywhere
+else (rosters, coach lists, the check-in scanner, the public coach and class pages) `neutral`.
 
 ### HTTPS
 `Strict-Transport-Security: max-age=31536000; includeSubDomains` (`HSTS`, off in local development). In
@@ -130,18 +168,23 @@ Every `/api` route also shares a limit of 300 requests per minute per IP (except
 | Method & path | Body | Success `data` | Errors |
 |---|---|---|---|
 | `POST /auth/login` | `{ email, password }` | a session, or `{ mfa_required: true, mfa_token }` when two-step sign-in is on (no session yet; see below) | 401 `INVALID_CREDENTIALS`, 403 `DEMO_PASSWORD_BLOCKED` (the published demo password, outside demo mode) |
-| `POST /auth/register` | `{ name (2–60), email, password, phone? }` | 201 session, with `membership_tier:'none'`, `membership_status:'pending'`, `membership_expiry:null` | 409 `EMAIL_TAKEN` |
+| `POST /auth/register` | `{ name (2–60), email, password, phone?, gender? }` | 201 session, with `gender` as sent (absent when not sent), `avatar_url:''`, `membership_tier:'none'`, `membership_status:'pending'`, `membership_expiry:null` | 400 `VALIDATION_ERROR` (`gender` sent but not one of the four, `''` and `null` included: `data.issues = [{ path: 'gender', message: 'Choose your gender, or "Prefer not to say".' }]`), 409 `EMAIL_TAKEN` |
 | `POST /auth/google` | `{ credential }` (Google Identity Services ID token) | a session or MFA challenge, plus `created: boolean` | 503 `GOOGLE_SIGNIN_DISABLED`, 401 `INVALID_GOOGLE_TOKEN` |
 | `POST /auth/demo-login` | `{ role: 'member' \| 'vip' \| 'trainer' \| 'admin' }` | a session | 404 `DEMO_DISABLED` when demo mode is off |
 | `POST /auth/logout` | — | `{ signedOut: true }`; clears the session cookie | — |
 | `GET /auth/me` | — | `SafeUser` | 401 |
-| `PUT /auth/profile` | `{ name?, phone?, avatar_url? }` **only** (unknown keys → 400). `avatar_url`: a real PNG/JPEG/WebP image as `data:image/(png\|jpeg\|webp);base64,…` (magic bytes must match, at most 2048×2048 and 300 KB) or the generated default `https://api.dicebear.com/…`; no other addresses | `SafeUser` | 400 |
+| `PUT /auth/profile` | `{ name?, phone?, gender?, avatar_url? }` **only** (unknown keys → 400, "Only your name, phone number, gender and photo can be changed here."). `gender`: one of the four (`null` and `''` are refused: "Prefer not to say" covers it, and only an admin can clear it). `avatar_url`: a real PNG/JPEG/WebP image as `data:image/(png\|jpeg\|webp);base64,…` (magic bytes must match, at most 2048×2048 and 300 KB), or `''` to remove the photo; no addresses (DiceBear ones included) | `SafeUser` | 400 |
 | `PUT /auth/password` | `{ currentPassword?, newPassword }` (`currentPassword` required when the account has a password) | a session (old tokens are revoked) | 400 `WRONG_PASSWORD`, 403 `DEMO_ACCOUNT_LOCKED`, 403 `REAUTH_REQUIRED` (a Google-only account setting its first password more than 15 minutes after signing in) |
 | `POST /auth/forgot-password` | `{ email }` | `{ message, resetUrl? }`. The same message whether or not the account exists. `resetUrl` (`<address>/reset-password?token=…`) is returned only in local development (`NODE_ENV` development or test), because this server has no email delivery; it is always logged to the server console | 429 |
 | `POST /auth/reset-password` | `{ token, newPassword }` | a session, or an MFA challenge when two-step sign-in is on | 400 `INVALID_RESET_TOKEN` (unknown, used, or older than 30 min), 403 `DEMO_ACCOUNT_LOCKED` |
 
 **Passwords** (`newPassword`, `password` on register): 8–72 characters (≤ 72 UTF-8 bytes), at least one letter and one
 digit, and not on the built-in list of common passwords (which includes the published demo password) → 400 `VALIDATION_ERROR`.
+
+**Gender** (`gender`): `'male' | 'female' | 'other' | 'prefer_not_to_say'`, exactly as written. Its only use is the default
+picture (see `GET /avatars/…`). Optional on `POST /auth/register`: the website and the apps ask for it at sign-up, but
+the apps released in 2.3.0 do not send it and their sign-ups must keep working, so an account registered without one
+has none, like one created by `POST /auth/google`. The person can set it later with `PUT /auth/profile`.
 
 ### Two-step sign-in (MFA, optional for every account)
 
@@ -161,13 +204,16 @@ Secrets and backup-code hashes never leave the server. A code is accepted once (
 Demo personas cannot turn MFA on while demo mode is on. `POST /auth/demo-login` never asks for a code.
 
 Google accounts are matched by Google subject id, then by verified email (linking the account). New Google
-users are created like a registration (tier `none`, status `pending`). An existing user's name is never overwritten.
+users are created like a registration (tier `none`, status `pending`, `avatar_url: ''`) but without a gender. An existing
+user's name is never overwritten.
 `POST /auth/firebase-sync` no longer exists.
 
 Additional rules:
 - `POST /auth/google` can also answer 409 `GOOGLE_ACCOUNT_CONFLICT` (the verified email belongs to an account already
   linked to a different Google account). Linking an existing password account to Google removes its password and
   revokes older tokens; `data.created` is `false` and the message says so. New and existing users both get 200.
+  `data.created` is `true` only when the call made the account; the client then sends a new account without a gender
+  to My account to choose one (unless a plan was picked before signing in).
 - `PUT /auth/password`: a missing `currentPassword` on an account that has one is 400 `VALIDATION_ERROR`
   (`data.issues[0].path = "currentPassword"`); a wrong one is 400 `WRONG_PASSWORD`. Limited to 10 per 15 minutes per account.
 - `POST /auth/forgot-password`: in local development `resetUrl` is returned for any existing account. Everywhere else it
@@ -293,7 +339,7 @@ coach dashboard at `/trainer?trainer=<id>` shows an admin any coach, including c
 | `GET /trainer/notes` | `member_id?` | `(TrainerNote & { member_name: string \| null })[]` newest first (a trainer sees their own; an admin sees all). `member_name` is the member's current name | |
 | `POST /trainer/notes` | `{ member_id, category: 'assessment'\|'progress'\|'injury'\|'general', note (1–2000), visible_to_member: boolean }` | 201 `TrainerNote` | 404 member |
 | `DELETE /trainer/notes/:id` | — (author or admin) | `{ deleted: true }` | |
-| `GET /notes/my` (member) | — | `TrainerNote[]` about me where `visible_to_member` | |
+| `GET /notes/my` (member) | — | `[{ id, trainer_name, category, note, created_at }]` newest first: the notes about me where `visible_to_member`, with only what the dashboard shows (no `trainer_user_id`, `member_id` or `visible_to_member`) | |
 
 When a booking is marked `attended`, it counts towards the member's streak for that day. Changing it back to `no_show`
 or `confirmed` takes the day back unless other activity on that day also counted it (the streak is rebuilt from history).
@@ -333,6 +379,9 @@ Additional rules:
   closing time) or `end_time` (runs past closing). Classes stored before this rule stay listed and can still be renamed
   or otherwise edited.
 - `POST/PUT /trainers`: 409 `EMAIL_TAKEN`, 400 `USER_NOT_TRAINER`, 409 `USER_ALREADY_LINKED`; `user_id: null` unlinks the account.
+  `avatar_url` is an `https://` image address on a public website, or `''` for no photo (the apps show the neutral default
+  picture); `POST` without one stores `''`. A DiceBear address (`https://api.dicebear.com/…`) is 400 `VALIDATION_ERROR` on
+  `avatar_url`: the server clears those whenever it loads the database (see `SafeUser`).
 - Public trainer data (`GET /trainers`, `GET /trainers/:id`, the `trainer` in `GET /classes/:id`) leaves out email, phone
   and user_id unless the caller is an admin.
 - `PATCH /bookings/:id/attendance` on a cancelled booking: 409 `ALREADY_CANCELLED`. `DELETE /bookings/:id` on an attended
@@ -349,8 +398,8 @@ Additional rules:
 |---|---|---|---|
 | `GET /members` (admin) | `search?, tier?, status?` (effective status), `role?` (default `member`; `all` = everyone) | `SafeUser[]` | |
 | `GET /members/:id` (admin) | — | `SafeUser & { bookings_count, attendance_count, workouts_count, upcoming_bookings, recent_attendance: AttendanceLog[] (10), payments: Payment[], id_cards: IdCard[] (newest first) }` | 404 |
-| `POST /members` (admin) | `{ name, email, phone?, role? = 'member', membership_tier? = 'none', expiry_months? = 0 (0–24) }`. Tier ≠ none and months > 0 ⇒ active until the day before today + months | 201 `{ member: SafeUser, tempPassword }` | 409 `EMAIL_TAKEN` |
-| `PUT /members/:id` (admin) | `{ name?, phone?, role?, membership_tier?, membership_status?, membership_expiry? (date \| null) }` | `SafeUser` | 400 `CANNOT_CHANGE_OWN_ROLE`, 400 `LAST_ADMIN`, 403 `DEMO_ACCOUNT_LOCKED` (role change of a demo persona in demo mode) |
+| `POST /members` (admin) | `{ name, email, phone?, gender?, role? = 'member', membership_tier? = 'none', expiry_months? = 0 (0–24) }`. Tier ≠ none and months > 0 ⇒ active until the day before today + months. Without `gender` the account has none; `avatar_url` is `''` | 201 `{ member: SafeUser, tempPassword }` | 409 `EMAIL_TAKEN` |
+| `PUT /members/:id` (admin) | `{ name?, phone?, gender? (or null to clear it back to "not given"), role?, membership_tier?, membership_status?, membership_expiry? (date \| null) }` | `SafeUser` | 400 `CANNOT_CHANGE_OWN_ROLE`, 400 `LAST_ADMIN`, 403 `DEMO_ACCOUNT_LOCKED` (role change of a demo persona in demo mode) |
 | `DELETE /members/:id` (admin) | — | `{ deleted: true }`. Removes bookings, workouts, attendance, floor sessions, notes about them, ID cards and reset tokens; keeps payments (financial records) | 400 `CANNOT_DELETE_SELF`, 400 `LAST_ADMIN`, 403 `DEMO_ACCOUNT_LOCKED` (demo mode, one of the four demo personas) |
 | `POST /members/:id/reset-password` (admin) | — | `{ tempPassword }` (old tokens revoked) | 403 `DEMO_ACCOUNT_LOCKED` (demo mode, one of the four demo personas), 404 |
 | `POST /attendance/check-in` (admin, trainer) | `{ code, method?: 'qr'\|'manual'\|'kiosk'\|'camera' }` (`tokenOrId` accepted as an alias of `code`). `code` = QR token, ID card number, member id, email, or trial code, looked up in that order (tokens, emails and trial codes ignore case; card numbers also ignore spaces and hyphens) | `{ result: 'granted', already_checked_in: boolean, kind: 'member'\|'trial', member?: { id, name, email, avatar_url, membership_tier, membership_status, membership_expiry, streak_days }, trial?: TrialPass, log: AttendanceLog }`. A second scan on the same gym day lets the member through without a new log or streak day. An active ID card works exactly like the QR token | 403 `CARD_DEACTIVATED` (with `data.member` and `data.card: { card_number, status, deactivated_at, deactivation_reason }`; checked before the hours and membership) \| `GYM_CLOSED` \| `MEMBERSHIP_EXPIRED` \| `MEMBERSHIP_FROZEN` \| `MEMBERSHIP_PENDING` \| `TRIAL_NOT_VALID_TODAY` \| `TRIAL_ALREADY_USED` (with `data.member` or `data.trial`), 404 `PASS_NOT_FOUND` |
@@ -382,6 +431,9 @@ Additional rules:
 - A trial pass scanned again on the day it was redeemed is let through with `already_checked_in: true`.
 - A trial `preferred_date` outside today … today + 14 is 400 `VALIDATION_ERROR`. The CSV export ignores `limit`/`offset`.
 - Request bodies are strict: unknown keys are 400 `VALIDATION_ERROR`. Staff skip membership checks at check-in.
+- `gender` on `POST /members` and `PUT /members/:id` is one of `male`, `female`, `other`, `prefer_not_to_say`, else 400
+  `VALIDATION_ERROR` on `gender` ("Choose male, female, other or prefer not to say."). `GET /members` and `GET /members/:id`
+  carry it (as part of `SafeUser`) when given. The check-in `member` never does, for admins either.
 - Opening hours (when `ENFORCE_OPENING_HOURS` is on, the default): while the gym is closed (Sundays, and outside
   06:00–22:00 on other days) check-in refuses members and free-trial passes with 403 `GYM_CLOSED` ("The gym is closed
   right now. Opening hours are Monday to Saturday, 06:00 to 22:00.", with `data.member` or `data.trial`); the trial pass
@@ -405,7 +457,7 @@ The admin's name is a snapshot, so the history still reads right after that admi
 
 | Method & path | Body / query | Success `data` | Errors |
 |---|---|---|---|
-| `GET /id-cards` (admin) | `status? = 'all'\|'active'\|'deactivated'\|'none'`, `role? = 'member'\|'trainer'\|'admin'\|'all'` (default `member`), `search?` (name, email, phone, pass token, or any of the person's card numbers however typed) | `{ counts: { people, active, deactivated, none, cards_issued }, rows: [{ user: { id, name, email, phone, avatar_url, role, membership_tier, membership_status, membership_expiry, created_at }, card_status: 'active'\|'deactivated'\|'none', card: IdCard \| null, cards_issued }] }`. `card` is the current card: the active one, else the latest issued. Rows are sorted by name; `counts` are taken before the status filter | 400 `VALIDATION_ERROR` |
+| `GET /id-cards` (admin) | `status? = 'all'\|'active'\|'deactivated'\|'none'`, `role? = 'member'\|'trainer'\|'admin'\|'all'` (default `member`), `search?` (name, email, phone, pass token, or any of the person's card numbers however typed) | `{ counts: { people, active, deactivated, none, cards_issued }, rows: [{ user: { id, name, email, phone, avatar_url, gender? (when given, so the card the desk prints has the same default picture the person sees), role, membership_tier, membership_status, membership_expiry, created_at }, card_status: 'active'\|'deactivated'\|'none', card: IdCard \| null, cards_issued }] }`. `card` is the current card: the active one, else the latest issued. Rows are sorted by name; `counts` are taken before the status filter | 400 `VALIDATION_ERROR` |
 | `POST /members/:id/id-cards` (admin) | `{ replace?: boolean, replaces_card_id?: string, note?: string (≤ 200) }` | 201 `{ card: IdCard, replaced: IdCard \| null }`. With `replace: true` the active card is deactivated as `replaced` in the same write, and the new card's `replaces_card_id` points to it | 409 `CARD_ALREADY_ACTIVE` (an active card and no `replace`, or `replaces_card_id` is not the active card any more; `data.card` = the active card), 404 |
 | `POST /id-cards/:cardId/deactivate` (admin) | `{ reason: 'lost'\|'stolen'\|'damaged'\|'returned'\|'other', note? }` (`replaced` is the server's own) | `{ card }` | 409 `CARD_ALREADY_DEACTIVATED`, 404 `CARD_NOT_FOUND` |
 | `POST /id-cards/:cardId/reactivate` (admin) | `{ note? }` | `{ card }` (deactivation fields cleared, history kept) | 409 `CARD_ALREADY_ACTIVE`, 409 `ANOTHER_CARD_ACTIVE` (`data.card` = the person's other active card), 404 `CARD_NOT_FOUND` |
@@ -419,11 +471,12 @@ The admin's name is a snapshot, so the history still reads right after that admi
 
 ---
 
-## Workouts, floor time & analytics — owner: `activity` (routes/activity.ts, controllers/workoutController.ts, timeTrackingController.ts, analyticsController.ts)
+## Workouts, fitness guide, floor time & analytics — owner: `activity` (routes/activity.ts, controllers/workoutController.ts, guideController.ts, timeTrackingController.ts, analyticsController.ts)
 
 | Method & path | Body / query | Success `data` | Errors |
 |---|---|---|---|
 | `GET /exercises`, `GET /exercises/:id` | filters `category, equipment, difficulty, search` | `Exercise[]` / `Exercise` | 404 |
+| `GET /guide` (any signed-in account) | — | `FitnessGuide` (see below), with `Cache-Control: private, no-cache` | 401 `UNAUTHORIZED` (guests) |
 | `GET /workouts` | — | own `Workout[]` newest first | |
 | `GET /workouts/:id` | — | `Workout` (owner or admin) | 404, 403 |
 | `POST /workouts` | `{ title (1–100), date (not after today, not more than 365 days ago), duration_minutes (1–300), notes? (≤ 1000), sets: [{ exercise_id (must exist), set_number (1–50), weight_kg (0–500), reps (1–100), rpe? (1–10), is_warmup? }] (1–100 items) }` | 201 `Workout`; `set_number` is kept as sent (per exercise); volume = Σ weight × reps of working sets | 400 |
@@ -431,7 +484,7 @@ The admin's name is a snapshot, so the history still reads right after that admi
 | `GET /workouts/analytics` | — | `{ volumeTimeline, personalRecords, muscleDistribution, … }` | |
 | `POST /time-tracking/clock-in` | `{ category: ClassCategory, notes? }` | 201 `TimeSession` | 403 `GYM_CLOSED`, 403 `MEMBERSHIP_INACTIVE`, 403 `PLAN_EXCLUDES_CATEGORY`, 409 `ALREADY_CLOCKED_IN` |
 | `POST /time-tracking/clock-out` | `{ notes? }` (own active session; an admin may pass `session_id`) | `TimeSession` | 404 `NO_ACTIVE_SESSION` |
-| `GET /time-tracking/active-floor` | optional auth | `{ totalActive, workoutActive, zumbaActive }`; staff also get `workoutUsers` / `zumbaUsers` (`user_name, user_avatar, user_tier, clock_in_time, duration_minutes`; no emails) | |
+| `GET /time-tracking/active-floor` | optional auth | `{ totalActive, workoutActive, zumbaActive }`; admins also get `workoutUsers` / `zumbaUsers` (`user_name, user_avatar, user_tier, clock_in_time, duration_minutes`; no emails). Coaches, members and guests get the counts only | |
 | `GET /time-tracking/my-stats` | — | `UserTimeTrackingStats` | |
 | `GET /analytics/dashboard` (admin) | — | see below | |
 
@@ -450,6 +503,23 @@ Additional rules:
 - `POST /time-tracking/clock-out`: a member may pass the `session_id` of their own session; someone else's is 403.
 - `POST /time-tracking/clock-in` while the gym is closed (when `ENFORCE_OPENING_HOURS` is on) is 403 `GYM_CLOSED` for
   members, with the same message as check-in. Staff may clock in at any hour, and clocking out always works.
+
+**Fitness guide** (`GET /guide`). Workout plans, diet charts, nutrition rules, the supplements guide and the strength
+floor's starter split, for any signed-in account whatever its role or membership (plan-less and expired members too);
+guests get 401. The content lives only on the server (`server/src/content/guide.ts`), never in the client bundle. The
+website and the apps call it only when someone is signed in, and show guests a teaser of their own (plan names, diet
+titles and split days; `tests/guide.test.ts` keeps them in step with the server).
+```ts
+{
+  workout_plans: [{ id, name, level, goal, frequency, description,
+                    days: [{ name, exercises: [{ name, sets, reps, rest, tip }] }] }], // text, e.g. sets: '4 Sets'
+  diet_charts: [{ id, title, type, macros: { protein_g, carbs_g, fats_g },           // numbers, grams
+                  description, meals: [{ timing, name, items: string[], calories }] }], // calories: whole kcal
+  nutrition_rules: [{ emoji, title, text }],
+  supplements: [{ name, badge, stars /* 1–5 */, verdict, dosage, timing, why, faqs: [{ question, answer }] }],
+  strength_split: [{ day, title, exercises: string[] }]                                // 4 days, shown on /strength
+}
+```
 
 **Dashboard** (`GET /analytics/dashboard`). Every number comes from stored data; nothing is invented:
 ```ts

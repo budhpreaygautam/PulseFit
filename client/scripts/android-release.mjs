@@ -98,6 +98,19 @@ const sync = spawnSync(process.execPath, [path.join(clientDir, 'scripts', 'mobil
 });
 if (sync.status !== 0) fail('Building the app failed (see above).');
 
+// The APK is a public download (/downloads/pulsefit.apk) that anyone can unzip, and the fitness guide
+// is for signed-in accounts only (GET /api/guide). These words appear only in the full guide
+// (server/src/content/guide.ts), so a build that contains them has the guide compiled in again.
+const GUIDE_ONLY_WORDS = ['Creapure', 'KSM-66'];
+const filesIn = dir =>
+  fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => (entry.isDirectory() ? filesIn(path.join(dir, entry.name)) : [path.join(dir, entry.name)]));
+const guideLeaks = filesIn(path.join(clientDir, 'dist-mobile')).filter(
+  file => /\.(js|html|json)$/.test(file) && GUIDE_ONLY_WORDS.some(word => fs.readFileSync(file, 'utf8').includes(word))
+);
+if (guideLeaks.length) {
+  fail(`The app contains the fitness guide, which only signed-in accounts may read:\n  ${guideLeaks.join('\n  ')}\nKeep the guide on the server (GET /api/guide), then build again.`);
+}
+
 console.log('🔨 Building the release APK...');
 // Full path: some Windows setups (NoDefaultCurrentDirectoryInExePath) never run a bare gradlew.bat.
 const gradle = isWindows

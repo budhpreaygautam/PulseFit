@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- PulseFit default picture (female): a person without an uploaded photo. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#334155"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="shirt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a3e635"/>
+      <stop offset="1" stop-color="#65a30d"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" fill="url(#bg)"/>
+  <g transform="translate(64 128) scale(1.08) translate(-64 -128)">
+    <path d="M55 68h18v26H55z" fill="#bef264"/>
+    <path d="M14 128C14 103 32 88 55 86c2 6 16 6 18 0 23 2 41 17 41 42z" fill="url(#shirt)"/>
+    <path d="M64 28c15 0 25 10 25 27 0 13 2 25 6 36-7 5-17 5-23 0V74H56v17c-6 5-16 5-23 0 4-11 6-23 6-36 0-17 10-27 25-27z" fill="#3f6212"/>
+    <circle cx="64" cy="54" r="21" fill="#d9f99d"/>
+    <path d="M43 52c0-14 9-21.5 21-21.5 13 0 22 7.5 21.5 21.5-5.5-8-14.5-12.5-26.5-11-7 1-13 5-16 11z" fill="#4d7c0f"/>
+  </g>
+</svg>

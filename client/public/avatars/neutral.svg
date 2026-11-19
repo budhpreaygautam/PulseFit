@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- PulseFit default picture (neutral): a person without an uploaded photo who chose "other",
+       "prefer not to say" or gave no gender, and everyone shown to coaches or the public. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#334155"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="shirt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a3e635"/>
+      <stop offset="1" stop-color="#65a30d"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" fill="url(#bg)"/>
+  <g transform="translate(64 128) scale(1.08) translate(-64 -128)">
+    <path d="M55 68h18v26H55z" fill="#bef264"/>
+    <path d="M14 128C14 103 32 88 55 86c2 6 16 6 18 0 23 2 41 17 41 42z" fill="url(#shirt)"/>
+    <circle cx="64" cy="54" r="21" fill="#d9f99d"/>
+  </g>
+</svg>

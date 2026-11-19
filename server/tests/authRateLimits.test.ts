@@ -60,10 +60,10 @@ describe('auth rate limits', () => {
 
   it('register: 5 per hour', async () => {
     for (let i = 0; i < 5; i++) {
-      const res = await api().post('/api/auth/register').send({ name: `Person ${i}`, email: `p${i}@example.com`, password: 'Lift2026now' });
+      const res = await api().post('/api/auth/register').send({ name: `Person ${i}`, email: `p${i}@example.com`, password: 'Lift2026now', gender: 'male' });
       expect(res.status).toBe(201);
     }
-    expectLimited(await api().post('/api/auth/register').send({ name: 'Person 6', email: 'p6@example.com', password: 'Lift2026now' }));
+    expectLimited(await api().post('/api/auth/register').send({ name: 'Person 6', email: 'p6@example.com', password: 'Lift2026now', gender: 'male' }));
   });
 
   it('forgot-password: 5 per hour', async () => {

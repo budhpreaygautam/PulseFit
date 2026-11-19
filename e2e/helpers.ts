@@ -1,6 +1,22 @@
-import { expect, Page, APIRequestContext } from '@playwright/test';
+import { test as base, expect, Page, APIRequestContext } from '@playwright/test';
 
 export type Persona = 'member' | 'vip' | 'trainer' | 'admin';
+
+/** The header the website and the apps send on every API request; without it the API answers 404. */
+export const APP_HEADER = { 'X-Requested-With': 'PulseFit' };
+
+/**
+ * Playwright's test, with the `request` fixture (direct API calls) sending APP_HEADER like the app.
+ * Browser pages get no extra header: they must work with what the app itself sends. Specs import
+ * `test` from here.
+ */
+export const test = base.extend({
+  request: async ({ playwright, baseURL }, use) => {
+    const request = await playwright.request.newContext({ baseURL, extraHTTPHeaders: APP_HEADER });
+    await use(request);
+    await request.dispose();
+  }
+});
 
 /**
  * Sign the page's browser context in with a token, as the website itself is signed in: the
