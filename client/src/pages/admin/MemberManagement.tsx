@@ -13,6 +13,7 @@ import { statusVariant } from '../../components/admin/memberStatus.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { useToast } from '../../context/ToastContext.js';
+import { useApiResource } from '../../components/member/useApiResource.js';
 import { STATUS_LABELS, TIER_LABELS, TIER_SHORT_LABELS, formatDate, gymToday } from '../../lib/format.js';
 
 type RoleFilter = UserRole | 'all';
@@ -58,6 +59,8 @@ export const MemberManagement: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  // List prices for desk sales in the add and edit forms.
+  const plans = useApiResource(() => api.getPlans());
   const [editing, setEditing] = useState<User | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<User | null>(null);
@@ -310,6 +313,7 @@ export const MemberManagement: React.FC = () => {
       <CreateMemberModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
+        plans={plans.data}
         onCreated={(member, tempPassword) => {
           setIsCreateOpen(false);
           setCredentials({ name: member.name, email: member.email, password: tempPassword, reason: 'created' });
@@ -320,6 +324,7 @@ export const MemberManagement: React.FC = () => {
         member={editing}
         currentUserId={user?.id}
         onClose={() => setEditing(null)}
+        plans={plans.data}
         onSaved={(saved, notice) => {
           setEditing(null);
           // Say what else the edit did (a freeze or a plan change cancels bookings), not just "updated".

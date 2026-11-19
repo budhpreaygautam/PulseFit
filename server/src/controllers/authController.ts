@@ -9,6 +9,7 @@ import { findUserByEmail, GENDERS, generateQrToken, newId, toSafeUser } from '..
 import { InvalidGoogleTokenError, verifyGoogleCredential } from '../lib/google.js';
 import { isCommonPassword } from '../lib/passwordPolicy.js';
 import { validateImageDataUrl } from '../lib/imageValidation.js';
+import { referrerFor } from '../lib/referrals.js';
 import { Gender, User } from '../types/index.js';
 
 export const BCRYPT_ROUNDS = 10;
@@ -67,6 +68,9 @@ const avatarSchema = z
 // have none ("not given") until the person sets it on their account page.
 const genderSchema = z.enum(GENDERS, { error: 'Choose your gender.' });
 
+// A friend's referral code as typed (lib/referrals.ts referrerFor checks it); empty means none.
+export const referralCodeSchema = z.string().trim().max(32, 'That referral code is too long.');
+
 const loginSchema = z.object({
   email: z.string({ error: 'Enter your email address.' }).trim().toLowerCase().min(1, 'Enter your email address.').max(254),
   password: z.string({ error: 'Enter your password.' }).min(1, 'Enter your password.').max(1000)
@@ -77,11 +81,14 @@ const registerSchema = z.object({
   email: emailSchema,
   password: newPasswordSchema,
   phone: phoneSchema.optional(),
-  gender: genderSchema.optional()
+  gender: genderSchema.optional(),
+  referral_code: referralCodeSchema.optional()
 });
 
 const googleSchema = z.object({
-  credential: z.string({ error: 'The Google sign-in response is missing.' }).min(1, 'The Google sign-in response is missing.').max(10_000)
+  credential: z.string({ error: 'The Google sign-in response is missing.' }).min(1, 'The Google sign-in response is missing.').max(10_000),
+  // Used only when this sign-in creates the account.
+  referral_code: referralCodeSchema.optional()
 });
 
 /** The demo personas' published password (README); refused outside demo mode. */
@@ -129,7 +136,15 @@ export function session(req: Request, res: Response, user: User) {
 }
 
 /** A new member account: no plan until they pay (or an admin grants one). */
-function newMember(fields: { name: string; email: string; phone?: string; gender?: Gender; password_hash?: string; google_sub?: string }): User {
+function newMember(fields: {
+  name: string;
+  email: string;
+  phone?: string;
+  gender?: Gender;
+  password_hash?: string;
+  google_sub?: string;
+  referred_by?: string;
+}): User {
   return {
     id: newId('usr'),
     name: fields.name,
@@ -147,7 +162,8 @@ function newMember(fields: { name: string; email: string; phone?: string; gender
     created_at: new Date().toISOString(),
     streak_days: 0,
     last_active_date: null,
-    token_version: 0
+    token_version: 0,
+    ...(fields.referred_by ? { referred_by: fields.referred_by } : {})
   };
 }
 
@@ -184,14 +200,15 @@ export function signInResult(req: Request, res: Response, user: User) {
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   // Any tier, role or status in the body is ignored: the schema strips unknown keys.
-  const { name, email, password, phone, gender } = parse(registerSchema, req.body);
+  const { name, email, password, phone, gender, referral_code } = parse(registerSchema, req.body);
   if (findUserByEmail(email)) throw emailTaken();
+  const referrer = referrerFor(referral_code);
 
   const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   // Another request may have registered the same email while we were hashing.
   if (findUserByEmail(email)) throw emailTaken();
 
-  const user = newMember({ name, email, phone, gender, password_hash });
+  const user = newMember({ name, email, phone, gender, password_hash, referred_by: referrer?.id });
   db.users = [...db.users, user];
 
   return ok(res, session(req, res, user), 'Welcome to PulseFit! Choose a plan to start training.', 201);
@@ -201,7 +218,7 @@ export const googleSignIn = asyncHandler(async (req: Request, res: Response) => 
   if (!googleSignInEnabled()) {
     throw unavailable('Google sign-in is not available on this server.', 'GOOGLE_SIGNIN_DISABLED');
   }
-  const { credential } = parse(googleSchema, req.body);
+  const { credential, referral_code } = parse(googleSchema, req.body);
 
   let profile;
   try {
@@ -232,8 +249,9 @@ export const googleSignIn = asyncHandler(async (req: Request, res: Response) => 
     return ok(res, { ...signInResult(req, res, linked), created: false }, message);
   }
 
+  const referrer = referrerFor(referral_code);
   const name = (profile.name?.trim() || profile.email.split('@')[0]).slice(0, 60);
-  const user = newMember({ name, email: profile.email, google_sub: profile.sub });
+  const user = newMember({ name, email: profile.email, google_sub: profile.sub, referred_by: referrer?.id });
   db.users = [...db.users, user];
   return ok(res, { ...session(req, res, user), created: true });
 });

@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { addDays, addMonths, daysBetween } from './dates.js';
 import { addOpenDays, openDaysBetween } from './hours.js';
 import { effectiveStatus } from './membership.js';
-import { BillingCycle, MembershipPlan, MembershipStatus, MembershipTier, User } from '../types/index.js';
+import { BillingCycle, MembershipPlan, MembershipStatus, MembershipTier, Payment, User } from '../types/index.js';
 
 // Membership maths for payments, kept free of database and clock access so every rule can be
 // unit-tested with plain values. Dates are gym-local 'YYYY-MM-DD' strings; expiries are inclusive.
@@ -71,6 +71,23 @@ export function creditDays(remaining: number, oldPriceMonthly: number, newPriceM
   return Math.floor((remaining * oldPriceMonthly) / newPriceMonthly);
 }
 
+/** A paid period bought below list price: amount_inr of base_amount_inr. */
+export type DiscountedPeriod = Pick<Payment, 'period_start' | 'period_end' | 'amount_inr' | 'base_amount_inr'>;
+
+/**
+ * Days still paid for, with each day of a discounted period counted at the share of its list price
+ * that was paid, so a sale on one plan does not become list-price credit on another.
+ */
+function paidRemainingDays(expiry: string | null, today: string, discounted: DiscountedPeriod[]): number {
+  let days = remainingDays(expiry, today);
+  for (const p of discounted) {
+    if (!p.base_amount_inr) continue;
+    const unused = remainingDays(p.period_end, today) - remainingDays(addDays(p.period_start, -1), today);
+    days -= unused * (1 - p.amount_inr / p.base_amount_inr);
+  }
+  return Math.max(0, days);
+}
+
 export interface Activation {
   membership_tier: PaidTier;
   membership_status: 'active';
@@ -86,13 +103,15 @@ export interface Activation {
  * The membership a member ends up with after paying for `purchase` today.
  * - A frozen member is unfrozen first.
  * - Same tier, still active: the new period starts the day after the current expiry.
- * - Otherwise it starts today, plus pro-rata credit for unused days of a different active plan.
+ * - Otherwise it starts today, plus pro-rata credit for unused days of a different active plan
+ *   (`discounted`: that plan's periods bought below list price, credited at what they cost).
  */
 export function computeActivation(
   current: MembershipState,
   purchase: { tier: PaidTier; billing_cycle: BillingCycle },
   plans: Pick<MembershipPlan, 'tier' | 'price_monthly'>[],
-  today: string
+  today: string,
+  discounted: DiscountedPeriod[] = []
 ): Activation {
   const state = unfreezeMembership(current, today);
   const active = effectiveStatus(state, today) === 'active';
@@ -107,7 +126,7 @@ export function computeActivation(
       const oldPlan = plans.find(p => p.tier === state.membership_tier);
       const newPlan = plans.find(p => p.tier === purchase.tier);
       if (oldPlan && newPlan) {
-        credit = creditDays(remainingDays(state.membership_expiry, today), oldPlan.price_monthly, newPlan.price_monthly);
+        credit = creditDays(paidRemainingDays(state.membership_expiry, today, discounted), oldPlan.price_monthly, newPlan.price_monthly);
       }
     }
   }

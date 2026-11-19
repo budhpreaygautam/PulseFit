@@ -11,6 +11,7 @@ import classRoutes from './classes.js';
 import memberRoutes from './members.js';
 import idCardRoutes from './idCards.js';
 import activityRoutes from './activity.js';
+import rewardRoutes from './rewards.js';
 
 const router = Router();
 
@@ -41,6 +42,7 @@ router.use(classRoutes);
 router.use(memberRoutes);
 router.use(idCardRoutes);
 router.use(activityRoutes);
+router.use(rewardRoutes);
 
 router.use(notFoundHandler);
 

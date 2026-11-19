@@ -18,8 +18,15 @@ import {
   Enquiry,
   TrainerNote,
   PasswordReset,
-  IdCard
+  IdCard,
+  Gift,
+  GiftClaim,
+  PointsEntry,
+  RewardSettings,
+  Offer,
+  Coupon
 } from '../types/index.js';
+import { defaultGifts, defaultRewardSettings } from './rewardDefaults.js';
 
 export interface DatabaseSchema {
   users: User[];
@@ -39,6 +46,12 @@ export interface DatabaseSchema {
   trainer_notes: TrainerNote[];
   password_resets: PasswordReset[];
   id_cards: IdCard[];
+  gifts: Gift[];
+  gift_claims: GiftClaim[];
+  points_ledger: PointsEntry[];
+  reward_settings: RewardSettings;
+  offers: Offer[];
+  coupons: Coupon[];
 }
 
 const emptySchema = (): DatabaseSchema => ({
@@ -58,7 +71,14 @@ const emptySchema = (): DatabaseSchema => ({
   enquiries: [],
   trainer_notes: [],
   password_resets: [],
-  id_cards: []
+  id_cards: [],
+  // A file from before rewards gets the default catalogue and rules (load() and restore() spread this under it).
+  gifts: defaultGifts(),
+  gift_claims: [],
+  points_ledger: [],
+  reward_settings: defaultRewardSettings(),
+  offers: [],
+  coupons: []
 });
 
 const DEFAULT_PLAN_CATEGORIES: Record<string, MembershipPlan['categories']> = {
@@ -248,6 +268,24 @@ class GymDatabase {
 
   get id_cards() { return this.data.id_cards; }
   set id_cards(val: IdCard[]) { this.data.id_cards = val; this.save(); }
+
+  get gifts() { return this.data.gifts; }
+  set gifts(val: Gift[]) { this.data.gifts = val; this.save(); }
+
+  get gift_claims() { return this.data.gift_claims; }
+  set gift_claims(val: GiftClaim[]) { this.data.gift_claims = val; this.save(); }
+
+  get points_ledger() { return this.data.points_ledger; }
+  set points_ledger(val: PointsEntry[]) { this.data.points_ledger = val; this.save(); }
+
+  get reward_settings() { return this.data.reward_settings; }
+  set reward_settings(val: RewardSettings) { this.data.reward_settings = val; this.save(); }
+
+  get offers() { return this.data.offers; }
+  set offers(val: Offer[]) { this.data.offers = val; this.save(); }
+
+  get coupons() { return this.data.coupons; }
+  set coupons(val: Coupon[]) { this.data.coupons = val; this.save(); }
 }
 
 export const db = new GymDatabase(config.dbPath);

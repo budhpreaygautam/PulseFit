@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, ChevronDown, Dumbbell, Info, Loader2, Lock, Music2, Sparkles, Store, XCircle, Zap } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronDown, Dumbbell, Gift, Info, Loader2, Lock, Music2, Sparkles, Store, XCircle, Zap } from 'lucide-react';
 import { Badge } from '../../components/common/Badge.js';
 import { EmptyState, ErrorState } from '../../components/common/States.js';
+import { CouponField } from '../../components/member/CouponField.js';
 import { CardSkeletons } from '../../components/public/CardSkeletons.js';
 import { useApiData } from '../../components/public/useApiData.js';
 import { annualPerMonth, annualSavingPercent, planCovers } from '../../components/public/plans.js';
@@ -12,8 +13,8 @@ import { useNavigation } from '../../context/NavigationContext.js';
 import { useToast } from '../../context/ToastContext.js';
 import { useCheckout } from '../../hooks/useCheckout.js';
 import { api } from '../../api/client.js';
-import { addDays, formatDate, formatINR, gymToday, STATUS_LABELS } from '../../lib/format.js';
-import { BillingCycle, MembershipPlan, PaidTier, User } from '../../types/index.js';
+import { addDays, endsIn, formatDate, formatINR, gymToday, STATUS_LABELS } from '../../lib/format.js';
+import { BillingCycle, MembershipPlan, PaidTier, Quote, User } from '../../types/index.js';
 
 interface PricingPageProps {
   onOpenFreeTrialModal: () => void;
@@ -91,7 +92,25 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenFreeTrialModal }
   const { config, isConfigLoaded } = useAppConfig();
   const { showToast } = useToast();
   const { checkout, isProcessing, error, clearError } = useCheckout();
-  const { data: plans, error: loadError, isLoading, reload } = useApiData(() => api.getPlans());
+  const { data: plans, error: loadError, isLoading: plansLoading, reload } = useApiData(() => api.getPlans());
+  // Today's prices with any live sale (the server works them out). Without them the cards show list
+  // prices; the server still charges the sale price.
+  const quotes = useApiData(() => api.getPaymentQuotes());
+  const promotions = useApiData(() => api.getPromotions());
+  const isLoading = plansLoading || quotes.isLoading;
+  // One coupon field open at a time; an applied coupon prices that card only.
+  const [couponTier, setCouponTier] = useState<PaidTier | null>(null);
+  const [couponQuote, setCouponQuote] = useState<Quote | null>(null);
+
+  // A coupon was checked for one cycle, so another cycle starts without it.
+  const chooseCycle = (cycle: BillingCycle) => {
+    setBillingCycle(cycle);
+    setCouponQuote(null);
+  };
+  const openCoupon = (tier: PaidTier) => {
+    setCouponTier(tier);
+    setCouponQuote(null);
+  };
 
   // A plan picked on the home page (also by a guest, who comes here once signed in) is brought into view.
   useEffect(() => {
@@ -102,12 +121,13 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenFreeTrialModal }
   const maxSaving = useMemo(() => Math.max(0, ...(plans ?? []).map(annualSavingPercent)), [plans]);
   const currentPlan = plans?.find(p => p.tier === user?.membership_tier);
 
-  const handleChoosePlan = async (plan: MembershipPlan) => {
+  const handleChoosePlan = async (plan: MembershipPlan, quote: Quote | undefined) => {
     clearError();
     setPayingTier(plan.tier);
     await checkout({
       tier: plan.tier,
       billingCycle,
+      couponCode: quote?.applied?.type === 'coupon' ? quote.applied.code : undefined,
       onSuccess: ({ payment, user: updated, message }) => {
         // The server's message says everything the payment did, including class bookings a plan change
         // cancelled. It opens with the toast's own title, so that part is not said twice.
@@ -169,7 +189,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenFreeTrialModal }
           <button
             type="button"
             aria-pressed={billingCycle === 'monthly'}
-            onClick={() => setBillingCycle('monthly')}
+            onClick={() => chooseCycle('monthly')}
             className={`px-4 sm:px-5 py-2 rounded-xl text-xs font-bold transition-all ${billingCycle === 'monthly' ? 'neu-btn-lime' : 'text-slate-200'}`}
           >
             Monthly
@@ -177,7 +197,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenFreeTrialModal }
           <button
             type="button"
             aria-pressed={billingCycle === 'annual'}
-            onClick={() => setBillingCycle('annual')}
+            onClick={() => chooseCycle('annual')}
             className={`px-4 sm:px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${billingCycle === 'annual' ? 'neu-btn-lime' : 'text-slate-200'}`}
           >
             Annual
@@ -223,7 +243,13 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenFreeTrialModal }
           {plans.map(plan => {
             const PlanIcon = PLAN_ICONS[plan.tier];
             const saving = annualSavingPercent(plan);
-            const amount = billingCycle === 'annual' ? plan.price_annual : plan.price_monthly;
+            const quote =
+              couponQuote?.tier === plan.tier && couponQuote.billing_cycle === billingCycle
+                ? couponQuote
+                : quotes.data?.find(q => q.tier === plan.tier && q.billing_cycle === billingCycle);
+            const amount = quote?.total ?? (billingCycle === 'annual' ? plan.price_annual : plan.price_monthly);
+            const discounted = !!quote && quote.discount > 0;
+            const joiningGifts = promotions.data?.joining_gifts.filter(j => j.tier === plan.tier) ?? [];
             const action = planAction(plan, user, plans, config.gym.hours.closedWeekdays);
             const highlighted = plan.is_popular || action.isCurrent;
             const isRequested = requestedTier === plan.tier;
@@ -260,10 +286,24 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenFreeTrialModal }
 
                   <div className="py-3 border-y border-slate-800/80">
                     <div className="flex items-baseline gap-1.5 flex-wrap">
+                      {discounted && (
+                        <s className="text-lg font-bold text-slate-500 font-heading">
+                          <span className="sr-only">List price </span>
+                          {formatINR(quote.base)}
+                        </s>
+                      )}
                       <span className="text-4xl sm:text-5xl font-black text-slate-100 font-heading">{formatINR(amount)}</span>
                       <span className="text-xs text-slate-400 font-medium">{billingCycle === 'annual' ? 'for 12 months, billed once' : 'per month'}</span>
                     </div>
-                    {billingCycle === 'annual' ? (
+                    {discounted ? (
+                      // A coupon's own label shows in its field under the pay button.
+                      <p className="mt-1 text-xs text-slate-400">
+                        <strong className="text-amber-600 dark:text-amber-400">
+                          {quote.applied?.type === 'offer' ? quote.applied.label : `You save ${formatINR(quote.discount)}`}
+                        </strong>
+                        {quote.offer_ends_at ? ` · ${endsIn(quote.offer_ends_at)}` : ''}
+                      </p>
+                    ) : billingCycle === 'annual' ? (
                       <p className="mt-1 text-xs text-slate-400">
                         That's {formatINR(annualPerMonth(plan))} a month
                         {saving > 0 ? (
@@ -294,6 +334,14 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenFreeTrialModal }
                         <span className="leading-snug">Doesn't include {category} classes</span>
                       </li>
                     ))}
+                    {joiningGifts.map(j => (
+                      <li key={j.billing_cycle} className="flex items-start gap-2.5">
+                        <Gift className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+                        <span className="leading-snug">
+                          {j.billing_cycle === 'annual' ? 'Annual' : 'Monthly'}: free welcome {j.gifts.length > 1 ? 'kit' : 'gift'}: {j.gifts.join(', ')}
+                        </span>
+                      </li>
+                    ))}
                   </ul>
                 </div>
 
@@ -304,7 +352,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenFreeTrialModal }
                   ) : config.payments.enabled ? (
                     <button
                       type="button"
-                      onClick={() => handleChoosePlan(plan)}
+                      onClick={() => handleChoosePlan(plan, quote)}
                       disabled={isProcessing}
                       aria-label={isPaying ? undefined : `${action.label} · ${formatINR(amount)}, ${plan.name}`}
                       aria-describedby={action.note ? `plan-${plan.tier}-note` : undefined}
@@ -322,6 +370,15 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenFreeTrialModal }
                   ) : (
                     <p className="p-3 rounded-xl neu-pressed-sm text-xs text-slate-300 text-center">Online payment isn't available — pay for this plan at the front desk.</p>
                   )}
+                  {isConfigLoaded &&
+                    config.payments.enabled &&
+                    (couponTier === plan.tier ? (
+                      <CouponField key={billingCycle} tier={plan.tier} billingCycle={billingCycle} onQuote={setCouponQuote} />
+                    ) : (
+                      <button type="button" onClick={() => openCoupon(plan.tier)} className="text-[11px] font-bold text-lime-400 hover:underline rounded">
+                        Have a coupon?<span className="sr-only"> ({plan.name})</span>
+                      </button>
+                    ))}
                   {user && config.payments.enabled && action.note && (
                     <p id={`plan-${plan.tier}-note`} className="text-[11px] text-slate-400 leading-relaxed">
                       {action.note}

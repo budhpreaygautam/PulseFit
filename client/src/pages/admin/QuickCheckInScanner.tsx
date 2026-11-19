@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Camera, CheckCircle2, Clock, Loader2, QrCode, RefreshCw, XCircle } from 'lucide-react';
-import { AttendanceLog, CheckInDenial, CheckInMember, CheckInResult, TrialPass } from '../../types/index.js';
+import { ArrowLeft, Camera, CheckCircle2, Clock, Gift, Loader2, QrCode, RefreshCw, XCircle } from 'lucide-react';
+import { AttendanceLog, CheckInDenial, CheckInMember, CheckInResult, GiftClaim, GiftSize, TrialPass } from '../../types/index.js';
 import { ApiError, api, errorMessage } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
+import { GiftImage } from '../../components/common/GiftImage.js';
+import { useApiResource } from '../../components/member/useApiResource.js';
+import { useToast } from '../../context/ToastContext.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
 import { AdminNav, Avatar, PageHeader, SectionCard, focusRing, inputClass, labelClass } from '../../components/admin/ui.js';
 import { CameraScanner, canScanWithCamera } from '../../components/admin/CameraScanner.js';
@@ -119,6 +122,91 @@ const OutcomePanel: React.FC<{ outcome: Outcome | null }> = ({ outcome }) => {
   );
 };
 
+/**
+ * The checked-in member's gifts the desk can hand over now. Each answer replaces its claim in place,
+ * so the count goes down as gifts go out; a new scan brings the server's list.
+ */
+const GiftsToCollect: React.FC<{ claims: GiftClaim[] }> = ({ claims }) => {
+  const { showToast } = useToast();
+  const [handed, setHanded] = useState<Record<string, GiftClaim>>({});
+  const [sizeOf, setSizeOf] = useState<Record<string, GiftSize>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  // Pictures. Staff get the store's gifts, admins the whole catalogue; a claim that needs a size brings its gift's sizes.
+  const gifts = useApiResource(() => api.getStoreGifts());
+  const list = claims.map(c => handed[c.id] ?? c);
+  const ready = list.filter(c => c.status !== 'handed_over').length;
+
+  const handOver = async (c: GiftClaim) => {
+    setBusy(c.id);
+    try {
+      const done = await api.updateClaim(c.id, { status: 'handed_over', ...(c.status === 'needs_size' ? { size: sizeOf[c.id] } : {}) });
+      setHanded(h => ({ ...h, [c.id]: done }));
+      showToast(`${c.gift_name}${done.size ? ` (${done.size})` : ''} handed over to ${c.user_name}.`, 'success');
+    } catch (err) {
+      showToast(errorMessage(err), 'error', 'The gift was not handed over');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <section aria-labelledby="gifts-to-collect-heading" className="neu-pressed-sm rounded-2xl p-4 space-y-3">
+      <h3 id="gifts-to-collect-heading" className="flex items-center gap-2 text-sm font-black text-slate-100 font-heading">
+        <Gift className="w-4 h-4 text-lime-400" aria-hidden="true" /> {ready} {ready === 1 ? 'gift' : 'gifts'} ready
+      </h3>
+      <ul className="space-y-2">
+        {list.map(c => {
+          const gift = gifts.data?.find(g => g.id === c.gift_id);
+          return (
+            <li key={c.id} className="flex flex-wrap items-center gap-3">
+              {gift && <GiftImage image={gift.image} name={c.gift_name} className="w-10 h-10 text-2xl" />}
+              <div className="flex-1 min-w-[10rem]">
+                <p className="text-sm font-bold text-slate-100 break-words">
+                  {c.gift_name}
+                  {c.size && <span className="text-slate-400"> · {c.size}</span>}
+                </p>
+                <p className="text-xs text-slate-400">
+                  Pickup code <span className="font-mono font-black tracking-widest text-lime-400">{c.pickup_code}</span>
+                </p>
+              </div>
+              {c.status === 'handed_over' ? (
+                <span className="text-xs font-bold text-lime-400">Handed over</span>
+              ) : (
+                <div className="flex items-center gap-2">
+                  {c.status === 'needs_size' && (
+                    <select
+                      aria-label={`Size for the ${c.gift_name}`}
+                      value={sizeOf[c.id] ?? ''}
+                      onChange={e => setSizeOf(s => ({ ...s, [c.id]: e.target.value as GiftSize }))}
+                      className="px-3 py-2 rounded-xl text-xs font-bold text-slate-100"
+                    >
+                      <option value="">Size</option>
+                      {(c.sizes ?? []).map(size => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handOver(c)}
+                    disabled={busy === c.id || (c.status === 'needs_size' && !sizeOf[c.id])}
+                    aria-label={`Hand over ${c.gift_name} to ${c.user_name}`}
+                    className={`px-3 py-2 neu-btn-lime rounded-lg text-xs font-black flex items-center gap-1.5 disabled:opacity-60 ${focusRing}`}
+                  >
+                    {busy === c.id && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />} Hand over
+                  </button>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+};
+
 const LOG_METHODS: Record<string, string> = { qr: 'QR', manual: 'Desk', kiosk: 'Kiosk', camera: 'Camera' };
 
 const LogRow: React.FC<{ log: AttendanceLog }> = ({ log }) => (
@@ -230,6 +318,8 @@ export const QuickCheckInScanner: React.FC = () => {
           <div aria-live="polite" aria-atomic="true">
             <OutcomePanel outcome={outcome} />
           </div>
+          {/* Outside the live region: its buttons change as gifts go out, and must not re-announce the outcome. */}
+          {outcome?.kind === 'granted' && !!outcome.result.gifts_to_collect?.length && <GiftsToCollect claims={outcome.result.gifts_to_collect} />}
 
           {isCameraOpen ? (
             <CameraScanner

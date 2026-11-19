@@ -37,6 +37,29 @@ export async function signInAs(page: Page, request: APIRequestContext, role: Per
   return data.token as string;
 }
 
+/** The bearer header for direct API calls made as someone else than the page's session. */
+export const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+/**
+ * A new member with one free month of Basic, made by the demo admin and signed in with its temporary
+ * password: rewards specs count points and gifts on it, never on the seeded personas.
+ */
+export async function freshMember(request: APIRequestContext, label: string): Promise<{ id: string; email: string; token: string; adminToken: string }> {
+  const admin = await request.post('/api/auth/demo-login', { data: { role: 'admin' } });
+  expect(admin.ok()).toBeTruthy();
+  const adminToken = (await admin.json()).data.token as string;
+  const email = `${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString(36)}@example.com`;
+  const created = await request.post('/api/members', {
+    headers: auth(adminToken),
+    data: { name: `E2E ${label}`.slice(0, 60), email, membership_tier: 'basic', expiry_months: 1 }
+  });
+  expect(created.status(), await created.text()).toBe(201);
+  const { member, tempPassword } = (await created.json()).data;
+  const login = await request.post('/api/auth/login', { data: { email, password: tempPassword } });
+  expect(login.ok(), await login.text()).toBeTruthy();
+  return { id: member.id, email, token: (await login.json()).data.token, adminToken };
+}
+
 /** Collect uncaught page errors and console errors (ignoring blocked remote images/fonts). */
 export function trackConsoleErrors(page: Page): string[] {
   const errors: string[] = [];

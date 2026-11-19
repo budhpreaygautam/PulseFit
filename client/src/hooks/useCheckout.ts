@@ -24,14 +24,16 @@ function loadRazorpayScript(): Promise<void> {
 export interface CheckoutParams {
   tier: PaidTier;
   billingCycle: BillingCycle;
+  /** A coupon the member applied; the server checks it again and prices the order. */
+  couponCode?: string;
   /** `message` is the server's own account of what the payment did (for example, class bookings a plan change cancelled). */
   onSuccess?: (result: { user: User; payment?: Payment; message?: string }) => void;
 }
 
 /**
  * Pays for a membership with the gateway the server uses. The server prices the order from the
- * plan catalogue and fixes the tier/cycle on its own order record; the browser only says which
- * plan was chosen.
+ * plan catalogue, less a live sale or the coupon, and fixes the tier/cycle on its own order record;
+ * the browser only says which plan was chosen and which coupon was typed.
  * - Razorpay: its checkout opens over the page; verification activates the membership.
  * - YouPI: the member pays by UPI on YouPI's page and comes back to /payment-status, which asks
  *   the server until YouPI has confirmed the money arrived.
@@ -44,7 +46,7 @@ export const useCheckout = () => {
   const [error, setError] = useState<string | null>(null);
 
   const checkout = useCallback(
-    async ({ tier, billingCycle, onSuccess }: CheckoutParams) => {
+    async ({ tier, billingCycle, couponCode, onSuccess }: CheckoutParams) => {
       if (!user) {
         setError('Please sign in before buying a membership.');
         return;
@@ -59,7 +61,8 @@ export const useCheckout = () => {
 
       try {
         if (config.payments.provider === 'razorpay') await loadRazorpayScript();
-        const order = await api.createPaymentOrder({ tier, billing_cycle: billingCycle });
+        // A coupon that stopped working since it was applied is a 400 COUPON_*, shown below with the server's message.
+        const order = await api.createPaymentOrder({ tier, billing_cycle: billingCycle, coupon_code: couponCode });
 
         if (order.provider === 'youpi') {
           // The app waits on its own status page; the checkout opens in the phone's browser, since
@@ -101,9 +104,9 @@ export const useCheckout = () => {
                 updateUser(current);
                 onSuccess?.({ user: current, message: data?.message || undefined });
               } else if (code === 'ORDER_REJECTED') {
-                // Razorpay reported a wrong amount or currency for this order: it can never activate a membership.
+                // A wrong amount or currency, or a sale or coupon that no longer applies: this order can never activate a membership.
                 setError(
-                  'This payment could not be applied: Razorpay reported a different amount or currency from this order, so nothing was activated on your membership. ' +
+                  'This payment could not be applied: Razorpay reported a different amount, or the sale or coupon on this order no longer applies, so nothing was activated on your membership. ' +
                     `If money was taken, contact the front desk at ${GYM_PHONE_DISPLAY} or ${GYM_EMAIL} with your ${paymentRef}. ` +
                     'Under our refund policy we then activate the plan you paid for or refund the money in full.'
                 );

@@ -3,17 +3,19 @@ import Razorpay from 'razorpay';
 import { z } from 'zod';
 import config, { paymentProvider, razorpayConfigured, youpiConfigured } from '../config.js';
 import db from '../db/database.js';
-import { computeActivation, hmacMatches, nextInvoiceNumber, PaidTier, planPrice } from '../lib/billing.js';
-import { displayDate, gymToday } from '../lib/dates.js';
-import { releaseUnentitledBookings } from '../lib/bookingRules.js';
+import { hmacMatches } from '../lib/billing.js';
+import { displayDate } from '../lib/dates.js';
+import { applyPaidActivation } from '../lib/activation.js';
+import { discountHolds, planFor, quoteFor } from '../lib/pricing.js';
 import { ApiError, asyncHandler, badRequest, conflict, forbidden, notFound, ok, parse, unavailable } from '../lib/http.js';
 import { newId, toSafeUser } from '../lib/users.js';
 import { isSafeCheckoutUrl, readSession, youpi, YOUPI_CLOSED, YoupiSession } from '../lib/youpi.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { BillingCycle, Payment, PaymentOrder, SafeUser } from '../types/index.js';
 
-// Checkout flow: create-order fixes the plan, cycle and price on a server-side PaymentOrder;
-// nothing about price or tier is read from the client.
+// Checkout flow: create-order fixes the plan, cycle and price (lib/pricing quoteFor: the list price
+// less a live sale or a valid coupon) on a server-side PaymentOrder; nothing about price or tier is
+// read from the client.
 // - Razorpay: verify (from the browser) and the webhook (from Razorpay) both activate that order,
 //   and whichever arrives first wins.
 // - YouPI: the member pays on YouPI's checkout page; YouPI's signed webhook, or a status lookup
@@ -48,19 +50,21 @@ function getRazorpay(): RazorpayOrdersClient {
   return sdkClient.client;
 }
 
-function planFor(tier: PaidTier) {
-  const plan = db.membership_plans.find(p => p.tier === tier);
-  if (!plan) throw notFound('That membership plan is not available.', 'PLAN_NOT_FOUND');
-  return plan;
-}
-
 function describePurchase(planName: string, cycle: BillingCycle): string {
   return `${planName} (${cycle === 'annual' ? '12 months, billed once' : '1 month'})`;
 }
 
-const createOrderSchema = z.object({
+/** A plan to price or buy. Anything else in the body (a price, a discount) is dropped. */
+export const purchaseSchema = z.object({
   tier: z.enum(['basic', 'pro', 'vip']),
-  billing_cycle: z.enum(['monthly', 'annual'])
+  billing_cycle: z.enum(['monthly', 'annual']),
+  // As typed; an emptied field means no coupon (never COUPON_INVALID).
+  coupon_code: z
+    .string()
+    .trim()
+    .max(32, 'That coupon code is too long.')
+    .optional()
+    .transform(v => v || undefined)
 });
 
 /** Where YouPI sends the member back: PUBLIC_URL, else the website the request came from, else the first CLIENT_ORIGIN. */
@@ -71,19 +75,27 @@ function websiteOrigin(req: Request): string {
   return config.corsOrigins[0] ?? '';
 }
 
+const ORDER_REJECTED_MESSAGE =
+  'This payment was not applied to your membership: the payment gateway reported a different amount, or the sale or coupon on this order no longer applies. Please contact the front desk.';
+
 const providerError = () =>
   new ApiError(502, 'We could not reach the payment provider. Please try again in a moment.', 'PAYMENT_PROVIDER_ERROR');
 
 export const createOrder = asyncHandler<AuthenticatedRequest>(async (req, res) => {
   const provider = paymentProvider();
   if (!provider) throw unavailable('Online payments are not configured on this server.', 'PAYMENTS_DISABLED');
-  const { tier, billing_cycle } = parse(createOrderSchema, req.body);
+  const { tier, billing_cycle, coupon_code } = parse(purchaseSchema, req.body);
   const user = req.user!;
+  // A coupon that does not work is refused here, before any order exists.
+  const quote = quoteFor(user.id, tier, billing_cycle, coupon_code);
   const plan = planFor(tier);
-  const amountInr = planPrice(plan, billing_cycle);
+  const amountInr = quote.total;
   const summary = {
     amount: amountInr * 100,
     amount_inr: amountInr,
+    base_amount_inr: quote.base,
+    discount_inr: quote.discount,
+    applied: quote.applied,
     currency: 'INR' as const,
     tier,
     billing_cycle,
@@ -97,6 +109,10 @@ export const createOrder = asyncHandler<AuthenticatedRequest>(async (req, res) =
     tier,
     billing_cycle,
     amount_inr: amountInr,
+    base_amount_inr: quote.base,
+    discount_inr: quote.discount,
+    ...(quote.applied?.type === 'offer' ? { offer_id: quote.applied.id } : {}),
+    ...(quote.applied?.type === 'coupon' ? { coupon_code: quote.applied.code } : {}),
     currency: 'INR',
     status: 'created',
     created_at: new Date().toISOString()
@@ -167,7 +183,7 @@ function paymentMessage(payment: Payment, cancelled: number): string {
  * Apply a paid order to its member: extend or change the membership and store the invoice.
  * A change of plan cancels the member's upcoming bookings the new plan does not cover, as an
  * admin's tier change does. An order activates at most once, and never after the webhook
- * rejected it for a wrong amount.
+ * rejected it for a wrong amount, nor when its discount no longer holds (lib/pricing discountHolds).
  */
 function activateOrder(orderId: string, paymentId: string, source: Payment['source'], utr?: string): ActivationResult {
   const order = db.payment_orders.find(o => o.id === orderId);
@@ -190,48 +206,31 @@ function activateOrder(orderId: string, paymentId: string, source: Payment['sour
     );
     return { outcome: 'skipped' };
   }
+  if (!discountHolds(order)) {
+    // Like a wrong amount: kept for the desk, which applies the plan or refunds the money.
+    db.payment_orders = db.payment_orders.map(o => (o.id === orderId ? { ...o, status: 'rejected' as const, razorpay_payment_id: paymentId } : o));
+    db.saveSync();
+    console.warn(`⚠️  Payment ${paymentId} for order ${orderId} arrived after its sale or coupon stopped applying to it; order rejected.`);
+    return { outcome: 'rejected' };
+  }
 
-  const today = gymToday();
-  const activation = computeActivation(user, order, db.membership_plans, today);
-  const plan = db.membership_plans.find(p => p.tier === order.tier);
-  const now = new Date().toISOString();
-
-  const payment: Payment = {
-    id: newId('pmt'),
-    invoice_number: nextInvoiceNumber(db.payments.map(p => p.invoice_number), today.slice(0, 4)),
-    user_id: user.id,
-    user_name: user.name,
-    user_email: user.email,
+  const { base_amount_inr, discount_inr, offer_id, coupon_code } = order;
+  const { payment, user: updatedUser, cancelledBookings } = applyPaidActivation(user, order, {
     order_id: order.id,
     razorpay_payment_id: paymentId,
     provider,
     ...(utr ? { utr } : {}),
-    tier: order.tier,
-    plan_name: plan?.name ?? order.tier,
-    billing_cycle: order.billing_cycle,
     amount_inr: order.amount_inr,
-    currency: 'INR',
-    status: 'paid',
-    period_start: activation.period_start,
-    period_end: activation.period_end,
-    created_at: now,
-    source
-  };
-
-  const updatedUser = {
-    ...user,
-    membership_tier: activation.membership_tier,
-    membership_status: activation.membership_status,
-    membership_expiry: activation.membership_expiry,
-    frozen_since: activation.frozen_since
-  };
-
-  db.users = db.users.map(u => (u.id === user.id ? updatedUser : u));
-  const cancelledBookings =
-    updatedUser.membership_tier !== user.membership_tier ? releaseUnentitledBookings({ userId: user.id }) : 0;
-  const paidOrder: ActivatedOrder = { ...order, status: 'paid', paid_at: now, cancelled_bookings: cancelledBookings };
+    source,
+    // How the price was reached; orders from before sales and coupons have none of these.
+    ...(base_amount_inr !== undefined && discount_inr !== undefined ? { base_amount_inr, discount_inr } : {}),
+    ...(offer_id ? { offer_id } : {}),
+    ...(coupon_code ? { coupon_code } : {})
+  });
+  const paidOrder: ActivatedOrder = { ...order, status: 'paid', paid_at: payment.created_at, cancelled_bookings: cancelledBookings };
   db.payment_orders = db.payment_orders.map(o => (o.id === order.id ? paidOrder : o));
-  db.payments = [...db.payments, payment];
+  // Counted only here, once per paid order, even past max_uses: a coupon that ran out after the order was made is honoured.
+  if (coupon_code) db.coupons = db.coupons.map(c => (c.code === coupon_code ? { ...c, uses: c.uses + 1 } : c));
   // Money has moved: make the activation durable before anyone is told it succeeded.
   db.saveSync();
 
@@ -271,12 +270,7 @@ export const verifyPayment = asyncHandler<AuthenticatedRequest>(async (req, res)
   if (order.user_id !== req.user!.id) throw forbidden('This order belongs to another account.', 'ORDER_NOT_YOURS');
 
   const result = activateOrder(order.id, razorpay_payment_id, 'checkout');
-  if (result.outcome === 'rejected') {
-    throw conflict(
-      'Razorpay reported a payment that does not match this order, so it was not applied. Please contact the front desk.',
-      'ORDER_REJECTED'
-    );
-  }
+  if (result.outcome === 'rejected') throw conflict(ORDER_REJECTED_MESSAGE, 'ORDER_REJECTED');
   if (result.outcome !== 'activated') {
     // Usually the webhook got here first: say what that activation did, as verify would have.
     const { user, cancelled_bookings, message } = paidOrderSummary(order.id, req.user!.id);
@@ -371,8 +365,6 @@ function applyYoupiSession(order: PaymentOrder, session: YoupiSession, source: P
   return 'pending';
 }
 
-const ORDER_REJECTED_MESSAGE =
-  'The payment gateway reported a payment that does not match this order, so it was not applied. Please contact the front desk.';
 
 const confirmSchema = z.object({ order_id: z.string().trim().min(1).max(100) });
 

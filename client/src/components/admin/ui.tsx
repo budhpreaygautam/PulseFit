@@ -95,7 +95,7 @@ const ADMIN_LINKS = [
   { tab: 'admin-scanner', label: 'Check-in', icon: QrCode },
   { tab: 'admin-classes', label: 'Classes & coaches', icon: CalendarDays },
   { tab: 'trainer-dashboard', label: 'Coach dashboards', icon: Activity },
-  { tab: 'admin-plans', label: 'Plans', icon: Tag },
+  { tab: 'admin-plans', label: 'Plans & rewards', icon: Tag },
   { tab: 'admin-trials', label: 'Leads', icon: UserPlus }
 ];
 

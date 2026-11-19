@@ -3,6 +3,9 @@ import app from '../src/server.js';
 import db from '../src/db/database.js';
 import { seedDatabase } from '../src/db/seed.js';
 import { generateToken } from '../src/middleware/auth.js';
+import { addDays, gymToday } from '../src/lib/dates.js';
+import { generateQrToken, newId } from '../src/lib/users.js';
+import type { User } from '../src/types/index.js';
 
 export { db };
 
@@ -43,4 +46,32 @@ export function tokenFor(email: string): string {
 
 export function authHeader(email: string): { Authorization: string } {
   return { Authorization: `Bearer ${tokenFor(email)}` };
+}
+
+/**
+ * Insert a fresh member with no history: active on the basic plan until today + 30, unless the
+ * patch says otherwise. Sign in as them with authHeader(member.email).
+ */
+export function addMember(patch: Partial<User> = {}): User {
+  const id = newId('usr');
+  const member: User = {
+    id,
+    email: `${id}@example.com`,
+    name: 'Test Member',
+    role: 'member',
+    avatar_url: '',
+    phone: '',
+    membership_tier: 'basic',
+    membership_status: 'active',
+    membership_expiry: addDays(gymToday(), 30),
+    frozen_since: null,
+    qr_code_token: generateQrToken('Test Member'),
+    created_at: new Date().toISOString(),
+    streak_days: 0,
+    last_active_date: null,
+    token_version: 0,
+    ...patch
+  };
+  db.users = [...db.users, member];
+  return member;
 }

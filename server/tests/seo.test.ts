@@ -193,7 +193,7 @@ describe('GET /robots.txt', () => {
     expect(lines).toContain('User-agent: *');
     expect(lines).toContain('Allow: /');
     expect(lines).not.toContain('Disallow: /');
-    for (const area of ['/api/', '/downloads/', ...SIGN_IN_PAGES, '/admin', '/trainer', '/dashboard', '/bookings', '/log-workout', '/profile', '/reset-password', '/payment-status']) {
+    for (const area of ['/api/', '/downloads/', ...SIGN_IN_PAGES, '/admin', '/trainer', '/dashboard', '/bookings', '/log-workout', '/rewards', '/profile', '/reset-password', '/payment-status']) {
       expect(lines).toContain(`Disallow: ${area}`);
     }
     // /admin already covers its sub-pages; nothing public, and no script or style, is shut.

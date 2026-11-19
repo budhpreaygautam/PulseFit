@@ -5,13 +5,17 @@ import config from '../config.js';
 import db from '../db/database.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler, badRequest, conflict, forbidden, notFound, ok, parse } from '../lib/http.js';
-import { addDays, addMonths, gymDateTime, gymToday, isValidDate } from '../lib/dates.js';
+import { addDays, addMonths, displayDate, gymDateTime, gymToday, isValidDate } from '../lib/dates.js';
+import { applyPaidActivation } from '../lib/activation.js';
 import { unfreezeMembership } from '../lib/billing.js';
 import { effectiveStatus } from '../lib/membership.js';
 import { findUserByEmail, GENDERS, generateQrToken, generateTempPassword, newId, toSafeUser } from '../lib/users.js';
 import { closeOpenSession, releaseInvalidBookings } from '../lib/bookingRules.js';
 import { cardsOf } from '../lib/idCards.js';
-import { isLockedDemoAccount } from './authController.js';
+import { entriesOf, pointsBalance } from '../lib/points.js';
+import { claimsOf, promoteWaiting, returnStock } from '../lib/gifts.js';
+import { referrerFor, referrerLocked } from '../lib/referrals.js';
+import { isLockedDemoAccount, referralCodeSchema } from './authController.js';
 import { MembershipStatus, MembershipTier, User, UserRole } from '../types/index.js';
 
 const ROLES = ['member', 'trainer', 'admin'] as const satisfies readonly UserRole[];
@@ -40,6 +44,23 @@ const monthsField = z.preprocess(
   z.number('Months must be a number.').int('Months must be a whole number.').min(0).max(24)
 );
 
+const DESK_SALE_REPEAT_MS = 2 * 60 * 1000;
+
+// A plan paid for at the front desk: whatever staff collected, no offer or coupon.
+const deskSaleSchema = z
+  .object({
+    tier: z.enum(['basic', 'pro', 'vip']),
+    billing_cycle: z.enum(['monthly', 'annual']),
+    amount_inr: z
+      .number('Enter the amount collected.')
+      .int('Enter the amount in whole rupees.')
+      .min(1, 'Enter the amount collected.')
+      .max(1_200_000, 'The amount is too large.'),
+    method: z.enum(['cash', 'upi', 'card'], { error: 'Choose cash, UPI or card.' })
+  })
+  .strict();
+type DeskSale = z.infer<typeof deskSaleSchema>;
+
 const createBody = z
   .object({
     name: nameField,
@@ -48,9 +69,19 @@ const createBody = z
     gender: genderField.optional(),
     role: z.enum(ROLES).default('member'),
     membership_tier: z.enum(TIERS).default('none'),
-    expiry_months: monthsField.default(0)
+    expiry_months: monthsField.default(0),
+    desk_sale: deskSaleSchema.optional(),
+    referral_code: referralCodeSchema.optional()
   })
-  .strict();
+  .strict()
+  .superRefine((b, ctx) => {
+    if (!b.desk_sale) return;
+    if (b.expiry_months > 0) {
+      ctx.addIssue({ code: 'custom', path: ['desk_sale'], message: 'Record a sale or give free months, not both.' });
+    } else if (b.membership_tier !== 'none' && b.membership_tier !== b.desk_sale.tier) {
+      ctx.addIssue({ code: 'custom', path: ['desk_sale'], message: 'The plan sold must be the plan chosen for the member.' });
+    }
+  });
 
 const updateBody = z
   .object({
@@ -68,6 +99,32 @@ function findUserOr404(id: string): User {
   const user = db.users.find(u => u.id === id);
   if (!user) throw notFound('No member with that id.', 'NOT_FOUND');
   return user;
+}
+
+/**
+ * Record a front-desk sale as a desk Payment with an invoice and activate it like an online payment
+ * (lib/activation), joining gifts included. Never saves.
+ */
+function applyDeskSale(user: User, sale: DeskSale, staff: User) {
+  const result = applyPaidActivation(user, sale, {
+    order_id: '',
+    razorpay_payment_id: '',
+    amount_inr: sale.amount_inr,
+    source: 'desk',
+    desk_method: sale.method,
+    recorded_by: { id: staff.id, name: staff.name }
+  });
+  const { payment, gifts, cancelledBookings } = result;
+  let message = `${payment.plan_name} recorded. ${user.name}'s membership runs until ${displayDate(payment.period_end)}.`;
+  if (gifts.length > 0) message += ` Joining gifts: ${gifts.map(c => c.gift_name).join(', ')}.`;
+  if (cancelledBookings > 0) {
+    message += ` ${cancelledBookings} upcoming booking${cancelledBookings === 1 ? ' was' : 's were'} cancelled because the new plan does not include ${cancelledBookings === 1 ? 'that class' : 'those classes'}.`;
+  }
+  return { ...result, message };
+}
+
+function withoutReferrer({ referred_by, ...rest }: User): User {
+  return rest;
 }
 
 function emailTaken(): never {
@@ -132,6 +189,7 @@ export const getMemberById = asyncHandler<AuthenticatedRequest>((req, res: Respo
   const payments = db.payments
     .filter(p => p.user_id === user.id)
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const referrer = user.referred_by ? db.users.find(u => u.id === user.referred_by) : undefined;
 
   return ok(res, {
     ...toSafeUser(user),
@@ -141,13 +199,21 @@ export const getMemberById = asyncHandler<AuthenticatedRequest>((req, res: Respo
     upcoming_bookings: upcoming.length,
     recent_attendance: attendance.slice(0, 10),
     payments,
-    id_cards: cardsOf(user.id)
+    id_cards: cardsOf(user.id),
+    rewards: {
+      balance: pointsBalance(user.id),
+      recent_points: entriesOf(user.id).slice(0, 20),
+      claims: claimsOf(user.id),
+      referred_by: referrer ? { id: referrer.id, name: referrer.name } : null,
+      can_add_referrer: user.role === 'member' && !user.referred_by && !referrerLocked(user)
+    }
   });
 });
 
 export const createMember = asyncHandler<AuthenticatedRequest>(async (req, res: Response) => {
   const body = parse(createBody, req.body);
   if (findUserByEmail(body.email)) emailTaken();
+  const referrer = referrerFor(body.referral_code);
 
   const tempPassword = generateTempPassword();
   const password_hash = await bcrypt.hash(tempPassword, 10);
@@ -167,7 +233,8 @@ export const createMember = asyncHandler<AuthenticatedRequest>(async (req, res: 
     avatar_url: '',
     ...(body.gender ? { gender: body.gender } : {}),
     phone: body.phone ?? '',
-    membership_tier: body.membership_tier,
+    // A desk sale sets the plan through its activation, so the member starts without one.
+    membership_tier: body.desk_sale ? 'none' : body.membership_tier,
     membership_status: paid ? 'active' : 'pending',
     // Inclusive last day: one month from 7 Oct runs until 6 Nov.
     membership_expiry: paid ? addDays(addMonths(today, body.expiry_months), -1) : null,
@@ -176,11 +243,47 @@ export const createMember = asyncHandler<AuthenticatedRequest>(async (req, res: 
     created_at: new Date().toISOString(),
     streak_days: 0,
     last_active_date: null,
-    token_version: 0
+    token_version: 0,
+    ...(referrer ? { referred_by: referrer.id } : {})
   };
 
+  // Inserted with its referrer, so the desk sale's activation credits the referral.
   db.users = [...db.users, member];
-  return ok(res, { member: toSafeUser(member), tempPassword }, `${member.name} was added.`, 201);
+  const sale = body.desk_sale ? applyDeskSale(member, body.desk_sale, req.user!) : null;
+  db.saveSync();
+  return ok(
+    res,
+    sale
+      ? { member: toSafeUser(sale.user), tempPassword, payment: sale.payment, gifts: sale.gifts }
+      : { member: toSafeUser(member), tempPassword },
+    `${member.name} was added.${sale ? ` ${sale.message}` : ''}`,
+    201
+  );
+});
+
+/** A plan paid for at the front desk. A second identical sale within 2 minutes is a double click, not a sale. */
+export const recordDeskSale = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
+  const user = findUserOr404(req.params.id);
+  const sale = parse(deskSaleSchema, req.body);
+  const since = Date.now() - DESK_SALE_REPEAT_MS;
+  const repeat = db.payments.some(
+    p =>
+      p.source === 'desk' &&
+      p.user_id === user.id &&
+      p.tier === sale.tier &&
+      p.billing_cycle === sale.billing_cycle &&
+      p.amount_inr === sale.amount_inr &&
+      Date.parse(p.created_at) > since
+  );
+  if (repeat) {
+    throw conflict(
+      `This sale was recorded for ${user.name} moments ago. Check their payments before recording it again.`,
+      'DESK_SALE_DUPLICATE'
+    );
+  }
+  const { payment, user: updated, gifts, message } = applyDeskSale(user, sale, req.user!);
+  db.saveSync();
+  return ok(res, { user: toSafeUser(updated), payment, gifts }, message);
 });
 
 export const updateMember = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
@@ -277,10 +380,22 @@ export const deleteMember = asyncHandler<AuthenticatedRequest>((req, res: Respon
   db.trainer_notes = db.trainer_notes.filter(n => n.member_id !== id);
   db.password_resets = db.password_resets.filter(r => r.user_id !== id);
   db.id_cards = db.id_cards.filter(c => c.user_id !== id);
+  // Their referrer keeps the points, under a key that no longer names them (a deleted account never pays again).
+  db.points_ledger = db.points_ledger
+    .filter(e => e.user_id !== id)
+    .map(e => (e.key === `referral:${id}` ? { ...e, key: `referral:deleted:${newId('ref')}` } : e));
+  // Stock held by their ready claims goes to the next waiting claims. Dropping their claims first
+  // keeps their own waiting claims from taking it.
+  const held = db.gift_claims.filter(c => c.user_id === id && c.status === 'ready');
+  db.gift_claims = db.gift_claims.filter(c => c.user_id !== id);
+  for (const c of held) returnStock(c.gift_id, c.size);
+  for (const giftId of new Set(held.map(c => c.gift_id))) promoteWaiting(giftId);
   if (db.trainers.some(t => t.user_id === id)) {
     db.trainers = db.trainers.map(t => (t.user_id === id ? { ...t, user_id: undefined } : t));
   }
-  db.users = db.users.filter(u => u.id !== id);
+  // Members they referred keep their account but lose the link.
+  db.users = db.users.filter(u => u.id !== id).map(u => (u.referred_by === id ? withoutReferrer(u) : u));
+  db.saveSync();
 
   return ok(res, { deleted: true }, `${existing.name} was removed.`);
 });

@@ -114,8 +114,9 @@ plans".
 
 ### Earning rules (server-side only)
 
-- **Who earns:** members only (not coaches or admins), and only while their membership is
-  `active` or `frozen`. Trial passes never earn.
+- **Who earns:** members only (not coaches or admins), and only while they have a plan:
+  `active`, or `frozen` up to the paid end date (the same rule as the fitness guide, so a freeze
+  cannot keep earning for ever). Trial passes never earn.
 - **Check-in:** when staff create an attendance log for a member → `+points_per_checkin`, key
   `checkin:<attendanceId>`. Staff-only creation and one-per-day already limit it.
 - **Workout:** first workout a member logs **on its own date** → `+points_per_workout`, key
@@ -148,8 +149,9 @@ plans".
   on every annual purchase (rewards renewing annually).
 - **Referrals:** registration (email and Google) and the admin Add member form accept an optional
   `referral_code`; it sets `referred_by` once and refuses the member's own code. An admin can
-  attach a referrer later (friend forgot the code) only until the member's first paid
-  activation. On the referred member's **first paid activation** (online or recorded desk sale) → referrer
+  attach a referrer later (friend forgot the code) only while the member has never had a plan:
+  no paid payment, no `membership_expiry`, and created after rewards launched (409
+  `REFERRAL_LOCKED` otherwise; desk payments were not recorded before rewards). On the referred member's **first paid activation** (online or recorded desk sale) → referrer
   `+points_per_referral` (key `referral:<referredUserId>`) and the new member
   `+welcome_points_for_referred` (key `referral-welcome:<referredUserId>`).
 - **Admin adjustment:** admins can add or remove points with a note (key `adjust:<uuid>`).
@@ -183,10 +185,24 @@ plans".
   base/discount/offer/coupon on the order. An invalid coupon returns 400 with a clear code
   (`COUPON_INVALID`, `COUPON_EXPIRED`, `COUPON_USED_UP`, `COUPON_NOT_FOR_PLAN`).
 - Coupon `uses` and per-member counts increase only in `activateOrder` (paid), inside the
-  existing idempotency guard. A coupon that ran out between order and payment is still honoured
-  (the member already paid).
+  existing idempotency guard. A coupon that ran out of `max_uses` between order and payment is
+  still honoured (the member already paid).
+- **The discount is checked again when the money arrives** (`discountHolds` in
+  `lib/pricing.ts`, called by `activateOrder`), because Razorpay orders cannot be cancelled and
+  counting open orders at order time would block honest retries. A discounted order is not
+  applied when (a) the member has already paid `per_member_limit` orders with that coupon (so the
+  per-member limit is enforced at payment, however new the order), or (b) it is paid more than 30
+  minutes after its sale ended or its coupon was switched off or went out of its dates. Such an
+  order is marked `rejected` (the gateway payment id is kept), the answer is 409
+  `ORDER_REJECTED`, and the desk applies the plan or refunds the money by hand, as for a
+  wrong-amount payment. Cost of this choice: abusive extra payments become desk work instead of
+  being stopped before checkout. The gap is Razorpay's; YouPI sessions close after about 5 minutes.
 - Front-desk activations charge whatever staff collect; offers/coupons don't apply there.
-- Plan credit for upgrades keeps using list prices (unchanged).
+- **Plan credit on a plan change** uses list prices for days bought at full price; each unused
+  day bought on a sale or coupon counts only at the share that was paid (`amount_inr /
+  base_amount_inr` of a day), so a sale cannot be carried into an upgrade. Known edge: on a
+  VIP → Basic → VIP chain, older discounted payments are matched by tier only and can
+  over-discount the credit.
 
 ### Where people see it
 

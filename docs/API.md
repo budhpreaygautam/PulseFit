@@ -17,7 +17,8 @@ route, or a request without the app header: see **App header**),
 **Guests.** The website's service pages (`/strength`, `/zumba`, `/guide`, `/schedule`, `/pricing`, `/coaches`) need an
 account, so the only API answers a guest (no session) gets are what the public pages show: the home page reads
 `GET /plans`, `GET /classes` and `GET /trainers` in a **guest view** (an allowlist of fields, listed with each endpoint)
-and the floor counts; the exercise library, the app config and the auth endpoints stay open. Everything else the
+the floor counts and `GET /promotions` (sale headlines and joining-gift names, for its sale banner); the exercise
+library, the app config and the auth endpoints stay open. Everything else the
 service pages read needs a session (401 `UNAUTHORIZED`). Answers that differ by session carry
 `Cache-Control: private, no-cache`, so no shared cache hands one account's answer to another.
 
@@ -71,7 +72,8 @@ gym-local; instants are ISO-8601 UTC strings. "Today" always means today at the 
 }
 ```
 
-Never included: the password hash, `token_version`, the Google subject id, MFA secrets and backup-code hashes.
+Never included: the password hash, `token_version`, the Google subject id, MFA secrets and backup-code hashes, and the
+rewards referral fields (`referral_code`, `referred_by`).
 
 A `SafeUser` goes only to the person themselves and to admins. Coaches, other members and guests get the narrower
 shapes listed with each endpoint (roster attendees, `GET /trainer/clients`, the check-in `member`, the floor, trainers
@@ -114,10 +116,10 @@ These live outside `/api`. Every `/api` response carries `X-Robots-Tag: noindex,
 ### `GET /robots.txt` (text/plain)
 Indexing on and the client served (`SERVE_CLIENT`): `Allow: /`, an `Allow` line for each API answer the public pages
 render from (`/api/config`, `/api/plans`, `/api/classes`, `/api/trainers` (their guest views, for the home page),
-`/api/exercises`, `/api/time-tracking/active-floor`) and a `Disallow` line for each one's sub-paths
+`/api/exercises`, `/api/time-tracking/active-floor`, `/api/promotions` (the home page's sale banner)) and a `Disallow` line for each one's sub-paths
 (`/api/classes/<id>` and `/api/trainers/<id>` need a session), a `Disallow` line for `/api/`, `/downloads/` and for each
 page that needs an account (`/strength`, `/zumba`, `/guide`, `/schedule`, `/pricing`, `/coaches`, `/admin`, `/trainer`,
-`/dashboard`, `/bookings`, `/log-workout`, `/profile`) or a link (`/reset-password`, `/payment-status`), and
+`/dashboard`, `/bookings`, `/log-workout`, `/rewards`, `/profile`) or a link (`/reset-password`, `/payment-status`), and
 `Sitemap: <PUBLIC_URL>/sitemap.xml`. Scripts, styles and images are never blocked.
 `/api/guide` stays disallowed: the pages read it only for a signed-in account, and crawlers are guests. Google's renderer
 runs the app, which sends the app header (see **App header**); fetched directly, the allowed API addresses answer 404.
@@ -179,8 +181,8 @@ Every `/api` route also shares a limit of 300 requests per minute per IP (except
 | Method & path | Body | Success `data` | Errors |
 |---|---|---|---|
 | `POST /auth/login` | `{ email, password }` | a session, or `{ mfa_required: true, mfa_token }` when two-step sign-in is on (no session yet; see below) | 401 `INVALID_CREDENTIALS`, 403 `DEMO_PASSWORD_BLOCKED` (the published demo password, outside demo mode) |
-| `POST /auth/register` | `{ name (2–60), email, password, phone?, gender? }` | 201 session, with `gender` as sent (absent when not sent), `avatar_url:''`, `membership_tier:'none'`, `membership_status:'pending'`, `membership_expiry:null` | 400 `VALIDATION_ERROR` (`gender` sent but not one of the three, `''` and `null` included: `data.issues = [{ path: 'gender', message: 'Choose your gender.' }]`), 409 `EMAIL_TAKEN` |
-| `POST /auth/google` | `{ credential }` (Google Identity Services ID token) | a session or MFA challenge, plus `created: boolean` | 503 `GOOGLE_SIGNIN_DISABLED`, 401 `INVALID_GOOGLE_TOKEN` |
+| `POST /auth/register` | `{ name (2–60), email, password, phone?, gender?, referral_code? }` | 201 session, with `gender` as sent (absent when not sent), `avatar_url:''`, `membership_tier:'none'`, `membership_status:'pending'`, `membership_expiry:null` | 400 `VALIDATION_ERROR` (`gender` sent but not one of the three, `''` and `null` included: `data.issues = [{ path: 'gender', message: 'Choose your gender.' }]`), 400 `REFERRAL_CODE_INVALID`, 409 `EMAIL_TAKEN` |
+| `POST /auth/google` | `{ credential, referral_code? }` (Google Identity Services ID token) | a session or MFA challenge, plus `created: boolean` | 503 `GOOGLE_SIGNIN_DISABLED`, 401 `INVALID_GOOGLE_TOKEN`, 400 `REFERRAL_CODE_INVALID` (only when the call would create the account) |
 | `POST /auth/demo-login` | `{ role: 'member' \| 'vip' \| 'trainer' \| 'admin' }` | a session | 404 `DEMO_DISABLED` when demo mode is off |
 | `POST /auth/logout` | — | `{ signedOut: true }`; clears the session cookie | — |
 | `GET /auth/me` | — | `SafeUser` | 401 |
@@ -196,6 +198,11 @@ digit, and not on the built-in list of common passwords (which includes the publ
 picture (see `GET /avatars/…`). Optional on `POST /auth/register`: the website and the apps ask for it at sign-up, but
 the apps released in 2.3.0 do not send it and their sign-ups must keep working, so an account registered without one
 has none, like one created by `POST /auth/google`. The person can set it later with `PUT /auth/profile`.
+
+**Referral code** (`referral_code`, optional): a friend's code from their Rewards page, trimmed (≤ 32 characters) and
+matched ignoring case; empty means none. It sets the new account's referrer (see the referral rules under **Rewards**).
+A code that names no member is 400 `REFERRAL_CODE_INVALID` and creates no account. `POST /auth/google` uses it only
+when the call creates the account; signing in to an existing account ignores it, valid or not.
 
 ### Two-step sign-in (MFA, optional for every account)
 
@@ -252,7 +259,16 @@ Additional rules:
 |---|---|---|---|
 | `GET /plans` | optional auth | `MembershipPlan[]` sorted by monthly price. **Guest view** (no session): `{ id, tier, name, description, price_monthly, features (the first 4), categories, is_popular?, badge? }`, what the home page shows (`categories` picks the plan named under each discipline); no `price_annual` | |
 | `PUT /plans/:id` (admin) | `{ name?, description?, price_monthly? (int 1–100000), price_annual? (int), features?: string[], categories?: ClassCategory[], is_popular?, badge? }` | `MembershipPlan` | 404 |
-| `POST /payment/create-order` | `{ tier: 'basic'\|'pro'\|'vip', billing_cycle: 'monthly'\|'annual' }` | `{ provider, orderId, amount (paise), amount_inr, currency:'INR', tier, billing_cycle, plan_name, description }` plus `keyId` (Razorpay) or `checkoutUrl` (YouPI) | 503 `PAYMENTS_DISABLED`, 502 `PAYMENT_PROVIDER_ERROR` |
+| `POST /payment/quote` (signed in) | `{ tier, billing_cycle, coupon_code? }` | `Quote` (below): what create-order would charge now | 400 `COUPON_*`, 429 `RATE_LIMITED` |
+| `GET /payment/quotes` (signed in) | — | `Quote[]` for all 3 tiers × 2 cycles (basic, pro, vip; monthly before annual), sales applied, no coupon | 401 |
+| `GET /promotions` (public) | — | `{ sales: { title, banner_text, percent_off, amount_off, ends_at }[] (live sales, soonest end first), joining_gifts: { tier, billing_cycle, gifts: string[] /* active gift names */ }[] }`. The guest view: no coupons, ids, claims, stock or referral data | |
+| `GET /offers` (admin) | — | `Offer[]` newest first | |
+| `POST /offers` (admin) | offer fields (below) | 201 `Offer` | 400 `VALIDATION_ERROR` |
+| `PUT /offers/:id` (admin) | any offer fields, checked together with the stored ones; `active: false` retires a sale | `Offer` | 404 `OFFER_NOT_FOUND` |
+| `GET /coupons` (admin) | — | `Coupon[]` newest first | |
+| `POST /coupons` (admin) | coupon fields (below) with `code` | 201 `Coupon` (`uses: 0`) | 409 `COUPON_EXISTS`, 400 `VALIDATION_ERROR` |
+| `PUT /coupons/:code` (admin) | any coupon fields except `code` and `uses`, checked together with the stored ones; `:code` ignores case | `Coupon` | 404 `COUPON_NOT_FOUND`, 400 (`code` or `uses` in the body) |
+| `POST /payment/create-order` | `{ tier: 'basic'\|'pro'\|'vip', billing_cycle: 'monthly'\|'annual', coupon_code? }` | `{ provider, orderId, amount (paise), amount_inr, base_amount_inr, discount_inr, applied: AppliedDiscount \| null, currency:'INR', tier, billing_cycle, plan_name, description }` plus `keyId` (Razorpay) or `checkoutUrl` (YouPI). `amount_inr` is the quote's `total` | 503 `PAYMENTS_DISABLED`, 502 `PAYMENT_PROVIDER_ERROR`, 400 `COUPON_*` (no order is made), 429 `RATE_LIMITED` |
 | `POST /payment/verify` | `{ razorpay_order_id, razorpay_payment_id, razorpay_signature }` | `{ user, payment, message, cancelled_bookings }` (the session is unchanged) | 400 `INVALID_SIGNATURE`, 404 `ORDER_NOT_FOUND`, 403 `ORDER_NOT_YOURS`, 409 `ALREADY_PROCESSED` (`data = { user, cancelled_bookings, message? }`: the current user and what the earlier activation did) |
 | `POST /payment/webhook` | raw Razorpay webhook, header `X-Razorpay-Signature` | `{ received: true }` | 400 bad signature, 503 no webhook secret |
 | `POST /payment/youpi/confirm` | `{ order_id }` (a `ypo_…` id) | `{ status: 'pending' }`, `{ status: 'failed', reason: 'EXPIRED'\|'CANCELLED'\|'FAILED' }` or `{ status: 'paid', user, payment?, message?, cancelled_bookings }` | 404 `ORDER_NOT_FOUND`, 403 `ORDER_NOT_YOURS`, 409 `ORDER_REJECTED`, 502 `PAYMENT_PROVIDER_ERROR` |
@@ -262,9 +278,56 @@ Additional rules:
 | `POST /membership/freeze` | `{}` | `SafeUser` (status `frozen`, `frozen_since` today); see the freeze rules below for `message` | 409 `NOT_ACTIVE` |
 | `POST /membership/unfreeze` | `{}` | `SafeUser` (status `active`, expiry moved forward by the open days missed; see the freeze rules below) | 409 `NOT_FROZEN` |
 
-The amount is always taken from the plan, never from the client. The tier and cycle are fixed on the server-side
-order record when it is created; verify reads them from that record. A signature can activate an order only once
-(checkout and webhook are idempotent with each other).
+The amount is always worked out on the server (the plan's price less a sale or coupon, see **Offers and coupons**),
+never taken from the client: prices or discounts in a body are ignored. The tier, cycle and amount are fixed on the
+server-side order record when it is created; verify reads them from that record. A signature can activate an order only
+once (checkout and webhook are idempotent with each other).
+
+```ts
+Quote = { tier, billing_cycle, base /* list price */, discount, total /* base − discount, at least 1 */,
+          applied: AppliedDiscount | null, offer_ends_at? /* only when a sale applies */ }
+AppliedDiscount = { type: 'offer', id, label /* '15% off' | '₹500 off' */ } | { type: 'coupon', code, label /* 'WELCOME10: 10% off' */ }
+Offer = { id, title, banner_text, percent_off: number | null, amount_off: number | null, tiers: Tier[], billing_cycles: Cycle[],
+          starts_at, ends_at /* ISO instants */, active, created_at }
+Coupon = { code, percent_off: number | null, amount_off: number | null, tiers: Tier[], billing_cycles: Cycle[],
+           valid_from, valid_until /* gym dates, inclusive */, max_uses: number | null, per_member_limit, uses, active, created_at }
+```
+
+**Offers and coupons.**
+- **Price:** `base` = the plan's price for the cycle. The live sale for the tier and cycle with the largest discount
+  (`active`, `starts_at` ≤ now < `ends_at`) competes with the coupon, if one is given: the larger discount applies, never
+  both, and a tie goes to the sale. `percent_off` rounds down to whole rupees; `amount_off` is at most the price.
+  `total = max(1, base − discount)` and `discount = base − total`; a discount that comes to 0 applies nothing
+  (`applied: null`). Empty `tiers` or `billing_cycles` on a sale or coupon mean all of them.
+- **Coupon codes** are trimmed and upper-cased before matching (`' welcome10 '` is `WELCOME10`). An empty or blank
+  `coupon_code` means no coupon and the normal price. A typed code is checked in this order, each a 400: unknown,
+  inactive, not 4–16 letters and digits, or before `valid_from` → `COUPON_INVALID`; after `valid_until` →
+  `COUPON_EXPIRED`; tier or cycle not covered → `COUPON_NOT_FOR_PLAN`; `uses` ≥ `max_uses`, or the member's paid
+  payments with this `coupon_code` ≥ `per_member_limit` → `COUPON_USED_UP`. A refused code makes no order.
+- **Rate limit:** 10 failed coupon attempts (any 4xx/5xx answer to quote or create-order with a non-blank
+  `coupon_code`) per account per 10 minutes, then 429 `RATE_LIMITED` ("Too many coupon attempts. Please wait 10 minutes
+  and try again.") for any request with a code. Requests without a code and successful ones never count.
+- **Coupon uses** grow only when an order is paid, inside the same once-only activation as the payment (verify, the
+  webhook and YouPI together count one use), even past `max_uses`: a coupon that ran out between the order and the
+  payment is honoured.
+- **A discount is checked again when the money arrives.** A paid order is `rejected` (409 `ORDER_REJECTED`, left for
+  the desk to apply or refund) when the member has meanwhile paid for `per_member_limit` other orders with its coupon,
+  or when it is paid more than 30 minutes after it was made and its sale is no longer live or its coupon is inactive or
+  outside its dates.
+- **Orders and payments record the pricing:** a new `PaymentOrder` stores `base_amount_inr` and `discount_inr`
+  (`amount_inr = base_amount_inr − discount_inr`) and `offer_id` or `coupon_code` when one applied; the `Payment` its
+  activation creates copies them. Orders from before sales and coupons, and desk sales, have none of these. Razorpay's
+  `amount`, YouPI's session amount and both webhooks' amount checks all use the discounted `amount_inr`, so a payment for
+  the list price of a discounted order is rejected.
+- Desk sales charge what staff collect (no sale or coupon). Plan credit on upgrades uses list prices, except that days
+  bought at a sale or coupon price count only for the share of their list price that was paid.
+- Offer fields (strict): `title` 2–80, `banner_text` ≤ 160 (default `''`), exactly one of `percent_off` (integer 1–90)
+  and `amount_off` (integer rupees 1–100 000), `tiers` and `billing_cycles` (no repeats, default `[]` = all),
+  `starts_at` and `ends_at` (ISO date-times with a zone, stored as UTC; `ends_at` after `starts_at`), `active` (default
+  `true`). Coupon fields (strict): `code` (4–16 letters and digits after trimming and upper-casing; fixed once made),
+  the same discount, `tiers` and `billing_cycles` rules, `valid_from` and `valid_until` (`YYYY-MM-DD`, until ≥ from),
+  `max_uses` (integer ≥ 1, or `null` = unlimited, the default), `per_member_limit` (integer ≥ 1, default 1), `active`
+  (default `true`). `uses` is never in a body. Sales and coupons are retired with `active: false`, never deleted.
 
 Additional rules:
 - `POST /payment/create-order` uses the gateway `GET /config` reports as `payments.provider` (`PAYMENT_PROVIDER`;
@@ -277,11 +340,16 @@ Additional rules:
   `FAILED`/`EXPIRED`/`CANCELLED` mark a `created` order `failed`; a later `SUCCESS` still activates it. The payment
   records `provider: 'youpi'` and the `utr` when YouPI reports one.
 - `POST /payment/verify` answers 409 `ORDER_REJECTED` when the webhook already reported a payment for the order with a
-  wrong amount or currency; such an order never activates a membership.
+  wrong amount or currency, or its discount no longer holds (see **Offers and coupons**); such an order never activates
+  a membership.
 - `POST /payment/webhook`: 503 `WEBHOOK_DISABLED`, 400 `INVALID_SIGNATURE`, 400 `BAD_PAYLOAD`. Events for unknown orders,
   repeats and mismatched amounts are acknowledged with 200 so Razorpay stops retrying.
 - `PUT /plans/:id` rejects unknown keys (`id` and `tier` are immutable); limits: name 2–80, description ≤ 500,
   price_annual 1–1 200 000, ≤ 20 features of ≤ 200 chars, badge ≤ 30 (an empty badge removes it).
+- A `Payment` records its `source`: `checkout` or `webhook` (online), `seed` (demo data) or `desk` (a front-desk sale
+  recorded with `POST /members/:id/desk-sale` or `POST /members`: `order_id` and `razorpay_payment_id` are `''`, and it
+  carries `desk_method: 'cash' | 'upi' | 'card'` and `recorded_by: { id, name }`, the admin who recorded it). Desk sales
+  charge what staff collected and activate through the same activation rules as online payments.
 - Invoice numbers come from one global sequence; the year prefix is the gym-local year of the payment.
 - A payment captured after its member was deleted marks the order `orphaned` (with the Razorpay payment id) and is
   logged for a manual refund; it activates nothing.
@@ -302,7 +370,8 @@ Additional rules:
 **Activation rules.** `months` = 1 (monthly) or 12 (annual), using calendar months.
 - Same tier, membership active: the new period starts the day after the current expiry.
 - Otherwise the period starts today. Any unused days of a still-active different plan are credited:
-  `floor(remaining_days × old_price_monthly ÷ new_price_monthly)` extra days.
+  `floor(remaining_days × old_price_monthly ÷ new_price_monthly)` extra days, where a remaining day of a period paid
+  below list price counts as `amount_inr ÷ base_amount_inr` of a day.
 - A frozen member who pays is unfrozen first (expiry moved forward by the open days missed, as in the freeze rules).
 - Result: `membership_tier` = purchased tier, `membership_status` = `active`, `membership_expiry` = period end.
   A `Payment` is stored with invoice number `PF-<year>-<6-digit sequence>`.
@@ -408,12 +477,15 @@ Additional rules:
 | Method & path | Body / query | Success `data` | Errors |
 |---|---|---|---|
 | `GET /members` (admin) | `search?, tier?, status?` (effective status), `role?` (default `member`; `all` = everyone) | `SafeUser[]` | |
-| `GET /members/:id` (admin) | — | `SafeUser & { bookings_count, attendance_count, workouts_count, upcoming_bookings, recent_attendance: AttendanceLog[] (10), payments: Payment[], id_cards: IdCard[] (newest first) }` | 404 |
-| `POST /members` (admin) | `{ name, email, phone?, gender?, role? = 'member', membership_tier? = 'none', expiry_months? = 0 (0–24) }`. Tier ≠ none and months > 0 ⇒ active until the day before today + months. Without `gender` the account has none; `avatar_url` is `''` | 201 `{ member: SafeUser, tempPassword }` | 409 `EMAIL_TAKEN` |
+| `GET /members/:id` (admin) | — | `SafeUser & { bookings_count, attendance_count, workouts_count, upcoming_bookings, recent_attendance: AttendanceLog[] (10), payments: Payment[], id_cards: IdCard[] (newest first), rewards: { balance, recent_points: PointsEntry[] (20 newest), claims: GiftClaim[] (newest first), referred_by: { id, name } | null, can_add_referrer } }` (`can_add_referrer`: what `POST /members/:id/referrer` would allow) | 404 |\| null } }` | 404 |
+| `POST /members` (admin) | `{ name, email, phone?, gender?, role? = 'member', membership_tier? = 'none', expiry_months? = 0 (0–24), desk_sale?: DeskSale, referral_code? }`. Tier ≠ none and months > 0 ⇒ active until the day before today + months. With `desk_sale` the account is created without a plan and the sale activates it, as `POST /members/:id/desk-sale` does; with `referral_code` too, that sale credits the referral in the same request. Without `gender` the account has none; `avatar_url` is `''` | 201 `{ member: SafeUser, tempPassword, payment?: Payment, gifts?: GiftClaim[] }` (`payment` and `gifts` with `desk_sale`) | 409 `EMAIL_TAKEN`, 400 `REFERRAL_CODE_INVALID` (nothing is created), 400 `VALIDATION_ERROR` on `desk_sale` (together with `expiry_months > 0`, or with a `membership_tier` other than `none` or the sale's tier) |
 | `PUT /members/:id` (admin) | `{ name?, phone?, gender? (or null to clear it back to "not given"), role?, membership_tier?, membership_status?, membership_expiry? (date \| null) }` | `SafeUser` | 400 `CANNOT_CHANGE_OWN_ROLE`, 400 `LAST_ADMIN`, 403 `DEMO_ACCOUNT_LOCKED` (role change of a demo persona in demo mode) |
-| `DELETE /members/:id` (admin) | — | `{ deleted: true }`. Removes bookings, workouts, attendance, floor sessions, notes about them, ID cards and reset tokens; keeps payments (financial records) | 400 `CANNOT_DELETE_SELF`, 400 `LAST_ADMIN`, 403 `DEMO_ACCOUNT_LOCKED` (demo mode, one of the four demo personas) |
+| `DELETE /members/:id` (admin) | — | `{ deleted: true }`. Removes bookings, workouts, attendance, floor sessions, notes about them, ID cards, reset tokens, points history and gift claims (the stock their `ready` claims held goes back, to the oldest waiting claims first), clears `referred_by` on the members they referred, and re-keys their referrer's `referral:<id>` points entry to `referral:deleted:…`; keeps payments (financial records) | 400 `CANNOT_DELETE_SELF`, 400 `LAST_ADMIN`, 403 `DEMO_ACCOUNT_LOCKED` (demo mode, one of the four demo personas) |
+| `POST /members/:id/desk-sale` (admin) | `DeskSale` = `{ tier: 'basic'\|'pro'\|'vip', billing_cycle: 'monthly'\|'annual', amount_inr: integer 1–1 200 000 (what was collected), method: 'cash'\|'upi'\|'card' }` (strict). Records a front-desk sale as a `Payment` with `source: 'desk'` and an invoice, activated like an online payment (see the activation rules) with its joining gifts | `{ user: SafeUser, payment: Payment, gifts: GiftClaim[] }`; `message` names the plan, its last day and any joining gifts | 409 `DESK_SALE_DUPLICATE` (a desk sale for the same member, tier, cycle and amount was recorded in the last 2 minutes; nothing is written), 404 |
+| `POST /members/:id/referrer` (admin) | `{ referral_code }` (1–32 characters, ignoring case and spaces around it; strict). Links a referrer the member forgot to name at sign-up | `{ referred_by: { id, name } | null, can_add_referrer } }` (`can_add_referrer`: what `POST /members/:id/referrer` would allow) | 404 |}` | 400 `REFERRAL_CODE_INVALID`, 400 `REFERRAL_SELF` (the member's own code), 409 `REFERRAL_LOCKED` (the member already has a referrer, has a paid payment, has had a membership, or was created before rewards launched: desk sales were not recorded before then), 404 |
+| `POST /members/:id/points` (admin) | `{ points: integer −100 000…100 000, not 0; note: 1–200 chars }`. Adds (or, negative, removes) points; any account, whatever its plan | `{ balance, entry: PointsEntry }` (`key` `adjust:<uuid>`, `reason: 'admin_adjust'`) | 400 `POINTS_NEGATIVE` (the balance would drop below 0), 404 |
 | `POST /members/:id/reset-password` (admin) | — | `{ tempPassword }` (old tokens revoked) | 403 `DEMO_ACCOUNT_LOCKED` (demo mode, one of the four demo personas), 404 |
-| `POST /attendance/check-in` (admin, trainer) | `{ code, method?: 'qr'\|'manual'\|'kiosk'\|'camera' }` (`tokenOrId` accepted as an alias of `code`). `code` = QR token, ID card number, member id, email, or trial code, looked up in that order (tokens, emails and trial codes ignore case; card numbers also ignore spaces and hyphens) | `{ result: 'granted', already_checked_in: boolean, kind: 'member'\|'trial', member?: { id, name, email, avatar_url, membership_tier, membership_status, membership_expiry, streak_days }, trial?: TrialPass, log: AttendanceLog }`. A second scan on the same gym day lets the member through without a new log or streak day. An active ID card works exactly like the QR token | 403 `CARD_DEACTIVATED` (with `data.member` and `data.card: { card_number, status, deactivated_at, deactivation_reason }`; checked before the hours and membership) \| `GYM_CLOSED` \| `MEMBERSHIP_EXPIRED` \| `MEMBERSHIP_FROZEN` \| `MEMBERSHIP_PENDING` \| `TRIAL_NOT_VALID_TODAY` \| `TRIAL_ALREADY_USED` (with `data.member` or `data.trial`), 404 `PASS_NOT_FOUND` |
+| `POST /attendance/check-in` (admin, trainer) | `{ code, method?: 'qr'\|'manual'\|'kiosk'\|'camera' }` (`tokenOrId` accepted as an alias of `code`). `code` = QR token, ID card number, member id, email, or trial code, looked up in that order (tokens, emails and trial codes ignore case; card numbers also ignore spaces and hyphens) | `{ result: 'granted', already_checked_in: boolean, kind: 'member'\|'trial', member?: { id, name, email, avatar_url, membership_tier, membership_status, membership_expiry, streak_days }, trial?: TrialPass, log: AttendanceLog, gifts_to_collect?: GiftClaim[] }` (`gifts_to_collect`, on member check-ins: the member's `ready` and `needs_size` claims, oldest first). A second scan on the same gym day lets the member through without a new log or streak day. An active ID card works exactly like the QR token | 403 `CARD_DEACTIVATED` (with `data.member` and `data.card: { card_number, status, deactivated_at, deactivation_reason }`; checked before the hours and membership) \| `GYM_CLOSED` \| `MEMBERSHIP_EXPIRED` \| `MEMBERSHIP_FROZEN` \| `MEMBERSHIP_PENDING` \| `TRIAL_NOT_VALID_TODAY` \| `TRIAL_ALREADY_USED` (with `data.member` or `data.trial`), 404 `PASS_NOT_FOUND` |
 | `GET /attendance/logs` (admin) | `date?, user_id?, limit? (1–200, default 50), offset?, format? = 'json'\|'csv'` | `{ items: AttendanceLog[], total }`, or a `text/csv` download | |
 | `GET /attendance/my` | — | the caller's `AttendanceLog[]`, newest first (≤ 100) | |
 | `POST /trials` (public, 5 per hour per IP) | `{ name, email, phone, interest: ClassCategory, preferred_date }` (today … today + 14, not a Sunday, not today once the gym has closed) | 201 `TrialPass` (`code` = `PULSE-TRIAL-XXXXXX`, valid only on `valid_on`, once) | 409 `TRIAL_ALREADY_CLAIMED` (same email or phone), 400 `GYM_CLOSED` |
@@ -429,6 +501,8 @@ Additional rules:
   A lapsed member (stored `active` past the expiry, shown as `expired`) can have their plan, name or phone changed and
   stays lapsed; sending `membership_status: 'expired'` with the change also works and stores the lapse. Both request
   shapes (only the changed fields, or the changed fields plus the status the form shows) are accepted.
+- Edits through `PUT /members/:id` (dates, plan, status, unfreezing, free time) never grant joining gifts; only a
+  recorded sale (`POST /members/:id/desk-sale`, or `desk_sale` on `POST /members`) does.
 - Moving from `frozen` to `active` gives back the open days missed, like `/membership/unfreeze`, unless the same request
   sends an expiry (the admin's explicit choice).
 - After a change of role, status, expiry or tier, the member's upcoming confirmed bookings that `POST /bookings` would
@@ -565,3 +639,126 @@ way to choose a plan.
 - MRR: for each active member, their latest payment's monthly equivalent (annual ÷ 12), or the plan's monthly price if they have no payment.
 - Fill rate: booked ÷ capacity across this week's class occurrences.
 - Retention: of memberships whose period ended in the last 90 days, the % that were renewed; `null` when there are none.
+
+---
+
+## Rewards — owner: `rewards` (routes/rewards.ts, controllers/rewardsController.ts, lib/points.ts, gifts.ts)
+
+| Method & path | Body / query | Success `data` | Errors |
+|---|---|---|---|
+| `GET /rewards/ledger` (member) | `limit?` (1–100, default 20), `offset?` | `{ balance, items: PointsEntry[] (newest first), total }` | 403 (staff) |
+| `GET /rewards/me` (member) | — | `MyRewards` (below); the first call makes the member's referral code | 403 (staff) |
+| `GET /rewards/gifts` (signed in) | — | admin: `Gift[]` (the whole catalogue); others: `StoreGift[]` (active gifts with a `points_cost`, cheapest first) | |
+| `POST /rewards/gifts` (admin) | gift fields (below) | 201 `Gift` | 400 `VALIDATION_ERROR` |
+| `PUT /rewards/gifts/:id` (admin) | any gift fields (below), checked together with the stored ones; `stock` or `stock_by_size` only with `expected_stock: { stock, stock_by_size? }`, the stored counts the change was based on | `Gift`; `message` says how many waiting claims became ready | 404 `GIFT_NOT_FOUND`, 400 (stock without `expected_stock`), 409 `STOCK_CHANGED` (claims moved the stock since: nothing is saved), 409 `SIZE_IN_USE` (a removed size that a `waiting` or `ready` claim holds, or sizes added or removed while a `waiting` or `needs_size` claim names the gift), 409 `GIFT_IN_RULES` (`active: false` on a gift a milestone or joining gift names; change the rule first) |
+| `DELETE /rewards/gifts/:id` (admin) | — | `{ deleted: true }` | 404 `GIFT_NOT_FOUND`, 409 `GIFT_IN_USE` (a claim, milestone or joining gift names it; deactivate it instead) |
+| `POST /rewards/claims` (member) | `{ gift_id, size? }` | 201 `GiftClaim` (`ready`, with a pickup code) | 404 `GIFT_NOT_FOUND` (unknown, inactive or reward-only), 400 `SIZE_REQUIRED` / `SIZE_INVALID`, 409 `OUT_OF_STOCK`, 409 `NOT_ENOUGH_POINTS` |
+| `PATCH /rewards/claims/:id` (signed in) | one of `{ status: 'handed_over', size? }` (admin, trainer), `{ status: 'cancelled', reason? (≤ 200) }`, `{ size }` | `GiftClaim` | 404 `CLAIM_NOT_FOUND` (also another member's claim), 409 `CLAIM_NOT_READY` (wrong status for the action, including a size for a claim that is not `needs_size`), 403 `CLAIM_NOT_CANCELLABLE` (a member cancelling a milestone or joining gift), 403 `FORBIDDEN` (a member handing over, a trainer cancelling), 400 `SIZE_REQUIRED` / `SIZE_INVALID`, 409 `OUT_OF_STOCK` |
+| `GET /rewards/claims` (admin) | `status?`, `user_id?`, `search?` (member name or pickup code) | `GiftClaim[]` oldest first | |
+| `GET /rewards/settings` (admin) | — | `RewardSettings` | |
+| `PUT /rewards/settings` (admin) | `RewardSettings` without `launched_at`: the whole rules object | `RewardSettings` | 400 `VALIDATION_ERROR` (an unknown or inactive gift id names its path, e.g. `milestones.0.gift_id`) |
+
+```ts
+PointsEntry = { id, user_id, key, points /* + earned, − spent */, reason: 'checkin' | 'workout' | 'referral' | 'claim'
+                | 'refund' | 'admin_adjust' | 'bonus', ref?, note?, created_at }
+Gift = { id, name, description, image /* an emoji, or an image data URL */, level: 'small' | 'medium' | 'big' | 'premium',
+         points_cost: number | null /* null = reward-only, not in the store */, stock: number | null /* null = unlimited */,
+         sizes?: ('S' | 'M' | 'L' | 'XL' | 'XXL')[], stock_by_size?: { [size]: number }, kind: 'item' | 'service', active, created_at }
+StoreGift = { id, name, description, image, level, points_cost, kind, sizes?, in_stock: boolean, sizes_in_stock?: size[] }
+GiftClaim = { id, user_id, user_name, gift_id, gift_name /* snapshots */, size?, source: 'store' | 'milestone' | 'joining',
+              source_ref /* milestone id, payment id, '' for the store */, points_spent, pickup_code /* 6 characters */,
+              status: 'needs_size' | 'waiting' | 'ready' | 'handed_over' | 'cancelled', created_at,
+              handed_over_at?, handed_over_by?: { id, name }, cancel_reason?,
+              sizes? /* on a needs_size claim in MyRewards, member detail and gifts_to_collect: its gift's sizes */ }
+MyRewards = { balance, visits, streak /* staff-confirmed, as for milestones */,
+              milestones: { id, type: 'visits' | 'streak', threshold, gift_name, reached: boolean }[],
+              earning: { checkin, workout, referral, referral_welcome }, claims: GiftClaim[] /* newest first */,
+              referral_code /* 8 characters from A–Z and 2–9 without I, O, 0, 1; the member's own, to share */ }
+RewardSettings = { points_per_checkin, points_per_workout, points_per_referral, welcome_points_for_referred,
+                   milestones: { id, type, threshold, gift_id }[], joining_gifts: { tier, billing_cycle, gift_ids, once_per_member }[],
+                   launched_at? }
+```
+
+Gift fields (strict): `name` 2–60, `description` ≤ 300 (default `''`), `image` an emoji (1–8 characters, none of
+`< > / : " '`) or a PNG, JPEG or WebP data URL checked like a profile photo (≤ 350 000 characters), `level`, `points_cost`
+integer 1–100 000 or `null`, `kind`, `active` (default `true`). Either `sizes` (non-empty, no repeats) with
+`stock_by_size` holding a count (integer ≥ 0) for exactly those sizes, in which case `stock` is stored as `null`; or no
+sizes and `stock` (integer ≥ 0, or `null` for unlimited; required). Services have no sizes. Rules (strict): point values
+integers 0–100 000; at most 30 milestones (`threshold` 1–10 000); each joining gift names at most 5 gifts; every gift a
+rule names must exist and be active. A milestone sent with the `id` of a current milestone keeps it, so members who
+reached it are not granted it again; any other milestone gets a new id.
+
+Additional rules:
+- **Who earns:** members (`role: 'member'`) with a plan, as for `GET /guide`: effective status `active`, or `frozen` up
+  to the paid end date (`membership_expiry`). Coaches, admins, lapsed and
+  pending members and free-trial passes earn no points and no gifts. Only an admin adjustment
+  (`POST /members/:id/points`) works on any account.
+- **The ledger** is append-only. Every entry has a `key` that is unique across the ledger, so each award happens once
+  however often its trigger repeats: `checkin:<attendanceId>`, `workout:<userId>:<date>`, `milestone:<milestoneId>:<userId>`,
+  `launch-gift:<userId>`, `join:<paymentId>`, `join-once:<giftId>:<userId>`, `referral:<referredUserId>`,
+  `referral-welcome:<referredUserId>`, `claim:<claimId>`, `refund:<claimId>`, `adjust:<uuid>`. A gift award is a 0-point
+  `bonus` entry carrying its key.
+- **Balance** = the sum of the member's entries; no balance is stored. Request bodies never carry points.
+- **Check-in:** a new staff check-in (`POST /attendance/check-in`, not the `already_checked_in` repeat) earns
+  `points_per_checkin`, key `checkin:<attendanceId>`.
+- **Workout:** the first workout a member logs for today earns `points_per_workout`, key `workout:<userId>:<date>`.
+  Deleting it takes nothing back and re-logging that day earns nothing more; back-dated workouts earn nothing.
+- **Milestones** count only days the gym confirmed: `visits` = the member's check-ins; `streak` = consecutive open gym
+  days with a check-in or a class marked attended (closed days bridge, 0 once an open day passed without one).
+  Self-reported floor sessions and workouts do not count here (they still count for `streak_days`). A milestone is
+  granted when a check-in or a newly attended class crosses it (`before < threshold ≤ after`), as a claim with no points
+  spent, and only once per member ever (key `milestone:<milestoneId>:<userId>`): a dropped and rebuilt streak, or a
+  milestone added or lowered below the member's value, grants nothing.
+- **Launch:** the first time the server starts with rewards (`reward_settings.launched_at` unset), each member who earns
+  rewards and has already passed milestones (visits = all their check-ins; streak = their longest run of confirmed days)
+  gets one welcome gift: the gift of the highest milestone passed (higher gift level, then higher `points_cost`, then the
+  later milestone in the list), key `launch-gift:<userId>`, source `milestone`. Every milestone they passed is recorded as
+  done (0-point `bonus`, key `milestone:<milestoneId>:<userId>`, note "Reached before rewards launched"), so none fires
+  later. No points are written: everyone starts at 0. `launched_at` is then set and the step never runs again.
+- **Joining gifts** come with every paid activation, online (verify, the Razorpay webhook, YouPI) or a recorded desk
+  sale, for a member who earns rewards once the plan is active: the `joining_gifts` entries for the plan's tier and
+  cycle. Gifts of entries with `once_per_member: false` (the annual kits) come with every such payment, key
+  `join:<paymentId>`, so verify and the webhook for one payment grant them once; each gift of a `once_per_member: true`
+  entry (the monthly sample pack) comes once per member ever, key `join-once:<giftId>:<userId>`.
+- **Referrals.** Every member has a `referral_code` (made on first need, unique, never changed). Sign-up (email or Google)
+  and `POST /members` take a friend's code and set `referred_by` (the friend's user id) on the new account; only codes
+  of members (`role: 'member'`) count. Until the member's first paid payment an admin can add a referrer they forgot
+  (`POST /members/:id/referrer`); afterwards, or once set, it never changes. On the referred member's **first** paid
+  activation (online or a recorded desk sale; any earlier paid payment means it is not the first), the referrer earns
+  `points_per_referral` (key `referral:<referredUserId>`) while they themselves earn rewards (an expired referrer gets
+  nothing, now or later), and the member earns `welcome_points_for_referred` (key `referral-welcome:<referredUserId>`),
+  both with reason `referral`. A point value of 0 writes no entry. The referrer's entry does not name the friend.
+  `referral_code` and `referred_by` are never part of `SafeUser`; only `GET /rewards/me` (the member's own code) and the
+  admin member detail (`rewards.referred_by`) show them.
+- **Claims.** Every gift a member is owed is a claim: `needs_size` (an automatic apparel gift waiting for the member, in
+  the app, or the desk to pick a size), `waiting` (owed but out of stock), `ready` (stock set aside; collected with the
+  pickup code), `handed_over` or `cancelled`. Milestone and joining gifts never fail for stock: they start `needs_size`
+  or `waiting`. A store claim checks the gift (active, in the store), the size, the stock and the balance in one step,
+  writes `claim:<claimId>` for −`points_cost` and starts `ready`.
+- **Stock** is counted per size for apparel (`stock_by_size`) and as one number otherwise (`null` = unlimited). It is taken
+  when a claim becomes `ready` and given back when a `ready` claim is cancelled or its member is deleted. Stock given
+  back or added (`PUT /rewards/gifts/:id`) makes the gift's `waiting` claims `ready`, oldest first, each only when its own
+  size has stock.
+- **Pickup.** Admins and trainers hand over a `ready` claim, or a `needs_size` claim with a `size` that has stock (which
+  takes it), recording `handed_over_at` and `handed_over_by`. `{ size }` alone, by the member on their own `needs_size`
+  claim or by staff on any, makes it `ready` (taking stock) or `waiting` for that size. A size never changes once set
+  (no size exchange). Service gifts (free PT session, free week, guest pass) are fulfilled by staff, e.g. by extending
+  the membership in the member editor, then marked handed over.
+- **Cancelling.** A member cancels only their own `ready` store claim, refunded (`refund:<claimId>`, +`points_spent`,
+  reason `refund`); an admin cancels any `ready` claim, refunded only when it is a store claim. Its stock goes back.
+- **Editing gifts.** Claims keep the gift's name as it was, so a renamed or deactivated gift stays collectable; a
+  deactivated or reward-only gift leaves the store. A size a `waiting` or `ready` claim holds cannot be removed
+  (`SIZE_IN_USE`), a gift a rule names cannot be deactivated (`GIFT_IN_RULES`), and only a gift no claim or rule names can
+  be deleted (`GIFT_IN_USE`). A sized gift cannot be turned back into one without sizes.
+- Members and trainers never see stock counts, only `in_stock` and `sizes_in_stock`.
+- The gym starts with a catalogue of 24 gifts (items with no stock until the gym enters its counts, apparel counted per
+  size `S`–`XXL`, three unlimited services) and default rules: 10 points per check-in, 5 per workout, 200 per referral,
+  50 welcome points for a referred member; milestones 10 visits → keychain, 30-day streak → shaker, 100 visits →
+  lifting straps, 250 visits → hoodie; joining gifts on annual plans (basic/pro: T-shirt + shaker; vip: hoodie +
+  shaker + water bottle) and a supplement sample pack once per member on any monthly plan. A database from before
+  rewards gets these defaults when it loads.
+- The demo seed (not the catalogue-only one) also stocks every item (25) and apparel size (5), runs the launch, gives the
+  member persona 400 points (key `seed-bonus:<userId>`) and the All-Access persona a `ready` store claim for a coffee
+  mug, and adds the sale `offer_demo_annual` (15% off annual plans, from a day ago to 7 days ahead) and the coupon
+  `WELCOME10` (10% off monthly plans, valid from today for 90 days). The catalogue-only seed has no claims, points, sales
+  or coupons.

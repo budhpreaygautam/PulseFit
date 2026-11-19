@@ -14,7 +14,7 @@ export function newId(prefix: string): string {
  * membership status / streak as they are today (an expired date reads as 'expired').
  */
 export function toSafeUser(user: User): SafeUser {
-  const { password_hash, token_version, google_sub, mfa_secret, mfa_pending_secret, mfa_recovery_codes, mfa_last_step, ...rest } = user;
+  const { password_hash, token_version, google_sub, mfa_secret, mfa_pending_secret, mfa_recovery_codes, mfa_last_step, referral_code, referred_by, ...rest } = user;
   return {
     ...rest,
     mfa_enabled: Boolean(user.mfa_enabled),

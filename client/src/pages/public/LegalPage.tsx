@@ -78,6 +78,11 @@ const PRIVACY: Section[] = [
           We contact you only about your enquiry, because you agreed to it on the form.
         </li>
         <li>
+          <strong>Rewards and referrals:</strong> your points history (what earned or spent points, and when), the gifts you claim and which staff member handed each one
+          over, your referral code, and who referred whom. We use them only to run rewards. Front-desk and admin staff see them; other members never do, and a friend
+          you refer is never named in your points history.
+        </li>
+        <li>
           <strong>On your device:</strong> your browser keeps you signed in with a secure cookie that pages cannot read (the app keeps your sign-in in your phone's
           secure storage), and remembers your light/dark theme choice. We do not use advertising or tracking cookies.
         </li>
@@ -120,8 +125,8 @@ const PRIVACY: Section[] = [
       <ul>
         <li>Your account, visits, bookings, workouts and coach notes are kept while your account exists.</li>
         <li>
-          When an account is deleted, its bookings, workout logs, check-ins, floor sessions, coach notes and password-reset links are deleted with it. Invoices and payment
-          records are kept, because Indian tax and accounting rules require businesses to keep financial records.
+          When an account is deleted, its bookings, workout logs, check-ins, floor sessions, coach notes, password-reset links, points history, gift claims and referral
+          links are deleted with it. Invoices and payment records are kept, because Indian tax and accounting rules require businesses to keep financial records.
         </li>
         <li>Password-reset links expire after 30 minutes. Sign-in sessions expire after 7 days, and all of them end when your password changes.</li>
         <li>Free trial requests are kept so that each person can claim only one free pass.</li>

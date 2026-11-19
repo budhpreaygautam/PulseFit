@@ -4,6 +4,7 @@ import { AddressInfo } from 'net';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import config, { youpiConfigured } from '../src/config.js';
 import { rupeesString } from '../src/lib/youpi.js';
+import { addDays, gymToday } from '../src/lib/dates.js';
 import { api, authHeader, db, personas, resetDb, userByEmail } from './helpers.js';
 
 // A stand-in for YouPI's Payment API on a local port, so the real HTTP client is exercised.
@@ -350,5 +351,57 @@ describe('POST /payment/youpi/webhook', () => {
     config.youpi.webhookSecret = '';
     const res = await webhook(payload);
     expect(res.status).toBe(503);
+  });
+});
+
+describe('a discounted YouPI order', () => {
+  it('a YouPI order with WELCOME10 is created for the total; a SUCCESS webhook for the total activates it once and counts one coupon use; a SUCCESS for the list price is rejected', async () => {
+    const today = gymToday();
+    db.offers = [];
+    db.coupons = [
+      {
+        code: 'WELCOME10',
+        percent_off: 10,
+        amount_off: null,
+        tiers: [],
+        billing_cycles: ['monthly'],
+        valid_from: today,
+        valid_until: addDays(today, 30),
+        max_uses: null,
+        per_member_limit: 5,
+        uses: 0,
+        active: true,
+        created_at: new Date().toISOString()
+      }
+    ];
+    const list = plan('pro').price_monthly;
+    const total = list - Math.floor(list / 10);
+    const order = async () => {
+      const res = await api()
+        .post('/api/payment/create-order')
+        .set(authHeader(personas.basic))
+        .set('Origin', 'http://localhost:5173')
+        .send({ tier: 'pro', billing_cycle: 'monthly', coupon_code: 'WELCOME10' });
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({ amount: total * 100, amount_inr: total, base_amount_inr: list, discount_inr: list - total });
+      return res.body.data.orderId as string;
+    };
+    const uses = () => db.coupons[0].uses;
+
+    const first = await order();
+    expect(sessionFor(first).amountPaise).toBe(total * 100);
+    expect((await webhook(successEvent(sessionFor(first)))).status).toBe(200);
+    expect((await webhook(successEvent(sessionFor(first)))).status).toBe(200);
+    expect(db.payments.filter(p => p.order_id === first)).toEqual([
+      expect.objectContaining({ amount_inr: total, base_amount_inr: list, discount_inr: list - total, coupon_code: 'WELCOME10' })
+    ]);
+    expect(userByEmail(personas.basic).membership_tier).toBe('pro');
+    expect(uses()).toBe(1);
+
+    const second = await order();
+    await webhook(successEvent(sessionFor(second), { amountPaise: list * 100 }));
+    expect(db.payment_orders.find(o => o.id === second)!.status).toBe('rejected');
+    expect(db.payments.some(p => p.order_id === second)).toBe(false);
+    expect(uses()).toBe(1);
   });
 });

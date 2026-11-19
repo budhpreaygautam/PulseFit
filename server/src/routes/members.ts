@@ -7,6 +7,7 @@ import {
   createMember,
   updateMember,
   deleteMember,
+  recordDeskSale,
   resetMemberPassword
 } from '../controllers/memberController.js';
 import { checkIn, getAttendanceLogs, getMyAttendance } from '../controllers/attendanceController.js';
@@ -42,6 +43,7 @@ router.post('/members', ...admin, createMember);
 router.get('/members/:id', ...admin, getMemberById);
 router.put('/members/:id', ...admin, updateMember);
 router.delete('/members/:id', ...admin, deleteMember);
+router.post('/members/:id/desk-sale', ...admin, recordDeskSale);
 router.post('/members/:id/reset-password', ...admin, resetMemberPassword);
 router.post('/members/:id/mfa/reset', ...admin, adminResetMfa);
 

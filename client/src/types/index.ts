@@ -269,6 +269,8 @@ export interface CheckInResult {
   member?: CheckInMember;
   trial?: TrialPass;
   log: AttendanceLog;
+  /** A member's gifts the desk can hand over now ('ready', or 'needs_size' once a size is chosen), oldest first. */
+  gifts_to_collect?: GiftClaim[];
 }
 
 /** `data` of a denied check-in (403). */
@@ -288,6 +290,16 @@ export interface MemberDetail extends User {
   payments: Payment[];
   // Every physical card issued to the person, newest first.
   id_cards: IssuedIdCard[];
+  rewards: {
+    balance: number;
+    /** The 20 newest ledger lines. */
+    recent_points: PointsEntry[];
+    /** Newest first. */
+    claims: GiftClaim[];
+    referred_by: { id: string; name: string } | null;
+    /** A member with no referrer who has never had a membership (paid or not): an admin may still link one. */
+    can_add_referrer: boolean;
+  };
 }
 
 export type IdCardStatus = 'active' | 'deactivated';
@@ -402,6 +414,30 @@ interface PaymentOrderBase {
   billing_cycle: BillingCycle;
   plan_name: string;
   description: string;
+  // amount_inr is the list price less the discount the server applied.
+  base_amount_inr: number;
+  discount_inr: number;
+  applied: AppliedDiscount | null;
+}
+
+/** The sale or coupon behind a price; label is ready to show ('15% off', 'WELCOME10: 10% off'). */
+export type AppliedDiscount = { type: 'offer'; id: string; label: string } | { type: 'coupon'; code: string; label: string };
+
+/** What a plan costs the signed-in member now (POST /payment/quote, GET /payment/quotes). */
+export interface Quote {
+  tier: PaidTier;
+  billing_cycle: BillingCycle;
+  base: number;
+  discount: number;
+  total: number;
+  applied: AppliedDiscount | null;
+  offer_ends_at?: string;
+}
+
+/** The guest view of sales and joining gifts (GET /promotions): no codes, ids or stock. */
+export interface Promotions {
+  sales: { title: string; banner_text: string; percent_off: number | null; amount_off: number | null; ends_at: string }[];
+  joining_gifts: { tier: PaidTier; billing_cycle: BillingCycle; gifts: string[] }[];
 }
 
 /** A checkout the server opened: Razorpay's modal needs the key; YouPI's is a page to go to. */
@@ -436,8 +472,27 @@ export interface Payment {
   period_start: string;
   period_end: string;
   created_at: string;
-  source: 'checkout' | 'webhook' | 'seed';
+  source: 'checkout' | 'webhook' | 'seed' | 'desk';
+  // Online orders: the list price and the discount a sale or coupon gave (amount_inr is what was paid).
+  base_amount_inr?: number;
+  discount_inr?: number;
+  offer_id?: string;
+  coupon_code?: string;
+  // Desk sales: how the member paid and who recorded it.
+  desk_method?: DeskSale['method'];
+  recorded_by?: { id: string; name: string };
 }
+
+/** A plan paid for at the front desk: whatever staff collected, no sale or coupon. */
+export interface DeskSale {
+  tier: PaidTier;
+  billing_cycle: BillingCycle;
+  amount_inr: number;
+  method: 'cash' | 'upi' | 'card';
+}
+
+/** The desk-sale inputs as typed; amount_inr becomes a number on submit. */
+export type DeskSaleForm = Omit<DeskSale, 'amount_inr'> & { amount_inr: string };
 
 export interface AdminDashboardKPIs {
   kpis: {
@@ -575,3 +630,156 @@ export interface FitnessGuide {
   /** The 4-day body-part split on the strength floor page. */
   strength_split: { day: string; title: string; exercises: string[] }[];
 }
+
+// Rewards: points, gifts and their pickups (docs/API.md, Rewards).
+
+export type GiftLevel = 'small' | 'medium' | 'big' | 'premium';
+export type GiftSize = 'S' | 'M' | 'L' | 'XL' | 'XXL';
+
+/** A catalogue gift, as admins see it. */
+export interface Gift {
+  id: string;
+  name: string;
+  description: string;
+  /** An emoji, or a photo as a data URL. */
+  image: string;
+  level: GiftLevel;
+  /** null = reward-only (milestones and joining bundles), not in the store. */
+  points_cost: number | null;
+  /** null = unlimited; unused when the gift has sizes. */
+  stock: number | null;
+  sizes?: GiftSize[];
+  stock_by_size?: Partial<Record<GiftSize, number>>;
+  kind: 'item' | 'service';
+  active: boolean;
+  created_at: string;
+}
+
+/** What admins send to create or edit a gift. */
+export type GiftInput = Omit<Gift, 'id' | 'created_at'>;
+
+/** A gift in the members' store: in or out of stock, never a count. */
+export interface StoreGift {
+  id: string;
+  name: string;
+  description: string;
+  image: string;
+  level: GiftLevel;
+  points_cost: number;
+  kind: Gift['kind'];
+  sizes?: GiftSize[];
+  in_stock: boolean;
+  sizes_in_stock?: GiftSize[];
+}
+
+export type ClaimStatus = 'needs_size' | 'waiting' | 'ready' | 'handed_over' | 'cancelled';
+
+/** One gift a member is owed. Names are snapshots, so a renamed or retired gift stays collectable. */
+export interface GiftClaim {
+  id: string;
+  user_id: string;
+  user_name: string;
+  gift_id: string;
+  gift_name: string;
+  size?: GiftSize;
+  source: 'store' | 'milestone' | 'joining';
+  /** Milestone id, payment id, or '' for the store. */
+  source_ref: string;
+  points_spent: number;
+  pickup_code: string;
+  status: ClaimStatus;
+  created_at: string;
+  handed_over_at?: string;
+  handed_over_by?: { id: string; name: string };
+  cancel_reason?: string;
+  /** On a 'needs_size' claim from the member's own list or the check-in answer: the sizes its gift comes in. */
+  sizes?: GiftSize[];
+}
+
+/** One line of a member's points history. A 0-point 'bonus' line records a gift unlocked. */
+export interface PointsEntry {
+  id: string;
+  user_id: string;
+  key: string;
+  points: number;
+  reason: 'checkin' | 'workout' | 'referral' | 'claim' | 'refund' | 'admin_adjust' | 'bonus';
+  ref?: string;
+  note?: string;
+  created_at: string;
+}
+
+/** GET /rewards/me: visits and streak count only days the gym confirmed (check-ins and attended classes). */
+export interface MyRewards {
+  balance: number;
+  visits: number;
+  streak: number;
+  milestones: { id: string; type: 'visits' | 'streak'; threshold: number; gift_name: string; reached: boolean }[];
+  earning: { checkin: number; workout: number; referral: number; referral_welcome: number };
+  /** Newest first. */
+  claims: GiftClaim[];
+  referral_code: string;
+}
+
+export interface Milestone {
+  id: string;
+  type: 'visits' | 'streak';
+  threshold: number;
+  gift_id: string;
+}
+
+/** The gifts a paid plan and cycle gives; once_per_member gifts are given once ever, not per payment. */
+export interface JoiningGift {
+  tier: PaidTier;
+  billing_cycle: BillingCycle;
+  gift_ids: string[];
+  once_per_member: boolean;
+}
+
+/** The reward rules admins edit. `launched_at` is the server's own and is never sent back. */
+export interface RewardSettings {
+  points_per_checkin: number;
+  points_per_workout: number;
+  points_per_referral: number;
+  welcome_points_for_referred: number;
+  milestones: Milestone[];
+  joining_gifts: JoiningGift[];
+  launched_at?: string;
+}
+
+/** PUT /rewards/settings: a milestone without an id is a new one. */
+export type RewardSettingsInput = Omit<RewardSettings, 'launched_at' | 'milestones'> & { milestones: (Omit<Milestone, 'id'> & { id?: string })[] };
+
+/** A sale: a percentage or an amount off (the other is null) between two instants. Empty lists mean every plan or cycle. */
+export interface Offer {
+  id: string;
+  title: string;
+  banner_text: string;
+  percent_off: number | null;
+  amount_off: number | null;
+  tiers: PaidTier[];
+  billing_cycles: BillingCycle[];
+  starts_at: string;
+  ends_at: string;
+  active: boolean;
+  created_at: string;
+}
+
+export type OfferInput = Omit<Offer, 'id' | 'created_at'>;
+
+/** A coupon code, valid on gym dates from valid_from to valid_until inclusive. `uses` counts paid orders. */
+export interface Coupon {
+  code: string;
+  percent_off: number | null;
+  amount_off: number | null;
+  tiers: PaidTier[];
+  billing_cycles: BillingCycle[];
+  valid_from: string;
+  valid_until: string;
+  max_uses: number | null;
+  per_member_limit: number;
+  uses: number;
+  active: boolean;
+  created_at: string;
+}
+
+export type CouponInput = Omit<Coupon, 'uses' | 'created_at'>;

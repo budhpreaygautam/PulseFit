@@ -9,6 +9,9 @@ import { closeStaleSessions } from '../lib/floor.js';
 import { findCardByNumber } from '../lib/idCards.js';
 import { effectiveStatus, isStaff } from '../lib/membership.js';
 import { recordActivity } from '../lib/streak.js';
+import { milestoneValues } from '../lib/milestones.js';
+import { onCheckIn } from '../lib/rewardEvents.js';
+import { openClaimsOf } from '../lib/gifts.js';
 import { newId, toSafeUser } from '../lib/users.js';
 import { AttendanceLog, IdCard, IdCardDeactivationReason, TrialPass, User } from '../types/index.js';
 
@@ -190,7 +193,7 @@ export const checkIn = asyncHandler<AuthenticatedRequest>((req, res: Response) =
   if (existing) {
     return ok(
       res,
-      { result: 'granted', already_checked_in: true, kind: 'member', member: memberSummary(user), log: existing },
+      { result: 'granted', already_checked_in: true, kind: 'member', member: memberSummary(user), log: existing, gifts_to_collect: openClaimsOf(user.id) },
       `${user.name} already checked in today. Come on through!`
     );
   }
@@ -204,13 +207,17 @@ export const checkIn = asyncHandler<AuthenticatedRequest>((req, res: Response) =
     check_in_time: now.toISOString(),
     check_in_method: body.method
   };
+  // Milestones fire when crossed, so read the values before this visit counts.
+  const before = milestoneValues(user.id);
   db.attendance_logs = [log, ...db.attendance_logs];
   recordActivity(user.id, today);
+  onCheckIn(user, log, before);
+  db.saveSync();
 
   const refreshed = db.users.find(u => u.id === user.id) ?? user;
   return ok(
     res,
-    { result: 'granted', already_checked_in: false, kind: 'member', member: memberSummary(refreshed), log },
+    { result: 'granted', already_checked_in: false, kind: 'member', member: memberSummary(refreshed), log, gifts_to_collect: openClaimsOf(user.id) },
     `Welcome to PulseFit, ${user.name}!`
   );
 });

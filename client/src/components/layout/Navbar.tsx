@@ -8,6 +8,7 @@ import {
   CalendarDays,
   ClipboardList,
   Dumbbell,
+  Gift,
   House,
   IdCard,
   LogOut,
@@ -54,6 +55,8 @@ type DemoRole = 'member' | 'vip' | 'trainer' | 'admin';
 interface NavItem {
   tab: string;
   label: string;
+  /** A shorter name for the header row, where the full one would wrap it at 1280 px; its tooltip and the menu keep `label`. */
+  barLabel?: string;
   icon: React.ComponentType<{ className?: string }>;
 }
 
@@ -75,6 +78,7 @@ const ROLE_LINKS: Record<UserRole, NavItem[]> = {
     { tab: 'my-bookings', label: 'My bookings', icon: CalendarCheck },
     { tab: 'workout-logger', label: 'Log workout', icon: Dumbbell },
     { tab: 'exercise-library', label: 'Exercises', icon: BookOpen },
+    { tab: 'rewards', label: 'Rewards', icon: Gift },
     { tab: 'profile', label: 'My account', icon: UserCircle }
   ],
   trainer: [
@@ -90,7 +94,7 @@ const ROLE_LINKS: Record<UserRole, NavItem[]> = {
     { tab: 'admin-scanner', label: 'Check-in', icon: ScanLine },
     { tab: 'admin-classes', label: 'Classes & coaches', icon: CalendarCheck },
     { tab: 'trainer-dashboard', label: 'Coach dashboards', icon: Activity },
-    { tab: 'admin-plans', label: 'Plans', icon: Tags },
+    { tab: 'admin-plans', label: 'Plans & rewards', barLabel: 'Plans', icon: Tags },
     { tab: 'admin-trials', label: 'Leads', icon: ClipboardList },
     { tab: 'profile', label: 'My account', icon: UserCircle }
   ]
@@ -154,7 +158,7 @@ const BarLink: React.FC<BarLinkProps> = ({ item, labelFrom, currentTab, navigate
       className={`hover:z-10 focus-visible:z-10 ${sizes.link} ${linkClass(active)}`}
     >
       <item.icon className={`shrink-0 ${sizes.icon}`} aria-hidden="true" />
-      <span className={sizes.label}>{item.label}</span>
+      <span className={sizes.label}>{item.barLabel ?? item.label}</span>
       <span aria-hidden="true" data-tip={item.label} className={`nav-tip ${sizes.tip}`} />
     </TabLink>
   );

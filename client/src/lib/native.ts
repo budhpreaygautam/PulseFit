@@ -1,4 +1,5 @@
 import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
+import { copyText } from '../components/member/clipboard.js';
 
 /** True inside the Android/iOS app (Capacitor), false in a browser. */
 export const isNativeApp = Capacitor.isNativePlatform();
@@ -37,6 +38,28 @@ export async function saveFile(blob: Blob, filename: string): Promise<void> {
     // Closing the share sheet is not an error.
     if (!(err instanceof Error && /cancel/i.test(err.message))) throw err;
   }
+}
+
+/**
+ * Offers text to send on: the share sheet in the app, the browser's own where it has one, else the
+ * clipboard. Closing the share sheet counts as shared, since the person chose not to send it.
+ */
+export async function shareText(text: string): Promise<'shared' | 'copied' | 'failed'> {
+  try {
+    if (isNativeApp) {
+      const { Share } = await import('@capacitor/share');
+      await Share.share({ text, dialogTitle: 'Share' });
+      return 'shared';
+    }
+    if (typeof navigator.share === 'function') {
+      await navigator.share({ text });
+      return 'shared';
+    }
+  } catch (err) {
+    if (err instanceof Error && (err.name === 'AbortError' || /cancel/i.test(err.message))) return 'shared';
+    // Sharing is refused (no user gesture, a policy): copying still works.
+  }
+  return (await copyText(text)) ? 'copied' : 'failed';
 }
 
 /** Light status-bar icons on the dark theme, dark icons on the light theme. */

@@ -42,10 +42,14 @@ export interface User {
   mfa_recovery_codes?: string[];
   // Last accepted 30-second step, so a code cannot be replayed.
   mfa_last_step?: number;
+  // Rewards: the member's own code to share (made on first need), and who referred them (a user id).
+  // Never part of SafeUser: the referral graph leaves the API only through the rewards endpoints.
+  referral_code?: string;
+  referred_by?: string;
 }
 
 /** A user as it may leave the API: no password hash, MFA secrets or other internal fields. */
-export type SafeUser = Omit<User, 'password_hash' | 'token_version' | 'google_sub' | 'mfa_secret' | 'mfa_pending_secret' | 'mfa_recovery_codes' | 'mfa_last_step'> & {
+export type SafeUser = Omit<User, 'password_hash' | 'token_version' | 'google_sub' | 'mfa_secret' | 'mfa_pending_secret' | 'mfa_recovery_codes' | 'mfa_last_step' | 'referral_code' | 'referred_by'> & {
   has_password: boolean;
 };
 
@@ -183,6 +187,12 @@ export interface PaymentOrder {
   created_at: string;
   paid_at?: string;
   razorpay_payment_id?: string;
+  // How the price was reached (lib/pricing): amount_inr = base_amount_inr - discount_inr. Absent on orders
+  // from before sales and coupons; offer_id or coupon_code names the discount when there is one.
+  base_amount_inr?: number;
+  discount_inr?: number;
+  offer_id?: string;
+  coupon_code?: string;
 }
 
 /** A completed membership payment; the member's invoice history. */
@@ -208,7 +218,125 @@ export interface Payment {
   period_start: string; // YYYY-MM-DD
   period_end: string; // YYYY-MM-DD, inclusive
   created_at: string;
-  source: 'checkout' | 'webhook' | 'seed';
+  // 'desk': a front-desk sale an admin recorded (order_id and razorpay_payment_id are '').
+  source: 'checkout' | 'webhook' | 'seed' | 'desk';
+  base_amount_inr?: number;
+  discount_inr?: number;
+  offer_id?: string;
+  coupon_code?: string;
+  desk_method?: DeskMethod;
+  recorded_by?: { id: string; name: string };
+}
+
+export type DeskMethod = 'cash' | 'upi' | 'card';
+
+// Rewards (lib/points.ts, lib/gifts.ts). Points live only in the append-only points_ledger.
+
+export type GiftLevel = 'small' | 'medium' | 'big' | 'premium';
+export type GiftSize = 'S' | 'M' | 'L' | 'XL' | 'XXL';
+
+export interface Gift {
+  id: string;
+  name: string;
+  description: string;
+  image: string; // an emoji, or an image data URL
+  level: GiftLevel;
+  points_cost: number | null; // null = reward-only, not in the store
+  stock: number | null; // null = unlimited; unused when the gift has sizes
+  sizes?: GiftSize[];
+  stock_by_size?: Partial<Record<GiftSize, number>>;
+  kind: 'item' | 'service';
+  active: boolean;
+  created_at: string;
+}
+
+export type ClaimStatus = 'needs_size' | 'waiting' | 'ready' | 'handed_over' | 'cancelled';
+export type ClaimSource = 'store' | 'milestone' | 'joining';
+
+/** One gift a member is owed, from the store, a milestone or a joining bundle. */
+export interface GiftClaim {
+  id: string;
+  user_id: string;
+  user_name: string; // snapshot
+  gift_id: string;
+  gift_name: string; // snapshot, so a renamed or retired gift stays collectable
+  size?: GiftSize;
+  source: ClaimSource;
+  source_ref: string; // milestone id, payment id, or '' for the store
+  points_spent: number;
+  pickup_code: string;
+  status: ClaimStatus;
+  created_at: string;
+  handed_over_at?: string;
+  handed_over_by?: { id: string; name: string };
+  cancel_reason?: string;
+}
+
+export type PointsReason = 'checkin' | 'workout' | 'referral' | 'claim' | 'refund' | 'admin_adjust' | 'bonus';
+
+/** One ledger line. `key` is unique across the ledger, which makes every award happen once. */
+export interface PointsEntry {
+  id: string;
+  user_id: string;
+  key: string;
+  points: number;
+  reason: PointsReason;
+  ref?: string;
+  note?: string;
+  created_at: string;
+}
+
+export interface Milestone {
+  id: string;
+  type: 'visits' | 'streak';
+  threshold: number;
+  gift_id: string;
+}
+
+export interface JoiningGift {
+  tier: Exclude<MembershipTier, 'none'>;
+  billing_cycle: BillingCycle;
+  gift_ids: string[];
+  once_per_member: boolean;
+}
+
+export interface RewardSettings {
+  points_per_checkin: number;
+  points_per_workout: number;
+  points_per_referral: number;
+  welcome_points_for_referred: number;
+  milestones: Milestone[];
+  joining_gifts: JoiningGift[];
+  launched_at?: string;
+}
+
+export interface Offer {
+  id: string;
+  title: string;
+  banner_text: string;
+  percent_off: number | null;
+  amount_off: number | null;
+  tiers: Exclude<MembershipTier, 'none'>[]; // [] = all
+  billing_cycles: BillingCycle[]; // [] = all
+  starts_at: string; // ISO
+  ends_at: string; // ISO
+  active: boolean;
+  created_at: string;
+}
+
+export interface Coupon {
+  code: string;
+  percent_off: number | null;
+  amount_off: number | null;
+  tiers: Exclude<MembershipTier, 'none'>[];
+  billing_cycles: BillingCycle[];
+  valid_from: string; // gym dates, inclusive
+  valid_until: string;
+  max_uses: number | null;
+  per_member_limit: number;
+  uses: number;
+  active: boolean;
+  created_at: string;
 }
 
 export interface TrialPass {

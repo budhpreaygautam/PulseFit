@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Dumbbell, ExternalLink, KeyRound, Loader2, Lock, Mail, Phone, ShieldCheck, Sparkles, User as UserIcon, Users } from 'lucide-react';
+import { ArrowLeft, Dumbbell, ExternalLink, Gift, KeyRound, Loader2, Lock, Mail, Phone, ShieldCheck, Sparkles, User as UserIcon, Users } from 'lucide-react';
 import { Modal } from '../../components/common/Modal.js';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton.js';
 import { FormField, issuesByField } from '../../components/public/FormField.js';
@@ -22,7 +22,7 @@ interface AuthModalProps {
   initialMode?: Mode;
 }
 type DemoRole = 'member' | 'vip' | 'trainer' | 'admin';
-type Field = 'name' | 'gender' | 'email' | 'password' | 'phone';
+type Field = 'name' | 'gender' | 'email' | 'password' | 'phone' | 'referral_code';
 
 const DEMO_PERSONAS: { role: DemoRole; label: string; detail: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { role: 'member', label: 'Member', detail: 'Books classes', icon: UserIcon },
@@ -51,6 +51,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<Field, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [suggestLogin, setSuggestLogin] = useState(false);
@@ -78,6 +79,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setEmail('');
     setPassword('');
     setPhone('');
+    setReferralCode('');
     setFieldErrors({});
     setFormError(null);
     setSuggestLogin(false);
@@ -131,11 +133,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const showError = (err: unknown) => {
     if (isApiError(err) && err.code === 'VALIDATION_ERROR') {
       const issues = issuesByField(err.data);
-      const known = (['name', 'gender', 'email', 'password', 'phone'] as Field[]).filter(f => issues[f]);
+      const known = (['name', 'gender', 'email', 'password', 'phone', 'referral_code'] as Field[]).filter(f => issues[f]);
       if (known.length > 0) {
         setFieldErrors(Object.fromEntries(known.map(f => [f, issues[f]])));
         return;
       }
+    }
+    // A friend's code that matches no member is shown on its field (email or Google sign-up).
+    if (isApiError(err) && err.code === 'REFERRAL_CODE_INVALID') {
+      setFieldErrors({ referral_code: err.message });
+      return;
     }
     if (isApiError(err) && err.code === 'EMAIL_TAKEN') setSuggestLogin(true);
     setFormError(isApiError(err) && err.code && GOOGLE_ERRORS[err.code] ? GOOGLE_ERRORS[err.code] : errorMessage(err));
@@ -189,7 +196,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         else askForCode(result.mfaToken);
       } else {
         const normalizedPhone = phone.trim() ? normalizeIndianPhone(phone) ?? undefined : undefined;
-        const user = await register({ name: name.trim(), gender: gender!, email: email.trim(), password, phone: normalizedPhone });
+        const user = await register({ name: name.trim(), gender: gender!, email: email.trim(), password, phone: normalizedPhone, referral_code: referralCode.trim() || undefined });
         finishSignIn(user, `Welcome to PulseFit, ${user.name.split(' ')[0]}! Choose a membership to start booking classes.`);
       }
     } catch (err) {
@@ -210,7 +217,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setFormError(null);
     setBusy('google');
     try {
-      const result = await loginWithGoogle(credential);
+      // The server uses the code only if this Google sign-in creates the account.
+      const result = await loginWithGoogle(credential, mode === 'register' ? referralCode.trim() || undefined : undefined);
       if (result.mfaToken) {
         askForCode(result.mfaToken, result.message);
       } else if (result.message) {
@@ -473,6 +481,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                 placeholder="+91 98110 12345"
                 hint="Only used by the front desk to reach you about your membership."
                 error={fieldErrors.phone}
+              />
+            )}
+
+            {mode === 'register' && (
+              <FormField
+                id="auth-referral"
+                label="Referral code"
+                optional
+                icon={Gift}
+                type="text"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                value={referralCode}
+                onChange={e => setReferralCode(e.target.value)}
+                maxLength={32}
+                hint="A member's code. You both earn points when you pay for your first plan."
+                error={fieldErrors.referral_code}
               />
             )}
 

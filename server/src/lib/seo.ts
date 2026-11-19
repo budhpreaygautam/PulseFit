@@ -148,6 +148,13 @@ export const PAGES: readonly PageMeta[] = [
     indexable: false
   },
   {
+    path: '/rewards',
+    title: 'Rewards',
+    description:
+      'Your PulseFit Athletics points from check-ins and workouts, gifts for milestones, the gift store with pickup codes, and your code to refer a friend.',
+    indexable: false
+  },
+  {
     path: '/profile',
     title: 'My account',
     description:
@@ -198,9 +205,9 @@ export const PAGES: readonly PageMeta[] = [
   },
   {
     path: '/admin/plans',
-    title: 'Plans & pricing',
+    title: 'Plans & rewards',
     description:
-      'The PulseFit Athletics membership plan catalogue, managed by staff, behind the public pricing page, online checkout and class entitlements.',
+      'The PulseFit Athletics membership plans, gift catalogue and gift pickups, managed by staff, behind checkout, the member Rewards page and the front desk.',
     indexable: false
   },
   {
@@ -288,7 +295,7 @@ const websiteIndexable = () => config.allowIndexing && config.serveClient;
 
 /**
  * The read-only API answers the public pages are drawn from in the browser (the home page's plans,
- * classes, coaches and floor count, trimmed for guests; the exercise library; the app config). Google's renderer obeys robots.txt for these
+ * classes, coaches and floor count, trimmed for guests, and its sale banner; the exercise library; the app config). Google's renderer obeys robots.txt for these
  * requests too, so they stay open or the indexed pages would show only their loading or error panels.
  * They are still never indexed themselves: every /api answer carries X-Robots-Tag: noindex. The
  * renderer runs the app, which sends its X-Requested-With header; a crawler fetching these addresses
@@ -300,7 +307,8 @@ export const PUBLIC_API_PATHS = [
   '/api/classes',
   '/api/trainers',
   '/api/exercises',
-  '/api/time-tracking/active-floor'
+  '/api/time-tracking/active-floor',
+  '/api/promotions'
 ];
 
 /**

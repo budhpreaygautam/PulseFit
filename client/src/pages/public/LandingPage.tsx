@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowRight, Calendar, CheckCircle2, ChevronRight, Clock, Dumbbell, MapPin, Music2, QrCode, Sparkles, Star, Users, Zap } from 'lucide-react';
+import { ArrowRight, Calendar, CheckCircle2, ChevronRight, Clock, Dumbbell, Gift, MapPin, Music2, QrCode, Sparkles, Star, Users, Zap } from 'lucide-react';
 import { ActiveFloorStatus } from '../../types/index.js';
 import { api } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
@@ -14,7 +14,7 @@ import { TabLink } from '../../components/public/TabLink.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
-import { formatClock, formatDate, formatINR, formatTime, gymToday } from '../../lib/format.js';
+import { endsIn, formatClock, formatDate, formatINR, formatTime, gymToday } from '../../lib/format.js';
 
 interface LandingPageProps {
   setCurrentTab: (tab: string) => void;
@@ -80,6 +80,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
   const classes = useApiData(() => api.getClasses());
   const trainers = useApiData(() => api.getTrainers());
   const plans = useApiData(() => api.getPlans());
+  // Sale headlines and joining-gift names only, never coupon codes; shown to guests.
+  const promotions = useApiData(() => api.getPromotions());
   const floor = useFloorStatus();
   const isOpen = isGymOpenNow();
 
@@ -92,9 +94,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
 
   const openTimeTracker = () => (user ? navigate('member-dashboard') : onOpenAuthModal('login'));
   const join = () => (user ? navigate('pricing') : onOpenAuthModal('register'));
+  // The soonest-ending sale (the server sorts them), and the first annual plan's welcome kit.
+  const sale = user ? undefined : promotions.data?.sales[0];
+  const annualKit = user ? undefined : promotions.data?.joining_gifts.find(j => j.billing_cycle === 'annual');
 
   return (
     <div className="space-y-16 sm:space-y-24 pb-20 overflow-hidden">
+      {sale && (
+        // The negative margin cancels the page's section gap: the hero's own top padding is enough.
+        <section aria-label="Sale" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 -mb-16 sm:-mb-24">
+          <div className="p-3 sm:p-4 rounded-2xl neu-flat border border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm">
+            <p className="flex items-start sm:items-center gap-2.5 text-slate-200">
+              <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 sm:mt-0" aria-hidden="true" />
+              <span>
+                <strong className="text-slate-100">{sale.banner_text || sale.title}</strong> · {endsIn(sale.ends_at)}
+              </span>
+            </p>
+            <button type="button" onClick={() => onOpenAuthModal('register')} className="self-start sm:self-auto px-4 py-2 neu-btn-lime font-extrabold text-xs rounded-xl shrink-0">
+              Sign up
+            </button>
+          </div>
+        </section>
+      )}
+
       {/* Hero */}
       <section className="relative pt-6 sm:pt-10 lg:pt-16 pb-4">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[500px] h-[200px] sm:h-[300px] bg-lime-500/10 rounded-full blur-[120px] pointer-events-none" />
@@ -520,6 +542,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
             CLEAR, SIMPLE PRICING
           </h2>
           <p className="text-slate-400 text-sm">No sign-up fee and no automatic renewals. Entry with your QR pass during opening hours.</p>
+          {annualKit && (
+            <p className="text-sm text-slate-300 flex items-center justify-center gap-2">
+              <Gift className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" aria-hidden="true" />
+              Join on an annual plan and get a welcome kit: {annualKit.gifts.join(', ')}.
+            </p>
+          )}
         </div>
 
         {plans.isLoading ? (

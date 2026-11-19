@@ -53,6 +53,7 @@ const MyBookingsPage = named(() => import('./pages/member/MyBookingsPage.js'), '
 const WorkoutLogger = named(() => import('./pages/member/WorkoutLogger.js'), 'WorkoutLogger');
 const ExerciseLibraryView = publicPage(() => import('./pages/member/ExerciseLibraryView.js'), 'ExerciseLibraryView');
 const MemberProfilePage = named(() => import('./pages/member/MemberProfilePage.js'), 'MemberProfilePage');
+const RewardsPage = named(() => import('./pages/member/RewardsPage.js'), 'RewardsPage');
 const TrainerDashboard = named(() => import('./pages/trainer/TrainerDashboard.js'), 'TrainerDashboard');
 const AdminDashboard = named(() => import('./pages/admin/AdminDashboard.js'), 'AdminDashboard');
 const MemberManagement = named(() => import('./pages/admin/MemberManagement.js'), 'MemberManagement');
@@ -309,6 +310,8 @@ function MainAppContent() {
         return <MyBookingsPage />;
       case 'workout-logger':
         return <WorkoutLogger setCurrentTab={setCurrentTab} />;
+      case 'rewards':
+        return <RewardsPage />;
       case 'profile':
         return <MemberProfilePage setCurrentTab={setCurrentTab} />;
       case 'trainer-dashboard':

@@ -1,5 +1,6 @@
 import db from './database.js';
 import { runSeedExtensions } from './seed/index.js';
+import { defaultGifts, defaultRewardSettings } from './rewardDefaults.js';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { User, Trainer, GymClass, Exercise, MembershipPlan, Booking, AttendanceLog, Workout, WorkoutSet, TimeSession } from '../types/index.js';
@@ -935,6 +936,13 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
     db.trainer_notes = [];
     db.password_resets = [];
     db.id_cards = [];
+    // Production starts with the catalogue, rules and joining gifts only.
+    db.gifts = defaultGifts();
+    db.reward_settings = defaultRewardSettings();
+    db.gift_claims = [];
+    db.points_ledger = [];
+    db.offers = [];
+    db.coupons = [];
   }
 
   db.saveSync();

@@ -20,6 +20,16 @@ export function isMembershipActive(user: Pick<User, 'membership_status' | 'membe
   return effectiveStatus(user, today) === 'active';
 }
 
+/**
+ * Whether a member has a plan for what comes with one (the fitness guide, rewards): active, or frozen
+ * up to its paid end date. A freeze pauses a plan without extending it (unfreezing adds the missed
+ * days back), so freezing cannot keep those for ever.
+ */
+export function hasPlan(user: Pick<User, 'membership_status' | 'membership_expiry'>, today = gymToday()): boolean {
+  const status = effectiveStatus(user, today);
+  return status === 'active' || (status === 'frozen' && !!user.membership_expiry && user.membership_expiry >= today);
+}
+
 /** Staff (admins and trainers) are never blocked by membership rules. */
 export function isStaff(user: Pick<User, 'role'>): boolean {
   return user.role === 'admin' || user.role === 'trainer';

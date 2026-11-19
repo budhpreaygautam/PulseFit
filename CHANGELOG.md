@@ -6,7 +6,8 @@ All notable changes to PulseFit. Versions follow [Semantic Versioning](https://s
 
 The service pages now need an account and the fitness guide a plan, sign-up asks for gender to pick a default profile
 picture, the API stops answering casual direct access, the header and pricing cards fit their space, and there is a
-contact page with an enquiry form.
+contact page with an enquiry form. Members earn points and gifts for their visits, workouts and referrals, the gym can
+run sales and coupon codes, and the front desk records sales paid at the desk.
 
 ### Added
 
@@ -37,6 +38,35 @@ contact page with an enquiry form.
 - **Enquiry emails.** With `BREVO_API_KEY` and `MAIL_FROM` set, each enquiry goes to the gym's inbox (`ENQUIRY_INBOX`;
   replying answers the enquirer), and the enquirer gets a short confirmation (at most one a day per address). Sent
   through Brevo's HTTPS API, because Railway blocks SMTP below its Pro plan. Without these settings nothing is sent.
+- **Rewards.** Members with a plan (active, or frozen up to its paid end date, as for the guide) earn points for each
+  check-in at the front desk (10) and for a workout logged on the day they train (5), and get a gift for milestones
+  of staff-confirmed visits and streaks (10 visits, a 30-day streak, 100 and 250 visits), each once. A paid plan comes with joining gifts (a welcome kit
+  with annual plans, a supplement sample pack with a member's first monthly plan). Points buy gifts from a 24-item
+  catalogue on the new **Rewards** page (`/rewards`), which also shows the balance, progress to the next milestone,
+  "My gifts" with a pickup code, and the points history; the dashboard says when a gift is ready to collect. Gifts are
+  collected at the front desk: the check-in scanner lists a member's ready gifts with a Hand over button, and the admin
+  Pickups tab lists them all. Apparel has sizes and items have stock: the store greys out what is out of stock, and an
+  earned gift waits until its size or item is back.
+  On the first start of this version each member who already passed a milestone gets one welcome gift for the highest
+  one; no points are back-dated. Every value is editable under Plans & rewards › Rules.
+- **Referrals.** Every member has a referral code (Rewards › Refer a friend, with Share). A friend types it when
+  signing up (email or Google), or the front desk adds it in the member's details until they first have a plan (accounts
+  from before rewards count as having paid, since desk payments were not recorded then). On that
+  first paid plan the member who referred them gets 200 points and the friend 50.
+- **Sales and coupons.** Admins run sales (a percentage or an amount off, for chosen plans and billing cycles, between
+  two times) and coupon codes (with dates, a use limit and a limit per member) under Plans & rewards › Offers &
+  coupons. Memberships shows a live sale on each card (the list price struck through, the label and "ends in …") and
+  each plan's joining gifts, and takes a coupon under the pay button ("Have a coupon?"). The server works out every
+  price (`POST /api/payment/quote`, `GET /api/payment/quotes`) and charges the best single discount, never below ₹1;
+  invoices show the list price and the sale or coupon discount. Guests see the live sale as a banner on the home page,
+  with the annual welcome kit (`GET /api/promotions`: headlines and gift names only). A discounted order is checked
+  again when paid: a second order with a coupon the member has used up, or one paid more than 30 minutes after its
+  sale or coupon ended, is not applied and goes to the desk. Days bought at a sale price count as credit on a plan
+  change only for what they cost.
+- **Front-desk sales.** Admins record a plan paid at the desk in cash, UPI or card, from Add member ("Payment collected
+  at the desk") or the member editor (`POST /api/members/:id/desk-sale`). It creates an invoice ("Front desk (UPI)"),
+  gives the joining gifts and counts for referrals; free time added by hand gives neither. The same sale recorded twice
+  within 2 minutes is refused. Member details show the member's points, gifts and referrer, with "Adjust points".
 
 ### Changed
 
@@ -74,7 +104,10 @@ contact page with an enquiry form.
   first four coaches with photo, bio, experience, rating and two specialties; `GET /api/plans` lists name, description,
   monthly price, the first four features and the classes each plan covers (no annual price). Signed-in accounts get the
   full answers as before. `GET /api/classes/:id` and `GET /api/trainers/:id` need a session.
-- The privacy policy explains the gender question and who sees it, and no longer mentions DiceBear (updated 19 Nov 2026).
+- The admin "Plans" page is now **"Plans & rewards"**, with tabs: Plans (the editor as before), Offers & coupons, Gift
+  catalogue, Pickups and Rules. The header link still reads "Plans"; its tooltip and the menu say "Plans & rewards".
+- The privacy policy explains the gender question and who sees it, the rewards data (points history, gift claims,
+  referral codes and who referred whom, deleted with the account), and no longer mentions DiceBear (updated 19 Nov 2026).
   Each legal page now shows its own "last updated" date, the day its text last changed: the terms of service 9 Oct 2026
   and the refund policy 19 Oct 2026 (all three used to show 7 Oct 2026).
 
@@ -113,6 +146,9 @@ contact page with an enquiry form.
   `.map` (`%2Emap`) or adds a trailing slash, dot or space.
 - Default profile pictures are part of the site instead of loading from api.dicebear.com, so showing one sends nothing
   to another service.
+- Points, gifts and prices are decided only by the server: requests never carry them. Coupon codes are listed to
+  admins only, and a quote or order says only whether a typed code works; after 10 failed codes in 10 minutes an
+  account gets 429 `RATE_LIMITED`. Other members never see anyone's points, gifts or referrals.
 
 ### Upgrading
 
@@ -133,6 +169,12 @@ contact page with an enquiry form.
   a photo (when editing it asks for an `https://` photo address), and coaches without a photo now have none (stored
   DiceBear addresses are cleared, and new coaches without one store `''`). Until the new app is installed, admins must
   edit such coaches on the website.
+- Apps from 2.3.0 have no Rewards page, coupon field or sale prices: their Memberships cards show list prices, and the
+  payment opens for the sale price the server charges. Members still earn points and gifts on them.
+- Production starts with the gift catalogue, the rules and the joining gifts only: no sales or coupons until an admin
+  creates them. Set item stock under Plans & rewards › Gift catalogue (items start at 0: out of stock in the store,
+  and earned gifts wait), and expect
+  the first start to give regular members their welcome gift (the server log says how many).
 
 ## [2.3.0] — 2026-10-19
 

@@ -7,6 +7,8 @@ import { addDays, dayOfWeek, displayDate, gymToday } from '../lib/dates.js';
 import { effectiveStatus, tierAllowsCategory } from '../lib/membership.js';
 import { closeStaleSessions, creditSession } from '../lib/floor.js';
 import { recomputeStreak } from '../lib/streak.js';
+import { milestoneValues } from '../lib/milestones.js';
+import { onClassAttended } from '../lib/rewardEvents.js';
 import { newId } from '../lib/users.js';
 import {
   ATTENDANCE_OPENS_MINUTES,
@@ -198,6 +200,7 @@ export const markAttendance = asyncHandler<AuthenticatedRequest>((req, res: Resp
     throw badRequest(`Attendance opens ${ATTENDANCE_OPENS_MINUTES} minutes before the class starts.`, 'CLASS_NOT_STARTED');
   }
 
+  const before = milestoneValues(booking.user_id);
   const updated: Booking = { ...booking, status };
   db.bookings = db.bookings.map(b => (b.id === booking.id ? updated : b));
   // Attendance is often marked after the member has been back since; creditSession rebuilds the
@@ -206,10 +209,13 @@ export const markAttendance = asyncHandler<AuthenticatedRequest>((req, res: Resp
   // floor session is closed first so the rebuilt history includes it.
   if (status === 'attended') {
     creditSession(booking.user_id, booking.booking_date);
+    // A confirmed day can cross a milestone; each is granted once ever, so re-marking adds nothing.
+    if (booking.status !== 'attended') onClassAttended(booking.user_id, before);
   } else if (booking.status === 'attended') {
     closeStaleSessions();
     recomputeStreak(booking.user_id);
   }
+  db.saveSync();
   ok(res, updated, 'Attendance saved.');
 });
 

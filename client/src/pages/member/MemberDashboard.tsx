@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, CalendarCheck, Calendar, Dumbbell, Flame, IdCard, MessageSquareText, Plus, QrCode, Timer } from 'lucide-react';
+import { ArrowRight, CalendarCheck, Calendar, Dumbbell, Flame, Gift, IdCard, MessageSquareText, Plus, QrCode, Timer } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { api } from '../../api/client.js';
@@ -13,6 +13,7 @@ import { BookingCard, CancelBookingDialog } from '../../components/member/Bookin
 import { FloorClockCard } from '../../components/member/FloorClockCard.js';
 import { ProgressSection } from '../../components/member/ProgressSection.js';
 import { useApiResource } from '../../components/member/useApiResource.js';
+import { useGiftCelebration } from '../../components/member/useGiftCelebration.js';
 import { formatDate, formatDateTime, gymToday, tierLabel } from '../../lib/format.js';
 import { avatarOf } from '../../components/member/avatarImage.js';
 
@@ -82,6 +83,9 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
   const notes = useApiResource(() => api.getMyNotes());
   const attendance = useApiResource(() => api.getMyAttendance());
   const plans = useApiResource(() => api.getPlans());
+  const rewards = useApiResource(() => api.getMyRewards());
+
+  useGiftCelebration(user?.id ?? '', rewards.data?.claims ?? null);
 
   if (!user) return null;
 
@@ -148,6 +152,17 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
           <p className="flex-1">{notice.text}</p>
           <button type="button" onClick={() => navigate(notice.tab, notice.params)} className="neu-btn-lime px-4 py-2 rounded-xl text-xs font-extrabold self-start sm:self-auto">
             {notice.action}
+          </button>
+        </div>
+      )}
+
+      {rewards.data?.claims.some(c => c.status === 'ready') && (
+        <div role="status" className="glass-tint rounded-2xl p-4 border border-lime-500/40 bg-lime-500/10 flex flex-col sm:flex-row sm:items-center gap-3 text-sm text-lime-800 dark:text-lime-200">
+          <p className="flex-1 flex items-center gap-2">
+            <Gift className="w-4 h-4 shrink-0" aria-hidden="true" /> You have a gift ready to collect. Show its pickup code at the front desk.
+          </p>
+          <button type="button" onClick={() => setCurrentTab('rewards')} className="neu-btn-lime px-4 py-2 rounded-xl text-xs font-extrabold self-start sm:self-auto">
+            Open rewards
           </button>
         </div>
       )}

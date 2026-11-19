@@ -55,6 +55,8 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(NOW);
   resetDb();
+  // These tests charge list prices; the demo's live annual sale is covered in payments.offers.test.ts.
+  db.offers = [];
   Object.assign(config.razorpay, { keyId: KEY_ID, keySecret: KEY_SECRET, webhookSecret: WEBHOOK_SECRET });
   createOrderMock.mockClear();
   setRazorpayClientForTests({ orders: { create: createOrderMock } });
@@ -142,6 +144,9 @@ describe('POST /payment/create-order', () => {
       orderId: 'order_test_' + orderSeq,
       amount: paise(plan('pro').price_monthly),
       amount_inr: plan('pro').price_monthly,
+      base_amount_inr: plan('pro').price_monthly,
+      discount_inr: 0,
+      applied: null,
       currency: 'INR',
       keyId: KEY_ID,
       tier: 'pro',

@@ -377,7 +377,8 @@ test('the header lines up with the page at every width, and its icon-only links 
   test.skip(isMobile, 'Phones get the menu, where every link shows its label.');
   const labels = ['Overview', 'Strength Floor', 'Zumba Studio', 'Plans & Diets', 'Timetable', 'Memberships', 'Coaches'];
   const roleLabels = {
-    vip: ['Dashboard', 'My bookings', 'Log workout', 'Exercises', 'My account'],
+    vip: ['Dashboard', 'My bookings', 'Log workout', 'Exercises', 'Rewards', 'My account'],
+    // 'Plans' is the header's short name for "Plans & rewards" (its tooltip and the menu say it in full).
     admin: ['Dashboard', 'Members', 'ID cards', 'Check-in', 'Classes & coaches', 'Coach dashboards', 'Plans', 'Leads', 'My account']
   };
   const main = page.getByRole('navigation', { name: 'Main' });

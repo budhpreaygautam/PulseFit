@@ -190,6 +190,15 @@ export const ROUTES: RouteDef[] = [
     access: 'auth'
   },
   {
+    tab: 'rewards',
+    path: '/rewards',
+    title: 'Rewards',
+    description:
+      'Your PulseFit Athletics points from check-ins and workouts, gifts for milestones, the gift store with pickup codes, and your code to refer a friend.',
+    indexable: false,
+    access: ['member']
+  },
+  {
     tab: 'profile',
     path: '/profile',
     title: 'My account',
@@ -258,9 +267,9 @@ export const ROUTES: RouteDef[] = [
   {
     tab: 'admin-plans',
     path: '/admin/plans',
-    title: 'Plans & pricing',
+    title: 'Plans & rewards',
     description:
-      'The PulseFit Athletics membership plan catalogue, managed by staff, behind the public pricing page, online checkout and class entitlements.',
+      'The PulseFit Athletics membership plans, gift catalogue and gift pickups, managed by staff, behind checkout, the member Rewards page and the front desk.',
     indexable: false,
     access: ['admin']
   },
