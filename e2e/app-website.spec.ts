@@ -41,9 +41,9 @@ test('a page opened from the drawer slides in, Back slides it out, and the app b
   await countTransitions(page); await useAppMode(page);
   await page.goto('/');
   await expect(header(page)).toHaveCSS('view-transition-name', 'app-header');
-  await openFromMenu(page, 'Privacy policy');
-  await expect(page).toHaveURL(/\/privacy$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Privacy policy' })).toBeVisible();
+  await openFromMenu(page, 'Policies & terms');
+  await expect(page).toHaveURL(/\/policies$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Policies & terms' })).toBeVisible();
   await expect(drawer(page)).toHaveCount(0);
   await expect.poll(() => transitions(page)).toBe(1);
   expect(await navKind(page)).toBe('push');

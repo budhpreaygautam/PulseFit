@@ -7,7 +7,7 @@ import { CATEGORIES, HOURS_TIME, weekdayOf } from '../../components/public/gymIn
 import { useAuth } from '../../context/AuthContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
 import { api, errorMessage, isApiError } from '../../api/client.js';
-import { addDays, formatClock, formatDate, GYM_TIMEZONE, gymToday } from '../../lib/format.js';
+import { addDays, formatClock, formatDate, gymClockNow, gymToday } from '../../lib/format.js';
 import { ClassCategory, TrialPass } from '../../types/index.js';
 
 interface FreeTrialModalProps {
@@ -17,11 +17,6 @@ interface FreeTrialModalProps {
 }
 
 const TRIAL_WINDOW_DAYS = 14;
-
-/** The time at the gym (IST) as 'HH:MM', whatever the device's timezone. */
-function gymClockNow(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat('en-GB', { timeZone: GYM_TIMEZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
-}
 
 type Field = 'name' | 'email' | 'phone' | 'interest' | 'preferred_date';
 

@@ -90,21 +90,3 @@ export async function handleAndroidBackButton(): Promise<void> {
     }
   });
 }
-
-/**
- * A light vibration when a button, link or tab is tapped, with the press-in of index.css, in the native
- * app only (the plugin loads on the first tap). A failure is ignored: the tap still works.
- */
-export function vibrateOnPress(): void {
-  if (!isNativeApp) return;
-  // A click, not pointerdown: a scroll, a swipe or a pull that starts on a link never buzzes. Capture
-  // sees clicks a handler stops; code's own .click() (Android Back on ←) is not a tap.
-  document.addEventListener(
-    'click',
-    e => {
-      if (!e.isTrusted || !(e.target instanceof Element) || !e.target.closest('button:not(:disabled), a[href], [role="button"]:not([aria-disabled="true"])')) return;
-      import('@capacitor/haptics').then(({ Haptics, ImpactStyle }) => Haptics.impact({ style: ImpactStyle.Light })).catch(() => undefined);
-    },
-    true
-  );
-}

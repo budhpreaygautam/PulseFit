@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Dumbbell, LogOut, Moon, Sun, X } from 'lucide-react';
+import { BookOpen, Dumbbell, Gift, LogOut, MapPin, Moon, ShieldCheck, Sun, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { useTheme } from '../../context/ThemeContext.js';
 import { tierLabel } from '../../lib/format.js';
@@ -8,7 +8,6 @@ import { useModalFocus } from '../common/Modal.js';
 import { MembershipStatusBadge } from '../member/MembershipStatusBadge.js';
 import { avatarOf } from '../member/avatarImage.js';
 import { TabLink } from '../public/TabLink.js';
-import { VisitUs, footerLinks } from './Footer.js';
 import type { NavItem } from './Navbar.js';
 
 interface AppDrawerProps {
@@ -38,6 +37,12 @@ interface Drag {
 }
 
 const STAFF_ROLE: Record<string, string> = { trainer: 'Coach', admin: 'Admin' };
+// The app's own pages, for every account: rows of the drawer alone, since Navbar's lists are the website menu's too.
+const OFFERS: NavItem = { tab: 'offers', label: 'Offers & gifts', icon: Gift };
+const VISIT: NavItem = { tab: 'visit', label: 'Visit us', icon: MapPin };
+const POLICIES: NavItem = { tab: 'policies', label: 'Policies & terms', icon: ShieldCheck };
+// Members have it among their own links; for everyone else the drawer is the app's only way to it.
+const EXERCISES: NavItem = { tab: 'exercise-library', label: 'Exercise library', icon: BookOpen };
 const SECTION = 'text-[10px] font-mono uppercase tracking-wider text-slate-500 px-4 pt-3 pb-1 font-bold';
 const FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime-500';
 // Material's navigation-drawer rows: a full-width pill, tinted lime behind the open page.
@@ -48,8 +53,8 @@ const rowClass = (active: boolean) =>
 
 /**
  * The app's menu: a drawer from the left over a dimmed page, instead of the website's menu panel, with
- * the footer's links too (the app has no footer). A modal dialog: focus moves in and stays in, and
- * Escape (Android Back sends it), the scrim or a swipe left closes it.
+ * the app's own Offers & gifts, Visit us and Policies & terms pages among its rows. A modal dialog: focus
+ * moves in and stays in, and Escape (Android Back sends it), the scrim or a swipe left closes it.
  */
 export const AppDrawer: React.FC<AppDrawerProps> = ({ currentTab, navigate, onClose, menuLinks, roleLinks, roleLabel, onSignIn, onJoin, onLogout }) => {
   const { user, isInitializing } = useAuth();
@@ -126,9 +131,11 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({ currentTab, navigate, onCl
       </TabLink>
     );
   };
-  const shown = new Set([...menuLinks, ...roleLinks].map(link => link.tab));
-  // The footer's links that are nowhere above, each once (Set.add returns the set, so it is kept).
-  const moreLinks = footerLinks(user).filter(link => !shown.has(link.tab) && shown.add(link.tab));
+  // Offers & gifts after Memberships, Exercise library after Coaches (unless the account's own links have it), Visit us after Contact us.
+  const extra = roleLinks.some(link => link.tab === EXERCISES.tab) ? [] : [EXERCISES];
+  const exploreLinks = menuLinks.flatMap(link =>
+    link.tab === 'pricing' ? [link, OFFERS] : link.tab === 'trainers' ? [link, ...extra] : link.tab === 'contact' ? [link, VISIT] : [link]
+  );
   const signedIn = user && !isInitializing ? user : null;
 
   return (
@@ -146,6 +153,11 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({ currentTab, navigate, onCl
         onTouchCancel={onTouchEnd}
         className="app-drawer absolute inset-y-0 left-0 w-[calc(min(85vw,320px)_+_env(safe-area-inset-left))] overflow-y-auto overscroll-contain touch-pan-y bg-gym-950 rounded-r-3xl shadow-[12px_0_30px_rgba(0,0,0,0.3)] outline-none pt-[calc(env(safe-area-inset-top)_+_1rem)] pb-[calc(env(safe-area-inset-bottom)_+_1rem)] pl-[calc(env(safe-area-inset-left)_+_0.625rem)] pr-2.5"
       >
+        {/* The status bar is see-through: a strip of the drawer's colour stays under it, so scrolled rows never show behind the clock. */}
+        <div
+          aria-hidden="true"
+          className="app-drawer-statusbar sticky top-0 z-10 h-[env(safe-area-inset-top)] -mt-[calc(env(safe-area-inset-top)_+_1rem)] mb-4 -ml-[calc(env(safe-area-inset-left)_+_0.625rem)] -mr-2.5 bg-gym-950"
+        />
         <div className="neu-flat rounded-2xl p-3 flex items-start gap-3">
           {signedIn ? (
             <>
@@ -186,18 +198,18 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({ currentTab, navigate, onCl
 
         {!user && !isInitializing && (
           <div className="mt-3 grid grid-cols-2 gap-2 px-1">
+            <button type="button" onClick={onJoin} className="neu-btn-lime h-11 rounded-xl text-sm font-black">
+              Sign up
+            </button>
             <button type="button" onClick={onSignIn} className="neu-btn h-11 rounded-xl text-sm font-bold text-slate-200">
               Sign in
-            </button>
-            <button type="button" onClick={onJoin} className="neu-btn-lime h-11 rounded-xl text-sm font-black">
-              Join
             </button>
           </div>
         )}
 
         <nav aria-label="Main" className="mt-2">
           <div className={SECTION}>Explore PulseFit</div>
-          {menuLinks.map(menuLink)}
+          {exploreLinks.map(menuLink)}
         </nav>
 
         {roleLabel && (
@@ -218,25 +230,7 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({ currentTab, navigate, onCl
             Sign out
           </button>
         )}
-
-        <div className="mt-3 mx-4 pt-3 border-t border-slate-800/80 space-y-4">
-          {moreLinks.length > 0 && (
-            <nav aria-label="More" className="flex flex-wrap gap-x-4 text-xs">
-              {moreLinks.map(link => (
-                <TabLink
-                  key={link.tab}
-                  tab={link.tab}
-                  navigate={navigate}
-                  isCurrent={currentTab === link.tab}
-                  className={`py-1.5 rounded font-semibold ${FOCUS} ${currentTab === link.tab ? 'text-lime-400' : 'text-slate-400'}`}
-                >
-                  {link.label}
-                </TabLink>
-              ))}
-            </nav>
-          )}
-          <VisitUs />
-        </div>
+        {menuLink(POLICIES)}
       </div>
     </div>
   );

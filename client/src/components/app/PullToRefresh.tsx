@@ -58,6 +58,9 @@ export const PullToRefresh: React.FC<{ onRefresh: () => Promise<unknown> }> = ({
       pull = 0;
       // The spinner comes out from under the header, which ends where the page begins.
       if (spinnerRef.current) spinnerRef.current.style.top = `${(document.getElementById('main')?.getBoundingClientRect().top ?? 0) - 48}px`;
+      // Only a touch that may become a pull is followed, by a listener that can stop scrolling: any
+      // other touch scrolls without waiting for script. It is removed when the touch ends.
+      window.addEventListener('touchmove', onMove, { passive: false });
     };
     const onMove = (e: TouchEvent) => {
       if (!start) return;
@@ -68,6 +71,7 @@ export const PullToRefresh: React.FC<{ onRefresh: () => Promise<unknown> }> = ({
         // Sideways or upwards is not a pull: leave this touch to the page.
         if (dy <= Math.abs(dx) || window.scrollY > 0) {
           start = null;
+          window.removeEventListener('touchmove', onMove);
           return;
         }
         pulling = true;
@@ -78,6 +82,7 @@ export const PullToRefresh: React.FC<{ onRefresh: () => Promise<unknown> }> = ({
       place(pull, false);
     };
     const onEnd = () => {
+      window.removeEventListener('touchmove', onMove);
       if (!pulling) return;
       start = null;
       pulling = false;
@@ -95,7 +100,6 @@ export const PullToRefresh: React.FC<{ onRefresh: () => Promise<unknown> }> = ({
     };
 
     window.addEventListener('touchstart', onStart, { passive: true });
-    window.addEventListener('touchmove', onMove, { passive: false });
     window.addEventListener('touchend', onEnd, { passive: true });
     window.addEventListener('touchcancel', onEnd, { passive: true });
     return () => {

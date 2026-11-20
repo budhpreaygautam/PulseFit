@@ -204,6 +204,67 @@ test('no pull to refresh while a note is typed on the dashboard, so the note sta
   expect(reloads).toBe(0);
 });
 
+test('pull to refresh follows finger moves only of a touch that starts at the top, so other scrolling never waits for it', async ({ page, request }) => {
+  // Counts the listeners on window that can stop scrolling (passive: false) for finger moves.
+  await page.addInitScript(() => {
+    const blocking = new Set<unknown>();
+    const add = window.addEventListener;
+    const remove = window.removeEventListener;
+    window.addEventListener = function (this: Window, ...args: Parameters<typeof add>) {
+      const options = args[2];
+      if (args[0] === 'touchmove' && typeof options === 'object' && options.passive === false) blocking.add(args[1]);
+      return add.apply(this, args);
+    } as typeof add;
+    window.removeEventListener = function (this: Window, ...args: Parameters<typeof remove>) {
+      if (args[0] === 'touchmove') blocking.delete(args[1]);
+      return remove.apply(this, args);
+    } as typeof remove;
+    (window as Window & { blockingTouchMoves?: () => number }).blockingTouchMoves = () => blocking.size;
+  });
+  const blocking = () => page.evaluate(() => (window as Window & { blockingTouchMoves?: () => number }).blockingTouchMoves!());
+  await useAppMode(page); await signInAs(page, request, 'member');
+  await page.goto('/schedule');
+  await expect(page.getByRole('heading', { level: 1, name: 'BOOK A CLASS' })).toBeVisible();
+  await expect(page.locator('.pull-spinner')).toHaveCount(1);
+  expect(await blocking()).toBe(0);
+  // Scrolled down, no pull can start: the touch is never followed.
+  await page.evaluate(() => window.scrollTo(0, 300));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(300);
+  let lift = await touchDrag(page, { x: 195, y: 400 }, { x: 195, y: 500 }, { steps: 4, release: false });
+  expect(await blocking()).toBe(0);
+  await lift();
+  // At the top it is, until the finger lifts.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  lift = await pull(page, 40, { release: false });
+  expect(await blocking()).toBe(1);
+  await lift();
+  expect(await blocking()).toBe(0);
+});
+
+test('nothing in the app blurs what is behind it (smooth scrolling), while the website keeps its frosted glass', async ({ page }) => {
+  const blurred = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('*')].flatMap(el =>
+        [null, '::before', '::after'].filter(pseudo => getComputedStyle(el, pseudo).backdropFilter !== 'none').map(pseudo => `${el.tagName.toLowerCase()}.${el.className}${pseudo ?? ''}`)
+      )
+    );
+  await useAppMode(page);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1, name: /YOUR GYM FOR/ })).toBeVisible();
+  await page.getByRole('banner').getByRole('button', { name: 'Open menu' }).click();
+  await expect(page.getByRole('dialog', { name: 'Menu' })).toBeVisible();
+  expect(await blurred()).toEqual([]);
+  // The bars are solid instead.
+  await expect(page.getByRole('banner')).not.toHaveCSS('background-color', /rgba/);
+  await expect(tabBar(page)).not.toHaveCSS('background-color', /rgba/);
+
+  await page.evaluate(() => window.localStorage.removeItem('pulsefit_test_app_mode'));
+  await page.addInitScript(() => window.localStorage.removeItem('pulsefit_test_app_mode'));
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1, name: /YOUR GYM FOR/ })).toBeVisible();
+  expect((await blurred()).length).toBeGreaterThan(0);
+});
+
 test('the website has no pull to refresh', async ({ page, request }) => {
   await signInAs(page, request, 'member');
   await page.goto('/schedule');

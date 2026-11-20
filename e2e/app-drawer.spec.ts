@@ -1,32 +1,39 @@
 import { expect, type Page } from '@playwright/test';
 import { appDrawer, auth, signInAs, test, touchDrag, trackConsoleErrors, useAppMode } from './helpers';
 
-// The app's menu (app mode): a drawer from the left with the account at the top, the website menu's
-// links in its groups, the theme switch and Sign out, and the footer's other links (the app has no
-// footer). A modal dialog: Escape, Android Back, the scrim or a swipe left closes it.
+// The app's menu (app mode): a drawer from the left with the account at the top (Sign up and Sign in for
+// guests), the website menu's links in its groups with the app's own Offers & gifts and Visit us among
+// them, the theme switch, Sign out and Policies & terms last. No footer links or address (the owner:
+// "it should not in the menus"). A modal dialog: Escape, Android Back, the scrim or a swipe left closes it.
 
 test.beforeEach(({}, testInfo) => test.skip(testInfo.project.name !== 'mobile', 'app mode is the phone layout'));
 
 const menuButton = (page: Page) => page.getByRole('banner').getByRole('button', { name: 'Open menu' });
 
-/** Every page, phone and email the website's phone menu and footer link to, read on the website itself. */
-async function websiteLinks(page: Page): Promise<string[]> {
+/** The pages the website's phone menu links to, and the pages, phone and email only its footer does, read on the website itself. */
+async function websiteLinks(page: Page): Promise<{ menu: string[]; footerOnly: string[] }> {
   await page.goto('/');
   await page.getByRole('banner').getByRole('button', { name: 'Open menu' }).click();
-  const hrefs = await page.locator('#mobile-menu a[href], footer a[href]').evaluateAll(links => links.map(a => a.getAttribute('href')!));
-  return [...new Set(hrefs)].sort();
+  const hrefs = (selector: string) => page.locator(selector).evaluateAll(links => [...new Set(links.map(a => a.getAttribute('href')!))].sort());
+  const menu = await hrefs('#mobile-menu a[href]');
+  return { menu, footerOnly: (await hrefs('footer a[href]')).filter(href => !menu.includes(href)) };
 }
 
 /** Turns the app mode switch on for the next load (localStorage is shared with the website page before it). */
 const switchToApp = (page: Page) => page.evaluate(() => window.localStorage.setItem('pulsefit_test_app_mode', '1'));
 
+const APP_PAGES = ['/offers', '/visit', '/policies'];
+
 for (const persona of ['member', 'guest'] as const) {
-  test(`the drawer offers a ${persona} every link the website menu and footer do`, async ({ page, request }) => {
+  test(`the drawer offers a ${persona} every link the website menu does and the app's own pages, but no footer links or address`, async ({ page, request }) => {
     const errors = trackConsoleErrors(page);
     const token = persona === 'member' ? await signInAs(page, request, 'member') : null;
     await page.setViewportSize({ width: 390, height: 800 });
-    const expected = await websiteLinks(page);
-    expect(expected.length).toBeGreaterThan(10);
+    const { menu, footerOnly } = await websiteLinks(page);
+    expect(menu.length).toBeGreaterThan(7);
+    // The legal pages, the phone and the email are only in the footer.
+    expect(footerOnly).toEqual(expect.arrayContaining(['/privacy', '/terms', '/refund-policy']));
+    expect(footerOnly.some(href => href.startsWith('tel:'))).toBe(true);
     await switchToApp(page);
     await page.goto('/');
     await menuButton(page).click();
@@ -34,7 +41,11 @@ for (const persona of ['member', 'guest'] as const) {
     await expect(drawer).toBeVisible();
     await expect(drawer).toHaveAttribute('aria-modal', 'true');
     const offered = await drawer.locator('a[href]').evaluateAll(links => links.map(a => a.getAttribute('href')!));
-    expect(expected.filter(href => !offered.includes(href))).toEqual([]);
+    expect([...menu, ...APP_PAGES].filter(href => !offered.includes(href))).toEqual([]);
+    // Exercise library is the one footer link the drawer keeps, as an ordinary row: nothing else in the app reaches it.
+    expect(offered.filter(href => footerOnly.includes(href) && href !== '/exercises')).toEqual([]);
+    await expect(drawer.locator('address')).toHaveCount(0);
+    await expect(drawer).not.toContainText('Sector 29');
     await expect(drawer.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
     await expect(drawer.getByRole('button', { name: /^Switch to (light|dark) theme$/ })).toBeVisible();
     if (token) {
@@ -44,13 +55,61 @@ for (const persona of ['member', 'guest'] as const) {
       await expect(drawer.getByRole('navigation', { name: 'My PulseFit' })).toBeVisible();
       await expect(drawer.getByRole('button', { name: 'Sign out' })).toBeVisible();
     } else {
-      await expect(drawer.getByRole('button', { name: 'Sign in' })).toBeVisible();
-      await expect(drawer.getByRole('button', { name: 'Join' })).toBeVisible();
+      // "Signup | Signin": Sign up first.
+      await expect(drawer.getByRole('button', { name: /^Sign (up|in)$/ })).toHaveText(['Sign up', 'Sign in']);
+      await expect(drawer.getByRole('button', { name: 'Join' })).toHaveCount(0);
       await expect(drawer.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
     }
     expect(errors).toEqual([]);
   });
 }
+
+for (const persona of ['guest', 'member', 'trainer', 'admin'] as const) {
+  test(`a ${persona} finds Offers & gifts after Memberships, Visit us after Contact us and Policies & terms last`, async ({ page, request }) => {
+    await useAppMode(page);
+    if (persona !== 'guest') await signInAs(page, request, persona);
+    await page.goto(persona === 'trainer' ? '/trainer' : persona === 'admin' ? '/admin' : '/');
+    await menuButton(page).click();
+    const drawer = appDrawer(page);
+    await expect(drawer.getByRole('navigation', { name: 'Main' }).getByRole('link')).toHaveText([
+      'Overview',
+      'Strength Floor',
+      'Zumba Studio',
+      'Plans & Diets',
+      'Timetable',
+      'Memberships',
+      'Offers & gifts',
+      'Coaches',
+      // Members have it as "Exercises" under My PulseFit; for everyone else this row is the app's only way to it.
+      ...(persona === 'member' ? [] : ['Exercise library']),
+      'Contact us',
+      'Visit us'
+    ]);
+    await expect(drawer.getByRole('link', { name: /^Exercise(s| library)$/ })).toHaveAttribute('href', '/exercises');
+    await expect(drawer.getByRole('link').last()).toHaveText('Policies & terms');
+    for (const [name, path] of [['Offers & gifts', '/offers'], ['Visit us', '/visit'], ['Policies & terms', '/policies']]) {
+      await expect(drawer.getByRole('link', { name, exact: true })).toHaveAttribute('href', path);
+    }
+    await drawer.getByRole('link', { name: 'Policies & terms', exact: true }).click();
+    await expect(page).toHaveURL(/\/policies$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Policies & terms' })).toBeVisible();
+    await expect(drawer).toHaveCount(0);
+  });
+}
+
+test("a guest's Sign up opens the sign-up dialog, and Sign in the sign-in one", async ({ page }) => {
+  await useAppMode(page);
+  await page.goto('/');
+  await menuButton(page).click();
+  await appDrawer(page).getByRole('button', { name: 'Sign up' }).click();
+  await expect(page.getByRole('dialog', { name: 'Create your account' })).toBeVisible();
+  await expect(appDrawer(page)).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await menuButton(page).click();
+  await appDrawer(page).getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('dialog', { name: 'Sign in to PulseFit' })).toBeVisible();
+});
 
 test('a coach sees their name and role at the top of the drawer, and their tools', async ({ page, request }) => {
   await useAppMode(page); await signInAs(page, request, 'trainer');

@@ -5,7 +5,7 @@ import { TabLink } from '../../components/public/TabLink.js';
 import { GYM_ADDRESS, GYM_EMAIL, GYM_NAME, GYM_PHONE_DISPLAY, GYM_PHONE_TEL, HOURS_SUMMARY } from '../../components/public/gymInfo.js';
 import { formatDate } from '../../lib/format.js';
 
-type Kind = 'privacy' | 'terms' | 'refunds';
+export type Kind = 'privacy' | 'terms' | 'refunds';
 
 interface Section {
   heading: string;
@@ -348,8 +348,9 @@ const REFUNDS: Section[] = [
   }
 ];
 
-// Each policy has its own "last updated" date: change it together with that policy's text only.
-const CONTENT: Record<Kind, { title: string; intro: string; sections: Section[]; updated: string }> = {
+// Each policy has its own "last updated" date: change it together with that policy's text only. The
+// app's Policies & terms page (PoliciesPage) shows all three.
+export const CONTENT: Record<Kind, { title: string; intro: string; sections: Section[]; updated: string }> = {
   privacy: { title: 'Privacy policy', intro: 'What we collect, why, how long we keep it, and your rights.', sections: PRIVACY, updated: '2026-11-19' },
   terms: { title: 'Terms of service', intro: 'The rules for using the gym, the website and your membership.', sections: TERMS, updated: '2026-10-09' },
   refunds: { title: 'Refund & cancellation policy', intro: 'How payments, cancellations, freezes and refunds work.', sections: REFUNDS, updated: '2026-10-19' }
@@ -364,9 +365,26 @@ function TabLinkInline({ tab, children }: { tab: string; children: React.ReactNo
   );
 }
 
+/** A policy's sections; on a page holding all three (PoliciesPage) their headings are h3, under the policy's h2. */
+export const PolicySections: React.FC<{ kind: Kind; level?: 2 | 3 }> = ({ kind, level = 2 }) => {
+  const Heading = level === 3 ? 'h3' : 'h2';
+  return (
+    <div className="mt-8 space-y-8 text-sm text-slate-300 leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-2 [&_p+p]:mt-3 [&_p+ul]:mt-3 [&_ul+p]:mt-3 [&_strong]:text-slate-900 dark:[&_strong]:text-slate-100">
+      {CONTENT[kind].sections.map((section, i) => (
+        <section key={section.heading} aria-labelledby={`legal-${kind}-${i}`}>
+          <Heading id={`legal-${kind}-${i}`} className="text-lg font-black text-slate-100 font-heading mb-2">
+            {section.heading}
+          </Heading>
+          {section.body}
+        </section>
+      ))}
+    </div>
+  );
+};
+
 export const LegalPage: React.FC<{ kind: Kind }> = ({ kind }) => {
   const { navigate } = useNavigation();
-  const { title, intro, sections, updated } = CONTENT[kind];
+  const { title, intro, updated } = CONTENT[kind];
 
   return (
     <article className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
@@ -395,16 +413,7 @@ export const LegalPage: React.FC<{ kind: Kind }> = ({ kind }) => {
         ))}
       </nav>
 
-      <div className="mt-8 space-y-8 text-sm text-slate-300 leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-2 [&_p+p]:mt-3 [&_p+ul]:mt-3 [&_ul+p]:mt-3 [&_strong]:text-slate-900 dark:[&_strong]:text-slate-100">
-        {sections.map((section, i) => (
-          <section key={section.heading} aria-labelledby={`legal-${kind}-${i}`}>
-            <h2 id={`legal-${kind}-${i}`} className="text-lg font-black text-slate-100 font-heading mb-2">
-              {section.heading}
-            </h2>
-            {section.body}
-          </section>
-        ))}
-      </div>
+      <PolicySections kind={kind} />
     </article>
   );
 };

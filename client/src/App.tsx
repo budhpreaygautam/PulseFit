@@ -62,6 +62,10 @@ const ExerciseLibraryView = publicPage(() => import('./pages/member/ExerciseLibr
 const MemberProfilePage = named(() => import('./pages/member/MemberProfilePage.js'), 'MemberProfilePage');
 const RewardsPage = named(() => import('./pages/member/RewardsPage.js'), 'RewardsPage');
 const PassPage = named(() => import('./pages/member/PassPage.js'), 'PassPage');
+// The app's own pages, from its menu drawer (not fetched ahead: the website never shows them).
+const OffersPage = named(() => import('./pages/public/OffersPage.js'), 'OffersPage');
+const VisitPage = named(() => import('./pages/public/VisitPage.js'), 'VisitPage');
+const PoliciesPage = named(() => import('./pages/public/PoliciesPage.js'), 'PoliciesPage');
 const TrainerDashboard = named(() => import('./pages/trainer/TrainerDashboard.js'), 'TrainerDashboard');
 const AdminDashboard = named(() => import('./pages/admin/AdminDashboard.js'), 'AdminDashboard');
 const MemberManagement = named(() => import('./pages/admin/MemberManagement.js'), 'MemberManagement');
@@ -73,7 +77,7 @@ const TrialLeads = named(() => import('./pages/admin/TrialLeads.js'), 'TrialLead
 
 // Pull to refresh in the app, only on pages without a form to fill in: refreshing remounts the page,
 // which would lose what someone typed; nor while a note or search on them holds text (PullToRefresh).
-const PULL_TO_REFRESH_TABS = new Set(['home', 'workout', 'zumba', 'guide', 'schedule', 'pricing', 'trainers', 'exercise-library', 'member-dashboard', 'my-bookings', 'rewards', 'pass']);
+const PULL_TO_REFRESH_TABS = new Set(['home', 'workout', 'zumba', 'guide', 'schedule', 'pricing', 'trainers', 'exercise-library', 'member-dashboard', 'my-bookings', 'rewards', 'pass', 'offers']);
 
 // At least a screen tall, so the footer stays below the fold while a page loads instead of showing
 // and then jumping down when the page arrives (a layout shift).
@@ -330,6 +334,12 @@ function MainAppContent() {
       case 'terms':
       case 'refunds':
         return <LegalPage kind={id} />;
+      case 'offers':
+        return <OffersPage onOpenAuthModal={openAuthModal} />;
+      case 'visit':
+        return <VisitPage />;
+      case 'policies':
+        return <PoliciesPage />;
       case 'member-dashboard':
         return <MemberDashboard setCurrentTab={setCurrentTab} />;
       case 'my-bookings':
@@ -459,7 +469,7 @@ function MainAppContent() {
         </ErrorBoundary>
       )}
 
-      {/* No footer in the app: its links are in the menu drawer (AppDrawer) and the bottom tabs. */}
+      {/* No footer in the app: the menu drawer (AppDrawer), with its Visit us and Policies & terms pages, and the bottom tabs take its place. */}
       {!isAppMode && <Footer setCurrentTab={setCurrentTab} />}
     </div>
   );

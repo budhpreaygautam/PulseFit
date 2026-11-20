@@ -29,8 +29,9 @@ const NavigationContext = createContext<NavigationContextType | undefined>(undef
 
 function readLocation(): Location {
   const tab = tabForPath(window.location.pathname);
-  // The Pass tab is the app's alone: on the website /pass is a missing page, not one to sign in for.
-  return { tab: tab === 'pass' && !isAppMode ? NOT_FOUND_TAB : tab, params: new URLSearchParams(window.location.search) };
+  // The app's own pages (the Pass tab, the drawer's Offers, Visit us and Policies): on the website each
+  // is a missing page, not one to sign in for.
+  return { tab: routeForTab(tab)?.appOnly && !isAppMode ? NOT_FOUND_TAB : tab, params: new URLSearchParams(window.location.search) };
 }
 
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

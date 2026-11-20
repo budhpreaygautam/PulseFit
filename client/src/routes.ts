@@ -22,6 +22,8 @@ export interface RouteDef {
   /** Whether search engines may index the page (and list it in the sitemap). */
   indexable: boolean;
   access: Access;
+  /** A page of the Android/iOS app only: on the website its address is the missing page, as the server serves it. */
+  appOnly?: boolean;
 }
 
 export const ROUTES: RouteDef[] = [
@@ -161,6 +163,37 @@ export const ROUTES: RouteDef[] = [
     indexable: true,
     access: 'public'
   },
+  // The app's own pages, opened from its menu drawer; the website has none and shows its 404.
+  {
+    tab: 'offers',
+    path: '/offers',
+    title: 'Offers & gifts',
+    description:
+      'The PulseFit Athletics sales running now and their time left, the welcome gifts that come with each plan, and how points and milestone gifts work.',
+    indexable: false,
+    access: 'public',
+    appOnly: true
+  },
+  {
+    tab: 'visit',
+    path: '/visit',
+    title: 'Visit us',
+    description:
+      'Where PulseFit Athletics is in Sector 29, Gurugram, with directions, phone and email, and the opening hours: Monday to Saturday, closed on Sundays.',
+    indexable: false,
+    access: 'public',
+    appOnly: true
+  },
+  {
+    tab: 'policies',
+    path: '/policies',
+    title: 'Policies & terms',
+    description:
+      'The PulseFit Athletics privacy policy, terms of service and refund policy on one page, how to delete your account and data, and who to contact.',
+    indexable: false,
+    access: 'public',
+    appOnly: true
+  },
 
   {
     tab: 'member-dashboard',
@@ -206,7 +239,8 @@ export const ROUTES: RouteDef[] = [
     description:
       'Your PulseFit Athletics entry pass: the QR code the front desk scans to check you in, with your member ID, your plan and its status.',
     indexable: false,
-    access: ['member']
+    access: ['member'],
+    appOnly: true
   },
   {
     tab: 'profile',

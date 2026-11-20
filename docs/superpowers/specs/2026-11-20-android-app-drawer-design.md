@@ -50,14 +50,15 @@ around them and how it moves.
   - then the website menu's own links, in its groups (Explore, My PulseFit, the staff links), each with
     its icon and the open page marked;
   - then the theme switch and Sign out, and at the bottom the links the footer had that are nowhere
-    else (Exercise library, Privacy, Terms, Refunds).
+    else (Exercise library, Privacy, Terms, Refunds). *Changed after the phone test, below: no footer
+    links or address in the drawer.*
   - It closes on a link, the scrim, a swipe to the left, Escape or Android Back. It is a modal dialog
     for screen readers and the keyboard: focus moves in, stays in, and returns to the menu button.
 - **No website footer in the app.** Everything it links to is in the drawer or on Contact us.
 - **Cards animate in:** cards fade and rise a little as they first scroll into view, a few at a time
   in a short stagger; cards that arrive later (after data loads) too.
-- **Tap feedback:** buttons, links and tappable cards shrink slightly while pressed, with a light
-  vibration (Capacitor Haptics) on the phone.
+- **Tap feedback:** buttons, links and tappable cards shrink slightly while pressed. *The light
+  vibration (Capacitor Haptics) first built here was removed after the phone test, below.*
 - **Launch animation:** when the app starts cold, the PulseFit logo animates on the app's background
   for under a second and fades into the page; it never blocks the page, a dialog or a tap.
 - **Pull to refresh:** at the top of a page, pulling down shows a spinner under the header; releasing
@@ -97,14 +98,52 @@ Compared as clickable mockups:
   up to 320 px).
 - How cards are found (the shared card classes) and the exact rise distance and stagger.
 - The pull distance, resistance and spinner.
-- Haptics: `@capacitor/haptics` 8.x, matching the other Capacitor plugins, called only in the native
-  app, on a finished tap (a scroll, swipe or pull that starts on a link does not vibrate).
+- ~~Haptics~~: removed after the phone test (below), with `@capacitor/haptics`.
 - A tab stays marked on its own section queries (Me with `?tab=`, Members with `?status=`); any other
   query makes the page no tab's own, so it gets ←.
 - ← on a page with no earlier one in the app (opened straight on it) goes to the account's first tab,
   and so does Android Back there.
 - Coaches and admins get their account link at the right of the app bar (members the QR pass, guests
   "Free pass").
+
+## After the test on the owner's phone (2026-11-20)
+
+The owner installed the build on their phone (a Realme with a 120 Hz screen) and asked for these
+changes, all in the app only; the website in a browser stays as it is. This section was approved by
+the owner on 2026-11-20 ("approved").
+
+- **No footer block in the drawer.** Of the drawer's bottom links and address block: "fix this. it
+  should not in the menus". The drawer ends with its rows; the links that were only in that block
+  are not added elsewhere, except as the new pages below. *Builder's call:* "Exercise library" became
+  an ordinary drawer row after Coaches for guests, coaches and admins (members already have
+  "Exercises"), because nothing else in the app reached it (anti-goal: no page out of reach).
+- **Policies & terms page** (app-only `/policies`, like `/pass`: a missing page on the website): "dedicated
+  privacy policy page havig all the policy and term and condtion there and nesesary things". The
+  privacy policy, terms of service, and refund & cancellation policy on one page with a jump list,
+  using the website's own policy texts, plus how to delete an account and its data, who to contact,
+  and the app's version. `/privacy`, `/terms` and `/refund-policy` stay (Google Play links the privacy
+  policy). A drawer row.
+- **Visit us page** (app-only `/visit`): "dicated page for location details page". Address, a "Get
+  directions" button opening Google Maps, tap to call, the email, opening hours with open now or
+  closed, Sunday closed. No map embedded in the page (it would load Google's tracking and weight). A
+  drawer row.
+- **Offers & gifts page** (app-only `/offers`): "why offer and gift details not there". Picked by the
+  owner: one page for everyone with the sales running now and their time left, the joining gift
+  each plan comes with (both from `GET /promotions`), and how points and milestone gifts work.
+  Signed-in accounts also see the gift store (`GET /rewards/gifts` needs a sign-in, so guests do not);
+  members see their points with a link to Rewards. A drawer row; pull to refresh is offered there.
+- **Smooth scrolling:** "make scroll smooth, currenlty it have not". The app bar, its buttons and the
+  tab bar blur what scrolls under them, redrawn every frame (120 per second on this phone), and pull
+  to refresh listens to every finger move with a listener that can stop scrolling. In the app the
+  bars and their buttons are solid (no backdrop blur), and pull to refresh only listens to finger
+  moves of a touch that starts at the top of the page. Measured on the phone before and after
+  (`dumpsys gfxinfo`).
+- **No vibration:** "and no vibration should on click". No vibration at all; `@capacitor/haptics` is
+  removed. The press-in on tap stays.
+- **Guests' drawer buttons:** "Signup | Signin". "Join" becomes **Sign up**, first, then **Sign in**.
+- **Email address:** the owner was told that `contact@pulsefit.in` is on a domain someone else runs,
+  and that it shows on ID cards, payment messages and the policies; they chose to leave it as it is
+  for now.
 
 ## Release, later, when the owner says so
 

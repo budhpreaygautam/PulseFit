@@ -470,7 +470,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
         </header>
       )}
 
-      {/* Outside the app bar: its frosted glass would make it the drawer's frame instead of the screen. */}
+      {/* Outside the app bar, so the drawer and its scrim cover the whole screen, not just the bar. */}
       {isAppMode && isMobileMenuOpen && (
         <AppDrawer
           currentTab={currentTab}

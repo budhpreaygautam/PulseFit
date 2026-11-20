@@ -14,14 +14,25 @@ All notable changes to PulseFit. Versions follow [Semantic Versioning](https://s
     and Me for coaches; Dashboard, Members, Leads and Classes for admins, whose check-in is in the menu. Pass is a page
     of the app (`/pass`) with the member's check-in QR code, plan and status and their ID card; on the website `/pass`
     stays a missing page;
-  - a side drawer instead of the website menu: it slides in from the left with the account at the top, then the
-    menu's links, the theme switch, Sign out and the footer's other links (exercise library, privacy, terms, refunds,
-    the gym's address and phone). A swipe to the left, the dimmed page, Escape or Back closes it;
-  - no footer: everything it linked to is in the drawer or on Contact us.
+  - a side drawer instead of the website menu: it slides in from the left with the account at the top (Sign up and
+    Sign in for guests), then the menu's links with Offers & gifts and Visit us among them, the theme switch, Sign out
+    and Policies & terms. No footer links or address in it. A swipe to the left, the dimmed page, Escape or Back
+    closes it;
+  - three pages of the app's own, opened from the drawer; on the website each stays a missing page:
+    - **Policies & terms** (`/policies`): the website's privacy policy, terms of service and refund & cancellation
+      policy on one page with a jump list, each with its date, then how to see or delete your account's data, who
+      to contact and the app's version. `/privacy`, `/terms` and `/refund-policy` stay;
+    - **Visit us** (`/visit`): the address with a "Get directions" button for Google Maps, tap to call, the email,
+      and the opening hours with whether the gym is open now (at gym time). No map embedded in the page;
+    - **Offers & gifts** (`/offers`): the sales running now with their time left, the joining gift of each plan, and
+      how points and milestone gifts work; signed-in accounts also see the gift store, members their points;
+  - no footer: the drawer, its pages and Contact us take its place.
 
   A new page slides in and Back slides it out, switching tabs cross-fades, cards fade and rise in as they scroll into
-  view, buttons and links press in with a light vibration, the logo animates for a moment when the app starts, and
-  pulling down at the top of a page without a form reloads it. Nothing moves when the phone asks for reduced motion.
+  view, buttons and links press in (no vibration), the logo animates for a moment when the app starts, and pulling
+  down at the top of a page without a form reloads it. Nothing moves when the phone asks for reduced motion.
+  Scrolling is smooth on fast (120 Hz) screens: nothing in the app blurs what scrolls behind it (the app bar and tab
+  bar are solid), and pull to refresh only follows a touch that starts at the top of the page.
   The app's own Home, Classes, Train and Me screens and the guests' welcome screen are gone: their pages are the
   website's. The website in a browser is unchanged.
 

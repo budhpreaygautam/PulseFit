@@ -727,6 +727,27 @@ html .neu-icon-btn.neu-icon-btn-danger.neu-icon-btn-danger:hover:not(:disabled) 
   box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.1), 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
+/* No backdrop blur in the app (main.tsx adds .in-app to <html>), so it scrolls smoothly: whatever blurs
+   the page behind it is redrawn on every frame that scrolls, which on the owner's 120 Hz phone made half
+   the frames late (dumpsys gfxinfo: 50% janky, median 26 ms; without any blur 0.9% and 7 ms). The app
+   bar, the tab bar and toasts are solid instead, and panels over photos a little more opaque, so their
+   text reads as well without the blur. The website keeps its frosted glass. */
+html.in-app *,
+html.in-app *::before,
+html.in-app *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html.in-app .glass-bar {
+  background-color: var(--gym-950) !important;
+}
+html.in-app .glass-dark {
+  background-color: rgba(9, 12, 16, 0.72) !important;
+}
+html.in-app .glass-toast {
+  background-color: var(--gym-850);
+}
+
 /* Page animations in the app (lib/appMotion.ts sets html[data-nav] for view transitions; the app bar
    and the tab bar, named app-header and app-tabbar, stay still). None with reduced motion. */
 /* Taps go through to the new page while a transition runs. */

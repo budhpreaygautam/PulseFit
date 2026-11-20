@@ -30,6 +30,11 @@ export function gymToday(now: Date = new Date()): string {
   return dateFormatter('en-CA', { timeZone: GYM_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
 }
 
+/** The time at the gym as 'HH:MM', whatever the device's timezone. */
+export function gymClockNow(now: Date = new Date()): string {
+  return dateFormatter('en-GB', { timeZone: GYM_TIMEZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
+}
+
 /** Add days to a YYYY-MM-DD date. */
 export function addDays(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);
