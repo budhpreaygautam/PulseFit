@@ -2,6 +2,17 @@
 
 All notable changes to PulseFit. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- **Services in the app.** The gym's six services (Strength floor, Zumba studio, Coaches, Plans & diets, Exercises
+  and Memberships) are now easy to find in the Android and iOS apps. Guests see them on the welcome screen, and their
+  first tab is now **Services** (Services · Contact · Sign in): a card for each service (Strength floor, Zumba studio and
+  Memberships show their starting price from the plans), "Get a free pass", and "See the full overview" for the
+  website's home page. "Explore first" opens it. Members get the same tiles on Home, between Rewards and Upcoming
+  classes. A service that needs an account still asks a guest to sign in, then opens. The website is unchanged.
+
 ## [2.4.0] — 2026-11-20
 
 The service pages now need an account and the fitness guide a plan, sign-up asks for gender to pick a default profile

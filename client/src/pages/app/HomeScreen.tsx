@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowRight, Calendar, CircleCheck, Flame, Gift, IdCard, MessageSquare, Plus, QrCode } from 'lucide-react';
+import { ArrowRight, Calendar, CircleCheck, Flame, Gift, IdCard, LayoutGrid, MessageSquare, Plus, QrCode } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { api } from '../../api/client.js';
@@ -10,6 +10,7 @@ import { membershipNotice } from '../../components/member/membershipNotice.js';
 import { useGiftCelebration } from '../../components/member/useGiftCelebration.js';
 import { avatarOf } from '../../components/member/avatarImage.js';
 import { milestoneLine, nextMilestone } from '../../components/app/rewards.js';
+import { ServiceTiles } from '../../components/app/services.js';
 import { CountUp, ShimmerList, StatusPill } from '../../components/app/ui.js';
 import { formatDate, tierLabel } from '../../lib/format.js';
 import { riseOrder } from '../../lib/appMotion.js';
@@ -39,7 +40,7 @@ const quickAction = 'app-press rounded-[18px] px-1 py-3.5 flex flex-col items-ce
 const points = (n: number) => n.toLocaleString('en-IN');
 const rewardPill = 'inline-block rounded-full px-2 py-0.5 text-[10px] font-bold';
 
-/** The app's Home tab (handoff 1a → Home): who you are, your streak, quick actions, classes and coach notes. */
+/** The app's Home tab (handoff 1a → Home): who you are, your streak, quick actions, rewards, services, classes and coach notes. */
 export const HomeScreen: React.FC = () => {
   const { user, refreshUser } = useAuth();
   const { navigate } = useNavigation();
@@ -177,6 +178,13 @@ export const HomeScreen: React.FC = () => {
       ) : (
         !rewards.error && <ShimmerList rows={1} label="Loading rewards" className="app-rise" style={rise()} />
       )}
+
+      <section aria-labelledby="home-services-heading" className="app-rise flex flex-col gap-3" style={rise()}>
+        <h2 id="home-services-heading" className="font-heading font-extrabold text-base flex items-center gap-2">
+          <LayoutGrid className="w-4 h-4 text-[color:var(--app-lime)]" aria-hidden="true" /> Services
+        </h2>
+        <ServiceTiles />
+      </section>
 
       <section aria-labelledby="home-upcoming-heading" className="app-rise app-glass rounded-3xl p-[18px]" style={rise()}>
         <div className="flex items-center justify-between gap-3 mb-3">
