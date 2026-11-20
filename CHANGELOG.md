@@ -2,7 +2,7 @@
 
 All notable changes to PulseFit. Versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.4.0] — 2026-11-20
 
 The service pages now need an account and the fitness guide a plan, sign-up asks for gender to pick a default profile
 picture, the API stops answering casual direct access, the header and pricing cards fit their space, and there is a
