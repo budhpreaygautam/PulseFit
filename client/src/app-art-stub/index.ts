@@ -1,4 +1,4 @@
-﻿// Stand-in for the private client/app-art/ folder: a plain circle for every scene. Debug builds and
+// Stand-in for the private client/app-art/ folder: a plain circle for every scene. Debug builds and
 // the e2e build use it; the release build refuses it (scripts/android-release.mjs).
 import { ALL_SCENE_IDS, type ArtCredit, type Scene, type SceneId } from '../lib/appArt';
 

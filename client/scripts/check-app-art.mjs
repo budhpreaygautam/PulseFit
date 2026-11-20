@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const clientDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAX_SVG_BYTES = 120_000; // svg + css
 const MAX_LOTTIE_BYTES = 250_000;
-const UNSAFE_SVG = /<script|\son\w+\s*=|<foreignObject|href\s*=\s*["']?\s*https?:/i;
+const UNSAFE_SVG = /<script|[\s/]on\w+\s*=|<foreignObject|href\s*=\s*["']?\s*(https?:)?\/\/|url\(\s*["']?\s*(https?:)?\/\/|@import/i;
 const LICENCES = ['Storyset free licence', 'Lottie Simple License'];
 
 const allIds = () => {
@@ -17,9 +17,9 @@ const allIds = () => {
   return [...pages.map(p => `page.${p}`), ...moments.map(m => `moment.${m}`), ...states.map(s => `state.${s}`)];
 };
 
-// Lottie expressions live under an `x` key, which lottie_light cannot run.
-const hasKey = (node, key) =>
-  node !== null && typeof node === 'object' && (key in node || Object.values(node).some(v => hasKey(v, key)));
+// A Lottie expression is a property ({k: ...}) with a string `x`; easing handles ({i:{x:[..]}}) hold numbers.
+const hasExpression = node =>
+  node !== null && typeof node === 'object' && ((typeof node.x === 'string' && 'k' in node) || Object.values(node).some(hasExpression));
 
 function sceneProblem(scene) {
   if (scene.kind === 'svg') {
@@ -29,7 +29,7 @@ function sceneProblem(scene) {
   }
   if (scene.kind === 'lottie') {
     if (scene.data?.assets?.some(a => 'p' in a)) return 'Lottie with embedded or linked images';
-    if (hasKey(scene.data, 'x')) return 'Lottie with expressions';
+    if (hasExpression(scene.data)) return 'Lottie with expressions';
     const bytes = Buffer.byteLength(JSON.stringify(scene.data));
     return bytes > MAX_LOTTIE_BYTES ? `Lottie JSON is ${bytes} bytes (max ${MAX_LOTTIE_BYTES})` : '';
   }
@@ -48,6 +48,7 @@ export async function checkArt(dir) {
   if (art.marker !== 'pulsefit-app-art') problems.push(`marker is "${art.marker}", not "pulsefit-app-art" (stand-in art)`);
   const credited = new Set((art.credits ?? []).flatMap(c => c.ids ?? []));
   for (const c of art.credits ?? []) {
+    for (const id of c.ids ?? []) if (!allIds().includes(id)) problems.push(`credit "${c.title}" names unknown scene ${id}`);
     if (!LICENCES.includes(c.licence) || !c.title || !c.creator || !c.source) problems.push(`incomplete credit "${c.title}"`);
   }
   for (const id of allIds()) {

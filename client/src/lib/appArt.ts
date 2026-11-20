@@ -1,4 +1,4 @@
-﻿// The app's cartoons: the contract between the app and the art. The art itself lives in the private,
+// The app's cartoons: the contract between the app and the art. The art itself lives in the private,
 // git-ignored client/app-art/ folder (module `@app-art`); without it a stand-in module is used.
 import ids from './app-art-ids.json';
 

@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -56,6 +56,8 @@ test('refuses Lottie with images or expressions', async () => {
   assert.match(await problemsOf(lottie({ assets: [{ id: 'i', p: 'img_0.png' }], layers: [] })), /page\.home/);
   assert.match(await problemsOf(lottie({ assets: [], layers: [{ ks: { o: { a: 0, k: 1, x: 'wiggle(1,2)' } } }] })), /page\.home/);
   assert.equal(await problemsOf(lottie({ assets: [], layers: [] })), '');
+  const easing = { assets: [], layers: [{ ks: { o: { a: 1, k: [{ i: { x: [0.8], y: [0.8] }, o: { x: [0.2], y: [0] }, t: 0, s: [0] }] } } }] };
+  assert.equal(await problemsOf(lottie(easing)), '');
 });
 
 test('refuses a missing credit', async () => {
@@ -71,4 +73,18 @@ test('refuses oversize files', async () => {
 
 test('refuses a stand-in marker', async () => {
   assert.match(await problemsOf(s => (s.marker = 'pulsefit-app-art-stub')), /marker/);
+});
+
+test('emptyScene is stable and momentFor maps types', async () => {
+  const esbuild = await import('esbuild');
+  const out = await esbuild.build({ entryPoints: [path.join(here, '../src/lib/appArt.ts')], bundle: true, format: 'esm', write: false, loader: { '.json': 'json' } });
+  const mod = await import('data:text/javascript;base64,' + Buffer.from(out.outputFiles[0].text).toString('base64'));
+  for (const key of ['a', 'classes', '/members', 'x'.repeat(40)]) {
+    assert.equal(mod.emptyScene(key), mod.emptyScene(key));
+    assert.match(mod.emptyScene(key), /^state\.empty[123]$/);
+  }
+  assert.equal(mod.momentFor('error'), 'failed');
+  assert.equal(mod.momentFor('success'), 'saved');
+  assert.equal(mod.momentFor('info'), 'info');
+  assert.equal(mod.momentFor('error', 'paid'), 'paid');
 });

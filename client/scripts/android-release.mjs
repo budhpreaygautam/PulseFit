@@ -44,6 +44,13 @@ if (!api || !/^https:\/\/[^/\s]+\/*$/.test(api)) {
   fail(`A release talks to the API over https only: "${api ?? ''}" is not an address like ${LIVE_API}.`);
 }
 
+// The app's cartoons are private (client/app-art/, git-ignored). A release never ships stand-ins.
+const art = await checkArt(path.join(clientDir, 'app-art'));
+if (!art.ok) {
+  fail(`The app's art is missing or not ready (run npm run check:art):
+  ${[...art.missing.map(id => `missing ${id}`), ...art.problems].join('\n  ')}`);
+}
+
 const javaHome = process.env.JAVA_HOME;
 const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
 if (!javaHome) fail('JAVA_HOME is not set. Point it at a JDK 21 (see README › Android & iOS Apps).');
@@ -92,13 +99,6 @@ if (fs.existsSync(propsFile)) {
     { mode: 0o600 }
   );
   console.log(`   Back up ${defaultStoreFile} and ${propsFile} somewhere safe.`);
-}
-
-// The app's cartoons are private (client/app-art/, git-ignored). A release never ships stand-ins.
-const art = await checkArt(path.join(clientDir, 'app-art'));
-if (!art.ok) {
-  fail(`The app's art is missing or not ready (run npm run check:art):
-  ${[...art.missing.map(id => `missing ${id}`), ...art.problems].join('\n  ')}`);
 }
 
 const sync = spawnSync(process.execPath, [path.join(clientDir, 'scripts', 'mobile-sync.mjs'), '--api', api], {
