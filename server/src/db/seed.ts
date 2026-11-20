@@ -1,5 +1,6 @@
 import db from './database.js';
 import { runSeedExtensions } from './seed/index.js';
+import { defaultGifts, defaultRewardSettings } from './rewardDefaults.js';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { User, Trainer, GymClass, Exercise, MembershipPlan, Booking, AttendanceLog, Workout, WorkoutSet, TimeSession } from '../types/index.js';
@@ -27,6 +28,7 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       password_hash: passwordHash,
       name: 'Aarav Sharma',
       role: 'member',
+      gender: 'male',
       avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
       phone: '+91 98111 23456',
       membership_tier: 'pro',
@@ -42,6 +44,7 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       password_hash: passwordHash,
       name: 'Priya Verma',
       role: 'admin',
+      gender: 'female',
       avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&auto=format&fit=crop&q=80',
       phone: '+91 98110 98765',
       membership_tier: 'vip',
@@ -57,6 +60,7 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       password_hash: passwordHash,
       name: 'Coach Vikram Rathore',
       role: 'trainer',
+      gender: 'male',
       avatar_url: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&auto=format&fit=crop&q=80',
       phone: '+91 98112 45678',
       membership_tier: 'vip',
@@ -72,6 +76,7 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       password_hash: passwordHash,
       name: 'Ananya Gupta',
       role: 'member',
+      gender: 'female',
       avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
       phone: '+91 98113 67890',
       membership_tier: 'vip',
@@ -87,6 +92,7 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       password_hash: passwordHash,
       name: 'Rohan Mehra',
       role: 'member',
+      gender: 'male',
       avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80',
       phone: '+91 98114 32199',
       membership_tier: 'basic',
@@ -102,6 +108,7 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       password_hash: passwordHash,
       name: 'Maya Patel',
       role: 'member',
+      gender: 'female',
       avatar_url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=300&auto=format&fit=crop&q=80',
       phone: '+91 98115 88823',
       membership_tier: 'pro',
@@ -117,6 +124,7 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
       password_hash: passwordHash,
       name: 'Dev Kapoor',
       role: 'member',
+      gender: 'male',
       avatar_url: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=300&auto=format&fit=crop&q=80',
       phone: '+91 98116 55501',
       membership_tier: 'basic',
@@ -928,6 +936,13 @@ export function seedDatabase(options: { demo?: boolean } = {}) {
     db.trainer_notes = [];
     db.password_resets = [];
     db.id_cards = [];
+    // Production starts with the catalogue, rules and joining gifts only.
+    db.gifts = defaultGifts();
+    db.reward_settings = defaultRewardSettings();
+    db.gift_claims = [];
+    db.points_ledger = [];
+    db.offers = [];
+    db.coupons = [];
   }
 
   db.saveSync();

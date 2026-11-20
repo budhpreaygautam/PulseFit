@@ -1,9 +1,9 @@
 import { Response } from 'express';
 import { z } from 'zod';
-import db from '../db/database.js';
+import db, { isGeneratedAvatar } from '../db/database.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler, badRequest, conflict, notFound, ok, parse } from '../lib/http.js';
-import { newId, defaultAvatar } from '../lib/users.js';
+import { newId } from '../lib/users.js';
 import { isAllowedRemoteImageUrl } from '../lib/imageValidation.js';
 import { byStart, nextOccurrenceOf, publicTrainer, toOccurrence } from '../lib/occurrences.js';
 import { Trainer } from '../types/index.js';
@@ -17,7 +17,13 @@ const trainerFields = {
   experience_years: z.number().int().min(0).max(60),
   rating: z.number().min(0).max(5),
   reviews_count: z.number().int().min(0),
-  avatar_url: z.string().trim().refine(isAllowedRemoteImageUrl, 'Use an https:// image address on a public website.'),
+  // '' = no photo: the apps show the neutral default picture. DiceBear cartoons are refused: the
+  // server clears them on every load (migrate), so one saved here would vanish at the next restart.
+  avatar_url: z
+    .string()
+    .trim()
+    .refine(v => v === '' || isAllowedRemoteImageUrl(v), 'Use an https:// image address on a public website.')
+    .refine(v => !isGeneratedAvatar(v), 'DiceBear pictures are no longer used. Use the address of a photo, or leave it empty for the default picture.'),
   instagram: z.string().trim().max(60),
   // Links the trainer record to a user account with role 'trainer' (the trainer portal login).
   user_id: z.string().min(1).nullable()
@@ -58,7 +64,30 @@ function assertLinkableUser(userId: string, exceptTrainerId?: string) {
   }
 }
 
+/** How many coaches the home page shows ("Meet the team"), and so all that guests get. */
+const GUEST_TRAINERS = 4;
+
 export const getTrainers = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
+  // The answer depends on the session: no shared cache may hand a member's copy to a guest.
+  res.set('Cache-Control', 'private, no-cache');
+  // Guests get what the home page shows of the first coaches, two specialties each; an allowlist.
+  if (!req.user) {
+    return ok(
+      res,
+      db.trainers
+        .slice(0, GUEST_TRAINERS)
+        .map(({ id, name, avatar_url, bio, specialties, experience_years, rating, reviews_count }) => ({
+          id,
+          name,
+          avatar_url,
+          bio,
+          specialties: specialties.slice(0, 2),
+          experience_years,
+          rating,
+          reviews_count
+        }))
+    );
+  }
   const trainers = db.trainers.map(t => ({
     ...publicTrainer(t, req.user),
     classes_count: db.classes.filter(c => c.trainer_id === t.id).length
@@ -87,7 +116,7 @@ export const createTrainer = asyncHandler((req, res: Response) => {
   const trainer: Trainer = {
     id: newId('trn'),
     ...fields,
-    avatar_url: avatar_url ?? defaultAvatar(body.name),
+    avatar_url: avatar_url ?? '',
     ...(user_id ? { user_id } : {})
   };
   db.trainers = [...db.trainers, trainer];

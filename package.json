@@ -1,6 +1,6 @@
 {
   "name": "pulsefit",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": true,
   "scripts": {
     "install:all": "npm install && npm run install:server && npm run install:client",

@@ -1,16 +1,24 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import {
   Activity,
+  BadgeIndianRupee,
   BarChart3,
   BookOpen,
   CalendarCheck,
+  CalendarDays,
   ClipboardList,
   Dumbbell,
+  Gift,
+  House,
   IdCard,
   LogOut,
+  Mail,
+  Medal,
   Menu,
   Moon,
+  Music2,
   QrCode,
+  Salad,
   ScanLine,
   Sparkles,
   Sun,
@@ -23,11 +31,13 @@ import { useAuth } from '../../context/AuthContext.js';
 import { useToast } from '../../context/ToastContext.js';
 import { useTheme } from '../../context/ThemeContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
+import { useNavigation } from '../../context/NavigationContext.js';
 import { errorMessage } from '../../api/client.js';
 import { homeTabFor } from '../../routes.js';
 import { UserRole } from '../../types/index.js';
 import { TabLink } from '../public/TabLink.js';
 import { ErrorBoundary } from '../common/ErrorBoundary.js';
+import { avatarOf } from '../member/avatarImage.js';
 
 // The QR pass (and the QR-code library it draws with) loads the first time a member opens it.
 // React remembers a load that failed, so a failure gets a fresh loader for the next try. (Chrome
@@ -43,28 +53,33 @@ interface NavbarProps {
 
 type DemoRole = 'member' | 'vip' | 'trainer' | 'admin';
 
-const PUBLIC_LINKS = [
-  { tab: 'home', label: 'Overview' },
-  { tab: 'workout', label: 'Strength Floor' },
-  { tab: 'zumba', label: 'Zumba Studio' },
-  { tab: 'guide', label: 'Plans & Diets' },
-  { tab: 'schedule', label: 'Timetable' },
-  { tab: 'pricing', label: 'Memberships' },
-  { tab: 'trainers', label: 'Coaches' }
-];
-
-interface RoleLink {
+interface NavItem {
   tab: string;
   label: string;
+  /** A shorter name for the header row, where the full one would wrap it at 1280 px; its tooltip and the menu keep `label`. */
+  barLabel?: string;
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const ROLE_LINKS: Record<UserRole, RoleLink[]> = {
+const PUBLIC_LINKS: NavItem[] = [
+  { tab: 'home', label: 'Overview', icon: House },
+  { tab: 'workout', label: 'Strength Floor', icon: Dumbbell },
+  { tab: 'zumba', label: 'Zumba Studio', icon: Music2 },
+  { tab: 'guide', label: 'Plans & Diets', icon: Salad },
+  { tab: 'schedule', label: 'Timetable', icon: CalendarDays },
+  { tab: 'pricing', label: 'Memberships', icon: BadgeIndianRupee },
+  { tab: 'trainers', label: 'Coaches', icon: Medal }
+];
+// The header row has no room for another link: Contact is in the menu and the footer.
+const MENU_LINKS: NavItem[] = [...PUBLIC_LINKS, { tab: 'contact', label: 'Contact us', icon: Mail }];
+
+const ROLE_LINKS: Record<UserRole, NavItem[]> = {
   member: [
     { tab: 'member-dashboard', label: 'Dashboard', icon: Activity },
     { tab: 'my-bookings', label: 'My bookings', icon: CalendarCheck },
     { tab: 'workout-logger', label: 'Log workout', icon: Dumbbell },
     { tab: 'exercise-library', label: 'Exercises', icon: BookOpen },
+    { tab: 'rewards', label: 'Rewards', icon: Gift },
     { tab: 'profile', label: 'My account', icon: UserCircle }
   ],
   trainer: [
@@ -80,8 +95,8 @@ const ROLE_LINKS: Record<UserRole, RoleLink[]> = {
     { tab: 'admin-scanner', label: 'Check-in', icon: ScanLine },
     { tab: 'admin-classes', label: 'Classes & coaches', icon: CalendarCheck },
     { tab: 'trainer-dashboard', label: 'Coach dashboards', icon: Activity },
-    { tab: 'admin-plans', label: 'Plans', icon: Tags },
-    { tab: 'admin-trials', label: 'Trial leads', icon: ClipboardList },
+    { tab: 'admin-plans', label: 'Plans & rewards', barLabel: 'Plans', icon: Tags },
+    { tab: 'admin-trials', label: 'Leads', icon: ClipboardList },
     { tab: 'profile', label: 'My account', icon: UserCircle }
   ]
 };
@@ -93,20 +108,62 @@ const DEMO_PERSONAS: { role: DemoRole; label: string; email: string }[] = [
   { role: 'admin', label: 'Admin', email: 'admin@pulsefit.com' }
 ];
 
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(part => part[0].toUpperCase())
-    .join('');
-
 const ROLE_SECTION_LABEL: Record<UserRole, string> = { member: 'My PulseFit', trainer: 'Coach tools', admin: 'Front desk & admin' };
 
+// The top bars line up with the page content and the footer at every width.
+const BAR_WIDTH = 'max-w-7xl mx-auto';
+
+// Hides the menu button and the menu (where every link shows its label) from xl, 1280 px, but only
+// where the pointer can hover: the main row shows its links as icons, named by tooltips that need
+// hover, so a touch screen (a tablet in landscape, or the app on one) keeps the menu at every width.
+// The same media test as the tooltips in index.css. Whole class name, for Tailwind.
+const MENU_HIDDEN = '[@media(hover:hover)_and_(min-width:1280px)]:hidden';
+
 const linkClass = (active: boolean) =>
-  `px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all inline-flex items-center gap-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime-500 ${
+  `relative rounded-xl text-xs font-bold whitespace-nowrap transition-all inline-flex items-center gap-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime-500 ${
     active ? 'neu-pressed-sm text-lime-400 border border-lime-500/30' : 'neu-btn text-slate-200'
   }`;
+
+/**
+ * Where a header link starts showing its label. Below that breakpoint it shows only its icon: the
+ * label stays in the link, visually hidden, so the accessible name never changes, and a tooltip
+ * (.nav-tip in index.css) shows it on hover and keyboard focus. The main row never shows its
+ * labels: with them it needs about 1,310 px next to the account buttons, more than max-w-7xl gives
+ * it at any width. Whole class names, for Tailwind.
+ */
+const LABEL_FROM = {
+  xl: { link: 'p-2 xl:px-3 xl:py-1.5', icon: 'w-4 h-4 xl:w-3.5 xl:h-3.5', label: 'sr-only xl:not-sr-only xl:whitespace-nowrap', tip: 'xl:hidden' },
+  never: { link: 'p-2', icon: 'w-4 h-4', label: 'sr-only', tip: '' }
+};
+
+interface BarLinkProps {
+  item: NavItem;
+  labelFrom: keyof typeof LABEL_FROM;
+  currentTab: string;
+  navigate: (tab: string) => void;
+  /** Brings back tooltips dismissed with Escape: the pointer or focus has moved to a link. */
+  onShowTips: () => void;
+}
+
+const BarLink: React.FC<BarLinkProps> = ({ item, labelFrom, currentTab, navigate, onShowTips }) => {
+  const active = currentTab === item.tab;
+  const sizes = LABEL_FROM[labelFrom];
+  return (
+    // Raised while hovered or focused, so its tooltip is not under the next row's buttons and their shadows.
+    <TabLink
+      tab={item.tab}
+      navigate={navigate}
+      isCurrent={active}
+      onPointerEnter={onShowTips}
+      onFocus={onShowTips}
+      className={`hover:z-10 focus-visible:z-10 ${sizes.link} ${linkClass(active)}`}
+    >
+      <item.icon className={`shrink-0 ${sizes.icon}`} aria-hidden="true" />
+      <span className={sizes.label}>{item.barLabel ?? item.label}</span>
+      <span aria-hidden="true" data-tip={item.label} className={`nav-tip ${sizes.tip}`} />
+    </TabLink>
+  );
+};
 
 const mobileLinkClass = (active: boolean) =>
   `w-full px-3.5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime-500 ${
@@ -118,6 +175,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
   const { config } = useAppConfig();
   const { showToast } = useToast();
   const { isDark, toggleTheme } = useTheme();
+  // Signing out goes home instantly (no app transition), see NavigationContext.
+  const { navigate } = useNavigation();
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [DigitalQrPassModal, setDigitalQrPassModal] = useState(lazyQrPass);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -132,6 +191,16 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [isMobileMenuOpen]);
+
+  // Escape hides the header tooltips without moving the pointer or focus (WCAG 1.4.13). They come
+  // back once the pointer enters a link or focus moves to one (BarLink's onShowTips).
+  const [tipsDismissed, setTipsDismissed] = useState(false);
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => e.key === 'Escape' && setTipsDismissed(true);
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+  const showTips = () => setTipsDismissed(false);
 
   const go = (tab: string) => {
     setIsMobileMenuOpen(false);
@@ -154,7 +223,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
   const handleLogout = () => {
     logout();
     setIsMobileMenuOpen(false);
-    setCurrentTab('home');
+    navigate('home', undefined, { instant: true });
     showToast('You have signed out.', 'info');
   };
 
@@ -166,8 +235,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
       {/* Behind the phone's status bar in the app (zero height on the website). */}
       <div aria-hidden="true" className="fixed inset-x-0 top-0 z-50 h-[env(safe-area-inset-top)] glass-bar" />
       {config.demoMode && (
-        <div className="bg-gym-950 border-b border-slate-800/60 px-4 py-1.5 text-xs">
-          <div className="max-w-7xl mx-auto flex items-center gap-3 overflow-x-auto [scrollbar-width:none]">
+        <div className="bg-gym-950 border-b border-slate-800/60 py-1.5 text-xs">
+          {/* The same side padding as the header row, so "Demo accounts" starts in line with the logo and the page. */}
+          <div className={`${BAR_WIDTH} px-4 sm:px-6 lg:px-8 flex items-center gap-3 overflow-x-auto [scrollbar-width:none]`}>
             <span className="text-[11px] font-mono font-bold tracking-wider text-slate-400 uppercase shrink-0" id="demo-switcher-label">
               Demo accounts:
             </span>
@@ -178,7 +248,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
                 disabled={switchingTo !== null}
                 onClick={() => {
                   if (user) logout();
-                  setCurrentTab('home');
+                  navigate('home', undefined, { instant: true });
                 }}
                 className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
                   !user && !isInitializing ? 'neu-pressed-sm text-lime-400 border border-lime-500/30' : 'neu-btn text-slate-300'
@@ -209,8 +279,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
       )}
 
       {/* z-[45]: above the app download bar (z-40), so the open mobile menu is never under it. */}
-      <header className="sticky top-[env(safe-area-inset-top)] z-[45] glass-bar border-b border-slate-800/60 shadow-[0_4px_16px_var(--neu-shadow-dark)] transition-colors">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+      <header
+        data-tips-dismissed={tipsDismissed ? '' : undefined}
+        className="sticky top-[env(safe-area-inset-top)] z-[45] glass-bar border-b border-slate-800/60 shadow-[0_4px_16px_var(--neu-shadow-dark)] transition-colors"
+      >
+        <div className={`${BAR_WIDTH} px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3`}>
           <TabLink
             tab="home"
             navigate={go}
@@ -231,9 +304,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
 
           <nav className="hidden xl:flex items-center gap-1.5" aria-label="Main">
             {PUBLIC_LINKS.map(link => (
-              <TabLink key={link.tab} tab={link.tab} navigate={go} isCurrent={currentTab === link.tab} className={linkClass(currentTab === link.tab)}>
-                {link.label}
-              </TabLink>
+              <BarLink key={link.tab} item={link} labelFrom="never" currentTab={currentTab} navigate={go} onShowTips={showTips} />
             ))}
           </nav>
 
@@ -265,13 +336,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
                     currentTab === 'profile' ? 'neu-pressed-sm border border-lime-500/30' : 'neu-btn'
                   }`}
                 >
-                  {user.avatar_url ? (
-                    <img src={user.avatar_url} alt="" width={28} height={28} decoding="async" className="w-7 h-7 rounded-lg object-cover bg-slate-800" />
-                  ) : (
-                    <span aria-hidden="true" className="w-7 h-7 rounded-lg neu-btn-lime flex items-center justify-center text-[11px] font-black">
-                      {initials(user.name)}
-                    </span>
-                  )}
+                  <img src={avatarOf(user)} alt="" width={28} height={28} decoding="async" className="w-7 h-7 rounded-lg object-cover bg-slate-800" />
                   <span className="text-xs font-bold hidden sm:inline text-slate-200 max-w-[8rem] truncate">{user.name.split(' ')[0]}</span>
                 </TabLink>
                 <button
@@ -319,7 +384,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
               aria-expanded={isMobileMenuOpen}
               aria-controls="mobile-menu"
               aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
-              className="xl:hidden neu-icon-btn p-2 text-slate-200"
+              className={`${MENU_HIDDEN} neu-icon-btn p-2 text-slate-200`}
             >
               {isMobileMenuOpen ? <X className="w-5 h-5" aria-hidden="true" /> : <Menu className="w-5 h-5" aria-hidden="true" />}
             </button>
@@ -329,26 +394,24 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
         {user && !isInitializing && (
           <div className="hidden md:block border-t border-slate-800/60">
             <nav
-              className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex flex-wrap items-center gap-1.5"
+              className={`${BAR_WIDTH} px-4 sm:px-6 lg:px-8 py-2 flex flex-wrap items-center gap-1.5`}
               aria-label={ROLE_SECTION_LABEL[user.role]}
             >
               <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mr-2 shrink-0">{ROLE_SECTION_LABEL[user.role]}</span>
               {roleLinks.map(link => (
-                <TabLink key={link.tab} tab={link.tab} navigate={go} isCurrent={currentTab === link.tab} className={linkClass(currentTab === link.tab)}>
-                  <link.icon className="w-3.5 h-3.5" aria-hidden="true" />
-                  {link.label}
-                </TabLink>
+                <BarLink key={link.tab} item={link} labelFrom="xl" currentTab={currentTab} navigate={go} onShowTips={showTips} />
               ))}
             </nav>
           </div>
         )}
 
         {isMobileMenuOpen && (
-          <div id="mobile-menu" className="xl:hidden border-t border-slate-800/80 glass-bar px-4 py-4 shadow-2xl max-h-[80vh] overflow-y-auto">
+          <div id="mobile-menu" className={`${MENU_HIDDEN} border-t border-slate-800/80 glass-bar px-4 py-4 shadow-2xl max-h-[80vh] overflow-y-auto`}>
             <nav aria-label="Main" className="space-y-1.5">
               <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 px-3 py-1 font-bold">Explore PulseFit</div>
-              {PUBLIC_LINKS.map(link => (
+              {MENU_LINKS.map(link => (
                 <TabLink key={link.tab} tab={link.tab} navigate={go} isCurrent={currentTab === link.tab} className={mobileLinkClass(currentTab === link.tab)}>
+                  <link.icon className="w-4 h-4 text-lime-400" aria-hidden="true" />
                   {link.label}
                 </TabLink>
               ))}

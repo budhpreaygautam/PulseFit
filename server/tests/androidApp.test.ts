@@ -114,7 +114,23 @@ describe('with an APK in the downloads folder', () => {
     expect(await androidApp()).toEqual({ url: '/downloads/pulsefit.apk', size: APK.length });
 
     fs.writeFileSync(path.join(downloadsDir, 'pulsefit.json'), JSON.stringify({ versionName: '2.2.0', versionCode: 220, sha256: 'ab'.repeat(32) }));
-    expect(await androidApp()).toEqual({ url: '/downloads/pulsefit.apk', version: '2.2.0', size: APK.length });
+    expect(await androidApp()).toEqual({ url: '/downloads/pulsefit.apk', version: '2.2.0', versionCode: 220, size: APK.length });
+  });
+
+  it('reports only a whole versionCode in Android’s range, which installed apps compare with their own', async () => {
+    const meta = path.join(downloadsDir, 'pulsefit.json');
+    // Each write gets its own mtime, so the answer cached for the previous file is not reused.
+    const write = (body: object, i: number) => {
+      fs.writeFileSync(meta, JSON.stringify(body));
+      fs.utimesSync(meta, new Date(), new Date(Date.now() + (i + 1) * 60_000));
+    };
+    const invalid = ['3', 2.5, 0, -1, 2_100_000_001, null, true];
+    for (const [i, versionCode] of invalid.entries()) {
+      write({ versionName: '1.2.0', versionCode }, i);
+      expect(await androidApp(), String(versionCode)).toEqual({ url: '/downloads/pulsefit.apk', version: '1.2.0', size: APK.length });
+    }
+    write({ versionCode: 2_100_000_000 }, invalid.length);
+    expect(await androidApp()).toEqual({ url: '/downloads/pulsefit.apk', versionCode: 2_100_000_000, size: APK.length });
   });
 
   it('ignores a malformed pulsefit.json', async () => {

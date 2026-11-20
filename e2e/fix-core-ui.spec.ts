@@ -1,5 +1,5 @@
-import { test, expect, Locator, Page, Route } from '@playwright/test';
-import { signInAs } from './helpers';
+import { expect, Locator, Page, Route } from '@playwright/test';
+import { signInAs, test } from './helpers';
 
 // Regression checks for the core UI fixes: session restore and account switching, the offline
 // state, config retries, toasts, focus after a page change, and readable accent text in light theme.
@@ -231,7 +231,7 @@ test('a failed config request is retried, so demo mode and its account bar still
     if (failed++ === 0) return route.abort('connectionrefused');
     return route.continue();
   });
-  await page.goto('/pricing');
+  await page.goto('/exercises');
   await expect(page.getByRole('group', { name: /Demo accounts/ })).toBeVisible({ timeout: 8_000 });
   // The bar shows from the first render (the server marks a demo deployment in the HTML), so wait
   // for the retry itself.
@@ -246,7 +246,7 @@ test('a config request that hangs is called off after 8 seconds and tried again'
   });
   // The first request is never answered.
   await page.route('**/api/config', route => (started++ === 0 ? undefined : route.continue()));
-  await page.goto('/pricing');
+  await page.goto('/exercises');
   // The demo bar shows from the first render (the server marks a demo deployment in the HTML), so
   // wait for the second request itself.
   await expect.poll(() => started, { timeout: 12_000 }).toBe(2);
@@ -257,7 +257,7 @@ test('a config request that hangs is called off after 8 seconds and tried again'
 test('coming back to the window replaces a config request that has been waiting', async ({ page }) => {
   let started = 0;
   await page.route('**/api/config', route => (started++ === 0 ? undefined : route.continue()));
-  await page.goto('/pricing');
+  await page.goto('/exercises');
   await page.waitForTimeout(3_500);
   expect(started).toBe(1);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
@@ -269,7 +269,7 @@ test('error toasts stay well past the old 4.5 seconds and pause while hovered', 
   await page.route('**/api/auth/demo-login', route =>
     route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ success: false, error: 'Demo sign-in failed for this test.' }) })
   );
-  await page.goto('/pricing');
+  await page.goto('/exercises');
   await page.getByRole('group', { name: /Demo accounts/ }).getByRole('button', { name: 'Coach' }).click();
   const toast = page.getByRole('alert').filter({ hasText: 'Demo sign-in failed for this test.' });
   await expect(toast).toBeVisible();
@@ -287,7 +287,7 @@ test('error toasts stay well past the old 4.5 seconds and pause while hovered', 
 });
 
 test('dismissing a toast by click, tap or keyboard does not hold later toasts on screen', async ({ page, isMobile }) => {
-  await page.goto('/pricing');
+  await page.goto('/exercises');
   const region = page.getByRole('region', { name: 'Notifications' });
   const demo = page.getByRole('group', { name: /Demo accounts/ });
   const toastFor = (text: string) => region.getByRole('status').filter({ hasText: text });
@@ -327,7 +327,7 @@ test('dismissing a toast by click, tap or keyboard does not hold later toasts on
 });
 
 test('each toast is announced once: errors by their alert role, others by the always-present announcer', async ({ page }) => {
-  await page.goto('/pricing');
+  await page.goto('/exercises');
   const region = page.getByRole('region', { name: 'Notifications' });
   await expect(region).not.toHaveAttribute('aria-live', /.+/);
   await page.getByRole('group', { name: /Demo accounts/ }).getByRole('button', { name: 'Member', exact: true }).click();
@@ -338,7 +338,7 @@ test('each toast is announced once: errors by their alert role, others by the al
 });
 
 test('opening another page moves focus to its heading and announces it', async ({ page }) => {
-  await page.goto('/pricing');
+  await page.goto('/exercises');
   await page.getByRole('contentinfo').getByRole('link', { name: 'Privacy policy' }).click();
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page.locator('main h1')).toBeFocused();
@@ -373,16 +373,235 @@ test('plan names match the catalogue wherever a tier is shown', async ({ page, r
   for (const tier of ['basic', 'pro', 'vip']) expect(options).toContain(nameOf(tier));
 });
 
+test('the header lines up with the page at every width, and its icon-only links keep their names and show tooltips', async ({ page, request, isMobile }) => {
+  test.skip(isMobile, 'Phones get the menu, where every link shows its label.');
+  const labels = ['Overview', 'Strength Floor', 'Zumba Studio', 'Plans & Diets', 'Timetable', 'Memberships', 'Coaches'];
+  const roleLabels = {
+    vip: ['Dashboard', 'My bookings', 'Log workout', 'Exercises', 'Rewards', 'My account'],
+    // 'Plans' is the header's short name for "Plans & rewards" (its tooltip and the menu say it in full).
+    admin: ['Dashboard', 'Members', 'ID cards', 'Check-in', 'Classes & coaches', 'Coach dashboards', 'Plans', 'Leads', 'My account']
+  };
+  const main = page.getByRole('navigation', { name: 'Main' });
+  /** Whether a header link shows its label (else only its icon, the label being visually hidden). */
+  const showsLabel = (link: Locator) => link.locator(':scope > span:not(.nav-tip)').evaluate(label => getComputedStyle(label).position !== 'absolute');
+  /** Where an element's content starts and ends, left to right. */
+  const contentEdges = (locator: Locator) =>
+    locator.evaluate(el => {
+      const box = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return [Math.round(box.left + parseFloat(style.paddingLeft)), Math.round(box.right - parseFloat(style.paddingRight))];
+    });
+
+  // The all-access member has the widest account buttons, the admin the longest row of links.
+  for (const [persona, section] of [['vip', 'My PulseFit'], ['admin', 'Front desk & admin']] as const) {
+    await signInAs(page, request, persona);
+    for (const width of [768, 1024, 1280, 1536, 1920]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto('/schedule');
+      const roleRow = page.getByRole('navigation', { name: section });
+      await expect(roleRow).toBeVisible();
+
+      // The demo bar, the header and the signed-in row start and end where the page and the footer do.
+      const pageEdges = await contentEdges(page.locator('footer > div').first());
+      expect(await contentEdges(page.locator('header > div').first()), `header at ${width}px`).toEqual(pageEdges);
+      expect(await contentEdges(roleRow), `${section} at ${width}px`).toEqual(pageEdges);
+      expect(await contentEdges(page.locator('#demo-switcher-label').locator('..')), `demo bar at ${width}px`).toEqual(pageEdges);
+
+      // The main links (from 1280 px; the menu below that) only ever show their icons.
+      if (width >= 1280) {
+        for (const label of labels) {
+          const link = main.getByRole('link', { name: label, exact: true });
+          await expect(link).toHaveText(label);
+          expect(await showsLabel(link), `${label} at ${width}px`).toBe(false);
+        }
+        const fits = await page.locator('header > div').first().evaluate(bar => bar.scrollWidth <= bar.clientWidth && bar.lastElementChild!.scrollWidth <= bar.lastElementChild!.clientWidth);
+        expect(fits, `account buttons at ${width}px`).toBe(true);
+      } else {
+        await expect(main).toBeHidden();
+      }
+
+      // The signed-in row: one line, the same names at every width, labels shown from 1280 px.
+      const rows = await roleRow.getByRole('link').evaluateAll(links => new Set(links.map(link => Math.round(link.getBoundingClientRect().top))).size);
+      expect(rows, `${section} rows at ${width}px`).toBe(1);
+      await expect(roleRow.getByRole('link')).toHaveCount(roleLabels[persona].length);
+      for (const label of roleLabels[persona]) {
+        const link = roleRow.getByRole('link', { name: label, exact: true });
+        await expect(link).toHaveText(label);
+        expect(await showsLabel(link), `${label} at ${width}px`).toBe(width >= 1280);
+      }
+    }
+  }
+
+  // The label appears on hover, stays while the pointer moves onto it, and Escape hides it (WCAG 1.4.13).
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/schedule');
+  const timetable = main.getByRole('link', { name: 'Timetable', exact: true });
+  const tip = timetable.locator('.nav-tip');
+  await expect(tip).toBeHidden();
+  await timetable.hover();
+  await expect(tip).toBeVisible();
+  expect(await tip.evaluate(el => getComputedStyle(el, '::after').content)).toBe('"Timetable"');
+  const link = (await timetable.boundingBox())!;
+  const bubble = (await tip.boundingBox())!;
+  await page.mouse.move(link.x + link.width / 2, link.y + link.height + 0.5, { steps: 3 }); // the 2px gap between them
+  await expect(tip).toBeVisible();
+  await page.mouse.move(bubble.x + bubble.width / 2, bubble.y + bubble.height - 4, { steps: 3 }); // the tooltip itself
+  await expect(tip).toBeVisible();
+  await page.mouse.move(link.x + link.width / 2, link.y + link.height / 2, { steps: 3 });
+  await expect(tip).toBeVisible();
+  // Escape hides it while the pointer stays on the link, and moving within the link does not bring it back.
+  await page.keyboard.press('Escape');
+  await expect(tip).toBeHidden();
+  await page.mouse.move(link.x + link.width / 2 + 3, link.y + link.height / 2 + 2, { steps: 3 });
+  await expect(tip).toBeHidden();
+  const coaches = main.getByRole('link', { name: 'Coaches', exact: true });
+  await coaches.hover();
+  await expect(coaches.locator('.nav-tip')).toBeVisible();
+  await page.mouse.move(0, 500);
+  await expect(coaches.locator('.nav-tip')).toBeHidden();
+
+  // Keyboard focus shows it too; Escape hides it without moving focus, and the next link shows its own.
+  await main.getByRole('link', { name: 'Zumba Studio', exact: true }).focus();
+  await page.keyboard.press('Tab');
+  const guide = main.getByRole('link', { name: 'Plans & Diets', exact: true });
+  await expect(guide).toBeFocused();
+  await expect(guide.locator('.nav-tip')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(guide).toBeFocused();
+  await expect(guide.locator('.nav-tip')).toBeHidden();
+  await page.keyboard.press('Tab');
+  await expect(timetable).toBeFocused();
+  await expect(tip).toBeVisible();
+});
+
+test('a header tooltip ends above the signed-in row, so moving down from an icon clicks the link below it', async ({ page, request, isMobile }) => {
+  test.skip(isMobile, 'Phones get the menu; the two header rows only meet from 1280 px.');
+  await signInAs(page, request, 'admin');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/privacy');
+  const main = page.getByRole('navigation', { name: 'Main' });
+  const roleRow = page.getByRole('navigation', { name: 'Front desk & admin' });
+  await expect(roleRow).toBeVisible();
+
+  // A main-row icon with a signed-in row link straight below it.
+  const below = await roleRow.getByRole('link').evaluateAll(links =>
+    links.map(link => {
+      const box = link.getBoundingClientRect();
+      return { left: box.left, right: box.right, top: box.top, path: link.getAttribute('href') };
+    })
+  );
+  let pair: { icon: Locator; x: number; target: (typeof below)[number] } | undefined;
+  for (const icon of await main.getByRole('link').all()) {
+    const box = (await icon.boundingBox())!;
+    const x = box.x + box.width / 2;
+    const target = below.find(b => b.left + 4 < x && x < b.right - 4);
+    if (target) {
+      pair = { icon, x, target };
+      break;
+    }
+  }
+  expect(pair, 'a main-row icon above a signed-in row link').toBeDefined();
+  const { icon, x, target } = pair!;
+  const tip = icon.locator('.nav-tip');
+
+  await icon.hover();
+  await expect(tip).toBeVisible();
+  const bubble = (await tip.boundingBox())!;
+  expect(bubble.y + bubble.height, 'tooltip bottom vs the link below').toBeLessThanOrEqual(target.top);
+
+  // Straight down: the icon lets go of the pointer, and a click 2px inside the link's top edge opens that link's page.
+  await page.mouse.move(x, target.top + 2, { steps: 8 });
+  await expect(tip).toBeHidden();
+  await page.mouse.click(x, target.top + 2);
+  await expect(page).toHaveURL(url => url.pathname === target.path);
+
+  // A tooltip shown only for keyboard focus never takes a click: it goes to whatever is under it.
+  await page.mouse.move(5, 700);
+  await icon.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(icon).toBeFocused();
+  await expect(tip).toBeVisible();
+  const shown = (await tip.boundingBox())!;
+  const hit = await page.evaluate(([px, py]) => document.elementFromPoint(px, py)?.closest('.nav-tip') !== null, [shown.x + shown.width / 2, shown.y + shown.height / 2]);
+  expect(hit, 'focus-only tooltip is hit-testable').toBe(false);
+  await page.mouse.click(shown.x + shown.width / 2, shown.y + shown.height / 2);
+  await page.waitForTimeout(500);
+  expect(new URL(page.url()).pathname, 'a click on a focus-only tooltip').toBe(target.path);
+});
+
+test('a touch tablet in landscape keeps the labelled menu; a desktop with a mouse does not need it', async ({ browser, baseURL, page, request, isMobile }) => {
+  test.skip(isMobile, 'Runs its own touch tablet; phones always have the menu.');
+  const labels = ['Overview', 'Strength Floor', 'Zumba Studio', 'Plans & Diets', 'Timetable', 'Memberships', 'Coaches'];
+
+  // A mouse: icons and their tooltips from 1280 px, the menu only below that.
+  expect(await page.evaluate(() => matchMedia('(hover: hover)').matches)).toBe(true);
+  for (const [width, menu] of [[1279, true], [1280, false]] as const) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/exercises');
+    await expect(page.getByRole('button', { name: 'Open menu' })).toBeVisible({ visible: menu });
+  }
+
+  // Touch only, so no hover and no tooltips: the menu button stays next to the icons.
+  const context = await browser.newContext({ baseURL, viewport: { width: 1280, height: 800 }, hasTouch: true });
+  try {
+    const tablet = await context.newPage();
+    // The all-access member has the widest account buttons, the admin the longest signed-in row.
+    for (const [persona, section] of [['vip', 'My PulseFit'], ['admin', 'Front desk & admin']] as const) {
+      await signInAs(tablet, request, persona);
+      await tablet.goto('/schedule');
+      expect(await tablet.evaluate(() => matchMedia('(hover: none)').matches)).toBe(true);
+      await expect(tablet.getByRole('navigation', { name: 'Main' })).toBeVisible();
+      const toggle = tablet.getByRole('button', { name: 'Open menu' });
+      await expect(toggle).toBeVisible();
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      await expect(toggle).toHaveAttribute('aria-controls', 'mobile-menu');
+      const fits = await tablet.locator('header > div').first().evaluate(bar => bar.scrollWidth <= bar.clientWidth && bar.lastElementChild!.scrollWidth <= bar.lastElementChild!.clientWidth);
+      expect(fits, `${persona} header at 1280px`).toBe(true);
+
+      await toggle.tap();
+      const menu = tablet.locator('#mobile-menu');
+      await expect(menu).toBeVisible();
+      await expect(tablet.getByRole('button', { name: 'Close menu' })).toHaveAttribute('aria-expanded', 'true');
+      for (const label of labels) await expect(menu.getByRole('link', { name: label, exact: true })).toHaveText(label);
+      await expect(menu.getByRole('navigation', { name: section }).getByRole('link').first()).toBeVisible();
+      expect(await tablet.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'no sideways scroll').toBe(true);
+
+      await menu.getByRole('link', { name: 'Memberships', exact: true }).tap();
+      await expect(tablet).toHaveURL(/\/pricing$/);
+      await expect(menu).toHaveCount(0);
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    }
+  } finally {
+    await context.close();
+  }
+});
+
+test('a tapped header icon leaves no tooltip over the next page on a touch tablet', async ({ browser, baseURL, request, isMobile }) => {
+  test.skip(isMobile, 'Runs its own touch tablet; phones have no icon-only header links.');
+  const context = await browser.newContext({ baseURL, viewport: { width: 820, height: 1180 }, hasTouch: true, isMobile: true });
+  try {
+    const page = await context.newPage();
+    await signInAs(page, request, 'vip');
+    await page.goto('/schedule');
+    expect(await page.evaluate(() => matchMedia('(hover: hover)').matches)).toBe(false);
+    const bookings = page.getByRole('navigation', { name: 'My PulseFit' }).getByRole('link', { name: 'My bookings', exact: true });
+    await bookings.tap();
+    await expect(page).toHaveURL(/\/bookings$/);
+    await expect(page.locator('main h1').first()).toBeVisible();
+    await expect(bookings.locator('.nav-tip')).toBeHidden();
+  } finally {
+    await context.close();
+  }
+});
+
 for (const theme of ['light', 'dark'] as const) {
-  test(`${theme} theme: errors, notices, badges and legal headings are readable`, async ({ page }) => {
+  test(`${theme} theme: errors, notices, badges and legal headings are readable`, async ({ page, request }) => {
     await useTheme(page, theme);
 
     await page.goto('/privacy');
     expect(await contrastOf(page.locator('main strong').first())).toBeGreaterThanOrEqual(4.5);
     expect(await contrastOf(page.getByText('Sunday: closed'))).toBeGreaterThanOrEqual(4.5);
-
-    await page.goto('/pricing');
-    expect(await contrastOf(page.getByText('QUESTIONS', { exact: true }))).toBeGreaterThanOrEqual(4.5);
 
     await page.getByRole('button', { name: 'Sign in' }).first().click();
     const dialog = page.getByRole('dialog');
@@ -396,6 +615,10 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(formError).toBeVisible();
     expect(await contrastOf(formError)).toBeGreaterThanOrEqual(4.5);
     await dialog.getByRole('button', { name: 'Close dialog' }).click();
+
+    await signInAs(page, request, 'member');
+    await page.goto('/pricing');
+    expect(await contrastOf(page.getByText('QUESTIONS', { exact: true }))).toBeGreaterThanOrEqual(4.5);
 
     // Accent text laid over a photo keeps its light colour in both themes.
     await page.goto('/strength');

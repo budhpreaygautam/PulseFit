@@ -25,7 +25,8 @@ export default defineConfig({
     { name: 'mobile', use: { ...devices['Pixel 7'] } }
   ],
   webServer: {
-    command: 'npm run build --prefix client && cd server && npx tsx src/index.ts',
+    // --mode e2e: the only build that honours the test-only app-mode switch (client/src/lib/appMode.ts).
+    command: 'npm run build --prefix client -- --mode e2e && cd server && npx tsx src/index.ts',
     url: `http://localhost:${PORT}/api/health`,
     timeout: 240_000,
     reuseExistingServer: false,
@@ -36,7 +37,9 @@ export default defineConfig({
       RATE_LIMIT: 'false',
       // The e2e flows check in and clock in, so they must not depend on the hour they run at.
       ENFORCE_OPENING_HOURS: 'false',
-      PULSEFIT_DB_PATH: dbPath
+      PULSEFIT_DB_PATH: dbPath,
+      // Never email from e2e runs, whatever server/.env says.
+      BREVO_API_KEY: ''
     }
   }
 });

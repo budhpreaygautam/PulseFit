@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Dumbbell, ExternalLink, KeyRound, Loader2, Lock, Mail, Phone, ShieldCheck, Sparkles, User as UserIcon, Users } from 'lucide-react';
+import { ArrowLeft, Dumbbell, ExternalLink, Gift, KeyRound, Loader2, Lock, Mail, Phone, ShieldCheck, Sparkles, User as UserIcon, Users } from 'lucide-react';
 import { Modal } from '../../components/common/Modal.js';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton.js';
 import { FormField, issuesByField } from '../../components/public/FormField.js';
 import { emailError, nameError, normalizeIndianPhone, passwordError, PHONE_HINT } from '../../components/public/validation.js';
-import { clearPendingPlan, takePendingPlan } from '../../components/public/pendingPlan.js';
+import { clearPendingPage, takePendingPage } from '../../components/public/pendingPage.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { useToast } from '../../context/ToastContext.js';
 import { errorMessage, isApiError } from '../../api/client.js';
 import { homeTabFor } from '../../routes.js';
-import { User } from '../../types/index.js';
+import { GENDER_OPTIONS } from '../../lib/format.js';
+import { Gender, User } from '../../types/index.js';
 
 type Mode = 'login' | 'register' | 'forgot' | 'mfa';
 
@@ -21,7 +22,7 @@ interface AuthModalProps {
   initialMode?: Mode;
 }
 type DemoRole = 'member' | 'vip' | 'trainer' | 'admin';
-type Field = 'name' | 'email' | 'password' | 'phone';
+type Field = 'name' | 'gender' | 'email' | 'password' | 'phone' | 'referral_code';
 
 const DEMO_PERSONAS: { role: DemoRole; label: string; detail: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { role: 'member', label: 'Member', detail: 'Books classes', icon: UserIcon },
@@ -46,9 +47,11 @@ const GOOGLE_ERRORS: Record<string, string> = {
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode = 'login' }) => {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [name, setName] = useState('');
+  const [gender, setGender] = useState<Gender | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<Field, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [suggestLogin, setSuggestLogin] = useState(false);
@@ -67,14 +70,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
   // Every open starts clean in the mode the caller asked for; closing wipes what was typed.
   useEffect(() => {
-    // A plan picked as a guest belongs to the sign-in this dialog was opened for. Closed without
+    // A page a guest asked for belongs to the sign-in this dialog was opened for. Closed without
     // signing in (or on first load, after a refresh), it is dropped.
-    if (!isOpen) clearPendingPlan();
+    if (!isOpen) clearPendingPage();
     setMode(initialMode);
     setName('');
+    setGender(null);
     setEmail('');
     setPassword('');
     setPhone('');
+    setReferralCode('');
     setFieldErrors({});
     setFormError(null);
     setSuggestLogin(false);
@@ -105,13 +110,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setMode('mfa');
   };
 
-  /** After any sign-in: a plan picked as a guest takes them back to pricing to pay for it. */
-  const finishSignIn = (user: User, greeting: string) => {
-    const pending = takePendingPlan();
+  /**
+   * After any sign-in: the page a guest asked for (pricing with the plan they picked, the timetable…)
+   * opens. Otherwise askGender sends them to My account to choose the gender that picks their
+   * default picture.
+   */
+  const finishSignIn = (user: User, greeting: string, askGender = false) => {
+    const pending = takePendingPage();
     onClose();
     if (pending) {
-      showToast(`${greeting} Finish choosing your plan below.`, 'success');
-      navigate('pricing', { plan: pending.tier, cycle: pending.cycle });
+      showToast(greeting, 'success');
+      navigate(pending.tab, pending.params);
+    } else if (askGender) {
+      showToast('Choose your gender under Personal details to pick your profile picture.', 'info', greeting);
+      navigate('profile');
     } else {
       showToast(greeting, 'success');
     }
@@ -121,11 +133,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const showError = (err: unknown) => {
     if (isApiError(err) && err.code === 'VALIDATION_ERROR') {
       const issues = issuesByField(err.data);
-      const known = (['name', 'email', 'password', 'phone'] as Field[]).filter(f => issues[f]);
+      const known = (['name', 'gender', 'email', 'password', 'phone', 'referral_code'] as Field[]).filter(f => issues[f]);
       if (known.length > 0) {
         setFieldErrors(Object.fromEntries(known.map(f => [f, issues[f]])));
         return;
       }
+    }
+    // A friend's code that matches no member is shown on its field (email or Google sign-up).
+    if (isApiError(err) && err.code === 'REFERRAL_CODE_INVALID') {
+      setFieldErrors({ referral_code: err.message });
+      return;
     }
     if (isApiError(err) && err.code === 'EMAIL_TAKEN') setSuggestLogin(true);
     setFormError(isApiError(err) && err.code && GOOGLE_ERRORS[err.code] ? GOOGLE_ERRORS[err.code] : errorMessage(err));
@@ -139,6 +156,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     if (mode === 'register') {
       const nameProblem = nameError(name);
       if (nameProblem) errors.name = nameProblem;
+      if (!gender) errors.gender = 'Choose your gender.';
       const passwordProblem = passwordError(password);
       if (passwordProblem) errors.password = passwordProblem;
       if (phone.trim() && !normalizeIndianPhone(phone)) errors.phone = PHONE_HINT;
@@ -178,7 +196,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         else askForCode(result.mfaToken);
       } else {
         const normalizedPhone = phone.trim() ? normalizeIndianPhone(phone) ?? undefined : undefined;
-        const user = await register({ name: name.trim(), email: email.trim(), password, phone: normalizedPhone });
+        const user = await register({ name: name.trim(), gender: gender!, email: email.trim(), password, phone: normalizedPhone, referral_code: referralCode.trim() || undefined });
         finishSignIn(user, `Welcome to PulseFit, ${user.name.split(' ')[0]}! Choose a membership to start booking classes.`);
       }
     } catch (err) {
@@ -199,7 +217,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setFormError(null);
     setBusy('google');
     try {
-      const result = await loginWithGoogle(credential);
+      // The server uses the code only if this Google sign-in creates the account.
+      const result = await loginWithGoogle(credential, mode === 'register' ? referralCode.trim() || undefined : undefined);
       if (result.mfaToken) {
         askForCode(result.mfaToken, result.message);
       } else if (result.message) {
@@ -209,7 +228,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         navigate('profile');
       } else {
         const user = result.user!;
-        finishSignIn(user, result.created ? `Welcome to PulseFit, ${user.name.split(' ')[0]}!` : `Welcome back, ${user.name.split(' ')[0]}!`);
+        // Google sign-up has no gender question, so a new account is asked for it on My account.
+        finishSignIn(
+          user,
+          result.created ? `Welcome to PulseFit, ${user.name.split(' ')[0]}!` : `Welcome back, ${user.name.split(' ')[0]}!`,
+          result.created && !user.gender
+        );
       }
     } catch (err) {
       showError(err);
@@ -223,11 +247,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     setBusy(role);
     try {
       const user = await demoLogin(role);
-      // A demo account is not the account the guest picked a plan for.
-      clearPendingPlan();
+      const pending = takePendingPage();
       onClose();
       showToast(`Signed in as the demo ${DEMO_PERSONAS.find(p => p.role === role)?.label.toLowerCase()}.`, 'success');
-      navigate(homeTabFor(user.role));
+      if (pending) navigate(pending.tab, pending.params);
+      else navigate(homeTabFor(user.role));
     } catch (err) {
       showError(err);
     } finally {
@@ -346,6 +370,45 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               />
             )}
 
+            {mode === 'register' && (
+              <div>
+                <label htmlFor="auth-gender" className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">
+                  Gender
+                </label>
+                <div className="relative">
+                  <select
+                    id="auth-gender"
+                    value={gender ?? ''}
+                    onChange={e => {
+                      setGender(e.target.value as Gender);
+                      setFieldErrors(errors => ({ ...errors, gender: undefined }));
+                    }}
+                    aria-invalid={fieldErrors.gender ? true : undefined}
+                    aria-describedby={fieldErrors.gender ? 'auth-gender-hint auth-gender-error' : 'auth-gender-hint'}
+                    required
+                    className={`w-full pl-3.5 pr-4 py-2.5 text-sm text-slate-100 rounded-xl ${fieldErrors.gender ? '!border-rose-500/70' : ''}`}
+                  >
+                    <option value="" disabled>
+                      🚻 Choose…
+                    </option>
+                    {GENDER_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.emoji} {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p id="auth-gender-hint" className="mt-1 text-[11px] text-slate-500">
+                  Picks your profile picture until you add a photo. Only you and the front desk can see it.
+                </p>
+                {fieldErrors.gender && (
+                  <p id="auth-gender-error" role="alert" className="mt-1 text-xs font-semibold text-rose-400">
+                    {fieldErrors.gender}
+                  </p>
+                )}
+              </div>
+            )}
+
             {mode === 'mfa' ? (
               <FormField
                 id="auth-mfa-code"
@@ -418,6 +481,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                 placeholder="+91 98110 12345"
                 hint="Only used by the front desk to reach you about your membership."
                 error={fieldErrors.phone}
+              />
+            )}
+
+            {mode === 'register' && (
+              <FormField
+                id="auth-referral"
+                label="Referral code"
+                optional
+                icon={Gift}
+                type="text"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                value={referralCode}
+                onChange={e => setReferralCode(e.target.value)}
+                maxLength={32}
+                hint="A member's code. You both earn points when you pay for your first plan."
+                error={fieldErrors.referral_code}
               />
             )}
 

@@ -98,6 +98,27 @@ const sync = spawnSync(process.execPath, [path.join(clientDir, 'scripts', 'mobil
 });
 if (sync.status !== 0) fail('Building the app failed (see above).');
 
+// The APK is a public download (/downloads/pulsefit.apk) that anyone can unzip, and the fitness guide
+// is for staff and members with a plan only (GET /api/guide). These words appear only in the full guide
+// (server/src/content/guide.ts), so a build that contains them has the guide compiled in again.
+const GUIDE_ONLY_WORDS = ['Creapure', 'KSM-66'];
+const filesIn = dir =>
+  fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => (entry.isDirectory() ? filesIn(path.join(dir, entry.name)) : [path.join(dir, entry.name)]));
+const guideLeaks = filesIn(path.join(clientDir, 'dist-mobile')).filter(
+  file => /\.(js|html|json)$/.test(file) && GUIDE_ONLY_WORDS.some(word => fs.readFileSync(file, 'utf8').includes(word))
+);
+if (guideLeaks.length) {
+  fail(`The app contains the fitness guide, which only staff and members with a plan may read:\n  ${guideLeaks.join('\n  ')}\nKeep the guide on the server (GET /api/guide), then build again.`);
+}
+// The browser switches that stand in for the app (pulsefit_test_app_mode in client/src/lib/appMode.ts,
+// pulsefit_test_app_build in components/app/AppUpdatePrompt.tsx) are kept only by e2e builds.
+const testSwitchLeaks = filesIn(path.join(clientDir, 'dist-mobile')).filter(
+  file => /\.(js|html|json)$/.test(file) && fs.readFileSync(file, 'utf8').includes('pulsefit_test_')
+);
+if (testSwitchLeaks.length) {
+  fail(`The app contains a test-only switch:\n  ${testSwitchLeaks.join('\n  ')}\nBuild it with mobile-sync (production mode), never --mode e2e.`);
+}
+
 console.log('🔨 Building the release APK...');
 // Full path: some Windows setups (NoDefaultCurrentDirectoryInExePath) never run a bare gradlew.bat.
 const gradle = isWindows
@@ -114,9 +135,13 @@ const verifiedLines = verify.stdout.split(/\r?\n/).filter(line => /^Verified usi
 const { elements } = JSON.parse(fs.readFileSync(path.join(releaseDir, 'output-metadata.json'), 'utf8'));
 const { versionName, versionCode } = elements[0];
 const sha256 = crypto.createHash('sha256').update(fs.readFileSync(apk)).digest('hex');
+// Uploaded beside the APK: its versionCode is what tells installed apps there is an update.
+const metaFile = path.join(releaseDir, 'pulsefit.json');
+fs.writeFileSync(metaFile, `${JSON.stringify({ versionName, versionCode, sha256 })}\n`);
 console.log(`✅ PulseFit ${versionName} (versionCode ${versionCode}), built against ${api.replace(/\/+$/, '')}`);
 console.log(`   ${apk}`);
 console.log(`   ${fs.statSync(apk).size} bytes, sha256 ${sha256}`);
 for (const line of verifiedLines) console.log(`   ${line}`);
-console.log('   Publish it as downloads/pulsefit.apk next to the database (deploy/README.md › Android app).');
+console.log(`   ${metaFile}`);
+console.log('   Publish both as downloads/pulsefit.apk and downloads/pulsefit.json next to the database (deploy/README.md › Android app).');
 console.log('   `npm run mobile:sync` puts the app back on the API on this PC for local testing.');

@@ -98,7 +98,7 @@ export const IdCardManagement: React.FC = () => {
 
   const personCell = (row: IdCardRow, nameId: string) => (
     <div className="flex items-center gap-3 min-w-0">
-      <Avatar src={row.user.avatar_url} name={row.user.name} />
+      <Avatar src={row.user.avatar_url} gender={row.user.gender} />
       <div className="min-w-0">
         <div className="font-extrabold text-sm text-slate-100 flex flex-wrap items-center gap-1.5 font-heading">
           <span id={nameId} className="min-w-0 break-words">

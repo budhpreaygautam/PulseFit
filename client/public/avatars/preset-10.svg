@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- PulseFit avatar 10: wavy auburn hair and a gym towel round the neck, on orange. -->
+  <rect width="128" height="128" fill="#fb923c"/>
+  <path d="M56 70h16v26H56z" fill="#d39a6e"/>
+  <path d="M16 128c0-22 16-36 40-38 2 5 14 5 16 0 24 2 40 16 40 38z" fill="#2563eb"/>
+  <path d="M45 128V92c0-5 5-9 11-9v45zM83 128V92c0-5-5-9-11-9v45z" fill="#f8fafc"/>
+  <path d="M45 117h11M72 117h11" stroke="#ef4444" stroke-width="3"/>
+  <g fill="#e8b48a"><circle cx="44.5" cy="58" r="4"/><circle cx="83.5" cy="58" r="4"/><circle cx="64" cy="56" r="20"/></g>
+  <path d="M43.5 57c-2-15 7-24 20.5-24 14 0 22 9 20.5 24-2-4-4-7-6-8-2 3-6 3-8 0-2 3-6 3-8 0-2 3-6 3-8 0-2 3-6 2-7-1-2 2-3 5-4 9z" fill="#7c2d12"/>
+  <g fill="#1f2937"><circle cx="57" cy="58" r="2.2"/><circle cx="71" cy="58" r="2.2"/></g>
+  <path d="M58.5 65.5q5.5 4.5 11 0" fill="none" stroke="#1f2937" stroke-width="2.2" stroke-linecap="round"/>
+</svg>

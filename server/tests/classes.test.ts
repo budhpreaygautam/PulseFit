@@ -4,6 +4,9 @@ import { api, authHeader, db, personas, resetDb } from './helpers.js';
 // Wednesday 7 October 2026, 10:00 at the gym (IST).
 const NOW = new Date('2026-10-07T04:30:00Z');
 
+/** A signed-in account without bookings: the full ClassOccurrence (guests get the guest view, see guestView.test.ts). */
+const staff = () => authHeader(personas.admin);
+
 function setCapacity(classId: string, capacity: number) {
   db.classes = db.classes.map(c => (c.id === classId ? { ...c, capacity } : c));
 }
@@ -18,7 +21,7 @@ describe('classes: timetable and class admin', () => {
 
   describe('GET /classes', () => {
     it('lists every class at its next occurrence that has not started, sorted by start', async () => {
-      const res = await api().get('/api/classes');
+      const res = await api().get('/api/classes').set(staff());
       expect(res.status).toBe(200);
       const list = res.body.data;
       expect(list).toHaveLength(12);
@@ -39,7 +42,7 @@ describe('classes: timetable and class admin', () => {
 
     it('counts capacity per occurrence from bookings and ignores any stored counter (audit regression)', async () => {
       db.classes = db.classes.map(c => (c.id === 'cls_str_wed' ? { ...c, booked_count: 999 } : c));
-      const res = await api().get('/api/classes');
+      const res = await api().get('/api/classes').set(staff());
       const strWed = res.body.data.find((o: any) => o.id === 'cls_str_wed');
       const expected = db.bookings.filter(
         b => b.class_id === 'cls_str_wed' && b.booking_date === '2026-10-07' && (b.status === 'confirmed' || b.status === 'attended')
@@ -57,19 +60,20 @@ describe('classes: timetable and class admin', () => {
     });
 
     it('filters by day, category, trainer, intensity and search (including the trainer name)', async () => {
-      expect((await api().get('/api/classes?day=4')).body.data.map((o: any) => o.id).sort()).toEqual(['cls_str_thu', 'cls_zumba_thu']);
-      const zumba = (await api().get('/api/classes').query({ category: 'Zumba & Cardio' })).body.data;
+      const list = (query: string) => api().get(`/api/classes?${query}`).set(staff());
+      expect((await list('day=4')).body.data.map((o: any) => o.id).sort()).toEqual(['cls_str_thu', 'cls_zumba_thu']);
+      const zumba = (await api().get('/api/classes').set(staff()).query({ category: 'Zumba & Cardio' })).body.data;
       expect(zumba).toHaveLength(6);
       expect(zumba.every((o: any) => o.category === 'Zumba & Cardio')).toBe(true);
-      expect((await api().get('/api/classes?category=All')).body.data).toHaveLength(12);
-      expect((await api().get('/api/classes?trainerId=trn_vikram')).body.data).toHaveLength(4);
-      expect((await api().get('/api/classes?intensity=extreme')).body.data.every((o: any) => o.intensity === 'Extreme')).toBe(true);
-      expect((await api().get('/api/classes?search=vikram')).body.data).toHaveLength(4);
-      expect((await api().get('/api/classes?day=')).body.data).toHaveLength(12);
+      expect((await list('category=All')).body.data).toHaveLength(12);
+      expect((await list('trainerId=trn_vikram')).body.data).toHaveLength(4);
+      expect((await list('intensity=extreme')).body.data.every((o: any) => o.intensity === 'Extreme')).toBe(true);
+      expect((await list('search=vikram')).body.data).toHaveLength(4);
+      expect((await list('day=')).body.data).toHaveLength(12);
     });
 
     it('returns the occurrences of a given week, including ones that already happened', async () => {
-      const res = await api().get('/api/classes?week_start=2026-10-05');
+      const res = await api().get('/api/classes?week_start=2026-10-05').set(staff());
       expect(res.status).toBe(200);
       const dates = res.body.data.map((o: any) => o.occurrence_date);
       expect(dates.every((d: string) => d >= '2026-10-05' && d <= '2026-10-11')).toBe(true);
@@ -81,16 +85,16 @@ describe('classes: timetable and class admin', () => {
     });
 
     it('rejects a week_start that is not a Monday and a bad day', async () => {
-      const res = await api().get('/api/classes?week_start=2026-10-07');
+      const res = await api().get('/api/classes?week_start=2026-10-07').set(staff());
       expect(res.status).toBe(400);
       expect(res.body.code).toBe('VALIDATION_ERROR');
-      expect((await api().get('/api/classes?week_start=2026-13-01')).status).toBe(400);
-      expect((await api().get('/api/classes?day=7')).status).toBe(400);
+      expect((await api().get('/api/classes?week_start=2026-13-01').set(staff())).status).toBe(400);
+      expect((await api().get('/api/classes?day=7').set(staff())).status).toBe(400);
     });
 
     it('always shows the current trainer name and avatar', async () => {
       db.trainers = db.trainers.map(t => (t.id === 'trn_kavya' ? { ...t, name: 'Kavya Sen-Rao', avatar_url: 'https://example.com/k.png' } : t));
-      const res = await api().get('/api/classes');
+      const res = await api().get('/api/classes').set(staff());
       const zumbaMon = res.body.data.find((o: any) => o.id === 'cls_zumba_mon');
       expect(zumbaMon.trainer_name).toBe('Kavya Sen-Rao');
       expect(zumbaMon.trainer_avatar).toBe('https://example.com/k.png');
@@ -99,42 +103,40 @@ describe('classes: timetable and class admin', () => {
 
   describe('GET /classes/:id', () => {
     it('returns the next occurrence with the trainer', async () => {
-      const res = await api().get('/api/classes/cls_str_mon');
+      const res = await api().get('/api/classes/cls_str_mon').set(staff());
       expect(res.status).toBe(200);
       expect(res.body.data.occurrence_date).toBe('2026-10-12');
       expect(res.body.data.trainer.id).toBe('trn_vikram');
     });
 
     it('returns a specific date and rejects one on the wrong weekday', async () => {
-      const res = await api().get('/api/classes/cls_str_mon?date=2026-09-28');
+      const res = await api().get('/api/classes/cls_str_mon?date=2026-09-28').set(staff());
       expect(res.status).toBe(200);
       expect(res.body.data.occurrence_date).toBe('2026-09-28');
-      const bad = await api().get('/api/classes/cls_str_mon?date=2026-09-29');
+      const bad = await api().get('/api/classes/cls_str_mon?date=2026-09-29').set(staff());
       expect(bad.status).toBe(400);
       expect(bad.body.code).toBe('DATE_MISMATCH');
     });
 
     it('shows the trainer’s contact details and account link only to admins (review regression)', async () => {
-      const anon = await api().get('/api/classes/cls_str_mon');
-      expect(anon.body.data.trainer).toMatchObject({ id: 'trn_vikram', name: 'Coach Vikram Rathore' });
-      for (const key of ['email', 'phone', 'user_id']) expect(anon.body.data.trainer).not.toHaveProperty(key);
       const member = await api().get('/api/classes/cls_str_mon').set(authHeader(personas.member));
-      expect(member.body.data.trainer).not.toHaveProperty('email');
+      expect(member.body.data.trainer).toMatchObject({ id: 'trn_vikram', name: 'Coach Vikram Rathore' });
+      for (const key of ['email', 'phone', 'user_id']) expect(member.body.data.trainer).not.toHaveProperty(key);
       const admin = await api().get('/api/classes/cls_str_mon').set(authHeader(personas.admin));
       expect(admin.body.data.trainer).toMatchObject({ email: expect.any(String), phone: expect.any(String), user_id: 'usr_trainer_1' });
     });
 
     it('still opens a past session on the class’s old weekday (review regression)', async () => {
       await api().put('/api/classes/cls_str_wed').set(authHeader(personas.admin)).send({ day_of_week: 4 });
-      const res = await api().get('/api/classes/cls_str_wed?date=2026-09-30');
+      const res = await api().get('/api/classes/cls_str_wed?date=2026-09-30').set(staff());
       expect(res.status).toBe(200);
       expect(res.body.data.occurrence_date).toBe('2026-09-30');
       // A Wednesday with no bookings is not a session of this class any more.
-      expect((await api().get('/api/classes/cls_str_wed?date=2026-10-21')).body.code).toBe('DATE_MISMATCH');
+      expect((await api().get('/api/classes/cls_str_wed?date=2026-10-21').set(staff())).body.code).toBe('DATE_MISMATCH');
     });
 
     it('404s for an unknown class', async () => {
-      const res = await api().get('/api/classes/cls_nope');
+      const res = await api().get('/api/classes/cls_nope').set(staff());
       expect(res.status).toBe(404);
       expect(res.body.code).toBe('NOT_FOUND');
     });
@@ -253,7 +255,7 @@ describe('classes: timetable and class admin', () => {
       const left = db.bookings.filter(b => b.class_id === 'cls_str_wed');
       expect(left.filter(b => b.status === 'cancelled')).toHaveLength(futureConfirmed);
       expect(left.filter(b => b.status !== 'cancelled')).toHaveLength(pastCount);
-      expect((await api().get('/api/classes/cls_str_wed')).status).toBe(404);
+      expect((await api().get('/api/classes/cls_str_wed').set(staff())).status).toBe(404);
     });
 
     it('still lists past bookings of a deleted class in the member’s history', async () => {
@@ -271,7 +273,7 @@ describe('classes: timetable and class admin', () => {
 
   it('uses the computed capacity in is_full', async () => {
     setCapacity('cls_str_wed', 2);
-    const res = await api().get('/api/classes/cls_str_wed');
+    const res = await api().get('/api/classes/cls_str_wed').set(staff());
     expect(res.body.data).toMatchObject({ booked_count: 2, spots_left: 0, is_full: true });
   });
 });

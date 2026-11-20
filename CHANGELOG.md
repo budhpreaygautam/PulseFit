@@ -2,6 +2,192 @@
 
 All notable changes to PulseFit. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.4.0] — 2026-11-20
+
+The service pages now need an account and the fitness guide a plan, sign-up asks for gender to pick a default profile
+picture, the API stops answering casual direct access, the header and pricing cards fit their space, and there is a
+contact page with an enquiry form. Members earn points and gifts for their visits, workouts and referrals, the gym can
+run sales and coupon codes, and the front desk records sales paid at the desk. The Android app (1.1.0) gets the look of
+a phone app, with a bottom tab bar for members and a welcome screen for guests.
+
+### Added
+
+- **Gender at sign-up.** Creating an account with email asks for gender (male, female or other), as
+  a dropdown. It is used only to pick the default picture shown until the person
+  uploads a photo. Members can change it on My account; admins can set, change or clear it when adding or editing a
+  member, and see it in the member's details. Google sign-ups and existing accounts start without one ("Not given"); a
+  new Google account is taken to My account to choose one, unless the person was on the way to a page they had asked for.
+  `POST /api/auth/register` takes an optional `gender`: the sign-up form always asks for it, but the apps installed from
+  2.3.0 do not send one, and their sign-ups keep working (the account starts without one).
+- **Default profile pictures.** Three built-in pictures (male, female and neutral, at `/avatars/*.svg`) replace the
+  initials badges and the DiceBear cartoons everywhere: header, dashboard, My account, QR pass, ID card, member lists
+  and details, rosters, coach lists, the timetable and the check-in scanner. An uploaded photo always wins. The gendered
+  picture shows to the person and admins, and on the person's QR pass and ID card (also one the desk prints), so anyone
+  they show those to sees it; coaches', other members' and visitors' screens always show the neutral one.
+- **Change avatar.** On My account, "Change photo" becomes "Change avatar", also on the profile picture itself: a small
+  window offers ten ready-made avatars, saved with one tap, and "Custom" to upload a photo as before.
+  `PUT /api/auth/profile` accepts their paths (`/avatars/preset-01.svg` … `/avatars/preset-10.svg`) as `avatar_url`.
+- **`GET /api/guide`** serves the fitness guide (workout plans, diet charts, nutrition rules, supplements and the
+  strength split) to admins, coaches and members whose plan is active or frozen. Members without a plan (every new
+  account until its first payment) or whose plan has ended get 403 `PLAN_REQUIRED` and none of it. A freeze pauses a
+  plan without extending it: a frozen plan keeps the guide up to its paid end date, and unfreezing (which adds the
+  missed days back) opens it again.
+- **Contact page and enquiry form.** `/contact`, linked from the footer, the menu and the home page, lets anyone ask
+  about memberships without an account: name, mobile, email, interest, best time to call, an optional message and
+  consent to be contacted. Enquiries are saved before anything else, so none is lost if email fails. 5 per hour per
+  network, with a hidden spam trap. `POST /api/enquiries`, `GET /api/enquiries`, `PATCH /api/enquiries/:id`.
+- **Enquiry emails.** With `BREVO_API_KEY` and `MAIL_FROM` set, each enquiry goes to the gym's inbox (`ENQUIRY_INBOX`;
+  replying answers the enquirer), and the enquirer gets a short confirmation (at most one a day per address). Sent
+  through Brevo's HTTPS API, because Railway blocks SMTP below its Pro plan. Without these settings nothing is sent.
+- **Rewards.** Members with a plan (active, or frozen up to its paid end date, as for the guide) earn points for each
+  check-in at the front desk (10) and for a workout logged on the day they train (5), and get a gift for milestones
+  of staff-confirmed visits and streaks (10 visits, a 30-day streak, 100 and 250 visits), each once. A paid plan comes with joining gifts (a welcome kit
+  with annual plans, a supplement sample pack with a member's first monthly plan). Points buy gifts from a 24-item
+  catalogue on the new **Rewards** page (`/rewards`), which also shows the balance, progress to the next milestone,
+  "My gifts" with a pickup code, and the points history; the dashboard says when a gift is ready to collect. Gifts are
+  collected at the front desk: the check-in scanner lists a member's ready gifts with a Hand over button, and the admin
+  Pickups tab lists them all. Apparel has sizes and items have stock: the store greys out what is out of stock, and an
+  earned gift waits until its size or item is back.
+  On the first start of this version each member who already passed a milestone gets one welcome gift for the highest
+  one; no points are back-dated. Every value is editable under Plans & rewards › Rules.
+- **Referrals.** Every member has a referral code (Rewards › Refer a friend, with Share). A friend types it when
+  signing up (email or Google), or the front desk adds it in the member's details until they first have a plan (accounts
+  from before rewards count as having paid, since desk payments were not recorded then). On that
+  first paid plan the member who referred them gets 200 points and the friend 50.
+- **Sales and coupons.** Admins run sales (a percentage or an amount off, for chosen plans and billing cycles, between
+  two times) and coupon codes (with dates, a use limit and a limit per member) under Plans & rewards › Offers &
+  coupons. Memberships shows a live sale on each card (the list price struck through, the label and "ends in …") and
+  each plan's joining gifts, and takes a coupon under the pay button ("Have a coupon?"). The server works out every
+  price (`POST /api/payment/quote`, `GET /api/payment/quotes`) and charges the best single discount, never below ₹1;
+  invoices show the list price and the sale or coupon discount. Guests see the live sale as a banner on the home page,
+  with the annual welcome kit (`GET /api/promotions`: headlines and gift names only). A discounted order is checked
+  again when paid: a second order with a coupon the member has used up, or one paid more than 30 minutes after its
+  sale or coupon ended, is not applied and goes to the desk. Days bought at a sale price count as credit on a plan
+  change only for what they cost.
+- **Front-desk sales.** Admins record a plan paid at the desk in cash, UPI or card, from Add member ("Payment collected
+  at the desk") or the member editor (`POST /api/members/:id/desk-sale`). It creates an invoice ("Front desk (UPI)"),
+  gives the joining gifts and counts for referrals; free time added by hand gives neither. The same sale recorded twice
+  within 2 minutes is refused. Member details show the member's points, gifts and referrer, with "Adjust points".
+- **The app looks like an app (Android 1.1.0).** Inside the Android and iOS apps, members get a bottom tab bar (Home ·
+  Classes · Pass · Train · Me) and new screens in the soft neumorphic, lime look, in light and dark: a streak card with
+  this week's sessions, one-tap class booking on the gym's open days, the entry pass, a quick workout logger, and Me
+  with the ID card, freeze switch, plans, invoices, rewards and every page of the website. Guests get a welcome screen.
+  Screens animate smoothly, and not at all when the phone asks for reduced motion. Coaches, admins and the website are
+  unchanged. `GET /api/auth/me` adds `active_days_this_week` and `longest_streak_days`.
+- **"Update available" in the Android app.** From 1.1.0 the app asks once per start when the website offers a newer
+  APK, and "Update now" downloads it in the phone's browser; Android installs it over the app, keeping the sign-in.
+  `GET /api/config` adds `androidApp.versionCode`, from `pulsefit.json`, which `mobile:release` now writes beside the
+  APK. Apps before 1.1.0 cannot ask.
+
+### Changed
+
+- **"Trial leads" is now "Leads"** (`/admin/trials`): enquiries on top with a New/Contacted/Closed status, free-trial
+  passes below.
+- **The service pages need an account.** Strength Floor (`/strength`), Zumba Studio (`/zumba`), Plans & Diets
+  (`/guide`), Timetable (`/schedule`), Memberships (`/pricing`) and Coaches (`/coaches`) are for signed-in accounts. A
+  guest who follows a link to one (header, menu, footer, home page buttons and cards) stays where they are and gets the
+  sign-in dialog; after signing in or creating an account (also with Google or a demo account) they land on that page,
+  with its query (a plan picked on the home page opens Memberships with that plan in view). Opened by its address, such
+  a page shows "Please sign in" with the dialog already open, and opens once signed in. The page itself is never put on
+  screen for a guest, so removing the dialog in DevTools reveals nothing, and its code is only downloaded once it is
+  opened. The home page, the exercise library, the legal pages, the password reset page and the payment status page
+  (where YouPI sends people back) stay public. These six pages are no longer in the sitemap, are `noindex` and are
+  closed in `robots.txt`; `/pricing` no longer lists the plans in its JSON-LD.
+- **The fitness guide and the strength split come with a plan.** A member without one (none chosen yet, or ended) sees
+  the teaser on `/guide` (each plan's name and a one-line summary) and the four days of the split on `/strength`, with
+  "Choose a plan", which opens Memberships. Once a plan is active (a payment, or the front desk) the full content
+  loads without a reload. The guide is not part of the website's code. The home page banner says "INCLUDED WITH EVERY
+  PLAN", and the search descriptions of `/guide` and `/strength` mention the plan.
+- **Icons in the header.** Every link has an icon. From 1280 px the public links show only their icons (with their
+  labels they would not fit next to the account buttons), with a tooltip on keyboard focus and, with a mouse or
+  trackpad, on hover. The pointer can move onto a tooltip without it closing, and Escape hides it; tooltips never cover
+  the signed-in row (Dashboard, My bookings, …), which shows only icons below 1280 px. The drop-down menu, used below
+  1280 px and at every width without a mouse or trackpad (touch tablets), keeps icons and labels, and screen readers
+  hear each link's name as before. The header and the demo bar line up with the page and the footer at every width.
+- New members, coaches and admins without a photo have none (`avatar_url: ''`) instead of a DiceBear cartoon, and
+  `PUT /api/auth/profile` accepts `avatar_url: ''` to remove a photo. `POST/PUT /api/trainers` refuse DiceBear
+  addresses for a coach's photo, since the server clears them whenever it starts.
+- `GET /api/notes/my` returns only what the member's dashboard shows: `{ id, trainer_name, category, note, created_at }`.
+- **Guests get only what the home page shows.** Without a session, `GET /api/classes` lists only the next four
+  sessions (not the week's timetable), with title, category, day and time, length, room, capacity, coach name and spots
+  left (no description, intensity, photo, calories, coach id or booking), and answers any filter with 401; the home
+  page's "Classes a week" comes from the new `gym.classesPerWeek` in `GET /api/config`; `GET /api/trainers` lists the
+  first four coaches with photo, bio, experience, rating and two specialties; `GET /api/plans` lists name, description,
+  monthly price, the first four features and the classes each plan covers (no annual price). Signed-in accounts get the
+  full answers as before. `GET /api/classes/:id` and `GET /api/trainers/:id` need a session.
+- The admin "Plans" page is now **"Plans & rewards"**, with tabs: Plans (the editor as before), Offers & coupons, Gift
+  catalogue, Pickups and Rules. The header link still reads "Plans"; its tooltip and the menu say "Plans & rewards".
+- The privacy policy explains the gender question and who sees it, the rewards data (points history, gift claims,
+  referral codes and who referred whom, deleted with the account), and no longer mentions DiceBear (updated 19 Nov 2026).
+  Each legal page now shows its own "last updated" date, the day its text last changed: the terms of service 9 Oct 2026
+  and the refund policy 19 Oct 2026 (all three used to show 7 Oct 2026).
+
+### Removed
+
+- DiceBear pictures. When the server loads an existing database, it replaces stored DiceBear addresses (on people,
+  coaches, classes and floor sessions) with "no photo", so everyone gets the new default pictures. The old addresses are
+  not kept.
+
+### Fixed
+
+- The pay buttons on the pricing cards wrapped onto two lines ("Choose Dual All-Access Pass (Strength + Zumba) ·
+  ₹999"). They now read "Choose plan", "Switch plan" or "Renew plan" and the price, on one line at every width; the
+  card's heading already names the plan, and screen readers hear the button's text and then the plan's name. The cards
+  are a little tighter between 768 and 1024 px.
+
+### Security
+
+- **The API no longer answers direct visits.** Every `/api` request must carry the `X-Requested-With: PulseFit` header
+  that the website and the apps (2.3.0 and later) already send; without it the answer is the same 404 as an unknown
+  address. The health check and the Razorpay and YouPI webhooks are exempt, and CORS preflights from the website and
+  the apps are answered as before; an `OPTIONS` request from any other site gets the 404 too, so it cannot list which
+  API addresses exist. This stops API answers opening in the address bar, from a link or from another site. It is a
+  deterrent only: a signed-in person's browser always shows them the app's own requests, so what each answer contains
+  is what protects the data. Scripts and monitors that call the API (other than the health check) must now send the
+  header.
+- Who is on the gym floor (names, photos and plans) is sent to admins only; coaches now get the counts, like everyone
+  else.
+- Gender is sent only to the person and to admins, never to coaches, other members or visitors, not even as a picture
+  address.
+- Guests cannot read the fitness guide from the website's code or the API (401), members without a plan cannot either
+  (403 `PLAN_REQUIRED`), and its answer is never kept by a shared cache (`Cache-Control: private, no-cache`). The plans,
+  classes, coaches and floor answers, which now differ by session, are marked the same way. The downloadable Android app still contains it until it is rebuilt
+  and uploaded again (see Upgrading); `npm run mobile:release` now refuses to build an app that contains it.
+- Source maps (`.map` addresses) are never served, even if a build contains some, also when the address encodes the
+  `.map` (`%2Emap`) or adds a trailing slash, dot or space.
+- Default profile pictures are part of the site instead of loading from api.dicebear.com, so showing one sends nothing
+  to another service.
+- Points, gifts and prices are decided only by the server: requests never carry them. Coupon codes are listed to
+  admins only, and a quote or order says only whether a typed code works; after 10 failed codes in 10 minutes an
+  account gets 429 `RATE_LIMITED`. Other members never see anyone's points, gifts or referrals.
+
+### Upgrading
+
+- **Rebuild and upload the Android app with this release.** The APK offered at `/downloads/pulsefit.apk` keeps the code
+  it was built from, and a server deploy does not replace it. One built from 2.3.0 still contains the full fitness guide
+  (anyone can unzip it), still shows DiceBear pictures and does not ask for gender at sign-up. This release's app is
+  1.1.0 (versionCode 2, already set in `client/android/app/build.gradle`): run `npm --prefix client run mobile:release`
+  and upload the APK and the `pulsefit.json` it writes to the data volume in the same deploy (deploy/README.md ›
+  Android app). Do the same for an iOS build if one has been handed out. Installed apps (1.0.0) cannot tell people
+  about the update, so tell them to download it from the website once; from 1.1.0 the app asks by itself.
+- Apps already installed from 2.3.0 keep working against this server: they send the app header, and their sign-up
+  form, which has no gender question, is still accepted. Their service pages stay open to guests but get only the
+  guest answers, so guests see less there (nothing breaks): the timetable and the strength and Zumba class lists say
+  "Sign in to see the full timetable.", Memberships shows "₹NaN" where the annual prices were, and Coaches lists four
+  coaches, each with "No classes on the timetable right now"; the home page says 4 classes a week. The fitness guide and
+  the strength split are part of a 2.3.0 app's own code, so on it everyone, guests included, still sees all of them
+  until the app is updated (an app built after 2.3.0 shows a member without a plan the guide's 403 message with a Retry
+  button instead). The rebuilt app asks guests to sign in instead. One exception: their coach form will not save a coach without
+  a photo (when editing it asks for an `https://` photo address), and coaches without a photo now have none (stored
+  DiceBear addresses are cleared, and new coaches without one store `''`). Until the new app is installed, admins must
+  edit such coaches on the website.
+- Apps from 2.3.0 have no Rewards page, coupon field or sale prices: their Memberships cards show list prices, and the
+  payment opens for the sale price the server charges. Members still earn points and gifts on them.
+- Production starts with the gift catalogue, the rules and the joining gifts only: no sales or coupons until an admin
+  creates them. Set item stock under Plans & rewards › Gift catalogue (items start at 0: out of stock in the store,
+  and earned gifts wait), and expect
+  the first start to give regular members their welcome gift (the server log says how many).
+
 ## [2.3.0] — 2026-10-19
 
 v2.3 takes PulseFit live: Android and iOS apps, a security pass, search-engine and speed work, free UPI

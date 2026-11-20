@@ -197,6 +197,14 @@ export const config = {
   // OAuth client id from Google Cloud Console. When empty, "Continue with Google" is hidden.
   googleClientId: env.GOOGLE_CLIENT_ID || '',
 
+  // Email for the enquiry form, sent with Brevo's HTTPS API (lib/mailer.ts). Without a key and a sender nothing is
+  // sent; enquiries are still saved for the admin Leads page.
+  mail: {
+    brevoApiKey: env.BREVO_API_KEY || '',
+    from: (env.MAIL_FROM || '').trim(), // a sender verified in Brevo
+    inbox: (env.ENQUIRY_INBOX || env.MAIL_FROM || '').trim(), // where new enquiries go
+  },
+
   // When true (the default in production) the API also serves the built client from client/dist.
   serveClient: flag(env.SERVE_CLIENT, isProduction),
   clientDistPath: path.resolve(__dirname, '../../client/dist'),
@@ -224,5 +232,6 @@ export function paymentProvider(): PaymentProvider | null {
 
 export const paymentsEnabled = () => paymentProvider() !== null;
 export const googleSignInEnabled = () => Boolean(config.googleClientId);
+export const emailConfigured = () => Boolean(config.mail.brevoApiKey && config.mail.from);
 
 export default config;

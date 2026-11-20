@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Activity, CalendarDays, Gauge, IdCard, QrCode, Search, Tag, Users, UserPlus } from 'lucide-react';
 import { ApiError, errorMessage } from '../../api/client.js';
 import { useNavigation } from '../../context/NavigationContext.js';
+import { avatarOf } from '../member/avatarImage.js';
+import { Gender } from '../../types/index.js';
 
 // Building blocks shared by the admin and coach screens.
 
@@ -93,8 +95,8 @@ const ADMIN_LINKS = [
   { tab: 'admin-scanner', label: 'Check-in', icon: QrCode },
   { tab: 'admin-classes', label: 'Classes & coaches', icon: CalendarDays },
   { tab: 'trainer-dashboard', label: 'Coach dashboards', icon: Activity },
-  { tab: 'admin-plans', label: 'Plans', icon: Tag },
-  { tab: 'admin-trials', label: 'Trial leads', icon: UserPlus }
+  { tab: 'admin-plans', label: 'Plans & rewards', icon: Tag },
+  { tab: 'admin-trials', label: 'Leads', icon: UserPlus }
 ];
 
 /**
@@ -201,25 +203,16 @@ export const SectionCard: React.FC<{ title: string; icon?: React.ReactNode; desc
 const pixelsOf = (size: string) => Number(/\bw-(\d+)\b/.exec(size)?.[1] ?? 10) * 4;
 
 // Decorative (alt=""): the name is always written next to it. Avatars mostly sit in long lists, so
-// they load as they scroll into view and decode off the main thread.
-export const Avatar: React.FC<{ src?: string | null; name: string; size?: string }> = ({ src, name, size = 'w-10 h-10' }) =>
-  src ? (
-    <img
-      src={src}
-      alt=""
-      width={pixelsOf(size)}
-      height={pixelsOf(size)}
-      loading="lazy"
-      decoding="async"
-      className={`${size} rounded-xl object-cover border border-slate-700 bg-slate-800 shrink-0`}
-    />
-  ) : (
-    <span aria-hidden="true" className={`${size} rounded-xl neu-pressed-sm flex items-center justify-center text-xs font-black text-lime-400 shrink-0`}>
-      {name
-        .split(/\s+/)
-        .map(part => part[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase()}
-    </span>
-  );
+// they load as they scroll into view and decode off the main thread. Without a photo it shows the
+// default picture: gendered only where the page has the gender (admin views of members), else neutral.
+export const Avatar: React.FC<{ src?: string | null; gender?: Gender | null; size?: string }> = ({ src, gender, size = 'w-10 h-10' }) => (
+  <img
+    src={avatarOf({ avatar_url: src, gender })}
+    alt=""
+    width={pixelsOf(size)}
+    height={pixelsOf(size)}
+    loading="lazy"
+    decoding="async"
+    className={`${size} rounded-xl object-cover border border-slate-700 bg-slate-800 shrink-0`}
+  />
+);

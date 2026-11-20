@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>body{margin:0;background:#e9ebef;font-family:Inter,system-ui,sans-serif}a{color:#3f6212}a:hover{color:#84cc16}button{font-family:inherit;cursor:pointer}.dv-turn{padding:40px 44px 32px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}.dv-opts{display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:12px;scroll-margin-top:16px}.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 12px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.6);max-width:390px}.dv-next{margin:22px 0 0;font:12px/1.5 system-ui,sans-serif;color:rgba(0,0,0,.5)}.pf-dark{--bg:#0f141d;--card:rgba(30,41,59,.5);--inset:#0c1017;--sd:#080b10;--sl:#1e2838;--chip:#202b3d;--chip2:#2c3b52;--tx:#f1f5f9;--tx2:#e2e8f0;--tx3:#cbd5e1;--mu:#94a3b8;--mu2:#64748b;--lime:#a3e635;--bd:rgba(255,255,255,.10);--bar:rgba(20,27,39,.55)}.pf-light{--bg:#e6ebf2;--card:rgba(255,255,255,.5);--inset:#dfe5ee;--sd:#b8c3d1;--sl:#ffffff;--chip:#dce3ee;--chip2:#c5d0df;--tx:#0f172a;--tx2:#1e293b;--tx3:#334155;--mu:#475569;--mu2:#64748b;--lime:#4d7c0f;--bd:rgba(255,255,255,.9);--bar:rgba(255,255,255,.55)}.pf-dark{background-image:radial-gradient(220px 220px at 15% 12%,rgba(132,204,22,.28),transparent 70%),radial-gradient(260px 260px at 95% 45%,rgba(6,182,212,.22),transparent 70%),radial-gradient(240px 240px at 10% 88%,rgba(236,72,153,.18),transparent 70%)!important}.pf-light{background-image:radial-gradient(220px 220px at 15% 12%,rgba(132,204,22,.35),transparent 70%),radial-gradient(260px 260px at 95% 45%,rgba(6,182,212,.28),transparent 70%),radial-gradient(240px 240px at 10% 88%,rgba(236,72,153,.2),transparent 70%)!important}[style*="var(--card)"]{backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);background-image:linear-gradient(135deg,rgba(255,255,255,.12),rgba(255,255,255,.02) 45%,rgba(255,255,255,0))!important;border-color:var(--bd)!important;box-shadow:inset 1px 1px 0 rgba(255,255,255,.14),inset 0 0 0 1px var(--bd),7px 7px 16px var(--sd),-6px -6px 14px var(--sl)!important}.pf-light [style*="var(--card)"]{background-image:linear-gradient(135deg,rgba(255,255,255,.7),rgba(255,255,255,.1) 60%)!important}[style*="var(--bar)"]{backdrop-filter:blur(20px) saturate(170%);-webkit-backdrop-filter:blur(20px) saturate(170%)}.pf-scroll{scrollbar-width:none}.pf-scroll::-webkit-scrollbar{display:none}</style>
+</helmet>
+<section class="dv-turn" id="t1" data-screen-label="Turn 1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">PulseFit mobile — member, coach, front desk (neumorphic, from the existing app)</span><button onClick="{{ setDark }}" style="border:none;border-radius:99px;padding:5px 12px;font:700 11px Inter;background:{{ darkBg }};color:{{ darkFg }}">Dark</button><button onClick="{{ setLight }}" style="border:none;border-radius:99px;padding:5px 12px;font:700 11px Inter;background:{{ lightBg }};color:{{ lightFg }}">Light</button></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Member app — home, classes, QR pass, workout logger, profile &amp; plans</div>
+<div class="{{ themeCls }}" style="width:390px;height:800px;border-radius:48px;border:10px solid #05070a;background:var(--bg);position:relative;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.35);color:var(--tx);font-family:Inter,sans-serif;box-sizing:content-box">
+<div style="height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:14px;font-weight:600"><span>9:41</span><span style="display:flex;gap:6px;font-size:12px"><i class="fas fa-signal"></i><i class="fas fa-wifi"></i><i class="fas fa-battery-full"></i></span></div>
+<div class="pf-scroll" style="position:absolute;top:44px;bottom:84px;left:0;right:0;overflow-y:auto;padding:8px 20px 24px">
+
+<sc-if value="{{ m.home }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:center;gap:14px">
+<div style="width:56px;height:56px;border-radius:16px;background:var(--chip);border:2px solid rgba(132,204,22,.5);display:flex;align-items:center;justify-content:center;font:800 20px Outfit;color:var(--lime)">AS</div>
+<div style="flex:1"><div style="font:900 24px Outfit">Hi, Aarav</div><div style="display:flex;gap:8px;align-items:center;margin-top:3px"><span style="font-size:12px;font-weight:700;color:var(--tx3)">Quarterly Strength</span><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:rgba(132,204,22,.15);color:var(--lime)">Active</span></div><div style="font-size:11px;color:var(--mu);margin-top:2px">Valid through <b style="color:var(--tx2)">14 Feb 2027</b></div></div>
+</div>
+<div style="border-radius:24px;background:var(--card);box-shadow:8px 8px 18px var(--sd),-8px -8px 18px var(--sl);padding:18px;display:flex;align-items:center;gap:16px">
+<div style="width:84px;height:84px;border-radius:50%;background:conic-gradient(#84cc16 0 72%,var(--inset) 72% 100%);display:flex;align-items:center;justify-content:center"><div style="width:66px;height:66px;border-radius:50%;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font:900 24px Outfit;line-height:1">12</span><span style="font-size:9px;color:var(--mu);font-weight:700"><i class="fas fa-fire" style="color:#f59e0b"></i> DAYS</span></div></div>
+<div style="flex:1"><div style="font:800 15px Outfit">Day streak</div><div style="font-size:11px;color:var(--mu);line-height:1.4;margin-top:3px">Sundays don't break it. 3 more days to beat your best.</div><div style="font-size:11px;color:var(--lime);font-weight:700;margin-top:6px">4 of 5 sessions this week</div></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+<button onClick="{{ goPass }}" style="border:1px solid var(--bd);border-radius:18px;background:var(--card);box-shadow:5px 5px 12px var(--sd),-5px -5px 12px var(--sl);color:var(--tx2);padding:14px 4px;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;font-weight:700"><i class="fas fa-qrcode" style="font-size:18px"></i>Pass</button>
+<button onClick="{{ goMe }}" style="border:1px solid var(--bd);border-radius:18px;background:var(--card);box-shadow:5px 5px 12px var(--sd),-5px -5px 12px var(--sl);color:var(--tx2);padding:14px 4px;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;font-weight:700"><i class="fas fa-id-card" style="font-size:18px"></i>ID card</button>
+<button onClick="{{ goTrain }}" style="border:none;border-radius:18px;background:linear-gradient(135deg,#a3e635,#84cc16);box-shadow:0 0 25px -5px rgba(132,204,22,.45);color:#090c10;padding:14px 4px;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;font-weight:800"><i class="fas fa-plus" style="font-size:18px"></i>Log workout</button>
+</div>
+<div style="border-radius:24px;background:var(--card);box-shadow:8px 8px 18px var(--sd),-8px -8px 18px var(--sl);padding:18px">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><span style="font:800 16px Outfit"><i class="fas fa-calendar" style="color:var(--lime);margin-right:8px"></i>Upcoming classes</span><button onClick="{{ goClasses }}" style="border:none;background:none;color:var(--lime);font-size:11px;font-weight:700">Timetable <i class="fas fa-arrow-right"></i></button></div>
+<sc-if value="{{ hasBooked }}" hint-placeholder-val="{{ true }}"><div style="display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{ bookedList }}" as="b" hint-placeholder-count="2"><div style="border-radius:16px;background:var(--inset);box-shadow:inset 3px 3px 6px var(--sd),inset -3px -3px 6px var(--sl);padding:12px 14px;display:flex;align-items:center;gap:12px"><div style="text-align:center;min-width:48px"><div style="font:800 14px Outfit">{{ b.time }}</div><div style="font-size:9px;color:var(--mu);font-weight:700">{{ b.day }}</div></div><div style="flex:1"><div style="font-size:13px;font-weight:700">{{ b.name }}</div><div style="font-size:11px;color:var(--mu)">{{ b.coach }}</div></div><i class="fas fa-circle-check" style="color:#84cc16"></i></div></sc-for></div></sc-if>
+<sc-if value="{{ noBooked }}"><div style="text-align:center;font-size:12px;color:var(--mu);padding:14px 0">No upcoming classes. Book a spot from the timetable.</div></sc-if>
+</div>
+<div style="border-radius:24px;background:var(--card);box-shadow:8px 8px 18px var(--sd),-8px -8px 18px var(--sl);padding:18px">
+<div style="font:800 16px Outfit;margin-bottom:10px"><i class="fas fa-message" style="color:var(--lime);margin-right:8px"></i>Note from your coach</div>
+<div style="border-radius:16px;background:var(--inset);box-shadow:inset 3px 3px 6px var(--sd),inset -3px -3px 6px var(--sl);padding:12px 14px"><div style="font-size:11px;font-weight:700;color:var(--tx2)">Coach Riya · <span style="color:var(--mu)">Progress</span></div><div style="font-size:12px;color:var(--tx3);margin-top:4px;line-height:1.45">Squat depth is much better. Add 2.5 kg next week and keep the tempo slow.</div></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ m.classes }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="font:900 26px Outfit">Timetable</div>
+<div style="display:flex;gap:10px"><sc-for list="{{ days }}" as="d" hint-placeholder-count="5"><button onClick="{{ d.pick }}" style="flex:1;border:1px solid var(--bd);border-radius:14px;padding:10px 0;background:{{ d.bg }};color:{{ d.fg }};box-shadow:{{ d.sh }};display:flex;flex-direction:column;align-items:center;gap:2px"><span style="font-size:9px;font-weight:700;opacity:.8">{{ d.dow }}</span><span style="font:800 16px Outfit">{{ d.n }}</span></button></sc-for></div>
+<sc-for list="{{ classes }}" as="c" hint-placeholder-count="4"><div style="border-radius:22px;background:var(--card);box-shadow:6px 6px 14px var(--sd),-6px -6px 14px var(--sl);padding:16px;display:flex;align-items:center;gap:14px"><div style="width:50px;height:50px;border-radius:14px;background:{{ c.tint }};display:flex;align-items:center;justify-content:center;color:{{ c.ink }}"><i class="fas {{ c.icon }}" style="font-size:18px"></i></div><div style="flex:1;min-width:0"><div style="font:800 15px Outfit">{{ c.name }}</div><div style="font-size:11px;color:var(--mu);margin-top:2px">{{ c.time }} · {{ c.coach }}</div><div style="font-size:10px;font-weight:700;color:{{ c.spotColor }};margin-top:4px">{{ c.spotText }}</div></div><button onClick="{{ c.toggle }}" style="border:none;border-radius:12px;padding:10px 14px;font-size:11px;font-weight:800;background:{{ c.btnBg }};color:{{ c.btnFg }};box-shadow:{{ c.btnSh }}">{{ c.btnText }}</button></div></sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ m.pass }}">
+<div style="display:flex;flex-direction:column;gap:18px;align-items:center">
+<div style="font:900 26px Outfit;align-self:flex-start">Entry pass</div>
+<div style="width:100%;border-radius:28px;background:var(--card);box-shadow:12px 12px 28px var(--sd),-12px -12px 28px var(--sl);padding:24px;display:flex;flex-direction:column;align-items:center;gap:16px;box-sizing:border-box">
+<div style="padding:14px;background:#fff;border-radius:18px"><div style="display:grid;grid-template-columns:repeat(21,8px);grid-auto-rows:8px"><sc-for list="{{ qr }}" as="q" hint-placeholder-count="10"><div style="background:{{ q }}"></div></sc-for></div></div>
+<div style="text-align:center"><div style="font:800 18px Outfit">Aarav Sharma</div><div style="font-size:11px;color:var(--mu);margin-top:2px">PF-004821 · Quarterly Strength</div></div>
+<span style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:99px;background:rgba(132,204,22,.15);color:var(--lime)"><i class="fas fa-circle" style="font-size:6px;margin-right:6px"></i>Active · refreshes in 0:42</span>
+</div>
+<div style="font-size:12px;color:var(--mu);text-align:center;line-height:1.5">Hold this to the front-desk or kiosk scanner. Brightness is raised automatically.</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ m.train }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;justify-content:space-between;align-items:flex-end"><span style="font:900 26px Outfit">Workout</span><span style="font-size:11px;color:var(--mu);font-weight:600">Push day · 38 min</span></div>
+<div style="border-radius:22px;background:var(--card);box-shadow:6px 6px 14px var(--sd),-6px -6px 14px var(--sl);padding:16px"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:var(--mu);margin-bottom:10px"><span>Volume this week</span><span style="color:var(--lime)">+8%</span></div><div style="display:flex;align-items:flex-end;gap:8px;height:70px"><sc-for list="{{ bars }}" as="b" hint-placeholder-count="7"><div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;justify-content:flex-end;height:100%"><div style="width:100%;border-radius:6px;height:{{ b.h }};background:{{ b.c }}"></div><span style="font-size:9px;color:var(--mu2);font-weight:700">{{ b.d }}</span></div></sc-for></div></div>
+<sc-for list="{{ exercises }}" as="e" hint-placeholder-count="3"><div style="border-radius:22px;background:var(--card);box-shadow:6px 6px 14px var(--sd),-6px -6px 14px var(--sl);padding:16px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font:800 15px Outfit">{{ e.name }}</span><span style="font-size:10px;color:var(--mu);font-weight:700">{{ e.count }} sets</span></div><div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0"><sc-for list="{{ e.sets }}" as="s" hint-placeholder-count="3"><span style="border-radius:10px;background:var(--inset);box-shadow:inset 2px 2px 5px var(--sd),inset -2px -2px 5px var(--sl);padding:7px 11px;font-size:12px;font-weight:700">{{ s }}</span></sc-for></div><button onClick="{{ e.add }}" style="width:100%;border:1px solid rgba(132,204,22,.4);background:none;color:var(--lime);border-radius:12px;padding:9px;font-size:11px;font-weight:800"><i class="fas fa-plus"></i> Add set (repeat last)</button></div></sc-for>
+<button onClick="{{ finish }}" style="border:none;border-radius:16px;padding:15px;font:800 14px Inter;background:{{ finishBg }};color:#090c10;box-shadow:0 0 25px -5px rgba(132,204,22,.45)">{{ finishText }}</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ m.me }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="font:900 26px Outfit">Profile</div>
+<div style="border-radius:24px;padding:18px;background:linear-gradient(135deg,var(--chip),var(--card));box-shadow:8px 8px 18px var(--sd),-8px -8px 18px var(--sl);border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="font:900 15px Outfit;color:var(--lime)"><i class="fas fa-bolt"></i> PulseFit</span><span style="font-size:9px;font-weight:700;color:var(--mu);letter-spacing:.1em">MEMBER ID</span></div>
+<div style="display:flex;gap:14px;align-items:center"><div style="width:64px;height:64px;border-radius:16px;background:var(--chip2);display:flex;align-items:center;justify-content:center;font:800 22px Outfit;color:var(--lime)">AS</div><div><div style="font:800 18px Outfit">Aarav Sharma</div><div style="font-size:11px;color:var(--mu)">PF-004821</div><div style="font-size:11px;color:var(--mu)">Valid through 14 Feb 2027</div></div></div>
+</div>
+<div style="border-radius:22px;background:var(--card);box-shadow:6px 6px 14px var(--sd),-6px -6px 14px var(--sl);padding:16px;display:flex;align-items:center;gap:12px"><div style="flex:1"><div style="font-size:13px;font-weight:700"><i class="fas fa-snowflake" style="color:#06b6d4;margin-right:8px"></i>Freeze membership</div><div style="font-size:11px;color:var(--mu);margin-top:3px;line-height:1.4">{{ freezeText }}</div></div><button onClick="{{ toggleFreeze }}" style="width:52px;height:30px;border-radius:99px;border:none;position:relative;background:{{ freezeBg }};box-shadow:inset 2px 2px 5px var(--sd)"><span style="position:absolute;top:4px;left:{{ freezeLeft }};width:22px;height:22px;border-radius:50%;background:var(--tx2);transition:left .2s"></span></button></div>
+<div style="font:800 16px Outfit;margin-top:4px">Plans</div>
+<sc-for list="{{ plans }}" as="p" hint-placeholder-count="3"><button onClick="{{ p.pick }}" style="text-align:left;color:var(--tx);border-radius:20px;background:var(--card);padding:14px 16px;display:flex;align-items:center;gap:12px;border:{{ p.border }};box-shadow:{{ p.sh }}"><div style="flex:1"><div style="font:800 14px Outfit">{{ p.name }}</div><div style="font-size:11px;color:var(--mu);margin-top:2px">{{ p.note }}</div></div><div style="text-align:right"><div style="font:900 17px Outfit;color:var(--lime)">{{ p.price }}</div><div style="font-size:9px;color:var(--mu2);font-weight:700">{{ p.state }}</div></div></button></sc-for><div style="font:800 16px Outfit;margin-top:4px">Invoices</div><div style="border-radius:22px;background:var(--card);box-shadow:6px 6px 14px var(--sd),-6px -6px 14px var(--sl);border:1px solid var(--bd);padding:6px 16px"><div style="display:flex;align-items:center;gap:12px;padding:12px 0;"><i class="fas fa-file-invoice" style="color:var(--lime)"></i><div style="flex:1"><div style="font-size:13px;font-weight:700">INV-2411</div><div style="font-size:10px;color:var(--mu)">20 Nov 2026</div></div><span style="font-size:13px;font-weight:800">₹3,999</span><i class="fas fa-download" style="color:var(--mu2);font-size:12px"></i></div><div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--bd)"><i class="fas fa-file-invoice" style="color:var(--lime)"></i><div style="flex:1"><div style="font-size:13px;font-weight:700">INV-2308</div><div style="font-size:10px;color:var(--mu)">20 Aug 2026</div></div><span style="font-size:13px;font-weight:800">₹3,999</span><i class="fas fa-download" style="color:var(--mu2);font-size:12px"></i></div><div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--bd)"><i class="fas fa-file-invoice" style="color:var(--lime)"></i><div style="flex:1"><div style="font-size:13px;font-weight:700">INV-2205</div><div style="font-size:10px;color:var(--mu)">20 May 2026</div></div><span style="font-size:13px;font-weight:800">₹1,499</span><i class="fas fa-download" style="color:var(--mu2);font-size:12px"></i></div></div>
+</div>
+</sc-if>
+</div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:84px;background:var(--bar);border-top:1px solid rgba(255,255,255,.06);display:flex;padding:8px 8px 0;box-sizing:border-box;backdrop-filter:blur(14px)">
+<sc-for list="{{ mTabs }}" as="t" hint-placeholder-count="5"><button onClick="{{ t.go }}" style="flex:1;border:none;background:none;color:{{ t.c }};display:flex;flex-direction:column;align-items:center;gap:5px;padding-top:6px;height:50px;font-size:10px;font-weight:700"><i class="fas {{ t.i }}" style="font-size:17px"></i>{{ t.l }}</button></sc-for>
+<div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:var(--tx2)"></div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Coach app — class rosters with attendance, check-in scanner, client notes</div>
+<div class="{{ themeCls }}" style="width:390px;height:800px;border-radius:48px;border:10px solid #05070a;background:var(--bg);position:relative;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.35);color:var(--tx);font-family:Inter,sans-serif;box-sizing:content-box">
+<div style="height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:14px;font-weight:600"><span>9:41</span><span style="display:flex;gap:6px;font-size:12px"><i class="fas fa-signal"></i><i class="fas fa-wifi"></i><i class="fas fa-battery-full"></i></span></div>
+<div class="pf-scroll" style="position:absolute;top:44px;bottom:84px;left:0;right:0;overflow-y:auto;padding:8px 20px 24px">
+<sc-if value="{{ c.roster }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+<div><div style="font-size:11px;color:var(--mu);font-weight:700;letter-spacing:.08em">TODAY · THU 20 NOV</div><div style="font:900 26px Outfit">Coach Riya</div></div>
+<div style="border-radius:24px;background:var(--card);box-shadow:8px 8px 18px var(--sd),-8px -8px 18px var(--sl);padding:18px">
+<div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:10px;font-weight:800;color:var(--lime);letter-spacing:.08em">NOW · 18:00–19:00</div><div style="font:800 19px Outfit;margin-top:3px">Zumba Fusion</div></div><div style="text-align:right"><div style="font:900 26px Outfit;color:var(--lime);line-height:1">{{ presentCount }}<span style="font-size:14px;color:var(--mu)">/{{ rosterTotal }}</span></div><div style="font-size:9px;color:var(--mu);font-weight:700">PRESENT</div></div></div>
+<div style="height:8px;border-radius:4px;background:var(--inset);box-shadow:inset 1px 1px 3px var(--sd);margin:14px 0 6px;overflow:hidden"><div style="height:100%;width:{{ presentPct }};background:#84cc16;border-radius:4px;transition:width .25s"></div></div>
+</div>
+<div style="font:800 15px Outfit">Roster <span style="font-size:11px;color:var(--mu);font-weight:600;font-family:Inter">· tap to mark attendance</span></div>
+<sc-for list="{{ roster }}" as="r" hint-placeholder-count="6"><button onClick="{{ r.toggle }}" style="text-align:left;color:var(--tx);border-radius:18px;background:var(--card);box-shadow:5px 5px 12px var(--sd),-5px -5px 12px var(--sl);border:1px solid {{ r.border }};padding:12px 14px;display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;border-radius:12px;background:var(--chip);display:flex;align-items:center;justify-content:center;font:800 14px Outfit;color:var(--lime)">{{ r.ini }}</div><div style="flex:1"><div style="font-size:13px;font-weight:700">{{ r.name }}</div><div style="font-size:10px;color:var(--mu)">{{ r.note }}</div></div><div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:{{ r.bg }};color:{{ r.fg }};font-size:12px"><i class="fas {{ r.icon }}"></i></div></button></sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ c.scan }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="font:900 26px Outfit">Check-in</div>
+<div style="height:290px;border-radius:26px;background:#05070a;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:inset 4px 4px 10px #000">
+<div style="width:190px;height:190px;position:relative"><div style="position:absolute;top:0;left:0;width:34px;height:34px;border-top:4px solid #84cc16;border-left:4px solid #84cc16;border-radius:10px 0 0 0"></div><div style="position:absolute;top:0;right:0;width:34px;height:34px;border-top:4px solid #84cc16;border-right:4px solid #84cc16;border-radius:0 10px 0 0"></div><div style="position:absolute;bottom:0;left:0;width:34px;height:34px;border-bottom:4px solid #84cc16;border-left:4px solid #84cc16;border-radius:0 0 0 10px"></div><div style="position:absolute;bottom:0;right:0;width:34px;height:34px;border-bottom:4px solid #84cc16;border-right:4px solid #84cc16;border-radius:0 0 10px 0"></div><div style="position:absolute;left:8px;right:8px;top:50%;height:2px;background:#a3e635;box-shadow:0 0 14px #84cc16"></div></div>
+<span style="position:absolute;bottom:14px;font-size:11px;color:var(--mu);font-weight:600">Point the camera at a member's pass</span>
+</div>
+<button onClick="{{ coachScan }}" style="border:none;border-radius:16px;padding:14px;font:800 14px Inter;background:linear-gradient(135deg,#a3e635,#84cc16);color:#090c10;box-shadow:0 0 25px -5px rgba(132,204,22,.45)"><i class="fas fa-camera"></i> Simulate scan</button>
+<sc-if value="{{ coachResult }}"><div style="border-radius:22px;background:var(--card);box-shadow:6px 6px 14px var(--sd),-6px -6px 14px var(--sl);padding:16px;display:flex;align-items:center;gap:14px;border:1px solid {{ coachResult.border }}"><div style="width:46px;height:46px;border-radius:14px;background:{{ coachResult.bg }};color:{{ coachResult.fg }};display:flex;align-items:center;justify-content:center;font-size:18px"><i class="fas {{ coachResult.icon }}"></i></div><div style="flex:1"><div style="font:800 15px Outfit">{{ coachResult.name }}</div><div style="font-size:11px;color:var(--mu)">{{ coachResult.sub }}</div></div></div></sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ c.notes }}">
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="font:900 26px Outfit">Client notes</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><sc-for list="{{ noteCats }}" as="n" hint-placeholder-count="4"><button onClick="{{ n.pick }}" style="border:none;border-radius:99px;padding:7px 13px;font-size:11px;font-weight:700;background:{{ n.bg }};color:{{ n.fg }}">{{ n.l }}</button></sc-for></div>
+<div style="border-radius:18px;background:var(--inset);box-shadow:inset 3px 3px 6px var(--sd),inset -3px -3px 6px var(--sl);padding:14px;font-size:13px;color:var(--mu);line-height:1.5;min-height:70px">Squat depth improving. Add 2.5 kg next week…</div>
+<button onClick="{{ addNote }}" style="border:none;border-radius:14px;padding:12px;font:800 12px Inter;background:#84cc16;color:#090c10">Share with member</button>
+<sc-for list="{{ noteList }}" as="n" hint-placeholder-count="2"><div style="border-radius:18px;background:var(--card);box-shadow:5px 5px 12px var(--sd),-5px -5px 12px var(--sl);padding:14px"><div style="font-size:11px;font-weight:700">{{ n.who }} · <span style="color:var(--mu)">{{ n.cat }}</span></div><div style="font-size:12px;color:var(--tx3);margin-top:4px;line-height:1.45">{{ n.text }}</div></div></sc-for>
+</div>
+</sc-if>
+</div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:84px;background:var(--bar);border-top:1px solid rgba(255,255,255,.06);display:flex;padding:8px 8px 0;box-sizing:border-box">
+<sc-for list="{{ cTabs }}" as="t" hint-placeholder-count="3"><button onClick="{{ t.go }}" style="flex:1;border:none;background:none;color:{{ t.c }};display:flex;flex-direction:column;align-items:center;gap:5px;padding-top:6px;height:50px;font-size:10px;font-weight:700"><i class="fas {{ t.i }}" style="font-size:17px"></i>{{ t.l }}</button></sc-for>
+<div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:var(--tx2)"></div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Front desk — scan-first check-in, live floor count, trial leads</div>
+<div class="{{ themeCls }}" style="width:390px;height:800px;border-radius:48px;border:10px solid #05070a;background:var(--bg);position:relative;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.35);color:var(--tx);font-family:Inter,sans-serif;box-sizing:content-box">
+<div style="height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:14px;font-weight:600"><span>9:41</span><span style="display:flex;gap:6px;font-size:12px"><i class="fas fa-signal"></i><i class="fas fa-wifi"></i><i class="fas fa-battery-full"></i></span></div>
+<div class="pf-scroll" style="position:absolute;top:44px;bottom:0;left:0;right:0;overflow-y:auto;padding:8px 20px 36px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:11px;color:var(--mu);font-weight:700;letter-spacing:.08em">FRONT DESK</div><div style="font:900 26px Outfit">Check-in</div></div><div style="text-align:right"><div style="font:900 30px Outfit;color:var(--lime);line-height:1">{{ onFloor }}</div><div style="font-size:9px;font-weight:700;color:var(--mu)">ON THE FLOOR</div></div></div>
+<div style="height:210px;border-radius:26px;background:#05070a;position:relative;display:flex;align-items:center;justify-content:center;box-shadow:inset 4px 4px 10px #000;overflow:hidden"><div style="width:140px;height:140px;border:3px dashed rgba(132,204,22,.6);border-radius:22px;display:flex;align-items:center;justify-content:center"><i class="fas fa-qrcode" style="font-size:44px;color:var(--chip2)"></i></div><div style="position:absolute;left:30px;right:30px;top:{{ scanLine }};height:2px;background:#a3e635;box-shadow:0 0 14px #84cc16;transition:top .6s"></div></div>
+<div style="display:flex;gap:10px"><button onClick="{{ deskScan }}" style="flex:1;border:none;border-radius:16px;padding:14px;font:800 13px Inter;background:linear-gradient(135deg,#a3e635,#84cc16);color:#090c10;box-shadow:0 0 25px -5px rgba(132,204,22,.45)"><i class="fas fa-camera"></i> Scan pass</button><button onClick="{{ deskManual }}" style="flex:1;border:1px solid var(--bd);border-radius:16px;padding:14px;font:700 13px Inter;background:var(--card);color:var(--tx2);box-shadow:5px 5px 12px var(--sd),-5px -5px 12px var(--sl)"><i class="fas fa-keyboard"></i> Enter ID</button></div>
+<sc-if value="{{ deskResult }}"><div style="border-radius:22px;background:{{ deskResult.bg }};border:1px solid {{ deskResult.border }};padding:14px 16px;display:flex;gap:14px;align-items:center"><i class="fas {{ deskResult.icon }}" style="font-size:24px;color:{{ deskResult.fg }}"></i><div style="flex:1"><div style="font:800 15px Outfit">{{ deskResult.name }}</div><div style="font-size:11px;color:var(--tx3)">{{ deskResult.sub }}</div></div></div></sc-if>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+<div style="border-radius:20px;background:var(--card);box-shadow:5px 5px 12px var(--sd),-5px -5px 12px var(--sl);padding:14px"><div style="font-size:10px;color:var(--mu);font-weight:700">TODAY'S CHECK-INS</div><div style="font:900 24px Outfit;margin-top:4px">{{ todayCount }}</div></div>
+<div style="border-radius:20px;background:var(--card);box-shadow:5px 5px 12px var(--sd),-5px -5px 12px var(--sl);padding:14px"><div style="font-size:10px;color:var(--mu);font-weight:700">TRIAL LEADS</div><div style="font:900 24px Outfit;margin-top:4px">3 <span style="font-size:11px;color:#f59e0b;font-weight:700">new</span></div></div>
+</div>
+<div style="font:800 15px Outfit">Recent</div>
+<sc-for list="{{ feed }}" as="f" hint-placeholder-count="4"><div style="display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid rgba(255,255,255,.05)"><div style="width:36px;height:36px;border-radius:11px;background:var(--chip);display:flex;align-items:center;justify-content:center;font:800 13px Outfit;color:var(--lime)">{{ f.ini }}</div><div style="flex:1"><div style="font-size:13px;font-weight:700">{{ f.name }}</div><div style="font-size:10px;color:var(--mu)">{{ f.plan }}</div></div><div style="text-align:right"><div style="font-size:11px;font-weight:700;color:var(--tx3)">{{ f.time }}</div><div style="font-size:9px;color:var(--mu2);font-weight:700">{{ f.method }}</div></div></div></sc-for>
+</div>
+<div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:var(--tx2)"></div>
+</div>
+</div>
+
+
+<div class="dv-opt" id="1d">
+<div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Admin app — revenue dashboard, members, trial leads</div>
+<div class="{{ themeCls }}" style="width:390px;height:800px;border-radius:48px;border:10px solid #05070a;background:var(--bg);position:relative;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.35);color:var(--tx);font-family:Inter,sans-serif;box-sizing:content-box">
+<div style="height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:14px;font-weight:600"><span>9:41</span><span style="display:flex;gap:6px;font-size:12px"><i class="fas fa-signal"></i><i class="fas fa-wifi"></i><i class="fas fa-battery-full"></i></span></div>
+<div class="pf-scroll" style="position:absolute;top:44px;bottom:84px;left:0;right:0;overflow-y:auto;padding:8px 20px 24px">
+<sc-if value="{{ ad.dash }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+<div><div style="font-size:11px;color:var(--mu);font-weight:700;letter-spacing:.08em">PULSEFIT · GURUGRAM</div><div style="font:900 26px Outfit">Dashboard</div></div>
+<div style="border-radius:24px;background:var(--card);box-shadow:6px 6px 14px var(--sd),-6px -6px 14px var(--sl);border:1px solid var(--bd);padding:18px"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div style="font-size:10px;font-weight:700;color:var(--mu)">REVENUE · NOV</div><div style="font:900 30px Outfit;margin-top:2px">₹4,82,300</div></div><span style="font-size:11px;font-weight:700;color:var(--lime);background:rgba(132,204,22,.15);padding:4px 10px;border-radius:99px">+12%</span></div>
+<div style="display:flex;align-items:flex-end;gap:6px;height:84px;margin-top:16px"><sc-for list="{{ revBars }}" as="b" hint-placeholder-count="12"><button onClick="{{ b.pick }}" style="flex:1;height:{{ b.h }};border:none;border-radius:6px;background:{{ b.c }};padding:0"></button></sc-for></div>
+<div style="font-size:11px;color:var(--mu);margin-top:10px;font-weight:600">{{ revNote }}</div></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><sc-for list="{{ adStats }}" as="s" hint-placeholder-count="4"><div style="border-radius:20px;background:var(--card);box-shadow:6px 6px 14px var(--sd),-6px -6px 14px var(--sl);border:1px solid var(--bd);padding:14px"><div style="font-size:10px;color:var(--mu);font-weight:700">{{ s.l }}</div><div style="font:900 24px Outfit;margin-top:4px">{{ s.v }}</div><div style="font-size:10px;font-weight:700;color:{{ s.c }}">{{ s.n }}</div></div></sc-for></div>
+<div style="border-radius:24px;background:var(--card);box-shadow:6px 6px 14px var(--sd),-6px -6px 14px var(--sl);border:1px solid var(--bd);padding:16px"><div style="font:800 15px Outfit;margin-bottom:12px">Busiest classes this week</div><sc-for list="{{ classFill }}" as="c" hint-placeholder-count="3"><div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-bottom:5px"><span>{{ c.n }}</span><span style="color:var(--mu)">{{ c.p }}</span></div><div style="height:8px;border-radius:4px;background:var(--inset);box-shadow:inset 1px 1px 3px var(--sd);overflow:hidden"><div style="height:100%;width:{{ c.p }};background:#84cc16;border-radius:4px"></div></div></div></sc-for></div>
+</div></sc-if>
+<sc-if value="{{ ad.members }}"><div style="display:flex;flex-direction:column;gap:14px">
+<div style="font:900 26px Outfit">Members</div>
+<div style="display:flex;gap:8px"><sc-for list="{{ mFilters }}" as="f" hint-placeholder-count="4"><button onClick="{{ f.pick }}" style="border:none;border-radius:99px;padding:7px 13px;font-size:11px;font-weight:700;background:{{ f.bg }};color:{{ f.fg }}">{{ f.l }}</button></sc-for></div>
+<sc-for list="{{ memberList }}" as="m" hint-placeholder-count="5"><div style="border-radius:18px;background:var(--card);box-shadow:6px 6px 14px var(--sd),-6px -6px 14px var(--sl);border:1px solid var(--bd);padding:12px 14px;display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;border-radius:12px;background:var(--chip);display:flex;align-items:center;justify-content:center;font:800 14px Outfit;color:var(--lime)">{{ m.ini }}</div><div style="flex:1"><div style="font-size:13px;font-weight:700">{{ m.name }}</div><div style="font-size:10px;color:var(--mu)">{{ m.plan }} · {{ m.until }}</div></div><span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:99px;background:{{ m.bg }};color:{{ m.fg }}">{{ m.st }}</span></div></sc-for>
+</div></sc-if>
+<sc-if value="{{ ad.leads }}"><div style="display:flex;flex-direction:column;gap:14px">
+<div style="font:900 26px Outfit">Trial leads</div>
+<sc-for list="{{ leadList }}" as="l" hint-placeholder-count="3"><div style="border-radius:20px;background:var(--card);box-shadow:6px 6px 14px var(--sd),-6px -6px 14px var(--sl);border:1px solid var(--bd);padding:14px;display:flex;align-items:center;gap:12px"><div style="flex:1"><div style="font-size:13px;font-weight:700">{{ l.name }}</div><div style="font-size:10px;color:var(--mu);margin-top:2px">{{ l.meta }}</div></div><button onClick="{{ l.toggle }}" style="border:none;border-radius:12px;padding:9px 12px;font-size:11px;font-weight:800;background:{{ l.bg }};color:{{ l.fg }}">{{ l.t }}</button></div></sc-for>
+</div></sc-if>
+</div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:84px;background:var(--bar);border-top:1px solid var(--bd);display:flex;padding:8px 8px 0;box-sizing:border-box;backdrop-filter:blur(14px)">
+<sc-for list="{{ aTabs }}" as="t" hint-placeholder-count="3"><button onClick="{{ t.go }}" style="flex:1;border:none;background:none;color:{{ t.c }};display:flex;flex-direction:column;align-items:center;gap:5px;padding-top:6px;height:50px;font-size:10px;font-weight:700"><i class="fas {{ t.i }}" style="font-size:17px"></i>{{ t.l }}</button></sc-for>
+<div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:var(--tx2)"></div>
+</div>
+</div>
+</div>
+</div>
+<p class="dv-next">Try next: "make <a class="dv-oid" href="#1a">1a</a> light theme" · "more distinctive visual direction for <a class="dv-oid" href="#1a">1a</a> (flat, less neumorphic)"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { mt: 'home', ct: 'roster', day: 0, booked: { 2: true }, sets: { Bench: ['60×8', '60×8'], Row: ['50×10'], OHP: ['30×8'] }, done: false, freeze: false, plan: 1, present: { 0: true, 1: true, 2: true, 3: false, 4: true, 5: false, 6: false }, cScanIdx: -1, noteCat: 0, notes: [], feed: [{ name: 'Neha Verma', plan: 'Monthly Zumba', time: '17:52', method: 'QR' }, { name: 'Karan Mehta', plan: 'Annual All-Access', time: '17:48', method: 'QR' }, { name: 'Pooja Rao', plan: 'Quarterly Strength', time: '17:41', method: 'Front desk' }], dScan: 0, dResult: null, line: false, theme: 'dark', at: 'dash', mf: 0, rev: 11, contacted: { 1: true } };
+  componentDidMount() { this.iv = setInterval(() => this.setState(s => ({ line: !s.line })), 900); }
+  componentWillUnmount() { clearInterval(this.iv); }
+  renderVals() {
+    const s = this.state, set = o => this.setState(o);
+    const SH = '6px 6px 14px var(--sd),-6px -6px 14px var(--sl)', IN = 'inset 3px 3px 6px var(--sd),inset -3px -3px 6px var(--sl)';
+    const tab = (items, cur, key) => items.map(([k, l, i]) => ({ l, i, c: cur === k ? 'var(--lime)' : 'var(--mu2)', go: () => set({ [key]: k }) }));
+    const ini = n => n.split(' ').map(w => w[0]).join('');
+    const classesAll = [
+      { id: 0, time: '06:30', name: 'Strength Foundations', coach: 'Coach Dev', spots: 4, icon: 'fa-dumbbell', k: 's' },
+      { id: 1, time: '08:00', name: 'HIIT Express', coach: 'Coach Riya', spots: 0, icon: 'fa-bolt', k: 'h' },
+      { id: 2, time: '18:00', name: 'Zumba Fusion', coach: 'Coach Riya', spots: 3, icon: 'fa-music', k: 'z' },
+      { id: 3, time: '19:30', name: 'Powerlifting Lab', coach: 'Coach Dev', spots: 9, icon: 'fa-weight-hanging', k: 's' }
+    ].map(c => ({ ...c, id: c.id + s.day * 10 }));
+    const bk = id => !!s.booked[id];
+    const dn = ['MON', 'TUE', 'WED', 'THU', 'FRI'], dd = [17, 18, 19, 20, 21];
+    const classes = classesAll.map(c => {
+      const b = bk(c.id), full = c.spots === 0 && !b;
+      return { ...c, tint: c.k === 'z' ? 'rgba(236,72,153,.15)' : c.k === 'h' ? 'rgba(245,158,11,.15)' : 'rgba(132,204,22,.15)', ink: c.k === 'z' ? '#ec4899' : c.k === 'h' ? '#f59e0b' : 'var(--lime)',
+        spotText: full ? 'Full · join waitlist' : (b ? 'You are booked' : c.spots + ' spots left'), spotColor: full ? '#f59e0b' : b ? 'var(--lime)' : 'var(--mu)',
+        btnText: b ? 'Booked' : full ? 'Waitlist' : 'Book', btnBg: b ? 'var(--inset)' : full ? 'var(--card)' : 'linear-gradient(135deg,#a3e635,#84cc16)', btnFg: b ? 'var(--lime)' : full ? '#f59e0b' : '#090c10', btnSh: b ? IN : full ? SH : 'none',
+        toggle: () => set(st => ({ booked: { ...st.booked, [c.id]: !st.booked[c.id] } })) };
+    });
+    const bookedList = []; Object.keys(s.booked).forEach(k => { if (s.booked[k]) { const d = Math.floor(k / 10), c = classesAll.find(x => x.id == k); bookedList.push({ time: c.time, name: c.name, coach: c.coach, day: dn[d] + ' ' + dd[d] }); } });
+    const qr = []; for (let i = 0; i < 441; i++) { const r = Math.floor(i / 21), c = i % 21; const fin = (a, b) => (r < 7 && c < 7 && (r % 6 === 0 || c % 6 === 0 || (r > 1 && r < 5 && c > 1 && c < 5))) || (r < 7 && c > 13 && (r % 6 === 0 || (c - 14) % 6 === 0 || (r > 1 && r < 5 && c > 15 && c < 19))) || (r > 13 && c < 7 && (c % 6 === 0 || (r - 14) % 6 === 0 || (r > 15 && r < 19 && c > 1 && c < 5))); const zone = (r < 8 && c < 8) || (r < 8 && c > 12) || (r > 12 && c < 8); qr.push(zone ? (fin() ? 'var(--bg)' : '#fff') : (((r * 7 + c * 13 + r * c) % 5 < 2) ? 'var(--bg)' : '#fff')); }
+    const lg = ['60×8', '62.5×8', '65×6'];
+    const exercises = [['Bench', 'Bench Press'], ['Row', 'Barbell Row'], ['OHP', 'Overhead Press']].map(([k, name]) => ({ name, sets: s.sets[k], count: s.sets[k].length, add: () => set(st => ({ sets: { ...st.sets, [k]: [...st.sets[k], st.sets[k][st.sets[k].length - 1]] } })) }));
+    const vol = [40, 62, 0, 70, 55, 85, 30];
+    const planDefs = [['Monthly Zumba', '4 classes / week', '₹1,499'], ['Quarterly Strength', 'Floor + strength classes', '₹3,999'], ['Annual All-Access', 'Everything, 2 freezes', '₹12,999']];
+    const roster = ['Aarav Sharma', 'Neha Verma', 'Karan Mehta', 'Pooja Rao', 'Isha Kapoor', 'Rohan Das', 'Meera Nair'].map((n, i) => { const p = !!s.present[i]; return { name: n, ini: ini(n), note: i === 4 ? 'Knee injury noted' : i === 0 ? 'Booked · 12-day streak' : 'Booked', border: p ? 'rgba(132,204,22,.4)' : 'var(--bd)', bg: p ? '#84cc16' : 'var(--inset)', fg: p ? '#090c10' : 'var(--mu2)', icon: p ? 'fa-check' : 'fa-minus', toggle: () => set(st => ({ present: { ...st.present, [i]: !st.present[i] } })) }; });
+    const pc = Object.values(s.present).filter(Boolean).length;
+    const scanPool = [{ name: 'Neha Verma', sub: 'Monthly Zumba · valid through 3 Jan', ok: 1 }, { name: 'Dev Patel', sub: 'Membership expired 2 Nov · send to desk', ok: 0 }, { name: 'Karan Mehta', sub: 'Annual All-Access · booked Zumba 18:00', ok: 1 }];
+    const rs = (p) => p ? (p.ok ? { ...p, bg: 'var(--card)', border: 'rgba(132,204,22,.4)', fg: 'var(--lime)', icon: 'fa-circle-check' } : { ...p, bg: 'rgba(239,68,68,.1)', border: 'rgba(239,68,68,.4)', fg: '#ef4444', icon: 'fa-circle-xmark' }) : null;
+    const cr = s.cScanIdx >= 0 ? rs(scanPool[s.cScanIdx % 3]) : null;
+    if (cr) { cr.bg = cr.ok ? 'rgba(132,204,22,.15)' : 'rgba(239,68,68,.15)'; }
+    const cats = ['Progress', 'Assessment', 'Injury', 'General'];
+    const dr = s.dResult ? rs(s.dResult) : null;
+    const doScan = (manual) => set(st => { const p = scanPool[st.dScan % 3]; const f = p.ok ? [{ name: p.name, plan: p.sub.split(' · ')[0], time: '17:5' + (st.dScan % 10), method: manual ? 'Front desk' : 'QR' }, ...st.feed] : st.feed; return { dScan: st.dScan + 1, dResult: p, feed: f }; });
+    const th = this.props.theme || s.theme, ld = th === 'light';
+    
+    const mem = [['Aarav Sharma','Quarterly Strength','14 Feb','a'],['Neha Verma','Monthly Zumba','3 Jan','e'],['Karan Mehta','Annual All-Access','9 Aug','a'],['Dev Patel','Monthly Strength','2 Nov','x'],['Pooja Rao','Quarterly Strength','28 Nov','e'],['Isha Kapoor','Annual All-Access','1 Jun','a']];
+    const stm = { a: ['Active','rgba(132,204,22,.15)','var(--lime)'], e: ['Expiring','rgba(245,158,11,.18)','#d97706'], x: ['Expired','rgba(239,68,68,.15)','#ef4444'] };
+    const mfl = ['All','Active','Expiring','Expired'], mfk = [null,'a','e','x'];
+    const revV = [38,52,44,60,48,70,55,64,58,80,72,92];
+    const mon = ['Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov'];
+    const leads = [['Sanya Bhatia','Free 1-day pass · Zumba · today 18:00'],['Rahul Jain','Free 1-day pass · Strength · tomorrow'],['Tanvi Seth','Free 1-day pass · asked about annual plan']];
+    const tabsA = (cur) => [['dash','Overview','fa-chart-line'],['members','Members','fa-users'],['leads','Leads','fa-bullseye']].map(([k,l,i]) => ({ l, i, c: cur === k ? '#a3e635' : '#64748b', go: () => this.setState({ at: k }) }));
+    const adx = {
+      ad: { dash: s.at === 'dash', members: s.at === 'members', leads: s.at === 'leads' }, aTabs: tabsA(s.at),
+      revBars: revV.map((v, i) => ({ h: v + '%', c: i === s.rev ? '#84cc16' : 'var(--chip2)', pick: () => this.setState({ rev: i }) })),
+      revNote: mon[s.rev] + ' · ₹' + (revV[s.rev] * 5300).toLocaleString('en-IN') + ' collected',
+      adStats: [{ l: 'ACTIVE MEMBERS', v: '412', n: '+9 this week', c: 'var(--lime)' }, { l: 'EXPIRING IN 7 DAYS', v: '18', n: 'Send reminders', c: '#d97706' }, { l: 'TODAY CHECK-INS', v: String(87 + s.dScan), n: 'Peak 18:00', c: 'var(--mu)' }, { l: 'AVG CLASS FILL', v: '81%', n: '+4% vs Oct', c: 'var(--lime)' }],
+      classFill: [{ n: 'Zumba Fusion · 18:00', p: '96%' }, { n: 'HIIT Express · 08:00', p: '88%' }, { n: 'Strength Foundations', p: '64%' }],
+      mFilters: mfl.map((l, i) => ({ l, bg: s.mf === i ? '#84cc16' : 'var(--card)', fg: s.mf === i ? '#090c10' : 'var(--tx3)', pick: () => this.setState({ mf: i }) })),
+      memberList: mem.filter(m => !mfk[s.mf] || m[3] === mfk[s.mf]).map(m => ({ name: m[0], ini: m[0].split(' ').map(w => w[0]).join(''), plan: m[1], until: m[2], st: stm[m[3]][0], bg: stm[m[3]][1], fg: stm[m[3]][2] })),
+      leadList: leads.map((l, i) => { const d = !!s.contacted[i]; return { name: l[0], meta: l[1], t: d ? 'Contacted' : 'Call', bg: d ? 'var(--inset)' : 'linear-gradient(135deg,#a3e635,#84cc16)', fg: d ? 'var(--lime)' : '#090c10', toggle: () => this.setState(st => ({ contacted: { ...st.contacted, [i]: !st.contacted[i] } })) }; })
+    };
+    return {
+      ...adx,
+      themeCls: ld ? 'pf-light' : 'pf-dark', setDark: () => set({ theme: 'dark' }), setLight: () => set({ theme: 'light' }), darkBg: ld ? 'rgba(0,0,0,.08)' : '#1a1a1a', darkFg: ld ? '#1a1a1a' : '#fff', lightBg: ld ? '#1a1a1a' : 'rgba(0,0,0,.08)', lightFg: ld ? '#fff' : '#1a1a1a',
+      m: { home: s.mt === 'home', classes: s.mt === 'classes', pass: s.mt === 'pass', train: s.mt === 'train', me: s.mt === 'me' },
+      mTabs: tab([['home', 'Home', 'fa-house'], ['classes', 'Classes', 'fa-calendar'], ['pass', 'Pass', 'fa-qrcode'], ['train', 'Train', 'fa-dumbbell'], ['me', 'Me', 'fa-user']], s.mt, 'mt'),
+      goPass: () => set({ mt: 'pass' }), goMe: () => set({ mt: 'me' }), goTrain: () => set({ mt: 'train' }), goClasses: () => set({ mt: 'classes' }),
+      hasBooked: bookedList.length > 0, noBooked: bookedList.length === 0, bookedList,
+      days: dn.map((d, i) => ({ dow: d, n: dd[i], pick: () => set({ day: i }), bg: s.day === i ? 'linear-gradient(135deg,#a3e635,#84cc16)' : 'var(--card)', fg: s.day === i ? '#090c10' : 'var(--tx2)', sh: s.day === i ? 'none' : '4px 4px 10px var(--sd),-4px -4px 10px var(--sl)' })),
+      classes, qr, exercises, bars: vol.map((v, i) => ({ h: Math.max(v, 4) + '%', c: i === 5 ? '#84cc16' : 'var(--chip2)', d: 'MTWTFSS'[i] })),
+      finishText: s.done ? 'Saved · nice work, 3 PRs' : 'Finish workout', finishBg: s.done ? 'var(--chip2)' : 'linear-gradient(135deg,#a3e635,#84cc16)', finish: () => set(st => ({ done: !st.done })),
+      freezeText: s.freeze ? 'Frozen since today. Closed days are added back when you unfreeze.' : 'Pause your plan. Closed days are added to your end date.', freezeBg: s.freeze ? '#06b6d4' : 'var(--inset)', freezeLeft: s.freeze ? '26px' : '4px', toggleFreeze: () => set(st => ({ freeze: !st.freeze })),
+      plans: planDefs.map(([name, note, price], i) => ({ name, note, price, state: s.plan === i ? 'CURRENT' : 'SWITCH', border: s.plan === i ? '1px solid rgba(132,204,22,.5)' : '1px solid var(--bd)', sh: SH, pick: () => set({ plan: i }) })),
+      c: { roster: s.ct === 'roster', scan: s.ct === 'scan', notes: s.ct === 'notes' },
+      cTabs: tab([['roster', 'Classes', 'fa-clipboard-list'], ['scan', 'Scan', 'fa-camera'], ['notes', 'Notes', 'fa-pen']], s.ct, 'ct'),
+      roster, presentCount: pc, rosterTotal: roster.length, presentPct: Math.round(pc / roster.length * 100) + '%',
+      coachScan: () => set(st => ({ cScanIdx: st.cScanIdx + 1 })), coachResult: cr,
+      noteCats: cats.map((l, i) => ({ l, bg: s.noteCat === i ? '#84cc16' : 'var(--card)', fg: s.noteCat === i ? '#090c10' : 'var(--tx3)', pick: () => set({ noteCat: i }) })),
+      addNote: () => set(st => ({ notes: [{ who: 'Aarav Sharma', cat: cats[st.noteCat], text: 'Squat depth improving. Add 2.5 kg next week…' }, ...st.notes] })),
+      noteList: [...s.notes, { who: 'Isha Kapoor', cat: 'Injury', text: 'Left knee sore after Tuesday. Avoid deep lunges for a week.' }],
+      onFloor: 23 + s.dScan, todayCount: 87 + s.dScan, scanLine: s.line ? '80%' : '20%', deskScan: () => doScan(false), deskManual: () => doScan(true), deskResult: dr,
+      feed: s.feed.slice(0, 5).map(f => ({ ...f, ini: ini(f.name) }))
+    };
+  }
+}
+</script>
+</body>
+</html>

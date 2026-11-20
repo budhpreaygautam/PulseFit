@@ -278,7 +278,7 @@ export const ClassManagement: React.FC = () => {
             {trainers.map(t => (
               <li key={t.id} className="neu-pressed-sm rounded-2xl p-4 space-y-3 min-w-0">
                 <div className="flex items-start gap-3 min-w-0">
-                  <Avatar src={t.avatar_url} name={t.name} size="w-12 h-12" />
+                  <Avatar src={t.avatar_url} size="w-12 h-12" />
                   <div className="min-w-0">
                     <p className="font-extrabold text-slate-100 font-heading break-words">{t.name}</p>
                     <p className="text-xs text-slate-400">
@@ -322,6 +322,7 @@ export const ClassManagement: React.FC = () => {
       </SectionCard>
 
       <ClassFormModal
+        key={classTarget === 'new' ? 'new' : classTarget?.id ?? 'closed'}
         target={classTarget}
         trainers={trainers ?? []}
         onClose={() => setClassTarget(null)}

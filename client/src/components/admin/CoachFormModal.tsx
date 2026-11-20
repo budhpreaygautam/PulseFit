@@ -87,7 +87,7 @@ export const CoachFormModal: React.FC<CoachFormModalProps> = ({ target, trainers
     const years = form.experience_years.trim();
     if (!/^\d+$/.test(years) || Number(years) > 60) e.experience_years = 'Enter 0 to 60 years.';
     const avatar = form.avatar_url.trim();
-    if (avatar ? !isHttpUrl(avatar) : !!editing) e.avatar_url = 'Enter a photo URL starting with https://.';
+    if (avatar && !isHttpUrl(avatar)) e.avatar_url = 'Enter a photo URL starting with https://.';
     if (form.instagram.trim().length > 60) e.instagram = 'Keep the Instagram handle under 60 characters.';
     return e;
   };
@@ -107,7 +107,8 @@ export const CoachFormModal: React.FC<CoachFormModalProps> = ({ target, trainers
       bio: form.bio.trim(),
       experience_years: Number(form.experience_years),
       instagram: form.instagram.trim(),
-      ...(form.avatar_url.trim() ? { avatar_url: form.avatar_url.trim() } : {})
+      // Empty = no photo: the site shows the default picture. A new coach without one simply leaves it out.
+      ...(form.avatar_url.trim() || editing ? { avatar_url: form.avatar_url.trim() } : {})
     };
 
     setIsSaving(true);
@@ -170,7 +171,7 @@ export const CoachFormModal: React.FC<CoachFormModalProps> = ({ target, trainers
         {field('specialties', 'Specialties', <input type="text" value={form.specialties} onChange={e => set('specialties', e.target.value)} {...common('specialties')} />, 'Separate with commas, e.g. Powerlifting, Mobility')}
         {field('bio', 'Bio', <textarea rows={3} value={form.bio} onChange={e => set('bio', e.target.value)} {...common('bio')} />)}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {field('avatar_url', 'Photo URL', <input type="url" value={form.avatar_url} onChange={e => set('avatar_url', e.target.value)} placeholder="https://" {...common('avatar_url')} />, editing ? undefined : 'Leave empty for a generated avatar.')}
+          {field('avatar_url', 'Photo URL', <input type="url" value={form.avatar_url} onChange={e => set('avatar_url', e.target.value)} placeholder="https://" {...common('avatar_url')} />, 'Leave empty to show the default picture.')}
           {field('instagram', 'Instagram', <input type="text" value={form.instagram} onChange={e => set('instagram', e.target.value)} placeholder="@handle" {...common('instagram')} />)}
         </div>
         {field(

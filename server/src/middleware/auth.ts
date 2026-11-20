@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import config from '../config.js';
 import db from '../db/database.js';
+import { notFoundHandler } from './errorHandler.js';
 import { User, UserRole } from '../types/index.js';
 
 export interface AuthenticatedRequest extends Request {
@@ -23,7 +24,7 @@ export const SESSION_COOKIE = 'pulsefit_session';
 /**
  * Cookie-authenticated writes must carry this header. A cross-site page cannot add a custom header
  * without a CORS preflight, which the origin allowlist refuses: this is the CSRF defence, on top of
- * SameSite=Lax.
+ * SameSite=Lax. Other API requests need it too, as a deterrent only (requireAppHeader).
  */
 export const CSRF_HEADER = 'x-requested-with';
 export const CSRF_HEADER_VALUE = 'PulseFit';
@@ -151,6 +152,37 @@ export function csrfGuard(req: Request, res: Response, next: NextFunction) {
   if (readCookie(req, SESSION_COOKIE) === undefined) return next();
   if (req.get(CSRF_HEADER) === CSRF_HEADER_VALUE) return next();
   return res.status(403).json({ success: false, error: 'This request was blocked. Reload the page and try again.', code: 'CSRF_REJECTED' });
+}
+
+/**
+ * API paths (under /api; lower case, no trailing slash) that answer without the app's header,
+ * because something other than the app calls them: the health check (Railway and
+ * deploy/install-release.sh) and the payment webhooks, which Razorpay and YouPI post server to server.
+ */
+const OPEN_API_PATHS = new Set(['/health', '/payment/webhook', '/payment/youpi/webhook']);
+
+/**
+ * Every other API request must carry the X-Requested-With header that the website and the apps send
+ * on every call (client/src/api/client.ts, authHeaders), or it gets the same 404 as an unknown route.
+ * That keeps API answers away from casual direct access: an API address opened in the address bar or
+ * followed as a link, and other sites' requests (a cross-origin request cannot add the header
+ * without a CORS preflight, which the origin allowlist refuses).
+ *
+ * A deterrent, not a security boundary: anyone can add the header (curl, or DevTools' "Copy as
+ * fetch"), and DevTools always shows signed-in users the app's own requests. What a response may
+ * contain is decided by authentication, roles and each controller's response shape. csrfGuard
+ * runs first, so a cookie-authenticated write without the header still gets its 403 CSRF_REJECTED.
+ *
+ * CORS preflights never carry the header, but cors() (mounted earlier) has already answered every
+ * one from an allowed origin. An OPTIONS request that reaches this point comes from an origin the
+ * allowlist refuses, so it gets the 404 too: otherwise Express's automatic OPTIONS answer (200 with
+ * an Allow header) would tell real routes and their methods apart from unknown ones.
+ */
+export function requireAppHeader(req: Request, res: Response, next: NextFunction) {
+  if (req.get(CSRF_HEADER) === CSRF_HEADER_VALUE) return next();
+  // Express matches routes ignoring case and a trailing slash, so the exemptions do too.
+  if (OPEN_API_PATHS.has(req.path.toLowerCase().replace(/\/+$/, ''))) return next();
+  return notFoundHandler(req, res);
 }
 
 export function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction) {

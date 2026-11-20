@@ -280,7 +280,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
       {error && <ErrorState message={`Could not refresh the dashboard. ${error.message}`} onRetry={loadDashboard} />}
 
       <div className="neu-flat p-5 rounded-3xl flex flex-col sm:flex-row sm:items-center gap-4">
-        <Avatar src={trainer.avatar_url} name={trainer.name} size="w-16 h-16" />
+        <Avatar src={trainer.avatar_url} size="w-16 h-16" />
         <div className="min-w-0">
           <p className="text-lg font-black text-slate-100 font-heading">{trainer.name}</p>
           <p className="text-xs text-slate-400">
@@ -367,7 +367,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
               {clients.map(c => (
                 <li key={c.user_id} className="neu-pressed-sm rounded-2xl p-4 space-y-3 min-w-0">
                   <div className="flex items-center gap-3 min-w-0">
-                    <Avatar src={c.avatar_url} name={c.name} />
+                    <Avatar src={c.avatar_url} />
                     <div className="min-w-0">
                       <p className="font-bold text-slate-100 break-words">{c.name}</p>
                       <p className="text-xs text-slate-400 flex flex-wrap items-center gap-2">

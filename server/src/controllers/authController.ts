@@ -5,11 +5,14 @@ import config, { googleSignInEnabled } from '../config.js';
 import db from '../db/database.js';
 import { AuthenticatedRequest, clearSessionCookie, generateMfaToken, issueSession } from '../middleware/auth.js';
 import { ApiError, asyncHandler, conflict, forbidden, notFound, ok, parse, unauthorized, unavailable } from '../lib/http.js';
-import { defaultAvatar, findUserByEmail, generateQrToken, newId, toSafeUser } from '../lib/users.js';
+import { findUserByEmail, GENDERS, generateQrToken, newId, toSafeUser } from '../lib/users.js';
 import { InvalidGoogleTokenError, verifyGoogleCredential } from '../lib/google.js';
 import { isCommonPassword } from '../lib/passwordPolicy.js';
-import { isAllowedRemoteImageUrl, validateImageDataUrl } from '../lib/imageValidation.js';
-import { User } from '../types/index.js';
+import { validateImageDataUrl } from '../lib/imageValidation.js';
+import { referrerFor } from '../lib/referrals.js';
+import { activeDaysInWeek, activityDays } from '../lib/streak.js';
+import { longestRun } from '../lib/milestones.js';
+import { Gender, User } from '../types/index.js';
 
 export const BCRYPT_ROUNDS = 10;
 
@@ -45,10 +48,10 @@ const phoneSchema = z
   .max(20, 'Enter a valid phone number.')
   .refine(v => v === '' || /^\+?[0-9][0-9\s()-]{6,19}$/.test(v), 'Enter a valid phone number, for example +91 98110 12345.');
 
-// The generated default picture is the only remote image a member may keep: any other address would
-// make staff browsers fetch a URL of the member's choosing.
-const DEFAULT_AVATAR_PREFIX = 'https://api.dicebear.com/';
-
+// An uploaded photo, one of the ten avatars bundled with the apps (client/public/avatars), or '' to
+// remove it (the apps then show the default picture). Never any other address: that would make staff
+// browsers fetch a URL of the member's choosing.
+const PRESET_AVATAR = /^\/avatars\/preset-(0[1-9]|10)\.svg$/;
 const avatarSchema = z
   .string()
   .max(350_000, 'The profile photo is too large. Please choose a smaller image.')
@@ -56,10 +59,19 @@ const avatarSchema = z
     if (v.startsWith('data:')) {
       const check = validateImageDataUrl(v);
       if (!check.ok) ctx.addIssue({ code: 'custom', message: check.error });
-    } else if (!v.startsWith(DEFAULT_AVATAR_PREFIX) || !isAllowedRemoteImageUrl(v)) {
+    } else if (v !== '' && !PRESET_AVATAR.test(v)) {
       ctx.addIssue({ code: 'custom', message: 'Upload a PNG, JPEG or WebP photo.' });
     }
   });
+
+// Picks the default picture. The sign-up form always asks for it, but registering does not require
+// it: the apps released in 2.3.0 (and their downloadable APK) send no gender, and refusing them would
+// leave installed apps unable to create accounts. Such accounts, Google sign-ups and older accounts
+// have none ("not given") until the person sets it on their account page.
+const genderSchema = z.enum(GENDERS, { error: 'Choose your gender.' });
+
+// A friend's referral code as typed (lib/referrals.ts referrerFor checks it); empty means none.
+export const referralCodeSchema = z.string().trim().max(32, 'That referral code is too long.');
 
 const loginSchema = z.object({
   email: z.string({ error: 'Enter your email address.' }).trim().toLowerCase().min(1, 'Enter your email address.').max(254),
@@ -70,11 +82,15 @@ const registerSchema = z.object({
   name: nameSchema,
   email: emailSchema,
   password: newPasswordSchema,
-  phone: phoneSchema.optional()
+  phone: phoneSchema.optional(),
+  gender: genderSchema.optional(),
+  referral_code: referralCodeSchema.optional()
 });
 
 const googleSchema = z.object({
-  credential: z.string({ error: 'The Google sign-in response is missing.' }).min(1, 'The Google sign-in response is missing.').max(10_000)
+  credential: z.string({ error: 'The Google sign-in response is missing.' }).min(1, 'The Google sign-in response is missing.').max(10_000),
+  // Used only when this sign-in creates the account.
+  referral_code: referralCodeSchema.optional()
 });
 
 /** The demo personas' published password (README); refused outside demo mode. */
@@ -107,11 +123,12 @@ const profileSchema = z.strictObject(
   {
     name: nameSchema.optional(),
     phone: phoneSchema.optional(),
+    gender: genderSchema.optional(),
     avatar_url: avatarSchema.optional()
   },
   {
     error: issue =>
-      issue.code === 'unrecognized_keys' ? 'Only your name, phone number and photo can be changed here.' : undefined
+      issue.code === 'unrecognized_keys' ? 'Only your name, phone number, gender and photo can be changed here.' : undefined
   }
 );
 
@@ -121,7 +138,15 @@ export function session(req: Request, res: Response, user: User) {
 }
 
 /** A new member account: no plan until they pay (or an admin grants one). */
-function newMember(fields: { name: string; email: string; phone?: string; password_hash?: string; google_sub?: string }): User {
+function newMember(fields: {
+  name: string;
+  email: string;
+  phone?: string;
+  gender?: Gender;
+  password_hash?: string;
+  google_sub?: string;
+  referred_by?: string;
+}): User {
   return {
     id: newId('usr'),
     name: fields.name,
@@ -129,7 +154,8 @@ function newMember(fields: { name: string; email: string; phone?: string; passwo
     ...(fields.password_hash ? { password_hash: fields.password_hash } : {}),
     ...(fields.google_sub ? { google_sub: fields.google_sub } : {}),
     role: 'member',
-    avatar_url: defaultAvatar(fields.name),
+    avatar_url: '',
+    ...(fields.gender ? { gender: fields.gender } : {}),
     phone: fields.phone ?? '',
     membership_tier: 'none',
     membership_status: 'pending',
@@ -138,7 +164,8 @@ function newMember(fields: { name: string; email: string; phone?: string; passwo
     created_at: new Date().toISOString(),
     streak_days: 0,
     last_active_date: null,
-    token_version: 0
+    token_version: 0,
+    ...(fields.referred_by ? { referred_by: fields.referred_by } : {})
   };
 }
 
@@ -175,14 +202,15 @@ export function signInResult(req: Request, res: Response, user: User) {
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   // Any tier, role or status in the body is ignored: the schema strips unknown keys.
-  const { name, email, password, phone } = parse(registerSchema, req.body);
+  const { name, email, password, phone, gender, referral_code } = parse(registerSchema, req.body);
   if (findUserByEmail(email)) throw emailTaken();
+  const referrer = referrerFor(referral_code);
 
   const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   // Another request may have registered the same email while we were hashing.
   if (findUserByEmail(email)) throw emailTaken();
 
-  const user = newMember({ name, email, phone, password_hash });
+  const user = newMember({ name, email, phone, gender, password_hash, referred_by: referrer?.id });
   db.users = [...db.users, user];
 
   return ok(res, session(req, res, user), 'Welcome to PulseFit! Choose a plan to start training.', 201);
@@ -192,7 +220,7 @@ export const googleSignIn = asyncHandler(async (req: Request, res: Response) => 
   if (!googleSignInEnabled()) {
     throw unavailable('Google sign-in is not available on this server.', 'GOOGLE_SIGNIN_DISABLED');
   }
-  const { credential } = parse(googleSchema, req.body);
+  const { credential, referral_code } = parse(googleSchema, req.body);
 
   let profile;
   try {
@@ -223,8 +251,9 @@ export const googleSignIn = asyncHandler(async (req: Request, res: Response) => 
     return ok(res, { ...signInResult(req, res, linked), created: false }, message);
   }
 
+  const referrer = referrerFor(referral_code);
   const name = (profile.name?.trim() || profile.email.split('@')[0]).slice(0, 60);
-  const user = newMember({ name, email: profile.email, google_sub: profile.sub });
+  const user = newMember({ name, email: profile.email, google_sub: profile.sub, referred_by: referrer?.id });
   db.users = [...db.users, user];
   return ok(res, { ...session(req, res, user), created: true });
 });
@@ -245,8 +274,11 @@ export const logout = asyncHandler(async (_req: Request, res: Response) => {
   return ok(res, { signedOut: true });
 });
 
+// Only this answer carries the two streak-card numbers: they read the member's whole history.
 export const getMe = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  return ok(res, toSafeUser(req.user!));
+  const user = req.user!;
+  const days = activityDays(user.id);
+  return ok(res, { ...toSafeUser(user), active_days_this_week: activeDaysInWeek(days), longest_streak_days: longestRun(days) });
 });
 
 export const updateProfile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -258,6 +290,7 @@ export const updateProfile = asyncHandler(async (req: AuthenticatedRequest, res:
     ...current,
     ...(changes.name !== undefined ? { name: changes.name } : {}),
     ...(changes.phone !== undefined ? { phone: changes.phone } : {}),
+    ...(changes.gender !== undefined ? { gender: changes.gender } : {}),
     ...(changes.avatar_url !== undefined ? { avatar_url: changes.avatar_url } : {})
   };
   db.users = db.users.map(u => (u.id === updated.id ? updated : u));

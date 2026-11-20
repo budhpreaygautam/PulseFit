@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, ChevronDown, Dumbbell, Info, Loader2, Lock, Music2, Sparkles, Store, XCircle, Zap } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronDown, Dumbbell, Gift, Info, Loader2, Lock, Music2, Sparkles, Store, XCircle, Zap } from 'lucide-react';
 import { Badge } from '../../components/common/Badge.js';
 import { EmptyState, ErrorState } from '../../components/common/States.js';
+import { CouponField } from '../../components/member/CouponField.js';
 import { CardSkeletons } from '../../components/public/CardSkeletons.js';
 import { useApiData } from '../../components/public/useApiData.js';
 import { annualPerMonth, annualSavingPercent, planCovers } from '../../components/public/plans.js';
-import { rememberPendingPlan } from '../../components/public/pendingPlan.js';
 import { CATEGORIES, weekdayOf } from '../../components/public/gymInfo.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
@@ -13,17 +13,17 @@ import { useNavigation } from '../../context/NavigationContext.js';
 import { useToast } from '../../context/ToastContext.js';
 import { useCheckout } from '../../hooks/useCheckout.js';
 import { api } from '../../api/client.js';
-import { addDays, formatDate, formatINR, gymToday, STATUS_LABELS } from '../../lib/format.js';
-import { BillingCycle, MembershipPlan, PaidTier, User } from '../../types/index.js';
+import { addDays, endsIn, formatDate, formatINR, gymToday, STATUS_LABELS } from '../../lib/format.js';
+import { BillingCycle, MembershipPlan, PaidTier, Quote, User } from '../../types/index.js';
 
 interface PricingPageProps {
-  onOpenAuthModal: (mode: 'login' | 'register') => void;
   onOpenFreeTrialModal: () => void;
 }
 
 const PLAN_ICONS: Record<PaidTier, React.ComponentType<{ className?: string }>> = { basic: Dumbbell, pro: Music2, vip: Zap };
 
 interface PlanAction {
+  /** Short, so it fits on one line next to the price; the card's heading already names the plan. */
   label: string;
   note?: string;
   isCurrent: boolean;
@@ -52,7 +52,7 @@ function endAfterUnfreeze(user: User, closedWeekdays: number[]): string | null {
 
 /** What buying this plan would do for the signed-in account, following the server's activation rules. */
 function planAction(plan: MembershipPlan, user: User | null, plans: MembershipPlan[], closedWeekdays: number[]): PlanAction {
-  if (!user || user.membership_tier === 'none') return { label: `Choose ${plan.name}`, isCurrent: false };
+  if (!user || user.membership_tier === 'none') return { label: 'Choose plan', isCurrent: false };
 
   const status = user.membership_status;
   const lastDay = status === 'active' || status === 'frozen' ? endAfterUnfreeze(user, closedWeekdays) : null;
@@ -63,25 +63,25 @@ function planAction(plan: MembershipPlan, user: User | null, plans: MembershipPl
   if (plan.tier === user.membership_tier) {
     if (hasRunningPlan && lastDay) {
       return {
-        label: 'Renew this plan',
+        label: 'Renew plan',
         note: `The new period starts on ${formatDate(addDays(lastDay, 1))}, the day after your current one ends.${frozenNote}`,
         isCurrent: true
       };
     }
-    return { label: 'Renew this plan', note: 'Your plan has ended, so the new period starts today.', isCurrent: true };
+    return { label: 'Renew plan', note: 'Your plan has ended, so the new period starts today.', isCurrent: true };
   }
 
   if (hasRunningPlan) {
     return {
-      label: `Switch to ${plan.name}`,
+      label: 'Switch plan',
       note: `Starts today. The unused days of your ${current?.name ?? 'current plan'} are credited pro-rata as extra days on this plan.${frozenNote}`,
       isCurrent: false
     };
   }
-  return { label: `Choose ${plan.name}`, note: 'Starts today.', isCurrent: false };
+  return { label: 'Choose plan', note: 'Starts today.', isCurrent: false };
 }
 
-export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpenFreeTrialModal }) => {
+export const PricingPage: React.FC<PricingPageProps> = ({ onOpenFreeTrialModal }) => {
   const { params } = useNavigation();
   const requestedTier = params.get('plan') as PaidTier | null;
   const [billingCycle, setBillingCycle] = useState<BillingCycle>(params.get('cycle') === 'annual' ? 'annual' : 'monthly');
@@ -92,9 +92,27 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
   const { config, isConfigLoaded } = useAppConfig();
   const { showToast } = useToast();
   const { checkout, isProcessing, error, clearError } = useCheckout();
-  const { data: plans, error: loadError, isLoading, reload } = useApiData(() => api.getPlans());
+  const { data: plans, error: loadError, isLoading: plansLoading, reload } = useApiData(() => api.getPlans());
+  // Today's prices with any live sale (the server works them out). Without them the cards show list
+  // prices; the server still charges the sale price.
+  const quotes = useApiData(() => api.getPaymentQuotes());
+  const promotions = useApiData(() => api.getPromotions());
+  const isLoading = plansLoading || quotes.isLoading;
+  // One coupon field open at a time; an applied coupon prices that card only.
+  const [couponTier, setCouponTier] = useState<PaidTier | null>(null);
+  const [couponQuote, setCouponQuote] = useState<Quote | null>(null);
 
-  // A guest who picked a plan before creating an account comes back here with it in view.
+  // A coupon was checked for one cycle, so another cycle starts without it.
+  const chooseCycle = (cycle: BillingCycle) => {
+    setBillingCycle(cycle);
+    setCouponQuote(null);
+  };
+  const openCoupon = (tier: PaidTier) => {
+    setCouponTier(tier);
+    setCouponQuote(null);
+  };
+
+  // A plan picked on the home page (also by a guest, who comes here once signed in) is brought into view.
   useEffect(() => {
     if (!plans || !requestedTier) return;
     document.getElementById(`plan-${requestedTier}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -103,18 +121,13 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
   const maxSaving = useMemo(() => Math.max(0, ...(plans ?? []).map(annualSavingPercent)), [plans]);
   const currentPlan = plans?.find(p => p.tier === user?.membership_tier);
 
-  const handleChoosePlan = async (plan: MembershipPlan) => {
+  const handleChoosePlan = async (plan: MembershipPlan, quote: Quote | undefined) => {
     clearError();
-    if (!user) {
-      rememberPendingPlan({ tier: plan.tier, cycle: billingCycle });
-      showToast('Create a free account first, then pay for your plan.', 'info');
-      onOpenAuthModal('register');
-      return;
-    }
     setPayingTier(plan.tier);
     await checkout({
       tier: plan.tier,
       billingCycle,
+      couponCode: quote?.applied?.type === 'coupon' ? quote.applied.code : undefined,
       onSuccess: ({ payment, user: updated, message }) => {
         // The server's message says everything the payment did, including class bookings a plan change
         // cancelled. It opens with the toast's own title, so that part is not said twice.
@@ -176,7 +189,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
           <button
             type="button"
             aria-pressed={billingCycle === 'monthly'}
-            onClick={() => setBillingCycle('monthly')}
+            onClick={() => chooseCycle('monthly')}
             className={`px-4 sm:px-5 py-2 rounded-xl text-xs font-bold transition-all ${billingCycle === 'monthly' ? 'neu-btn-lime' : 'text-slate-200'}`}
           >
             Monthly
@@ -184,7 +197,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
           <button
             type="button"
             aria-pressed={billingCycle === 'annual'}
-            onClick={() => setBillingCycle('annual')}
+            onClick={() => chooseCycle('annual')}
             className={`px-4 sm:px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${billingCycle === 'annual' ? 'neu-btn-lime' : 'text-slate-200'}`}
           >
             Annual
@@ -220,17 +233,23 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
       )}
 
       {isLoading ? (
-        <CardSkeletons label="Loading plans…" count={3} className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8" cardClassName="h-[36rem] rounded-3xl" />
+        <CardSkeletons label="Loading plans…" count={3} className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 md:gap-4 lg:gap-8" cardClassName="h-[36rem] rounded-3xl" />
       ) : loadError ? (
         <ErrorState message={loadError} onRetry={reload} className="max-w-xl mx-auto" />
       ) : !plans || plans.length === 0 ? (
         <EmptyState title="No plans are on sale right now" body="Please ask at the front desk about memberships." className="max-w-xl mx-auto" />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 md:gap-4 lg:gap-8 items-stretch">
           {plans.map(plan => {
             const PlanIcon = PLAN_ICONS[plan.tier];
             const saving = annualSavingPercent(plan);
-            const amount = billingCycle === 'annual' ? plan.price_annual : plan.price_monthly;
+            const quote =
+              couponQuote?.tier === plan.tier && couponQuote.billing_cycle === billingCycle
+                ? couponQuote
+                : quotes.data?.find(q => q.tier === plan.tier && q.billing_cycle === billingCycle);
+            const amount = quote?.total ?? (billingCycle === 'annual' ? plan.price_annual : plan.price_monthly);
+            const discounted = !!quote && quote.discount > 0;
+            const joiningGifts = promotions.data?.joining_gifts.filter(j => j.tier === plan.tier) ?? [];
             const action = planAction(plan, user, plans, config.gym.hours.closedWeekdays);
             const highlighted = plan.is_popular || action.isCurrent;
             const isRequested = requestedTier === plan.tier;
@@ -242,7 +261,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
                 key={plan.id}
                 id={`plan-${plan.tier}`}
                 aria-labelledby={`plan-${plan.tier}-name`}
-                className={`rounded-3xl p-6 sm:p-8 flex flex-col justify-between relative neu-flat ${
+                className={`rounded-3xl p-6 sm:p-8 md:p-5 lg:p-8 flex flex-col justify-between relative neu-flat ${
                   highlighted ? 'border-2 border-lime-500/70 shadow-glow-lime' : 'border border-slate-800/80'
                 } ${isRequested ? 'ring-2 ring-amber-400/70 ring-offset-2 ring-offset-transparent' : ''}`}
               >
@@ -267,10 +286,24 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
 
                   <div className="py-3 border-y border-slate-800/80">
                     <div className="flex items-baseline gap-1.5 flex-wrap">
+                      {discounted && (
+                        <s className="text-lg font-bold text-slate-500 font-heading">
+                          <span className="sr-only">List price </span>
+                          {formatINR(quote.base)}
+                        </s>
+                      )}
                       <span className="text-4xl sm:text-5xl font-black text-slate-100 font-heading">{formatINR(amount)}</span>
                       <span className="text-xs text-slate-400 font-medium">{billingCycle === 'annual' ? 'for 12 months, billed once' : 'per month'}</span>
                     </div>
-                    {billingCycle === 'annual' ? (
+                    {discounted ? (
+                      // A coupon's own label shows in its field under the pay button.
+                      <p className="mt-1 text-xs text-slate-400">
+                        <strong className="text-amber-600 dark:text-amber-400">
+                          {quote.applied?.type === 'offer' ? quote.applied.label : `You save ${formatINR(quote.discount)}`}
+                        </strong>
+                        {quote.offer_ends_at ? ` · ${endsIn(quote.offer_ends_at)}` : ''}
+                      </p>
+                    ) : billingCycle === 'annual' ? (
                       <p className="mt-1 text-xs text-slate-400">
                         That's {formatINR(annualPerMonth(plan))} a month
                         {saving > 0 ? (
@@ -301,36 +334,51 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenAuthModal, onOpe
                         <span className="leading-snug">Doesn't include {category} classes</span>
                       </li>
                     ))}
+                    {joiningGifts.map(j => (
+                      <li key={j.billing_cycle} className="flex items-start gap-2.5">
+                        <Gift className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+                        <span className="leading-snug">
+                          {j.billing_cycle === 'annual' ? 'Annual' : 'Monthly'}: free welcome {j.gifts.length > 1 ? 'kit' : 'gift'}: {j.gifts.join(', ')}
+                        </span>
+                      </li>
+                    ))}
                   </ul>
                 </div>
 
+                {/* The button labels stay on one line (truncated as a last resort); their accessible names start with that text and add the plan's name. */}
                 <div className="mt-8 pt-6 border-t border-slate-800/80 space-y-2">
-                  {!user ? (
-                    <button
-                      type="button"
-                      onClick={() => handleChoosePlan(plan)}
-                      className={`w-full py-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-2 ${highlighted ? 'neu-btn-lime' : 'neu-btn text-slate-100'}`}
-                    >
-                      Create an account to join
-                    </button>
-                  ) : !isConfigLoaded ? (
+                  {!isConfigLoaded ? (
                     <div className="h-11 rounded-2xl neu-pressed-sm animate-pulse" aria-hidden="true" />
                   ) : config.payments.enabled ? (
                     <button
                       type="button"
-                      onClick={() => handleChoosePlan(plan)}
+                      onClick={() => handleChoosePlan(plan, quote)}
                       disabled={isProcessing}
+                      aria-label={isPaying ? undefined : `${action.label} · ${formatINR(amount)}, ${plan.name}`}
                       aria-describedby={action.note ? `plan-${plan.tier}-note` : undefined}
-                      className={`w-full py-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-2 disabled:opacity-60 ${
+                      className={`w-full px-3 py-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-60 ${
                         highlighted ? 'neu-btn-lime' : 'neu-btn text-slate-100'
                       }`}
                     >
-                      {isPaying ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Lock className="w-3.5 h-3.5" aria-hidden="true" />}
-                      {isPaying ? 'Waiting for payment…' : `${action.label} · ${formatINR(amount)}`}
+                      {isPaying ? (
+                        <Loader2 className="w-4 h-4 shrink-0 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Lock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                      )}
+                      <span className="truncate">{isPaying ? 'Waiting for payment…' : `${action.label} · ${formatINR(amount)}`}</span>
                     </button>
                   ) : (
                     <p className="p-3 rounded-xl neu-pressed-sm text-xs text-slate-300 text-center">Online payment isn't available — pay for this plan at the front desk.</p>
                   )}
+                  {isConfigLoaded &&
+                    config.payments.enabled &&
+                    (couponTier === plan.tier ? (
+                      <CouponField key={billingCycle} tier={plan.tier} billingCycle={billingCycle} onQuote={setCouponQuote} />
+                    ) : (
+                      <button type="button" onClick={() => openCoupon(plan.tier)} className="text-[11px] font-bold text-lime-400 hover:underline rounded">
+                        Have a coupon?<span className="sr-only"> ({plan.name})</span>
+                      </button>
+                    ))}
                   {user && config.payments.enabled && action.note && (
                     <p id={`plan-${plan.tier}-note`} className="text-[11px] text-slate-400 leading-relaxed">
                       {action.note}

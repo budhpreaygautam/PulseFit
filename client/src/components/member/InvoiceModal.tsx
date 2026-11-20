@@ -31,9 +31,21 @@ const InvoiceDetails: React.FC<{ payment: Payment; gymName: string; forPrint?: b
     ['Plan', payment.plan_name],
     ['Billing cycle', CYCLE_LABELS[payment.billing_cycle] ?? payment.billing_cycle],
     ['Membership period', `${formatDate(payment.period_start)} – ${formatDate(payment.period_end)}`],
-    ['Payment reference', payment.razorpay_payment_id || '—'],
+    [
+      'Payment reference',
+      payment.source === 'desk'
+        ? `Front desk${payment.desk_method ? ` (${payment.desk_method === 'upi' ? 'UPI' : payment.desk_method})` : ''}`
+        : payment.razorpay_payment_id || '—'
+    ],
     ...(payment.utr ? [['UPI reference (UTR)', payment.utr] as [string, React.ReactNode]] : []),
-    ['Status', payment.status === 'paid' ? 'Paid' : 'Refunded']
+    ['Status', payment.status === 'paid' ? 'Paid' : 'Refunded'],
+    // A sale or coupon: the list price and what came off it, just above what was paid.
+    ...(payment.discount_inr && payment.base_amount_inr
+      ? ([
+          ['List price', formatINR(payment.base_amount_inr)],
+          [payment.coupon_code ? `Coupon ${payment.coupon_code}` : 'Sale discount', `−${formatINR(payment.discount_inr)}`]
+        ] as [string, React.ReactNode][])
+      : [])
   ];
   const cell = forPrint ? '' : 'py-2.5 border-b border-slate-800/60 text-sm';
   return (

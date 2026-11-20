@@ -19,8 +19,9 @@ const router = Router();
 const staff = [authenticate, requireRole(['admin', 'trainer'])];
 const admin = [authenticate, requireRole(['admin'])];
 
+// Guests get the home page's trimmed list (guestOccurrence); everything else needs a session.
 router.get('/classes', optionalAuth, getClasses);
-router.get('/classes/:id', optionalAuth, getClassById);
+router.get('/classes/:id', authenticate, getClassById);
 router.post('/classes', ...admin, createClass);
 router.put('/classes/:id', ...admin, updateClass);
 router.delete('/classes/:id', ...admin, deleteClass);
@@ -32,7 +33,7 @@ router.patch('/bookings/:id/attendance', ...staff, markAttendance);
 router.get('/bookings/class/:classId/roster', ...staff, getClassRoster);
 
 router.get('/trainers', optionalAuth, getTrainers);
-router.get('/trainers/:id', optionalAuth, getTrainerById);
+router.get('/trainers/:id', authenticate, getTrainerById);
 router.post('/trainers', ...admin, createTrainer);
 router.put('/trainers/:id', ...admin, updateTrainer);
 router.delete('/trainers/:id', ...admin, deleteTrainer);

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { AuthSession, isMfaChallenge, MfaChallenge, User, UserRole } from '../types/index.js';
+import { AuthSession, Gender, isMfaChallenge, MfaChallenge, User, UserRole } from '../types/index.js';
 import { api, isApiError, UNAUTHORIZED_EVENT } from '../api/client.js';
 import { forgetSession, hasSavedSession, rememberSession } from '../lib/authToken.js';
 import { abortableGet } from '../lib/abortableGet.js';
@@ -24,9 +24,9 @@ interface AuthContextType {
   retrySessionRestore: () => void;
   role: UserRole | 'guest';
   login: (credentials: { email: string; password: string }) => Promise<SignInOutcome>;
-  register: (payload: { name: string; email: string; password: string; phone?: string }) => Promise<User>;
-  /** Sign in with a Google Identity Services credential (see GoogleSignInButton). */
-  loginWithGoogle: (credential: string) => Promise<SignInOutcome & { created: boolean; message?: string }>;
+  register: (payload: { name: string; gender: Gender; email: string; password: string; phone?: string; referral_code?: string }) => Promise<User>;
+  /** Sign in with a Google Identity Services credential (see GoogleSignInButton). A friend's referral code counts only for a new account. */
+  loginWithGoogle: (credential: string, referralCode?: string) => Promise<SignInOutcome & { created: boolean; message?: string }>;
   /** Second step of a sign-in with two-step sign-in on: an authenticator code or a backup code. */
   verifyMfa: (mfaToken: string, code: string) => Promise<{ user: User; message?: string }>;
   demoLogin: (role: DemoRole) => Promise<User>;
@@ -216,12 +216,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [startSession]
   );
   const register = useCallback(
-    async (payload: { name: string; email: string; password: string; phone?: string }) => startSession(await api.register(payload)),
+    async (payload: { name: string; gender: Gender; email: string; password: string; phone?: string; referral_code?: string }) =>
+      startSession(await api.register(payload)),
     [startSession]
   );
   const loginWithGoogle = useCallback(
-    async (credential: string) => {
-      const result = await api.googleSignIn(credential);
+    async (credential: string, referralCode?: string) => {
+      const result = await api.googleSignIn(credential, referralCode);
       return { ...outcome(result), created: result.created, message: result.message };
     },
     [outcome]

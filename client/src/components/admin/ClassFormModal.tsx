@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { GymClass, Trainer } from '../../types/index.js';
 import { ApiError, api } from '../../api/client.js';
@@ -77,20 +77,16 @@ interface ClassFormModalProps {
 }
 
 export const ClassFormModal: React.FC<ClassFormModalProps> = ({ target, trainers, onClose, onSaved, onTrainersStale }) => {
-  const [form, setForm] = useState<Form>(EMPTY);
+  // Filled when the dialog opens (the page gives each opening its own key), so it never shows an
+  // empty form first; the coach list refreshing later doesn't wipe what was typed.
+  const [form, setForm] = useState<Form>(() =>
+    target && target !== 'new' ? toForm(target) : { ...EMPTY, trainer_id: trainers[0]?.id ?? '' }
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const editing = target && target !== 'new' ? target : null;
   const { closedWeekdays } = useAppConfig().config.gym.hours;
-
-  useEffect(() => {
-    if (!target) return;
-    setForm(target === 'new' ? { ...EMPTY, trainer_id: trainers[0]?.id ?? '' } : toForm(target));
-    setErrors({});
-    setFormError(null);
-    // Only when the dialog opens; the coach list refreshing must not wipe what was typed.
-  }, [target]);
 
   if (!target) return null;
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm(f => ({ ...f, [key]: value }));

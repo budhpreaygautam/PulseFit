@@ -13,16 +13,21 @@ export const TRIAL_WINDOW_DAYS = 14;
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
+// The person's details, shared with the enquiry form (enquiryController.ts).
+export const contactFields = {
+  name: z.string().trim().min(2, 'Name must be at least 2 characters.').max(60, 'Name must be at most 60 characters.'),
+  // Trim before the format check: autofill and paste often add spaces around the address.
+  email: z.string().trim().toLowerCase().max(254, 'Email address is too long.').pipe(z.email('Enter a valid email address.')),
+  phone: z
+    .string()
+    .trim()
+    .max(20, 'Phone number is too long.')
+    .refine(p => /^\+?[\d\s()-]+$/.test(p) && digits(p).length >= 10 && digits(p).length <= 15, 'Enter a valid phone number.')
+};
+
 const trialBody = z
   .object({
-    name: z.string().trim().min(2, 'Name must be at least 2 characters.').max(60, 'Name must be at most 60 characters.'),
-    // Trim before the format check: autofill and paste often add spaces around the address.
-    email: z.string().trim().toLowerCase().pipe(z.email('Enter a valid email address.')),
-    phone: z
-      .string()
-      .trim()
-      .max(20, 'Phone number is too long.')
-      .refine(p => /^\+?[\d\s()-]+$/.test(p) && digits(p).length >= 10 && digits(p).length <= 15, 'Enter a valid phone number.'),
+    ...contactFields,
     interest: z.enum(['Workout & Strength', 'Zumba & Cardio']),
     preferred_date: z.string().refine(isValidDate, 'Use a date in YYYY-MM-DD format.')
   })

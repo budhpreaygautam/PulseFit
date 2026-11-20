@@ -36,7 +36,7 @@ export const CoachList: React.FC<{ onChoose: (trainerId: string) => void }> = ({
     <ul className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
       {coaches.map(c => (
         <li key={c.id} className="neu-pressed-sm rounded-2xl p-4 flex items-center gap-3 min-w-0">
-          <Avatar src={c.avatar_url} name={c.name} />
+          <Avatar src={c.avatar_url} />
           <div className="flex-1 min-w-0">
             <p className="font-bold text-sm text-slate-100 break-words">{c.name}</p>
             <p className="text-xs text-slate-400 flex flex-wrap items-center gap-2">

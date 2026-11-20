@@ -128,10 +128,14 @@ export const getActiveFloorStatus = asyncHandler<AuthenticatedRequest>((req, res
     workoutActive: workout.length,
     zumbaActive: zumba.length
   };
-  if (req.user && isStaff(req.user)) {
+  // Who is on the floor: admins only. No coach screen shows it, and the home page reads this endpoint
+  // for the counts, so anyone else would only receive the names to see them in DevTools.
+  if (req.user?.role === 'admin') {
     status.workoutUsers = workout.map(s => toFloorPresence(s, now));
     status.zumbaUsers = zumba.map(s => toFloorPresence(s, now));
   }
+  // The answer depends on the session: no shared cache may hand an admin's copy to anyone else.
+  res.set('Cache-Control', 'private, no-cache');
   return ok(res, status);
 });
 

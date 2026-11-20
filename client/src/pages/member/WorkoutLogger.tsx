@@ -8,14 +8,12 @@ import { useNavigation } from '../../context/NavigationContext.js';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
 import { useApiResource } from '../../components/member/useApiResource.js';
+import { WORKOUT_LIMITS as LIMITS, inRange } from '../../components/member/workoutLimits.js';
 import { addDays, formatDate, gymToday } from '../../lib/format.js';
 
 interface WorkoutLoggerProps {
   setCurrentTab: (tab: string) => void;
 }
-
-// Server limits for POST /workouts (docs/API.md).
-const LIMITS = { title: 100, notes: 1000, duration: 300, weight: 500, reps: 100, rpe: 10, setsTotal: 100, setsPerExercise: 50, daysBack: 365 };
 
 interface DraftSet {
   key: string;
@@ -47,14 +45,6 @@ const nextKey = () => `k${++keySeq}`;
 const emptySet = (from?: DraftSet): DraftSet => ({ key: nextKey(), weight: from?.weight ?? '', reps: from?.reps ?? '', rpe: from?.rpe ?? '', warmup: false });
 
 const kg = (n: number) => `${n.toLocaleString('en-IN', { maximumFractionDigits: 1 })} kg`;
-
-/** Parse a decimal within [min, max]; null when blank or out of range. */
-function inRange(value: string, min: number, max: number, integer = false): number | null {
-  if (value.trim() === '') return null;
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < min || n > max || (integer && !Number.isInteger(n))) return null;
-  return n;
-}
 
 function groupSets(sets: WorkoutSet[] = []): { name: string; sets: WorkoutSet[] }[] {
   const groups = new Map<string, { name: string; sets: WorkoutSet[] }>();

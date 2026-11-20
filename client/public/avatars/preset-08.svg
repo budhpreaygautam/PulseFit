@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- PulseFit avatar 8: bald with a grey beard and a yellow sweatband, on indigo. -->
+  <rect width="128" height="128" fill="#4338ca"/>
+  <path d="M56 70h16v26H56z" fill="#573519"/>
+  <path d="M16 128c0-22 16-36 40-38 2 5 14 5 16 0 24 2 40 16 40 38z" fill="#22d3ee"/>
+  <g fill="#6b4226"><circle cx="44.5" cy="58" r="4"/><circle cx="83.5" cy="58" r="4"/><circle cx="64" cy="56" r="20"/></g>
+  <ellipse cx="57" cy="41" rx="5" ry="2.5" fill="#fff" opacity=".2"/>
+  <path d="M44.5 48q19.5-7 39 0v5q-19.5-7-39 0z" fill="#facc15"/>
+  <path d="M44 58c0 15 9 24 20 24s20-9 20-24c-3 5-6 7-9 7-3-3-19-3-22 0-3 0-6-2-9-7z" fill="#d6d3d1"/>
+  <g fill="#0c0a09"><circle cx="57" cy="58" r="2.4"/><circle cx="71" cy="58" r="2.4"/></g>
+  <path d="M58.5 68q5.5 5 11 0z" fill="#292524"/>
+</svg>

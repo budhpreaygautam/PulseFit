@@ -1,13 +1,40 @@
+import { Gender } from '../../types/index.js';
+
 // The API accepts a profile photo as a data URL of at most 350 000 characters inside a 512 KB
 // JSON body, so photos are shrunk in the browser before upload.
 export const AVATAR_MAX_SIZE = 256;
 export const AVATAR_MAX_CHARS = 350_000;
 
-/** Picture for an account without a photo, seeded with initials only (no full name sent to DiceBear). */
-export function fallbackAvatar(name: string): string {
-  const initials = name.trim().split(/\s+/).map(p => p[0] ?? '').join('').toUpperCase().slice(0, 3) || 'PF';
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(initials)}`;
+/**
+ * The picture for someone without a photo, shipped with the app (client/public/avatars), so
+ * nothing about them goes to another service. Only the person and admins receive a gender; every
+ * other view (coaches, the public, the check-in scanner) passes none and gets the neutral one.
+ */
+export function defaultAvatar(gender?: Gender | null): string {
+  const file = gender === 'male' || gender === 'female' ? gender : 'neutral';
+  return `${import.meta.env.BASE_URL}avatars/${file}.svg`;
 }
+
+/**
+ * The ten avatars a member can choose on My account instead of a photo. The API accepts exactly these
+ * paths as avatar_url; they are absolute because the stored value is shared by the website and the apps.
+ */
+export const PRESET_AVATARS = [
+  'Short dark hair and a lime sweatband',
+  'Auburn ponytail',
+  'Buzz cut and a full beard',
+  'Big curly hair',
+  'Plum hijab',
+  'Red baseball cap',
+  'Hair in a bun and round glasses',
+  'Bald with a grey beard and a sweatband',
+  'Long straight black hair',
+  'Wavy auburn hair and a gym towel'
+].map((label, i) => ({ label, src: `/avatars/preset-${String(i + 1).padStart(2, '0')}.svg` }));
+
+/** Their photo when they have one (it always wins), else the default picture. */
+export const avatarOf = (person: { avatar_url?: string | null; gender?: Gender | null }): string =>
+  person.avatar_url || defaultAvatar(person.gender);
 
 function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {

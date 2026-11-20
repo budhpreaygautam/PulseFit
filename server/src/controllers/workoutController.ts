@@ -7,6 +7,7 @@ import { newId } from '../lib/users.js';
 import { addDays, gymToday, isValidDate, toGymDate } from '../lib/dates.js';
 import { recomputeStreak, recordActivity } from '../lib/streak.js';
 import { closeStaleSessions } from '../lib/floor.js';
+import { onWorkoutLogged } from '../lib/rewardEvents.js';
 import { Exercise, Workout, WorkoutSet } from '../types/index.js';
 
 const EXERCISE_CATEGORIES: Exercise['category'][] = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Cardio', 'Full Body'];
@@ -142,6 +143,8 @@ export const createWorkout = asyncHandler<AuthenticatedRequest>((req, res: Respo
     closeStaleSessions();
     recordActivity(user.id, today);
   }
+  onWorkoutLogged(user, workout);
+  db.saveSync();
 
   return ok(res, workout, 'Workout saved.', 201);
 });

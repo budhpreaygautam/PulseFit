@@ -1,7 +1,7 @@
 import db from './database.js';
 import bcrypt from 'bcryptjs';
 import { addCatalogueIfMissing } from './seed.js';
-import { defaultAvatar, findUserByEmail, generateQrToken, generateTempPassword, newId } from '../lib/users.js';
+import { findUserByEmail, generateQrToken, generateTempPassword, newId } from '../lib/users.js';
 import { User } from '../types/index.js';
 
 // `npm run create-admin -- --email owner@example.com --name "Gym Owner"`
@@ -40,7 +40,8 @@ const admin: User = {
   name,
   password_hash: bcrypt.hashSync(password, 10),
   role: 'admin',
-  avatar_url: defaultAvatar(name),
+  // No photo and no gender: the apps show the neutral default picture until they add either.
+  avatar_url: '',
   phone: '',
   membership_tier: 'none',
   membership_status: 'pending',

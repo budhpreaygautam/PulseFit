@@ -1,6 +1,7 @@
-import config, { paymentProvider, youpiConfigured } from './config.js';
+import config, { emailConfigured, paymentProvider, youpiConfigured } from './config.js';
 import db from './db/database.js';
 import { addCatalogueIfMissing, seedDatabase } from './db/seed.js';
+import { launchRewards } from './lib/milestones.js';
 import app from './server.js';
 import { warmCompressedAssets } from './lib/compressedAssets.js';
 
@@ -19,6 +20,13 @@ if (db.isEmpty()) {
 } else if (addCatalogueIfMissing()) {
   // Accounts but no plans or classes: an admin created before the first start by an older create-admin.
   console.log(`📦 ${db.filePath} had accounts but no plans or classes; loaded the starting catalogue.`);
+}
+
+// Rewards start once: members who already passed milestones get one welcome gift for the highest.
+if (!db.reward_settings.launched_at) {
+  const { gifts } = launchRewards();
+  db.saveSync();
+  console.log(`🎁 Rewards launched: ${gifts} member(s) got a welcome gift for milestones they had already passed.`);
 }
 
 // Reset links, canonical links and the sitemap must carry the gym's real address.
@@ -87,6 +95,7 @@ function onListening() {
     `⚡ PulseFit API listening on http://${shown}:${config.port}${everywhere ? ' (all network interfaces)' : ''} (${config.nodeEnv})`
   );
   console.log(`   demo mode: ${config.demoMode ? 'ON (1-click personas enabled)' : 'off'}`);
+  console.log(`   enquiry email: ${emailConfigured() ? 'on (Brevo)' : 'off: enquiries are saved for Admin › Leads (set BREVO_API_KEY and MAIL_FROM)'}`);
   if (config.demoMode && !LOOPBACK.test(host)) {
     console.warn(
       `⚠️  Demo mode is on and the API accepts connections from the network (${host}): anyone who can reach this machine ` +

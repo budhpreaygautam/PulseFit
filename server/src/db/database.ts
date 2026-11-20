@@ -15,10 +15,18 @@ import {
   PaymentOrder,
   Payment,
   TrialPass,
+  Enquiry,
   TrainerNote,
   PasswordReset,
-  IdCard
+  IdCard,
+  Gift,
+  GiftClaim,
+  PointsEntry,
+  RewardSettings,
+  Offer,
+  Coupon
 } from '../types/index.js';
+import { defaultGifts, defaultRewardSettings } from './rewardDefaults.js';
 
 export interface DatabaseSchema {
   users: User[];
@@ -34,9 +42,16 @@ export interface DatabaseSchema {
   payment_orders: PaymentOrder[];
   payments: Payment[];
   trial_passes: TrialPass[];
+  enquiries: Enquiry[];
   trainer_notes: TrainerNote[];
   password_resets: PasswordReset[];
   id_cards: IdCard[];
+  gifts: Gift[];
+  gift_claims: GiftClaim[];
+  points_ledger: PointsEntry[];
+  reward_settings: RewardSettings;
+  offers: Offer[];
+  coupons: Coupon[];
 }
 
 const emptySchema = (): DatabaseSchema => ({
@@ -53,9 +68,17 @@ const emptySchema = (): DatabaseSchema => ({
   payment_orders: [],
   payments: [],
   trial_passes: [],
+  enquiries: [],
   trainer_notes: [],
   password_resets: [],
-  id_cards: []
+  id_cards: [],
+  // A file from before rewards gets the default catalogue and rules (load() and restore() spread this under it).
+  gifts: defaultGifts(),
+  gift_claims: [],
+  points_ledger: [],
+  reward_settings: defaultRewardSettings(),
+  offers: [],
+  coupons: []
 });
 
 const DEFAULT_PLAN_CATEGORIES: Record<string, MembershipPlan['categories']> = {
@@ -64,20 +87,31 @@ const DEFAULT_PLAN_CATEGORIES: Record<string, MembershipPlan['categories']> = {
   vip: []
 };
 
+// Up to v2.3 people and coaches without a photo were given a DiceBear cartoon (seeded with their
+// initials), which every viewer's browser fetched from api.dicebear.com. Nobody chose those, so they
+// become "no photo" and the apps show their own default picture instead. Nothing can store a new one
+// (the coach form and PUT /auth/profile refuse them), so clearing them on every load loses nothing.
+export const isGeneratedAvatar = (url: string | undefined) => Boolean(url?.startsWith('https://api.dicebear.com/'));
+
 /**
  * Bring a database written by an older version up to the current shape. Idempotent, so it runs on
  * every load. v2.0 files have plans without entitlements, '' for "no expiry", stored class counters
- * and streak numbers without the day they were earned.
+ * and streak numbers without the day they were earned; v2.3 files have DiceBear pictures. Accounts
+ * from before the gender question simply have none, which reads as "not given".
  */
 export function migrate(data: DatabaseSchema): DatabaseSchema {
   return {
     ...data,
     membership_plans: data.membership_plans.map(p => (Array.isArray(p.categories) ? p : { ...p, categories: DEFAULT_PLAN_CATEGORIES[p.tier] ?? [] })),
     users: data.users.map(u => {
-      const user = { ...u, membership_expiry: u.membership_expiry || null };
+      const user = { ...u, membership_expiry: u.membership_expiry || null, ...(isGeneratedAvatar(u.avatar_url) ? { avatar_url: '' } : {}) };
+      // "Prefer not to say" was offered briefly before release; it now reads as "not given".
+      if ((user.gender as string) === 'prefer_not_to_say') delete user.gender;
       return u.last_active_date === undefined ? { ...user, streak_days: 0, last_active_date: null } : user;
     }),
-    classes: data.classes.map(({ booked_count: _derived, ...c }) => c)
+    trainers: data.trainers.map(t => (isGeneratedAvatar(t.avatar_url) ? { ...t, avatar_url: '' } : t)),
+    classes: data.classes.map(({ booked_count: _derived, ...c }) => (isGeneratedAvatar(c.trainer_avatar) ? { ...c, trainer_avatar: '' } : c)),
+    time_sessions: data.time_sessions.map(s => (isGeneratedAvatar(s.user_avatar) ? { ...s, user_avatar: '' } : s))
   };
 }
 
@@ -223,6 +257,9 @@ class GymDatabase {
   get trial_passes() { return this.data.trial_passes; }
   set trial_passes(val: TrialPass[]) { this.data.trial_passes = val; this.save(); }
 
+  get enquiries() { return this.data.enquiries; }
+  set enquiries(val: Enquiry[]) { this.data.enquiries = val; this.save(); }
+
   get trainer_notes() { return this.data.trainer_notes; }
   set trainer_notes(val: TrainerNote[]) { this.data.trainer_notes = val; this.save(); }
 
@@ -231,6 +268,24 @@ class GymDatabase {
 
   get id_cards() { return this.data.id_cards; }
   set id_cards(val: IdCard[]) { this.data.id_cards = val; this.save(); }
+
+  get gifts() { return this.data.gifts; }
+  set gifts(val: Gift[]) { this.data.gifts = val; this.save(); }
+
+  get gift_claims() { return this.data.gift_claims; }
+  set gift_claims(val: GiftClaim[]) { this.data.gift_claims = val; this.save(); }
+
+  get points_ledger() { return this.data.points_ledger; }
+  set points_ledger(val: PointsEntry[]) { this.data.points_ledger = val; this.save(); }
+
+  get reward_settings() { return this.data.reward_settings; }
+  set reward_settings(val: RewardSettings) { this.data.reward_settings = val; this.save(); }
+
+  get offers() { return this.data.offers; }
+  set offers(val: Offer[]) { this.data.offers = val; this.save(); }
+
+  get coupons() { return this.data.coupons; }
+  set coupons(val: Coupon[]) { this.data.coupons = val; this.save(); }
 }
 
 export const db = new GymDatabase(config.dbPath);

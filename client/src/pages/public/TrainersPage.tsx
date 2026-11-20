@@ -5,6 +5,7 @@ import { Badge } from '../../components/common/Badge.js';
 import { EmptyState, ErrorState } from '../../components/common/States.js';
 import { CardSkeletons } from '../../components/public/CardSkeletons.js';
 import { useApiData } from '../../components/public/useApiData.js';
+import { defaultAvatar } from '../../components/member/avatarImage.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 
 interface TrainersPageProps {
@@ -39,17 +40,15 @@ export const TrainersPage: React.FC<TrainersPageProps> = () => {
               <li key={trainer.id} className="neu-flat rounded-3xl overflow-hidden border border-slate-800/80 flex flex-col justify-between">
                 <div>
                   <div className="relative h-72 sm:h-80 overflow-hidden bg-slate-900">
-                    {trainer.avatar_url && (
-                      <img
-                        src={trainer.avatar_url}
-                        alt={`Portrait of ${trainer.name}`}
-                        width={400}
-                        height={320}
-                        loading="lazy"
-                        decoding="async"
-                        className="w-full h-full object-cover object-top"
-                      />
-                    )}
+                    <img
+                      src={trainer.avatar_url || defaultAvatar()}
+                      alt={trainer.avatar_url ? `Portrait of ${trainer.name}` : ''}
+                      width={400}
+                      height={320}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover object-top"
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
 
                     {trainer.reviews_count > 0 && (

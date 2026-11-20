@@ -13,6 +13,12 @@ PulseFit runs on Railway at <https://pulsefit.up.railway.app> (project `pulsefit
   `railway ssh --service pulsefit "cd /app/server && node dist/db/create-admin.js --email you@example.com --name 'Your Name'"`,
   then `railway restart --service pulsefit --yes`.
 - **Free plan:** the app sleeps after ~10 minutes without visitors and wakes on the next visit in a few seconds.
+- **Enquiry email:** set the Railway variables `BREVO_API_KEY`, `MAIL_FROM` and optionally `ENQUIRY_INBOX` in the
+  dashboard (service `pulsefit` → Variables), then redeploy. Railway blocks SMTP below the Pro plan, which is why
+  PulseFit uses Brevo's HTTPS API. In Brevo, turn off IP blocking for API keys, because Railway's outbound address
+  changes. The startup log says `enquiry email: on (Brevo)`; a failed send logs
+  `✉️  Enquiry enq_…: the notification email failed (Brevo answered 401)`: 401 means the key or IP blocking, 400 means
+  the sender is not verified.
 - **`railway.json`** is Railway's older settings format and keeps working until 2026-12-01; move it to their
   new format (`railway config migrate`) before then.
 
@@ -110,18 +116,21 @@ npm run mobile:release                                  # against https://pulsef
 npm run mobile:release -- --api https://<domain>        # another https server
 ```
 
-It builds the app against that API (https only), runs `assembleRelease`, checks the signature with `apksigner` and prints the version, size and SHA-256 of `client\android\app\build\outputs\apk\release\app-release.apk`. Publish that file as `downloads/pulsefit.apk` in the folder that holds the database (on Railway `/data/downloads/pulsefit.apk` on the `pulsefit-volume`); the website then offers it at `/downloads/pulsefit.apk` without a redeploy. Afterwards run `npm run mobile:sync` (or `start-pulsefit-app.bat`) to point the app on your emulator or phone back at this PC.
+It builds the app against that API (https only), runs `assembleRelease`, checks the signature with `apksigner`, prints the version, size and SHA-256 of `client\android\app\build\outputs\apk\release\app-release.apk` and writes `pulsefit.json` (`versionName`, `versionCode`, `sha256`) beside it. Publish both as `downloads/pulsefit.apk` and `downloads/pulsefit.json` in the folder that holds the database (on Railway `/data/downloads/pulsefit.apk` on the `pulsefit-volume`); the website then offers it at `/downloads/pulsefit.apk` without a redeploy. Afterwards run `npm run mobile:sync` (or `start-pulsefit-app.bat`) to point the app on your emulator or phone back at this PC.
 
 To upload to Railway from the repo folder (the volume commands go over SSH, so register a key first with `railway ssh keys add`; `--overwrite` replaces the current APK; in Git Bash prefix the commands with `MSYS_NO_PATHCONV=1` so `/downloads/...` is not rewritten to a Windows path):
 
 ```powershell
 railway volume files --volume pulsefit-volume upload client\android\app\build\outputs\apk\release\app-release.apk /downloads/pulsefit.apk --overwrite
+railway volume files --volume pulsefit-volume upload client\android\app\build\outputs\apk\release\pulsefit.json /downloads/pulsefit.json --overwrite
 railway volume files --volume pulsefit-volume list /downloads
 ```
 
-An optional `/downloads/pulsefit.json` beside it, `{ "versionName": "1.0.0", "versionCode": 1, "sha256": "<sha256>" }`, puts the version in `GET /api/config`.
+`/downloads/pulsefit.json` (`{ "versionName": "1.1.0", "versionCode": 2, "sha256": "<sha256>" }`) puts the version in `GET /api/config`, and its `versionCode` is what makes installed apps (1.1.0 and later) offer "Update available": upload it with every APK, or they never hear of the new one. Apps before 1.1.0 cannot ask, so tell people on those to download the new APK from the website once.
 
 **New version**: in `client/android/app/build.gradle`, raise `versionCode` by 1 and set `versionName` (e.g. `1.0.1`) before building. Android will not install an update whose `versionCode` is not higher than the installed one.
+
+**Rebuild it with every release that changes the app itself** (its pages, pictures or forms), and upload it in the same deploy: the APK keeps the code it was built from, and a server deploy leaves it in place. Anyone can download and unzip it, so it must not contain anything only signed-in accounts may see; `mobile:release` stops if the built app contains the fitness guide, which the server serves to signed-in accounts only (`GET /api/guide`). Until people install the new APK, the old one keeps its old forms: after 2.3.0, its coach form will not save a coach without a photo, so admins edit those coaches on the website.
 
 **Back up the release key.** The first `mobile:release` creates it, with a random password, in:
 

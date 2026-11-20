@@ -1,5 +1,5 @@
-import { test, expect, APIRequestContext, Page } from '@playwright/test';
-import { signInAs } from './helpers';
+import { expect, APIRequestContext, Locator, Page } from '@playwright/test';
+import { signInAs, test } from './helpers';
 
 // Front-desk and admin screens: the fixes from the staff bug-fix round. Every test creates the
 // members and classes it needs and removes them again, so the shared database stays as seeded.
@@ -412,6 +412,57 @@ test('the check-in box is empty and focused after a denied scan, so the next sca
   await expect(page.getByText('NOT-A-REAL-PASS-2', { exact: true })).toBeVisible();
   await expect(page.getByText(/NOT-A-REAL-PASS-1NOT/)).toHaveCount(0);
   await expect(box).toHaveValue('');
+});
+
+test('an admin sets a gender when adding a member, sees it with its picture, and clears it back to "Not given"', async ({ page, request }) => {
+  const admin = await signInAs(page, request, 'admin');
+  const name = unique('Staff Gender');
+  const email = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '.')}@example.com`;
+  // The member list shows a card list on phones and a table from md; only one of them is visible.
+  const pictureIn = (scope: Page | Locator) => scope.locator('img[src*="/avatars/"]:visible').first();
+  const listPicture = () => pictureIn(page.locator('li:visible, tr:visible').filter({ hasText: email }));
+  try {
+    await page.goto('/admin/members');
+    await page.getByRole('button', { name: 'Add member' }).click();
+    const add = page.getByRole('dialog', { name: 'Add a member' });
+    await add.locator('#new-name').fill(name);
+    await add.locator('#new-email').fill(email);
+    await expect(add.locator('#new-gender')).toHaveValue('');
+    await add.locator('#new-gender').selectOption('female');
+    const created = page.waitForRequest(r => r.method() === 'POST' && r.url().endsWith('/api/members'));
+    await add.getByRole('button', { name: 'Add member' }).click();
+    expect((await created).postDataJSON()).toMatchObject({ name, email, gender: 'female' });
+    await page.getByRole('dialog', { name: 'Account created' }).getByRole('button', { name: 'I have noted it down' }).click();
+
+    await page.locator('#member-search').fill(email);
+    await page.locator('#member-search').press('Enter');
+    await expect(listPicture()).toHaveAttribute('src', /\/avatars\/female\.svg$/);
+
+    await page.getByRole('button', { name: `View ${name}` }).click();
+    const details = page.getByRole('dialog', { name, exact: true });
+    await expect(details.locator('p').filter({ hasText: /^Gender\s*Female$/ })).toBeVisible();
+    await expect(pictureIn(details)).toHaveAttribute('src', /\/avatars\/female\.svg$/);
+    await page.keyboard.press('Escape');
+    await expect(details).toBeHidden();
+
+    const edit = await openEditMember(page, name);
+    await expect(edit.locator('#edit-gender')).toHaveValue('female');
+    await edit.locator('#edit-gender').selectOption('');
+    const saved = page.waitForRequest(r => r.method() === 'PUT' && r.url().includes('/api/members/'));
+    await edit.getByRole('button', { name: 'Save changes' }).click();
+    // "Not given" is sent as null, which clears it; '' would be refused.
+    expect((await saved).postDataJSON()).toEqual({ gender: null });
+    await expect(edit).toBeHidden();
+    await expect(listPicture()).toHaveAttribute('src', /\/avatars\/neutral\.svg$/);
+
+    await page.getByRole('button', { name: `View ${name}` }).click();
+    await expect(details.locator('p').filter({ hasText: /^Gender\s*Not given$/ })).toBeVisible();
+    await expect(pictureIn(details)).toHaveAttribute('src', /\/avatars\/neutral\.svg$/);
+  } finally {
+    const found = await request.get(`/api/members?search=${encodeURIComponent(email)}&role=all`, { headers: auth(admin) });
+    const ids = ((await found.json()).data as Array<{ id: string; email: string }>).filter(m => m.email === email);
+    await removeMembers(request, admin, ids.map(m => ({ id: m.id, name, email, password: '' })));
+  }
 });
 
 test.describe('members page', () => {

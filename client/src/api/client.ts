@@ -8,15 +8,28 @@ import {
   Booking,
   CheckInResult,
   ClassCategory,
+  Coupon,
+  CouponInput,
+  DeskSale,
   ClassOccurrence,
   ClassRoster,
+  Enquiry,
+  EnquiryStatus,
+  ClaimStatus,
   Exercise,
+  FitnessGuide,
+  Gender,
+  Gift,
+  GiftClaim,
+  GiftInput,
+  GiftSize,
   GymClass,
   IdCardDeactivationReason,
   IdCardOverview,
   IdCardStatus,
   IssuedIdCard,
   MemberDetail,
+  MemberNote,
   MembershipPlan,
   MembershipStatus,
   MembershipTier,
@@ -24,11 +37,20 @@ import {
   MfaSetup,
   MyBooking,
   MyIdCard,
+  MyRewards,
   NewWorkout,
+  Offer,
+  OfferInput,
   Paginated,
   PaidTier,
   Payment,
   PaymentOrder,
+  PointsEntry,
+  Promotions,
+  Quote,
+  RewardSettings,
+  RewardSettingsInput,
+  StoreGift,
   TimeSession,
   Trainer,
   TrainerClient,
@@ -172,17 +194,18 @@ export const api = {
 
   // --- Auth & account ---
   login: (credentials: { email: string; password: string }) => post<AuthSession | MfaChallenge>('/auth/login', credentials),
-  register: (payload: { name: string; email: string; password: string; phone?: string }) =>
+  register: (payload: { name: string; gender: Gender; email: string; password: string; phone?: string; referral_code?: string }) =>
     post<AuthSession>('/auth/register', payload),
-  /** `message` is set when an existing password account was linked (its password was removed). */
-  googleSignIn: (credential: string) =>
-    send<(AuthSession | MfaChallenge) & { created: boolean }>('/auth/google', { method: 'POST', body: JSON.stringify({ credential }) }).then(r => ({
+  /** `message` is set when an existing password account was linked (its password was removed). A referral code counts only when this creates the account. */
+  googleSignIn: (credential: string, referral_code?: string) =>
+    send<(AuthSession | MfaChallenge) & { created: boolean }>('/auth/google', { method: 'POST', body: JSON.stringify({ credential, referral_code }) }).then(r => ({
       ...r.data,
       message: r.message
     })),
   demoLogin: (role: 'member' | 'vip' | 'trainer' | 'admin') => post<AuthSession>('/auth/demo-login', { role }),
   getMe: () => get<User>('/auth/me'),
-  updateProfile: (profile: { name?: string; phone?: string; avatar_url?: string }) => put<User>('/auth/profile', profile),
+  // avatar_url: '' removes the photo (the default picture shows again).
+  updateProfile: (profile: { name?: string; phone?: string; gender?: Gender; avatar_url?: string }) => put<User>('/auth/profile', profile),
   changePassword: (payload: { currentPassword?: string; newPassword: string }) => put<AuthSession>('/auth/password', payload),
   forgotPassword: (email: string) => post<{ message: string; resetUrl?: string }>('/auth/forgot-password', { email }),
   resetPassword: (payload: { token: string; newPassword: string }) => post<AuthSession | MfaChallenge>('/auth/reset-password', payload),
@@ -201,7 +224,11 @@ export const api = {
   getPlans: () => get<MembershipPlan[]>('/plans'),
   updatePlan: (id: string, payload: Partial<Omit<MembershipPlan, 'id' | 'tier'>>) =>
     putWithMessage<MembershipPlan>(`/plans/${id}`, payload),
-  createPaymentOrder: (payload: { tier: PaidTier; billing_cycle: BillingCycle }) => post<PaymentOrder>('/payment/create-order', payload),
+  // The server prices every order and quote; a coupon that does not work is a 400 COUPON_*.
+  createPaymentOrder: (payload: { tier: PaidTier; billing_cycle: BillingCycle; coupon_code?: string }) => post<PaymentOrder>('/payment/create-order', payload),
+  getPaymentQuote: (payload: { tier: PaidTier; billing_cycle: BillingCycle; coupon_code?: string }) => post<Quote>('/payment/quote', payload),
+  getPaymentQuotes: () => get<Quote[]>('/payment/quotes'),
+  getPromotions: () => get<Promotions>('/promotions'),
   verifyPayment: (payload: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) =>
     post<{ user: User; payment: Payment; message: string }>('/payment/verify', payload),
   confirmYoupiPayment: (orderId: string) => post<YoupiOrderStatus>('/payment/youpi/confirm', { order_id: orderId }),
@@ -246,17 +273,33 @@ export const api = {
   createTrainerNote: (payload: { member_id: string; category: TrainerNoteCategory; note: string; visible_to_member: boolean }) =>
     post<TrainerNote>('/trainer/notes', payload),
   deleteTrainerNote: (id: string) => del<{ deleted: true }>(`/trainer/notes/${id}`),
-  getMyNotes: () => get<TrainerNote[]>('/notes/my'),
+  getMyNotes: () => get<MemberNote[]>('/notes/my'),
 
   // --- Members, check-in, attendance & trials ---
   getMembers: (params: { search?: string; tier?: string; status?: string; role?: UserRole | 'all' } = {}) =>
     get<User[]>(`/members${qs(params)}`),
   getMemberById: (id: string) => get<MemberDetail>(`/members/${id}`),
-  createMember: (payload: { name: string; email: string; phone?: string; role?: UserRole; membership_tier?: MembershipTier; expiry_months?: number }) =>
-    post<{ member: User; tempPassword: string }>('/members', payload),
+  // With desk_sale, membership_tier is the plan sold (or 'none') and expiry_months 0: the sale sets the membership.
+  createMember: (payload: {
+    name: string;
+    email: string;
+    phone?: string;
+    gender?: Gender;
+    role?: UserRole;
+    membership_tier?: MembershipTier;
+    expiry_months?: number;
+    desk_sale?: DeskSale;
+    referral_code?: string;
+  }) => post<{ member: User; tempPassword: string; payment?: Payment; gifts?: GiftClaim[] }>('/members', payload),
+  // The message names the joining gifts, and any bookings a plan change cancelled.
+  recordDeskSale: (userId: string, sale: DeskSale) => postWithMessage<{ user: User; payment: Payment; gifts: GiftClaim[] }>(`/members/${userId}/desk-sale`, sale),
+  adjustPoints: (userId: string, payload: { points: number; note: string }) =>
+    postWithMessage<{ balance: number; entry: PointsEntry }>(`/members/${userId}/points`, payload),
+  attachReferrer: (userId: string, referral_code: string) => post<{ referred_by: { id: string; name: string } }>(`/members/${userId}/referrer`, { referral_code }),
   updateMember: (
     id: string,
-    payload: Partial<{ name: string; phone: string; role: UserRole; membership_tier: MembershipTier; membership_status: MembershipStatus; membership_expiry: string | null }>
+    // gender: null clears it back to "not given".
+    payload: Partial<{ name: string; phone: string; gender: Gender | null; role: UserRole; membership_tier: MembershipTier; membership_status: MembershipStatus; membership_expiry: string | null }>
   ) => putWithMessage<User>(`/members/${id}`, payload),
   deleteMember: (id: string) => del<{ deleted: true }>(`/members/${id}`),
   resetMemberPassword: (id: string) => post<{ tempPassword: string }>(`/members/${id}/reset-password`),
@@ -283,6 +326,11 @@ export const api = {
   claimTrial: (payload: { name: string; email: string; phone: string; interest: ClassCategory; preferred_date: string }) =>
     post<TrialPass>('/trials', payload),
   getTrials: () => get<TrialPass[]>('/trials'),
+  sendEnquiry: (
+    payload: Pick<Enquiry, 'name' | 'email' | 'phone' | 'interest' | 'contact_time' | 'message'> & { consent: true; website: string }
+  ) => post<null>('/enquiries', payload),
+  getEnquiries: () => get<Enquiry[]>('/enquiries'),
+  updateEnquiryStatus: (id: string, status: EnquiryStatus) => patch<Enquiry>(`/enquiries/${id}`, { status }),
 
   // --- Workouts & exercises ---
   getExercises: (params: { category?: string; equipment?: string; difficulty?: string; search?: string } = {}) =>
@@ -293,12 +341,46 @@ export const api = {
   createWorkout: (payload: NewWorkout) => post<Workout>('/workouts', payload),
   deleteWorkout: (id: string) => del<{ deleted: true }>(`/workouts/${id}`),
   getWorkoutAnalytics: () => get<WorkoutAnalytics>('/workouts/analytics'),
+  // Staff and members with a plan. A member without one (none chosen yet, or ended) gets 403
+  // PLAN_REQUIRED and none of the guide: null here, and the pages show their teaser instead.
+  getGuide: () =>
+    get<FitnessGuide>('/guide').catch((err: unknown): null => {
+      if (isApiError(err) && err.code === 'PLAN_REQUIRED') return null;
+      throw err;
+    }),
 
   // --- Floor time tracking ---
   clockIn: (category: ClassCategory, notes?: string) => post<TimeSession>('/time-tracking/clock-in', { category, notes }),
   clockOut: (notes?: string) => post<TimeSession>('/time-tracking/clock-out', notes ? { notes } : {}),
   getActiveFloorStatus: () => get<ActiveFloorStatus>('/time-tracking/active-floor'),
   getMyTimeTrackingStats: () => get<UserTimeTrackingStats>('/time-tracking/my-stats'),
+
+  // --- Rewards: points, gifts and pickups ---
+  getMyRewards: () => get<MyRewards>('/rewards/me'),
+  getPointsLedger: (params: { limit?: number; offset?: number } = {}) => get<Paginated<PointsEntry> & { balance: number }>(`/rewards/ledger${qs(params)}`),
+  getStoreGifts: () => get<StoreGift[]>('/rewards/gifts'),
+  claimGift: (payload: { gift_id: string; size?: GiftSize }) => post<GiftClaim>('/rewards/claims', payload),
+  updateClaim: (id: string, payload: { status?: 'cancelled' | 'handed_over'; size?: GiftSize; reason?: string }) =>
+    patch<GiftClaim>(`/rewards/claims/${id}`, payload),
+  // Admin: the same address as the store, answered with the whole catalogue and its stock.
+  getGiftCatalogue: () => get<Gift[]>('/rewards/gifts'),
+  createGift: (payload: GiftInput) => post<Gift>('/rewards/gifts', payload),
+  // The message names waiting claims the added stock made ready. New stock goes with expected_stock, the
+  // counts it replaces (409 STOCK_CHANGED when a claim moved them).
+  updateGift: (id: string, payload: Partial<GiftInput> & { expected_stock?: Pick<Gift, 'stock' | 'stock_by_size'> }) => putWithMessage<Gift>(`/rewards/gifts/${id}`, payload),
+  deleteGift: (id: string) => del<{ deleted: true }>(`/rewards/gifts/${id}`),
+  getClaims: (params: { status?: ClaimStatus; user_id?: string; search?: string } = {}) => get<GiftClaim[]>(`/rewards/claims${qs(params)}`),
+  getRewardSettings: () => get<RewardSettings>('/rewards/settings'),
+  updateRewardSettings: (payload: RewardSettingsInput) => putWithMessage<RewardSettings>('/rewards/settings', payload),
+
+  // --- Sales and coupon codes (admin) ---
+  getOffers: () => get<Offer[]>('/offers'),
+  createOffer: (payload: OfferInput) => post<Offer>('/offers', payload),
+  updateOffer: (id: string, payload: Partial<OfferInput>) => putWithMessage<Offer>(`/offers/${id}`, payload),
+  getCoupons: () => get<Coupon[]>('/coupons'),
+  createCoupon: (payload: CouponInput) => post<Coupon>('/coupons', payload),
+  // The code and the use count are fixed; everything else can change.
+  updateCoupon: (code: string, payload: Partial<Omit<CouponInput, 'code'>>) => putWithMessage<Coupon>(`/coupons/${encodeURIComponent(code)}`, payload),
 
   // --- Admin analytics ---
   getDashboardKPIs: () => get<AdminDashboardKPIs>('/analytics/dashboard')

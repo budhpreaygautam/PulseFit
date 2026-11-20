@@ -164,6 +164,19 @@ describe('billing: computeActivation', () => {
     expect(a).toMatchObject({ period_start: today, credit_days: 13, membership_expiry: '2026-11-19', period_end: '2026-11-19' });
   });
 
+  it('credits only the paid share of unused days bought at a discount (review: a 90% sale became list-price credit)', () => {
+    const a = computeActivation(
+      member({ membership_tier: 'pro', membership_expiry: '2026-10-24' }),
+      { tier: 'vip', billing_cycle: 'monthly' },
+      plans,
+      today,
+      // The last 10 of the 18 days left were bought at 90% off.
+      [{ period_start: '2026-10-15', period_end: '2026-10-24', amount_inr: 150, base_amount_inr: 1499 }]
+    );
+    // 8 + 10 * 150 / 1499 = 9.0007 paid days => floor(9.0007 * 1499 / 1999) = 6 (13 at list price)
+    expect(a.credit_days).toBe(6);
+  });
+
   it('credits a downgrade with more days than were left', () => {
     const a = computeActivation(
       member({ membership_tier: 'vip', membership_expiry: '2026-10-16' }),

@@ -227,8 +227,10 @@ export const deleteTrainerNote = asyncHandler<AuthenticatedRequest>((req, res: R
 });
 
 export const getMyNotes = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
+  // What the member's dashboard shows; the coach's account id and the note's flags stay on the server.
   const notes = db.trainer_notes
     .filter(n => n.member_id === req.user!.id && n.visible_to_member)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map(({ id, trainer_name, category, note, created_at }) => ({ id, trainer_name, category, note, created_at }));
   ok(res, notes);
 });

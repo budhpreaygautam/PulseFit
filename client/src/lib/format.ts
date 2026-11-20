@@ -1,6 +1,8 @@
 // Display helpers. The gym runs on India Standard Time, so dates and times are always shown
 // in Asia/Kolkata, whatever timezone the visitor's device is in.
 
+import { Gender } from '../types/index.js';
+
 export const GYM_TIMEZONE = 'Asia/Kolkata';
 
 const inr = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
@@ -64,7 +66,16 @@ export function formatDateTime(iso: string): string {
   return dateFormatter('en-IN', { timeZone: GYM_TIMEZONE, day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
 }
 
-export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+/** 'ends in 3 days', 'ends in 5 hours', 'ends in 20 minutes' or 'ended', for a sale's end instant. */
+export function endsIn(iso: string, now: number = Date.now()): string {
+  const ms = Date.parse(iso) - now;
+  if (!(ms > 0)) return 'ended';
+  const minutes = Math.floor(ms / 60_000);
+  const [n, unit] = minutes >= 1440 ? [Math.floor(minutes / 1440), 'day'] : minutes >= 60 ? [Math.floor(minutes / 60), 'hour'] : [Math.max(1, minutes), 'minute'];
+  return `ends in ${n} ${unit}${n === 1 ? '' : 's'}`;
+}
+
+export const DAY_NAMES =['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /**
  * Plan names as the catalogue (server/src/db/seed.ts) has them, for screens that do not load the
@@ -90,3 +101,12 @@ export function tierLabel(tier: string | null | undefined, plans?: ReadonlyArray
 }
 
 export const STATUS_LABELS: Record<string, string> = { active: 'Active', expired: 'Expired', pending: 'No active plan', frozen: 'Frozen' };
+
+/** The gender choices, in the order forms offer them. */
+export const GENDER_OPTIONS: { value: Gender; label: string; emoji: string }[] = [
+  { value: 'male', label: 'Male', emoji: '♂️' },
+  { value: 'female', label: 'Female', emoji: '♀️' },
+  { value: 'other', label: 'Other', emoji: '⚧️' }
+];
+
+export const genderLabel = (gender: Gender | null | undefined) => GENDER_OPTIONS.find(o => o.value === gender)?.label ?? 'Not given';

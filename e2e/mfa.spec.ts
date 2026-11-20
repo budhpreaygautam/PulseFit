@@ -1,6 +1,6 @@
 import crypto from 'crypto';
-import { test, expect, APIRequestContext } from '@playwright/test';
-import { trackConsoleErrors } from './helpers';
+import { expect, APIRequestContext } from '@playwright/test';
+import { test, trackConsoleErrors } from './helpers';
 
 // Two-step sign-in on the website: switch it on in My account, then sign in with a code.
 
@@ -39,7 +39,7 @@ async function adminToken(request: APIRequestContext): Promise<string> {
 test('a member switches on two-step sign-in, then signs in with a code; no token is kept in localStorage', async ({ page, request }) => {
   const errors = trackConsoleErrors(page);
   const email = `mfa-e2e-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`;
-  const reg = await request.post('/api/auth/register', { data: { name: 'Mfa Lane', email, password: PASSWORD } });
+  const reg = await request.post('/api/auth/register', { data: { name: 'Mfa Lane', email, password: PASSWORD, gender: 'female' } });
   expect(reg.status(), await reg.text()).toBe(201);
   const userId = (await reg.json()).data.user.id as string;
 
@@ -98,10 +98,16 @@ test('a member switches on two-step sign-in, then signs in with a code; no token
   }
 });
 
-test('a cookie-authenticated write from another site is refused (CSRF)', async ({ request }) => {
+test('a cookie-authenticated write from another site is refused (CSRF)', async ({ request, playwright, baseURL }) => {
   const admin = await adminToken(request);
-  // The cookie alone, without the X-Requested-With header a cross-site form could never add.
-  const res = await request.put('/api/auth/profile', { headers: { Cookie: `pulsefit_session=${admin}` }, data: { name: 'Forged' } });
-  expect(res.status()).toBe(403);
-  expect((await res.json()).code).toBe('CSRF_REJECTED');
+  // The cookie alone, without the X-Requested-With header a cross-site form could never add, so not
+  // through `request`, which sends it.
+  const crossSite = await playwright.request.newContext({ baseURL });
+  try {
+    const res = await crossSite.put('/api/auth/profile', { headers: { Cookie: `pulsefit_session=${admin}` }, data: { name: 'Forged' } });
+    expect(res.status()).toBe(403);
+    expect((await res.json()).code).toBe('CSRF_REJECTED');
+  } finally {
+    await crossSite.dispose();
+  }
 });

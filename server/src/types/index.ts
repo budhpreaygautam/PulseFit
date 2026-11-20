@@ -5,6 +5,7 @@ export type MembershipTier = 'none' | 'basic' | 'pro' | 'vip';
 // (see lib/membership.ts), so a stored 'active' past its expiry date is treated as expired.
 export type MembershipStatus = 'active' | 'expired' | 'pending' | 'frozen';
 export type BillingCycle = 'monthly' | 'annual';
+export type Gender = 'male' | 'female' | 'other';
 
 export interface User {
   id: string;
@@ -12,7 +13,11 @@ export interface User {
   password_hash?: string;
   name: string;
   role: UserRole;
+  // The person's photo, or '' for none: the apps then show a default picture (client/public/avatars).
   avatar_url: string;
+  // Asked at registration to pick that default picture. Absent = not given (Google sign-ups,
+  // accounts made by admins, older accounts). Personal data: only the person and admins see it.
+  gender?: Gender;
   phone: string;
   membership_tier: MembershipTier;
   membership_status: MembershipStatus;
@@ -37,10 +42,14 @@ export interface User {
   mfa_recovery_codes?: string[];
   // Last accepted 30-second step, so a code cannot be replayed.
   mfa_last_step?: number;
+  // Rewards: the member's own code to share (made on first need), and who referred them (a user id).
+  // Never part of SafeUser: the referral graph leaves the API only through the rewards endpoints.
+  referral_code?: string;
+  referred_by?: string;
 }
 
 /** A user as it may leave the API: no password hash, MFA secrets or other internal fields. */
-export type SafeUser = Omit<User, 'password_hash' | 'token_version' | 'google_sub' | 'mfa_secret' | 'mfa_pending_secret' | 'mfa_recovery_codes' | 'mfa_last_step'> & {
+export type SafeUser = Omit<User, 'password_hash' | 'token_version' | 'google_sub' | 'mfa_secret' | 'mfa_pending_secret' | 'mfa_recovery_codes' | 'mfa_last_step' | 'referral_code' | 'referred_by'> & {
   has_password: boolean;
 };
 
@@ -178,6 +187,12 @@ export interface PaymentOrder {
   created_at: string;
   paid_at?: string;
   razorpay_payment_id?: string;
+  // How the price was reached (lib/pricing): amount_inr = base_amount_inr - discount_inr. Absent on orders
+  // from before sales and coupons; offer_id or coupon_code names the discount when there is one.
+  base_amount_inr?: number;
+  discount_inr?: number;
+  offer_id?: string;
+  coupon_code?: string;
 }
 
 /** A completed membership payment; the member's invoice history. */
@@ -203,7 +218,125 @@ export interface Payment {
   period_start: string; // YYYY-MM-DD
   period_end: string; // YYYY-MM-DD, inclusive
   created_at: string;
-  source: 'checkout' | 'webhook' | 'seed';
+  // 'desk': a front-desk sale an admin recorded (order_id and razorpay_payment_id are '').
+  source: 'checkout' | 'webhook' | 'seed' | 'desk';
+  base_amount_inr?: number;
+  discount_inr?: number;
+  offer_id?: string;
+  coupon_code?: string;
+  desk_method?: DeskMethod;
+  recorded_by?: { id: string; name: string };
+}
+
+export type DeskMethod = 'cash' | 'upi' | 'card';
+
+// Rewards (lib/points.ts, lib/gifts.ts). Points live only in the append-only points_ledger.
+
+export type GiftLevel = 'small' | 'medium' | 'big' | 'premium';
+export type GiftSize = 'S' | 'M' | 'L' | 'XL' | 'XXL';
+
+export interface Gift {
+  id: string;
+  name: string;
+  description: string;
+  image: string; // an emoji, or an image data URL
+  level: GiftLevel;
+  points_cost: number | null; // null = reward-only, not in the store
+  stock: number | null; // null = unlimited; unused when the gift has sizes
+  sizes?: GiftSize[];
+  stock_by_size?: Partial<Record<GiftSize, number>>;
+  kind: 'item' | 'service';
+  active: boolean;
+  created_at: string;
+}
+
+export type ClaimStatus = 'needs_size' | 'waiting' | 'ready' | 'handed_over' | 'cancelled';
+export type ClaimSource = 'store' | 'milestone' | 'joining';
+
+/** One gift a member is owed, from the store, a milestone or a joining bundle. */
+export interface GiftClaim {
+  id: string;
+  user_id: string;
+  user_name: string; // snapshot
+  gift_id: string;
+  gift_name: string; // snapshot, so a renamed or retired gift stays collectable
+  size?: GiftSize;
+  source: ClaimSource;
+  source_ref: string; // milestone id, payment id, or '' for the store
+  points_spent: number;
+  pickup_code: string;
+  status: ClaimStatus;
+  created_at: string;
+  handed_over_at?: string;
+  handed_over_by?: { id: string; name: string };
+  cancel_reason?: string;
+}
+
+export type PointsReason = 'checkin' | 'workout' | 'referral' | 'claim' | 'refund' | 'admin_adjust' | 'bonus';
+
+/** One ledger line. `key` is unique across the ledger, which makes every award happen once. */
+export interface PointsEntry {
+  id: string;
+  user_id: string;
+  key: string;
+  points: number;
+  reason: PointsReason;
+  ref?: string;
+  note?: string;
+  created_at: string;
+}
+
+export interface Milestone {
+  id: string;
+  type: 'visits' | 'streak';
+  threshold: number;
+  gift_id: string;
+}
+
+export interface JoiningGift {
+  tier: Exclude<MembershipTier, 'none'>;
+  billing_cycle: BillingCycle;
+  gift_ids: string[];
+  once_per_member: boolean;
+}
+
+export interface RewardSettings {
+  points_per_checkin: number;
+  points_per_workout: number;
+  points_per_referral: number;
+  welcome_points_for_referred: number;
+  milestones: Milestone[];
+  joining_gifts: JoiningGift[];
+  launched_at?: string;
+}
+
+export interface Offer {
+  id: string;
+  title: string;
+  banner_text: string;
+  percent_off: number | null;
+  amount_off: number | null;
+  tiers: Exclude<MembershipTier, 'none'>[]; // [] = all
+  billing_cycles: BillingCycle[]; // [] = all
+  starts_at: string; // ISO
+  ends_at: string; // ISO
+  active: boolean;
+  created_at: string;
+}
+
+export interface Coupon {
+  code: string;
+  percent_off: number | null;
+  amount_off: number | null;
+  tiers: Exclude<MembershipTier, 'none'>[];
+  billing_cycles: BillingCycle[];
+  valid_from: string; // gym dates, inclusive
+  valid_until: string;
+  max_uses: number | null;
+  per_member_limit: number;
+  uses: number;
+  active: boolean;
+  created_at: string;
 }
 
 export interface TrialPass {
@@ -217,6 +350,19 @@ export interface TrialPass {
   status: 'issued' | 'redeemed';
   created_at: string;
   redeemed_at?: string;
+}
+
+export type EnquiryStatus = 'new' | 'contacted' | 'closed';
+export interface Enquiry {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  interest: ClassCategory | 'All-Access' | 'Not sure yet';
+  contact_time: 'Any time' | 'Morning' | 'Afternoon' | 'Evening';
+  message: string; // '' when none
+  status: EnquiryStatus;
+  created_at: string; // also when consent was given: the API refuses an enquiry without it
 }
 
 export type IdCardStatus = 'active' | 'deactivated';
@@ -290,7 +436,7 @@ export interface TimeSession {
   notes?: string;
 }
 
-/** A person on the floor as staff see them: no email, notes or ids. */
+/** A person on the floor as admins see them: no email, notes or ids. */
 export interface FloorPresence {
   user_name: string;
   user_avatar: string;
@@ -303,7 +449,7 @@ export interface ActiveFloorStatus {
   totalActive: number;
   workoutActive: number;
   zumbaActive: number;
-  // Only included for staff (admin/trainer); the public sees counts only.
+  // Only included for admins; everyone else (coaches too) sees counts only.
   workoutUsers?: FloorPresence[];
   zumbaUsers?: FloorPresence[];
 }
@@ -314,4 +460,61 @@ export interface UserTimeTrackingStats {
   totalTimeMinutesThisMonth: number;
   totalSessionsCompleted: number;
   recentSessions: TimeSession[];
+}
+
+// The fitness guide (GET /api/guide, signed-in accounts only): content in content/guide.ts.
+
+export interface GuideExercise {
+  name: string;
+  sets: string;
+  reps: string;
+  rest: string;
+  tip: string;
+}
+
+export interface GuideWorkoutPlan {
+  id: string;
+  name: string;
+  level: string;
+  goal: string;
+  frequency: string;
+  description: string;
+  days: { name: string; exercises: GuideExercise[] }[];
+}
+
+export interface GuideMeal {
+  timing: string;
+  name: string;
+  items: string[];
+  calories: number;
+}
+
+export interface GuideDietChart {
+  id: string;
+  title: string;
+  type: string;
+  macros: { protein_g: number; carbs_g: number; fats_g: number };
+  description: string;
+  meals: GuideMeal[];
+}
+
+export interface GuideSupplement {
+  name: string;
+  badge: string;
+  /** Out of 5. */
+  stars: number;
+  verdict: string;
+  dosage: string;
+  timing: string;
+  why: string;
+  faqs: { question: string; answer: string }[];
+}
+
+export interface FitnessGuide {
+  workout_plans: GuideWorkoutPlan[];
+  diet_charts: GuideDietChart[];
+  nutrition_rules: { emoji: string; title: string; text: string }[];
+  supplements: GuideSupplement[];
+  /** The 4-day body-part split on the strength floor page (/strength). */
+  strength_split: { day: string; title: string; exercises: string[] }[];
 }

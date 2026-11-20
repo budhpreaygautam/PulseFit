@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import config from './config.js';
 import apiRoutes from './routes/api.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import { csrfGuard } from './middleware/auth.js';
+import { csrfGuard, requireAppHeader } from './middleware/auth.js';
 import { apiLimiter } from './lib/authRateLimits.js';
 import { loadIndexTemplate, renderIndexHtml, robotsTxt, sitemapXml } from './lib/seo.js';
 import { compressedAssets } from './lib/compressedAssets.js';
@@ -118,6 +118,9 @@ if (config.isProduction) {
 
 // Cookie-authenticated writes must carry X-Requested-With (see csrfGuard).
 app.use('/api', csrfGuard);
+// Every other API request needs it too, or answers 404, except the health check and the payment
+// webhooks. A deterrent against opening API addresses directly, not a security boundary (see requireAppHeader).
+app.use('/api', requireAppHeader);
 
 // Razorpay and YouPI webhook signatures are computed over the exact raw body, so those routes
 // must see the bytes before express.json() parses them.
@@ -157,6 +160,25 @@ app.use('/downloads', (_req, res) => {
 // request, so tests can point clientDistPath at a fixture.
 let assets: { root: string; serve: RequestHandler } | null = null;
 const compressed = compressedAssets(() => config.clientDistPath);
+
+/**
+ * Whether an address names a source map. Tested on the decoded path, because express.static decodes
+ * it before opening the file ("x.js%2Emap"), and on ".map" followed by anything a file system lets
+ * go: a trailing slash, and on Windows a trailing dot or space or an NTFS stream name ("x.js.map::$DATA").
+ */
+function isSourceMapPath(urlPath: string): boolean {
+  let decoded = urlPath;
+  try {
+    decoded = decodeURIComponent(urlPath);
+  } catch {
+    // Malformed encoding: express.static refuses it with a 400 and opens nothing.
+  }
+  return /\.map(?=$|[^\w-])/i.test(decoded);
+}
+
+// Source maps would hand out the app's original source. client/vite.config.ts builds none, and a
+// build that has some anyway (a local debug build copied over) still never serves them.
+app.use((req, res, next) => (config.serveClient && isSourceMapPath(req.path) ? res.status(404).type('text/plain').send('Not found') : next()));
 app.use((req, res, next) => (config.serveClient ? compressed(req, res, next) : next()));
 app.use((req, res, next) => {
   // The raw index.html still has the head marker: it is only served filled in, below.

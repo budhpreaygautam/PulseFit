@@ -2,13 +2,17 @@ import { Router } from 'express';
 import { getExercises, getExerciseById, getWorkouts, getWorkoutById, createWorkout, deleteWorkout, getWorkoutAnalytics } from '../controllers/workoutController.js';
 import { clockIn, clockOut, getActiveFloorStatus, getMyTimeTrackingStats } from '../controllers/timeTrackingController.js';
 import { getDashboardKPIs } from '../controllers/analyticsController.js';
+import { getGuide } from '../controllers/guideController.js';
 import { authenticate, optionalAuth, requireRole } from '../middleware/auth.js';
 
-// Owner: workouts & exercises, floor time tracking and admin analytics.
+// Owner: workouts & exercises, the fitness guide, floor time tracking and admin analytics.
 const router = Router();
 
 router.get('/exercises', getExercises);
 router.get('/exercises/:id', getExerciseById);
+
+// Workout plans, diet charts, supplements and the strength split: staff, and members with a plan.
+router.get('/guide', authenticate, getGuide);
 
 router.get('/workouts', authenticate, getWorkouts);
 router.get('/workouts/analytics', authenticate, getWorkoutAnalytics);
@@ -18,7 +22,7 @@ router.delete('/workouts/:id', authenticate, deleteWorkout);
 
 router.post('/time-tracking/clock-in', authenticate, clockIn);
 router.post('/time-tracking/clock-out', authenticate, clockOut);
-// Public counts; staff (admin/trainer) with a token also get who is on the floor.
+// Public counts; admins with a token also get who is on the floor.
 router.get('/time-tracking/active-floor', optionalAuth, getActiveFloorStatus);
 router.get('/time-tracking/my-stats', authenticate, getMyTimeTrackingStats);
 

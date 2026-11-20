@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowRight, Calendar, CheckCircle2, ChevronRight, Clock, Dumbbell, MapPin, Music2, QrCode, Sparkles, Star, Users, Zap } from 'lucide-react';
+import { ArrowRight, Calendar, CheckCircle2, ChevronRight, Clock, Dumbbell, Gift, MapPin, Music2, QrCode, Sparkles, Star, Users, Zap } from 'lucide-react';
 import { ActiveFloorStatus } from '../../types/index.js';
 import { api } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
@@ -7,11 +7,14 @@ import { EmptyState, ErrorState } from '../../components/common/States.js';
 import { CardSkeletons } from '../../components/public/CardSkeletons.js';
 import { HERO_PHOTOS, HIGH_FETCH_PRIORITY, unsplashSrcSet } from '../../components/public/media.js';
 import { useApiData } from '../../components/public/useApiData.js';
+import { defaultAvatar } from '../../components/member/avatarImage.js';
 import { cheapestPlan, cheapestPlanFor } from '../../components/public/plans.js';
 import { HOURS_DAYS, HOURS_TIME, isGymOpenNow, mondayOf } from '../../components/public/gymInfo.js';
+import { TabLink } from '../../components/public/TabLink.js';
 import { useAuth } from '../../context/AuthContext.js';
+import { useAppConfig } from '../../context/ConfigContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
-import { formatClock, formatDate, formatINR, formatTime, gymToday } from '../../lib/format.js';
+import { endsIn, formatClock, formatDate, formatINR, formatTime, gymToday } from '../../lib/format.js';
 
 interface LandingPageProps {
   setCurrentTab: (tab: string) => void;
@@ -71,9 +74,14 @@ const HERO_PHOTO = HERO_PHOTOS['/'];
 export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenFreeTrialModal, onOpenAuthModal }) => {
   const { user } = useAuth();
   const { navigate } = useNavigation();
+  const { config } = useAppConfig();
+  // For a guest these are the API's guest views: only the fields this page shows (docs/API.md, Guests),
+  // and only the next four classes, so the weekly count comes from the config.
   const classes = useApiData(() => api.getClasses());
   const trainers = useApiData(() => api.getTrainers());
   const plans = useApiData(() => api.getPlans());
+  // Sale headlines and joining-gift names only, never coupon codes; shown to guests.
+  const promotions = useApiData(() => api.getPromotions());
   const floor = useFloorStatus();
   const isOpen = isGymOpenNow();
 
@@ -86,9 +94,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
 
   const openTimeTracker = () => (user ? navigate('member-dashboard') : onOpenAuthModal('login'));
   const join = () => (user ? navigate('pricing') : onOpenAuthModal('register'));
+  // The soonest-ending sale (the server sorts them), and the first annual plan's welcome kit.
+  const sale = user ? undefined : promotions.data?.sales[0];
+  const annualKit = user ? undefined : promotions.data?.joining_gifts.find(j => j.billing_cycle === 'annual');
 
   return (
     <div className="space-y-16 sm:space-y-24 pb-20 overflow-hidden">
+      {sale && (
+        // The negative margin cancels the page's section gap: the hero's own top padding is enough.
+        <section aria-label="Sale" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 -mb-16 sm:-mb-24">
+          <div className="p-3 sm:p-4 rounded-2xl neu-flat border border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm">
+            <p className="flex items-start sm:items-center gap-2.5 text-slate-200">
+              <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 sm:mt-0" aria-hidden="true" />
+              <span>
+                <strong className="text-slate-100">{sale.banner_text || sale.title}</strong> · {endsIn(sale.ends_at)}
+              </span>
+            </p>
+            <button type="button" onClick={() => onOpenAuthModal('register')} className="self-start sm:self-auto px-4 py-2 neu-btn-lime font-extrabold text-xs rounded-xl shrink-0">
+              Sign up
+            </button>
+          </div>
+        </section>
+      )}
+
       {/* Hero */}
       <section className="relative pt-6 sm:pt-10 lg:pt-16 pb-4">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[500px] h-[200px] sm:h-[300px] bg-lime-500/10 rounded-full blur-[120px] pointer-events-none" />
@@ -176,7 +204,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
                 </div>
                 <div>
                   <dt className="text-[11px] text-slate-400 font-medium">Classes a week</dt>
-                  <dd className="text-lg sm:text-2xl font-black text-amber-600 dark:text-amber-400 font-heading">{classes.data ? classes.data.length : '—'}</dd>
+                  <dd className="text-lg sm:text-2xl font-black text-amber-600 dark:text-amber-400 font-heading">{config.gym.classesPerWeek ?? '—'}</dd>
                 </div>
               </dl>
             </div>
@@ -369,7 +397,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="neu-flat p-6 sm:p-10 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="space-y-2 text-center md:text-left">
-            <Badge variant="cyan">FREE GUIDES</Badge>
+            <Badge variant="cyan">INCLUDED WITH EVERY PLAN</Badge>
             <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-heading">WORKOUT SPLITS, INDIAN DIET CHARTS & SUPPLEMENTS</h2>
             <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
               Muscle-gain, fat-loss and vegetarian high-protein meal plans built on Indian staples, plus 4- and 5-day training splits and a plain-language supplements guide.
@@ -467,17 +495,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
             {trainers.data.slice(0, 4).map(trainer => (
               <li key={trainer.id} className="neu-flat rounded-2xl overflow-hidden border border-slate-800">
                 <div className="relative h-56 sm:h-60 overflow-hidden bg-black">
-                  {trainer.avatar_url && (
-                    <img
-                      src={trainer.avatar_url}
-                      alt={`Portrait of ${trainer.name}`}
-                      width={300}
-                      height={240}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-full object-cover object-top"
-                    />
-                  )}
+                  <img
+                    src={trainer.avatar_url || defaultAvatar()}
+                    alt={trainer.avatar_url ? `Portrait of ${trainer.name}` : ''}
+                    width={300}
+                    height={240}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover object-top"
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                   <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
                     <span className={`${photoChip} text-zinc-100`}>
@@ -516,6 +542,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
             CLEAR, SIMPLE PRICING
           </h2>
           <p className="text-slate-400 text-sm">No sign-up fee and no automatic renewals. Entry with your QR pass during opening hours.</p>
+          {annualKit && (
+            <p className="text-sm text-slate-300 flex items-center justify-center gap-2">
+              <Gift className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" aria-hidden="true" />
+              Join on an annual plan and get a welcome kit: {annualKit.gifts.join(', ')}.
+            </p>
+          )}
         </div>
 
         {plans.isLoading ? (
@@ -572,6 +604,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
             <h2 className="text-2xl sm:text-3xl font-black text-slate-100 font-heading">TRY A STRENGTH OR ZUMBA SESSION FREE</h2>
             <p className="text-sm text-slate-300 leading-relaxed">
               Claim a free 1-day pass for any day in the next two weeks, Monday to Saturday. One pass per person.
+            </p>
+            <p className="text-xs text-slate-400">
+              Questions first?{' '}
+              <TabLink tab="contact" navigate={setCurrentTab} className="text-lime-400 underline">
+                Send us an enquiry
+              </TabLink>
+              .
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 shrink-0 w-full sm:w-auto">

@@ -1,5 +1,5 @@
 import db from '../db/database.js';
-import { addDays, gymToday, toGymDate } from './dates.js';
+import { addDays, gymToday, startOfWeek, toGymDate } from './dates.js';
 import { isOpenDay, previousOpenDay } from './hours.js';
 import { User } from '../types/index.js';
 
@@ -65,6 +65,13 @@ export function activityDays(userId: string): Set<string> {
     if (w.user_id === userId && w.created_at && toGymDate(w.created_at) === w.date) days.add(w.date);
   }
   return days;
+}
+
+/** How many of `days` fall in today's gym week, Monday to Sunday. */
+export function activeDaysInWeek(days: Set<string>, today = gymToday()): number {
+  const monday = startOfWeek(today);
+  const sunday = addDays(monday, 6);
+  return [...days].filter(d => d >= monday && d <= sunday).length;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { IdCardDeactivationReason, IssuedIdCard, User } from '../../types/index.js';
 import { formatDate, formatDay } from '../../lib/format.js';
 import { GYM_ADDRESS, GYM_EMAIL, GYM_NAME, GYM_PHONE_DISPLAY, HOURS_DAYS, HOURS_TIME } from '../public/gymInfo.js';
+import { defaultAvatar } from '../member/avatarImage.js';
 
 // The ID card is a vertical badge, like a company employee card, drawn on canvas at real card size
 // (CR80 portrait, 54 x 85.6 mm) at 300 dpi, so one drawing serves the screen and the PNG download. The
@@ -87,7 +88,7 @@ export const roleStyleOf = (role: string) => ROLE_STYLES[role] ?? ROLE_STYLES.me
  * Who the card is for. The pass code is only needed when no physical card has been issued: an
  * issued card carries its own number instead.
  */
-export type CardHolder = Pick<User, 'id' | 'name' | 'role' | 'avatar_url' | 'membership_tier' | 'membership_status' | 'membership_expiry' | 'created_at'> & {
+export type CardHolder = Pick<User, 'id' | 'name' | 'role' | 'avatar_url' | 'gender' | 'membership_tier' | 'membership_status' | 'membership_expiry' | 'created_at'> & {
   qr_code_token?: string;
 };
 
@@ -368,9 +369,20 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   return cursor + lineHeight;
 }
 
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase() || '?';
+/**
+ * Their photo, else (none, or it will not load) the default picture. That one is served with the app
+ * from the page's own origin, so it never stops the card from being exported.
+ */
+async function holderPicture(user: CardHolder): Promise<HTMLImageElement | null> {
+  const fallback = defaultAvatar(user.gender);
+  for (const src of user.avatar_url ? [user.avatar_url, fallback] : [fallback]) {
+    try {
+      return await loadImage(src, src !== fallback && !src.startsWith('data:'));
+    } catch {
+      // Try the next one.
+    }
+  }
+  return null;
 }
 
 /** Round photo with a white gap and a colourful gradient ring, lifted off the card. */
@@ -393,14 +405,7 @@ async function drawPhoto(ctx: CanvasRenderingContext2D, p: Palette, user: CardHo
   ctx.fillStyle = '#ffffff';
   ctx.fill();
 
-  let photo: HTMLImageElement | null = null;
-  if (user.avatar_url) {
-    try {
-      photo = await loadImage(user.avatar_url, !user.avatar_url.startsWith('data:'));
-    } catch {
-      photo = null;
-    }
-  }
+  const photo = await holderPicture(user);
   ctx.save();
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -411,13 +416,9 @@ async function drawPhoto(ctx: CanvasRenderingContext2D, p: Palette, user: CardHo
     const dh = photo.height * scale;
     ctx.drawImage(photo, cx - dw / 2, cy - dh / 2, dw, dh);
   } else {
+    // Not even the bundled picture loaded (the site went offline mid-draw): a plain disc in the role's colours.
     ctx.fillStyle = roleGradient(ctx, colours, cx - r, cy - r, cx + r, cy + r);
     ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `800 ${Math.round(r * 0.8)}px ${DISPLAY}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(initialsOf(user.name), cx, cy + 4);
   }
   ctx.restore();
 }
@@ -465,7 +466,7 @@ function newCanvas(): [HTMLCanvasElement, CanvasRenderingContext2D] {
   return [canvas, ctx];
 }
 
-/** A canvas holding a cross-origin photo cannot be exported; then redraw with initials instead. */
+/** A canvas holding a cross-origin photo cannot be exported; then redraw with the default picture instead. */
 function exportOrNull(canvas: HTMLCanvasElement): string | null {
   try {
     return canvas.toDataURL('image/png');
@@ -659,7 +660,7 @@ async function drawBack({ user, qrDataUrl, theme, card }: IdCardDetails): Promis
   return canvas.toDataURL('image/png');
 }
 
-/** Draw both faces. A photo the browser will not let us export is replaced by initials. */
+/** Draw both faces. A photo the browser will not let us export is replaced by the default picture. */
 export async function renderIdCard(details: IdCardDetails): Promise<IdCardFaces> {
   if (document.fonts) {
     await Promise.all([

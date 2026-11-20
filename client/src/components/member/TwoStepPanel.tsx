@@ -160,7 +160,7 @@ export const TwoStepPanel: React.FC = () => {
   );
 
   return (
-    <section aria-labelledby="mfa-heading" className="max-w-2xl neu-flat p-5 sm:p-8 rounded-3xl space-y-5">
+    <section aria-labelledby="mfa-heading" className="neu-flat p-5 sm:p-8 rounded-3xl space-y-5">
       <div className="flex items-start gap-3">
         <span className={`w-10 h-10 rounded-2xl glass-tint flex items-center justify-center shrink-0 ${enabled ? 'bg-lime-500/15 text-lime-400' : 'bg-slate-500/15 text-slate-400'}`}>
           {enabled ? <ShieldCheck className="w-5 h-5" aria-hidden="true" /> : <ShieldOff className="w-5 h-5" aria-hidden="true" />}

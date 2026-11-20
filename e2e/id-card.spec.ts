@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { signInAs } from './helpers';
+import { expect } from '@playwright/test';
+import { signInAs, test } from './helpers';
 
 // The ID card is drawn on canvas: these tests check that both faces are drawn, that the card can be
 // flipped and downloaded but not printed (the gym issues the physical card), and that Escape closes

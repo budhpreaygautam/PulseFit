@@ -17,8 +17,10 @@ process.env.ENFORCE_OPENING_HOURS = process.env.ENFORCE_OPENING_HOURS ?? 'false'
 // The origin tests assume the defaults, whatever server/.env says (dotenv never overrides a set value).
 process.env.CLIENT_ORIGIN = 'http://localhost:5173,https://localhost:5173';
 process.env.APP_ORIGINS = 'https://localhost,capacitor://localhost';
-// Payment tests configure their gateway themselves.
-for (const key of ['PAYMENT_PROVIDER', 'YOUPI_API_URL', 'YOUPI_MERCHANT_ID', 'YOUPI_WEBHOOK_SECRET']) process.env[key] = '';
+// Payment and enquiry-email tests configure their gateway or mail sender themselves; nothing is ever really sent.
+for (const key of ['PAYMENT_PROVIDER', 'YOUPI_API_URL', 'YOUPI_MERCHANT_ID', 'YOUPI_WEBHOOK_SECRET', 'BREVO_API_KEY', 'MAIL_FROM', 'ENQUIRY_INBOX']) {
+  process.env[key] = '';
+}
 
 afterAll(() => {
   for (const file of [dbPath, `${dbPath}.${process.pid}.tmp`]) {

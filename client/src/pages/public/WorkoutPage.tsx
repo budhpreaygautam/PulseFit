@@ -1,19 +1,22 @@
 import React from 'react';
 import { ArrowRight, CheckCircle2, Dumbbell, Layers, Sparkles, Target, Users } from 'lucide-react';
 import { Badge } from '../../components/common/Badge.js';
+import { ErrorState } from '../../components/common/States.js';
+import { CardSkeletons } from '../../components/public/CardSkeletons.js';
+import { PlanPrompt } from '../../components/public/PlanPrompt.js';
 import { StatTile } from '../../components/public/StatTile.js';
 import { WeeklyClasses } from '../../components/public/WeeklyClasses.js';
 import { HERO_PHOTOS, HIGH_FETCH_PRIORITY, unsplashSrcSet } from '../../components/public/media.js';
 import { useApiData } from '../../components/public/useApiData.js';
 import { cheapestPlanFor } from '../../components/public/plans.js';
 import { HOURS_DAYS, HOURS_TIME } from '../../components/public/gymInfo.js';
+import { useAuth } from '../../context/AuthContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { api } from '../../api/client.js';
 import { formatINR } from '../../lib/format.js';
 
 interface WorkoutPageProps {
   setCurrentTab: (tab: string) => void;
-  onOpenAuthModal: (mode: 'login' | 'register') => void;
   onOpenFreeTrialModal: () => void;
 }
 
@@ -61,17 +64,23 @@ const HIGHLIGHTS = [
   { icon: Layers, title: 'Room to train', desc: 'A separate strength floor, so lifting never competes with the dance studio.' }
 ];
 
-const SAMPLE_SPLIT = [
-  { day: 'Day 1', title: 'Chest & triceps', exercises: ['Barbell bench press 4×8', 'Incline dumbbell press 3×10', 'Cable flyes 3×12', 'Rope pushdowns 3×15'] },
-  { day: 'Day 2', title: 'Back & biceps', exercises: ['Deadlift 4×6', 'Lat pulldown 4×10', 'Barbell row 3×10', 'Incline dumbbell curl 3×12'] },
-  { day: 'Day 3', title: 'Legs & core', exercises: ['Back squat 4×8', 'Romanian deadlift 3×10', 'Leg press 4×12', 'Hanging leg raise 3×15'] },
-  { day: 'Day 4', title: 'Shoulders & arms', exercises: ['Overhead press 4×8', 'Lateral raise 4×15', 'Reverse flye 3×12', 'Hammer curl & skull crusher 3×12'] }
+// What members without a plan see of the sample split: the days, not the exercises. Staff and members
+// with a plan get the full split from GET /api/guide (strength_split); the server's tests/guide.test.ts
+// keeps the days in step.
+const SPLIT_TEASER = [
+  { day: 'Day 1', title: 'Chest & triceps' },
+  { day: 'Day 2', title: 'Back & biceps' },
+  { day: 'Day 3', title: 'Legs & core' },
+  { day: 'Day 4', title: 'Shoulders & arms' }
 ];
 
 export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenFreeTrialModal }) => {
   const { navigate } = useNavigation();
+  const { user } = useAuth();
   const classes = useApiData(() => api.getClasses({ category: CATEGORY }));
   const plans = useApiData(() => api.getPlans());
+  // The split's exercises come with a plan (null without one), and load once one is bought.
+  const guide = useApiData(() => api.getGuide(), [user?.membership_status]);
 
   const plan = plans.data ? cheapestPlanFor(plans.data, CATEGORY) : undefined;
   const coaches = classes.data ? new Set(classes.data.map(c => c.trainer_id)).size : null;
@@ -214,31 +223,54 @@ export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenF
           <h2 className="text-3xl sm:text-4xl font-black text-slate-100 font-heading">A 4-DAY BODY-PART SPLIT</h2>
           <p className="text-sm text-slate-400">A simple starting point. Ask a coach to adjust it to your level.</p>
         </div>
-        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {SAMPLE_SPLIT.map(routine => (
-            <li key={routine.day} className="p-6 rounded-3xl neu-flat space-y-4 flex flex-col justify-between">
-              <div className="space-y-3">
-                <span className="inline-block font-mono text-xs font-black text-lime-400 bg-lime-500/10 px-2.5 py-0.5 rounded-lg border border-lime-500/20">{routine.day}</span>
-                <h3 className="font-black text-sm text-slate-100 font-heading">{routine.title}</h3>
-                <ul className="space-y-2 text-xs text-slate-300">
-                  {routine.exercises.map(ex => (
-                    <li key={ex} className="flex items-start gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
-                      <span>{ex}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCurrentTab('workout-logger')}
-                className="w-full py-2.5 neu-btn text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5"
-              >
-                <Dumbbell className="w-3.5 h-3.5 text-lime-400" aria-hidden="true" /> Log this workout
-              </button>
-            </li>
-          ))}
-        </ul>
+        {guide.error ? (
+          <ErrorState message={guide.error} onRetry={guide.reload} className="max-w-xl mx-auto" />
+        ) : guide.isLoading && !guide.data ? (
+          <CardSkeletons label="Loading the split…" count={4} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5" cardClassName="h-72 rounded-3xl" />
+        ) : !guide.data ? (
+          <>
+            <ul className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+              {SPLIT_TEASER.map(routine => (
+                <li key={routine.day} className="p-5 sm:p-6 rounded-3xl neu-flat space-y-3">
+                  <span className="inline-block font-mono text-xs font-black text-lime-400 bg-lime-500/10 px-2.5 py-0.5 rounded-lg border border-lime-500/20">{routine.day}</span>
+                  <h3 className="font-black text-sm text-slate-100 font-heading">{routine.title}</h3>
+                </li>
+              ))}
+            </ul>
+            <PlanPrompt
+              headingLevel="h3"
+              title="Choose a plan to see the full split"
+              body="Every day's exercises with sets and reps, ready to log in the app."
+              onChoosePlan={() => navigate('pricing', plan ? { plan: plan.tier } : undefined)}
+            />
+          </>
+        ) : (
+          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {guide.data.strength_split.map(routine => (
+              <li key={routine.day} className="p-6 rounded-3xl neu-flat space-y-4 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <span className="inline-block font-mono text-xs font-black text-lime-400 bg-lime-500/10 px-2.5 py-0.5 rounded-lg border border-lime-500/20">{routine.day}</span>
+                  <h3 className="font-black text-sm text-slate-100 font-heading">{routine.title}</h3>
+                  <ul className="space-y-2 text-xs text-slate-300">
+                    {routine.exercises.map(ex => (
+                      <li key={ex} className="flex items-start gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
+                        <span>{ex}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCurrentTab('workout-logger')}
+                  className="w-full py-2.5 neu-btn text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5"
+                >
+                  <Dumbbell className="w-3.5 h-3.5 text-lime-400" aria-hidden="true" /> Log this workout
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Download, Dumbbell, X } from 'lucide-react';
 import { useAppConfig } from '../../context/ConfigContext.js';
-import { isNativeApp } from '../../lib/native.js';
+import { isAppMode } from '../../lib/appMode.js';
 import { storage } from '../../lib/storage.js';
 
 // "Get the PulseFit app": offered to visitors in an Android browser while the server has an APK to
@@ -15,7 +15,7 @@ import { storage } from '../../lib/storage.js';
 const DISMISSED_KEY = 'pulsefit_app_banner_dismissed';
 const DISMISS_FOR_MS = 30 * 24 * 60 * 60 * 1000;
 
-const isAndroidBrowser = !isNativeApp && /Android/i.test(navigator.userAgent);
+const isAndroidBrowser = !isAppMode && /Android/i.test(navigator.userAgent);
 
 function dismissedRecently(): boolean {
   const at = Number(storage.get(DISMISSED_KEY));
