@@ -1,4 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+import { AppArt } from './components/app/AppArt.js';
+import type { SceneId } from './lib/appArt.js';
 import { AlertTriangle, Lock, RefreshCw, ShieldAlert, WifiOff } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
 import { ToastProvider, useToast } from './context/ToastContext.js';
@@ -89,16 +91,17 @@ const PageLoader: React.FC = () => (
   </div>
 );
 
-const AccessPanel: React.FC<{ icon: React.ReactNode; title: string; body: string; action: string; onAction: () => void }> = ({
+const AccessPanel: React.FC<{ icon: React.ReactNode; title: string; body: string; action: string; onAction: () => void; scene?: SceneId }> = ({
   icon,
   title,
   body,
   action,
-  onAction
+  onAction,
+  scene
 }) => (
   <section className="max-w-lg mx-auto my-24 px-6 text-center">
     <div className="neu-flat-lg rounded-3xl p-10 border border-slate-800/80">
-      <div className="mx-auto mb-5 w-14 h-14 rounded-2xl neu-pressed-sm flex items-center justify-center text-lime-400">{icon}</div>
+      {isAppMode && scene ? <AppArt scene={scene} size="state" /> : <div className="mx-auto mb-5 w-14 h-14 rounded-2xl neu-pressed-sm flex items-center justify-center text-lime-400">{icon}</div>}
       <h1 className="text-2xl font-black text-slate-100 font-heading">{title}</h1>
       <p className="mt-3 text-sm text-slate-400">{body}</p>
       <button type="button" onClick={onAction} className="mt-6 neu-btn-lime px-6 py-3 rounded-xl font-bold text-sm">
@@ -279,6 +282,7 @@ function MainAppContent() {
         body={`You're still signed in. We'll keep trying and open ${route.title.toLowerCase()} as soon as the connection is back.`}
         action="Try again"
         onAction={retrySessionRestore}
+        scene="state.offline"
       />
     );
   } else if (route.access !== 'public' && isInitializing) {

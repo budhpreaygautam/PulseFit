@@ -554,7 +554,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
             )}
 
             {exercises.length === 0 ? (
-              <div className="neu-pressed-sm rounded-2xl p-8 text-center text-xs text-slate-400">No sets yet. Choose an exercise above and add your first set.</div>
+              <EmptyState title="No sets yet" body="Choose an exercise above and add your first set." />
             ) : (
               exercises.map(group => (
                 <div key={group.key} className="neu-flat rounded-2xl p-4 space-y-3">

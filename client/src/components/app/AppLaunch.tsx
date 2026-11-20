@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Dumbbell } from 'lucide-react';
 import { prefersReducedMotion } from '../../lib/appMotion.js';
+import { AppArt } from './AppArt.js';
 
 // Once per start of the app: a remount, or coming back to the app, does not show it again.
 let launched = false;
@@ -24,6 +25,7 @@ export const AppLaunch: React.FC = () => {
   if (!show) return null;
   return (
     <div aria-hidden="true" className="app-launch fixed inset-0 z-[100] flex flex-col items-center justify-center gap-3.5 bg-gym-950 pointer-events-none">
+      <AppArt scene="state.launch" size="launch" className="w-full max-w-[240px]" />
       <span className="app-launch-logo w-16 h-16 rounded-[1.375rem] flex items-center justify-center neu-btn-lime">
         <Dumbbell className="w-8 h-8 stroke-[2.5]" />
       </span>

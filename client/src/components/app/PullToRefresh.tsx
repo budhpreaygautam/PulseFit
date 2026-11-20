@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { prefersReducedMotion } from '../../lib/appMotion.js';
+import { AppArt } from './AppArt.js';
 
 /** How far the spinner must come down (px) for letting go to refresh, and where it waits meanwhile. */
 const THRESHOLD = 70;
@@ -119,7 +120,7 @@ export const PullToRefresh: React.FC<{ onRefresh: () => Promise<unknown> }> = ({
         data-refreshing={refreshing || undefined}
         className="pull-spinner fixed left-1/2 top-0 z-[44] -ml-5 w-10 h-10 rounded-full flex items-center justify-center bg-gym-900 border border-slate-800/80 shadow-lg pointer-events-none opacity-0"
       >
-        <span className={`w-5 h-5 rounded-full border-[3px] border-lime-500/30 border-t-lime-400 ${refreshing ? 'animate-spin' : ''}`} />
+        <AppArt scene="state.loading" size="state" playing={refreshing} className="pull-art" />
       </div>
       <div className="sr-only" role="status" aria-live="polite">
         {refreshing ? 'Refreshing' : ''}
