@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkArt } from './check-app-art.mjs';
 
 const clientDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LOCAL_API = 'http://localhost:5004';
@@ -95,6 +96,20 @@ if (lan) {
 }
 
 const env = { ...process.env, VITE_API_URL: apiUrl };
+// The art is private (client/app-art/, git-ignored): use it when it passes the checker, else stand-ins.
+const artDir = path.join(clientDir, 'app-art');
+if (fs.existsSync(path.join(artDir, 'index.js'))) {
+  const art = await checkArt(artDir);
+  if (art.ok) {
+    env.PULSEFIT_APP_ART = '1';
+    console.log("🎨 Building with the app's art");
+  } else {
+    for (const p of [...art.missing.map(id => `missing ${id}`), ...art.problems]) console.warn(`   ${p}`);
+    console.warn('🎨 Building with stand-ins (the art in client/app-art did not pass the checker)');
+  }
+} else {
+  console.log('🎨 Building with stand-ins (no client/app-art folder)');
+}
 // One command string: passing args together with shell: true is deprecated (DEP0190).
 const run = command => {
   const result = spawnSync(command, { stdio: 'inherit', shell: true, env, cwd: clientDir });

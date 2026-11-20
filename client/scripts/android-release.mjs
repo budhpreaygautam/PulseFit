@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkArt } from './check-app-art.mjs';
 
 const LIVE_API = 'https://pulsefit.up.railway.app';
 const KEY_ALIAS = 'pulsefit';
@@ -93,6 +94,13 @@ if (fs.existsSync(propsFile)) {
   console.log(`   Back up ${defaultStoreFile} and ${propsFile} somewhere safe.`);
 }
 
+// The app's cartoons are private (client/app-art/, git-ignored). A release never ships stand-ins.
+const art = await checkArt(path.join(clientDir, 'app-art'));
+if (!art.ok) {
+  fail(`The app's art is missing or not ready (run npm run check:art):
+  ${[...art.missing.map(id => `missing ${id}`), ...art.problems].join('\n  ')}`);
+}
+
 const sync = spawnSync(process.execPath, [path.join(clientDir, 'scripts', 'mobile-sync.mjs'), '--api', api], {
   stdio: 'inherit'
 });
@@ -117,6 +125,12 @@ const testSwitchLeaks = filesIn(path.join(clientDir, 'dist-mobile')).filter(
 );
 if (testSwitchLeaks.length) {
   fail(`The app contains a test-only switch:\n  ${testSwitchLeaks.join('\n  ')}\nBuild it with mobile-sync (production mode), never --mode e2e.`);
+}
+
+// mobile-sync falls back to stand-ins when the art fails its checker; the marker in the bundle tells.
+const bundled = filesIn(path.join(clientDir, 'dist-mobile')).filter(file => /\.js$/.test(file)).map(file => fs.readFileSync(file, 'utf8'));
+if (bundled.some(js => js.includes('pulsefit-app-art-stub')) || !bundled.some(js => js.includes('pulsefit-app-art'))) {
+  fail('The app was built with stand-in art, not the art in client/app-art. Fix what npm run check:art reports, then build again.');
 }
 
 console.log('🔨 Building the release APK...');

@@ -17,8 +17,12 @@ const httpsOptions =
       }
     : undefined;
 
+// The app's art is private (client/app-art/, git-ignored): mobile-sync sets PULSEFIT_APP_ART=1 once the checker passes it.
+const appArt = process.env.PULSEFIT_APP_ART === '1' ? path.resolve(__dirname, 'app-art') : path.resolve(__dirname, 'src/app-art-stub');
+
 export default defineConfig({
   plugins: [react()],
+  resolve: { alias: { '@app-art': appArt } },
   build: {
     // No source maps in production builds (web or the app bundle).
     sourcemap: false,

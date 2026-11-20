@@ -15,7 +15,9 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": { "@app-art": ["./src/app-art-stub/index.ts"] }
   },
   "include": ["src"]
 }

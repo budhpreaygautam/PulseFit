@@ -11,7 +11,9 @@
     "mobile:run": "node scripts/android-run.mjs",
     "mobile:release": "node scripts/android-release.mjs",
     "mobile:android": "cap open android",
-    "mobile:ios": "cap open ios"
+    "mobile:ios": "cap open ios",
+    "check:art": "node scripts/check-app-art.mjs",
+    "test:art": "node --test scripts/check-app-art.test.mjs"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.1",

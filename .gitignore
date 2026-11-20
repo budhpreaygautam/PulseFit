@@ -40,3 +40,6 @@ test-results/
 # Isolated working copies (git worktrees) and design-sample scratch
 .claude/worktrees/
 .superpowers/
+
+# The app's cartoons are private: the owner keeps a backup (client/scripts/check-app-art.mjs)
+client/app-art/

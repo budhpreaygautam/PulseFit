@@ -1,0 +1,5 @@
+{
+  "pages": ["home","workout","zumba","guide","schedule","pricing","trainers","exercise-library","contact","reset-password","payment-status","privacy","terms","refunds","offers","policies","member-dashboard","my-bookings","workout-logger","rewards","pass","profile","trainer-dashboard","admin-dashboard","admin-members","admin-id-cards","admin-scanner","admin-classes","admin-plans","admin-trials","visit"],
+  "moments": ["booked","cancelled","checkedIn","clockedIn","clockedOut","workoutLogged","saved","paid","giftClaimed","giftCollected","milestone","shared","deleted","signedIn","signedUp","signedOut","frozen","failed","info"],
+  "states": ["loading","empty1","empty2","empty3","error","offline","launch","notFound"]
+}
