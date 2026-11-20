@@ -6,7 +6,8 @@ import config from '../config.js';
 // The Android app (an APK) the website offers to Android visitors. It lives in the downloads folder
 // next to the database (config.downloadsDir, on the data volume in production), not in the build, so
 // copying a new pulsefit.apk there puts it live at once. An optional pulsefit.json beside it,
-// { versionName, versionCode, sha256 }, names the version. GET /api/config says whether there is one.
+// { versionName, versionCode, sha256 }, names the version; its versionCode is what tells installed
+// apps there is an update. GET /api/config says whether there is one.
 
 export const ANDROID_APP_URL = '/downloads/pulsefit.apk';
 const APK_FILE = 'pulsefit.apk';
@@ -16,20 +17,26 @@ export interface AndroidAppInfo {
   url: string;
   /** versionName from pulsefit.json, when it has one. */
   version?: string;
+  /** versionCode from pulsefit.json, when it has one: an installed app with a lower one offers the update. */
+  versionCode?: number;
   /** Bytes. */
   size: number;
 }
 
 const apkPath = () => path.join(config.downloadsDir, APK_FILE);
+/** Android's own ceiling for versionCode. */
+const MAX_VERSION_CODE = 2_100_000_000;
 
-/** The version name in pulsefit.json; anything missing or malformed is ignored, never an error. */
-function readVersion(file: string): string | undefined {
+/** The version in pulsefit.json; anything missing or malformed is ignored, never an error. */
+function readVersion(file: string): Pick<AndroidAppInfo, 'version' | 'versionCode'> {
   try {
-    const meta = JSON.parse(fs.readFileSync(file, 'utf8')) as { versionName?: unknown };
+    const meta = JSON.parse(fs.readFileSync(file, 'utf8')) as { versionName?: unknown; versionCode?: unknown };
     const name = typeof meta.versionName === 'string' ? meta.versionName.trim() : '';
-    return name && name.length <= 40 ? name : undefined;
+    const code = meta.versionCode;
+    const validCode = typeof code === 'number' && Number.isSafeInteger(code) && code > 0 && code <= MAX_VERSION_CODE;
+    return { ...(name && name.length <= 40 ? { version: name } : {}), ...(validCode ? { versionCode: code } : {}) };
   } catch {
-    return undefined;
+    return {};
   }
 }
 
@@ -44,8 +51,8 @@ export function androidAppInfo(): AndroidAppInfo | null {
   const meta = fs.statSync(metaFile, { throwIfNoEntry: false });
   const key = `${apkPath()}:${apk.mtimeMs}:${apk.size}:${meta?.mtimeMs ?? ''}:${meta?.size ?? ''}`;
   if (cached?.key !== key) {
-    const version = meta?.isFile() ? readVersion(metaFile) : undefined;
-    cached = { key, info: { url: ANDROID_APP_URL, ...(version ? { version } : {}), size: apk.size } };
+    const version = meta?.isFile() ? readVersion(metaFile) : {};
+    cached = { key, info: { url: ANDROID_APP_URL, ...version, size: apk.size } };
   }
   return cached.info;
 }

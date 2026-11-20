@@ -10,6 +10,7 @@ import { Navbar } from './components/layout/Navbar.js';
 import { Footer } from './components/layout/Footer.js';
 import { AndroidAppBanner } from './components/layout/AndroidAppBanner.js';
 import { AppShell } from './components/app/AppShell.js';
+import { AppUpdatePrompt } from './components/app/AppUpdatePrompt.js';
 import { GUEST_TABS, MEMBER_TABS, isTabRoot } from './components/app/tabs.js';
 import { isAppMode, isFirstLaunch } from './lib/appMode.js';
 import { ErrorBoundary } from './components/common/ErrorBoundary.js';
@@ -547,6 +548,7 @@ export default function App() {
               <MainAppContent />
               {/* After the app root: its spacer then adds to the end of the page and moves nothing. */}
               <AndroidAppBanner />
+              <AppUpdatePrompt />
             </NavigationProvider>
           </ThemeProvider>
         </AuthProvider>

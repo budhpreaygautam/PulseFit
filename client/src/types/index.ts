@@ -53,6 +53,8 @@ export interface AndroidAppDownload {
   url: string;
   /** Version name, when the server knows it. */
   version?: string;
+  /** Android versionCode, when the server knows it: the app offers the update when it is higher than its own. */
+  versionCode?: number;
   /** Bytes. */
   size: number;
 }

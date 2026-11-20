@@ -116,16 +116,17 @@ npm run mobile:release                                  # against https://pulsef
 npm run mobile:release -- --api https://<domain>        # another https server
 ```
 
-It builds the app against that API (https only), runs `assembleRelease`, checks the signature with `apksigner` and prints the version, size and SHA-256 of `client\android\app\build\outputs\apk\release\app-release.apk`. Publish that file as `downloads/pulsefit.apk` in the folder that holds the database (on Railway `/data/downloads/pulsefit.apk` on the `pulsefit-volume`); the website then offers it at `/downloads/pulsefit.apk` without a redeploy. Afterwards run `npm run mobile:sync` (or `start-pulsefit-app.bat`) to point the app on your emulator or phone back at this PC.
+It builds the app against that API (https only), runs `assembleRelease`, checks the signature with `apksigner`, prints the version, size and SHA-256 of `client\android\app\build\outputs\apk\release\app-release.apk` and writes `pulsefit.json` (`versionName`, `versionCode`, `sha256`) beside it. Publish both as `downloads/pulsefit.apk` and `downloads/pulsefit.json` in the folder that holds the database (on Railway `/data/downloads/pulsefit.apk` on the `pulsefit-volume`); the website then offers it at `/downloads/pulsefit.apk` without a redeploy. Afterwards run `npm run mobile:sync` (or `start-pulsefit-app.bat`) to point the app on your emulator or phone back at this PC.
 
 To upload to Railway from the repo folder (the volume commands go over SSH, so register a key first with `railway ssh keys add`; `--overwrite` replaces the current APK; in Git Bash prefix the commands with `MSYS_NO_PATHCONV=1` so `/downloads/...` is not rewritten to a Windows path):
 
 ```powershell
 railway volume files --volume pulsefit-volume upload client\android\app\build\outputs\apk\release\app-release.apk /downloads/pulsefit.apk --overwrite
+railway volume files --volume pulsefit-volume upload client\android\app\build\outputs\apk\release\pulsefit.json /downloads/pulsefit.json --overwrite
 railway volume files --volume pulsefit-volume list /downloads
 ```
 
-An optional `/downloads/pulsefit.json` beside it, `{ "versionName": "1.0.0", "versionCode": 1, "sha256": "<sha256>" }`, puts the version in `GET /api/config`.
+`/downloads/pulsefit.json` (`{ "versionName": "1.1.0", "versionCode": 2, "sha256": "<sha256>" }`) puts the version in `GET /api/config`, and its `versionCode` is what makes installed apps (1.1.0 and later) offer "Update available": upload it with every APK, or they never hear of the new one. Apps before 1.1.0 cannot ask, so tell people on those to download the new APK from the website once.
 
 **New version**: in `client/android/app/build.gradle`, raise `versionCode` by 1 and set `versionName` (e.g. `1.0.1`) before building. Android will not install an update whose `versionCode` is not higher than the installed one.
 

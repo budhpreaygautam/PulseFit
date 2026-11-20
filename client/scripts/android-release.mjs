@@ -110,12 +110,13 @@ const guideLeaks = filesIn(path.join(clientDir, 'dist-mobile')).filter(
 if (guideLeaks.length) {
   fail(`The app contains the fitness guide, which only staff and members with a plan may read:\n  ${guideLeaks.join('\n  ')}\nKeep the guide on the server (GET /api/guide), then build again.`);
 }
-// The browser switch that turns app mode on is kept only by e2e builds (client/src/lib/appMode.ts).
+// The browser switches that stand in for the app (pulsefit_test_app_mode in client/src/lib/appMode.ts,
+// pulsefit_test_app_build in components/app/AppUpdatePrompt.tsx) are kept only by e2e builds.
 const testSwitchLeaks = filesIn(path.join(clientDir, 'dist-mobile')).filter(
-  file => /\.(js|html|json)$/.test(file) && fs.readFileSync(file, 'utf8').includes('pulsefit_test_app_mode')
+  file => /\.(js|html|json)$/.test(file) && fs.readFileSync(file, 'utf8').includes('pulsefit_test_')
 );
 if (testSwitchLeaks.length) {
-  fail(`The app contains the test-only app-mode switch:\n  ${testSwitchLeaks.join('\n  ')}\nBuild it with mobile-sync (production mode), never --mode e2e.`);
+  fail(`The app contains a test-only switch:\n  ${testSwitchLeaks.join('\n  ')}\nBuild it with mobile-sync (production mode), never --mode e2e.`);
 }
 
 console.log('🔨 Building the release APK...');
@@ -134,9 +135,13 @@ const verifiedLines = verify.stdout.split(/\r?\n/).filter(line => /^Verified usi
 const { elements } = JSON.parse(fs.readFileSync(path.join(releaseDir, 'output-metadata.json'), 'utf8'));
 const { versionName, versionCode } = elements[0];
 const sha256 = crypto.createHash('sha256').update(fs.readFileSync(apk)).digest('hex');
+// Uploaded beside the APK: its versionCode is what tells installed apps there is an update.
+const metaFile = path.join(releaseDir, 'pulsefit.json');
+fs.writeFileSync(metaFile, `${JSON.stringify({ versionName, versionCode, sha256 })}\n`);
 console.log(`✅ PulseFit ${versionName} (versionCode ${versionCode}), built against ${api.replace(/\/+$/, '')}`);
 console.log(`   ${apk}`);
 console.log(`   ${fs.statSync(apk).size} bytes, sha256 ${sha256}`);
 for (const line of verifiedLines) console.log(`   ${line}`);
-console.log('   Publish it as downloads/pulsefit.apk next to the database (deploy/README.md › Android app).');
+console.log(`   ${metaFile}`);
+console.log('   Publish both as downloads/pulsefit.apk and downloads/pulsefit.json next to the database (deploy/README.md › Android app).');
 console.log('   `npm run mobile:sync` puts the app back on the API on this PC for local testing.');

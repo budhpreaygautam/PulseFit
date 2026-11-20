@@ -74,6 +74,10 @@ a phone app, with a bottom tab bar for members and a welcome screen for guests.
   with the ID card, freeze switch, plans, invoices, rewards and every page of the website. Guests get a welcome screen.
   Screens animate smoothly, and not at all when the phone asks for reduced motion. Coaches, admins and the website are
   unchanged. `GET /api/auth/me` adds `active_days_this_week` and `longest_streak_days`.
+- **"Update available" in the Android app.** From 1.1.0 the app asks once per start when the website offers a newer
+  APK, and "Update now" downloads it in the phone's browser; Android installs it over the app, keeping the sign-in.
+  `GET /api/config` adds `androidApp.versionCode`, from `pulsefit.json`, which `mobile:release` now writes beside the
+  APK. Apps before 1.1.0 cannot ask.
 
 ### Changed
 
@@ -163,8 +167,9 @@ a phone app, with a bottom tab bar for members and a welcome screen for guests.
   it was built from, and a server deploy does not replace it. One built from 2.3.0 still contains the full fitness guide
   (anyone can unzip it), still shows DiceBear pictures and does not ask for gender at sign-up. This release's app is
   1.1.0 (versionCode 2, already set in `client/android/app/build.gradle`): run `npm --prefix client run mobile:release`
-  and upload the APK (and `pulsefit.json`) to the data volume in the same deploy (deploy/README.md › Android app). Do
-  the same for an iOS build if one has been handed out.
+  and upload the APK and the `pulsefit.json` it writes to the data volume in the same deploy (deploy/README.md ›
+  Android app). Do the same for an iOS build if one has been handed out. Installed apps (1.0.0) cannot tell people
+  about the update, so tell them to download it from the website once; from 1.1.0 the app asks by itself.
 - Apps already installed from 2.3.0 keep working against this server: they send the app header, and their sign-up
   form, which has no gender question, is still accepted. Their service pages stay open to guests but get only the
   guest answers, so guests see less there (nothing breaks): the timetable and the strength and Zumba class lists say

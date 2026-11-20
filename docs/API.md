@@ -93,15 +93,17 @@ Read from `membership_plans[].categories` (empty = all). Prices live only in the
 ## Runtime config — owner: platform
 
 ### `GET /config` (public)
-`{ demoMode: boolean, googleClientId: string | null, payments: { enabled: boolean, provider: 'razorpay' | 'youpi' | null, keyId: string | null (Razorpay only) }, gym: { name, timezone, currency, hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: boolean }, classesPerWeek: number }, androidApp: { url: '/downloads/pulsefit.apk', version?: string, size: number } | null }`.
+`{ demoMode: boolean, googleClientId: string | null, payments: { enabled: boolean, provider: 'razorpay' | 'youpi' | null, keyId: string | null (Razorpay only) }, gym: { name, timezone, currency, hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: boolean }, classesPerWeek: number }, androidApp: { url: '/downloads/pulsefit.apk', version?: string, versionCode?: number, size: number } | null }`.
 The client hides the demo persona switcher, "Continue with Google" and checkout when they are off.
 `hours` is the gym's opening hours in gym time (`closedWeekdays`: 0 = Sunday). `classesPerWeek` is the number of classes
 on the weekly timetable, the home page's "Classes a week" (guests get only the next 4 sessions from `GET /classes`).
 `enforced` mirrors `ENFORCE_OPENING_HOURS`: when on, check-ins, floor clock-ins and same-day free trials are refused
 while the gym is closed.
-`androidApp` is the APK the website offers (see `GET /downloads/pulsefit.apk`), with its size in bytes and `version` =
-`versionName` from `pulsefit.json` when present; `null` while there is none. Android browsers then show a "Get the PulseFit
-app" bar, and the footer a "Get the Android app" link (neither inside the app).
+`androidApp` is the APK the website offers (see `GET /downloads/pulsefit.apk`), with its size in bytes, `version` =
+`versionName` and `versionCode` = `versionCode` from `pulsefit.json` when present (`versionCode` only as a whole number from
+1 to 2,100,000,000); `null` while there is none. Android browsers then show a "Get the PulseFit app" bar, and the footer a
+"Get the Android app" link (neither inside the app). Inside the Android app (from 1.1.0), a `versionCode` higher than the
+installed app's opens "Update available" once per app start; "Update now" opens the APK in the phone's browser.
 
 ### `GET /health`
 `{ status: 'ok', timestamp }`. Answers without the app header (Railway and `deploy/install-release.sh` call it).

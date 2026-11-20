@@ -79,7 +79,10 @@ export const tabBar = (page: Page) => page.getByRole('navigation', { name: 'Tabs
 export const APP = { url: '/downloads/pulsefit.apk', version: '2.2.0', size: 24 * 1024 * 1024 };
 
 /** Answer GET /api/config with an APK to offer (or none). */
-export async function offerApp(page: Page, androidApp: typeof APP | null = APP): Promise<void> {
+export async function offerApp(
+  page: Page,
+  androidApp: { url: string; version?: string; versionCode?: number; size: number } | null = APP
+): Promise<void> {
   await page.route('**/api/config', async route => {
     const response = await route.fetch();
     const body = await response.json();
