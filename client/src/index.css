@@ -1217,3 +1217,24 @@ body {
     transform: translate(-50%, 0);
   }
 }
+
+/* The app's cartoons (components/app/AppArt.tsx): decorative, never in the way of a tap, painted inside
+   their own box, and their CSS loops run only while the scene is playing. */
+.app-art {
+  pointer-events: none;
+  contain: layout paint;
+}
+.app-art-page { height: 112px; }
+.app-art-moment { height: 56px; }
+.app-art-state { height: 120px; }
+.app-art-launch { height: 160px; }
+/* A scene that cannot load leaves no gap. */
+.app-art[data-state='missing'] { height: 0; }
+.app-art > svg {
+  width: 100%;
+  height: 100%;
+}
+.app-art[data-state='paused'] *,
+.app-art[data-state='still'] * {
+  animation-play-state: paused !important;
+}

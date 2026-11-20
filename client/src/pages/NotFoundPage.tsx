@@ -1,9 +1,12 @@
 import React from 'react';
 import { Compass } from 'lucide-react';
+import { AppArt } from '../components/app/AppArt.js';
 
 export const NotFoundPage: React.FC<{ setCurrentTab: (tab: string) => void }> = ({ setCurrentTab }) => (
   <section className="max-w-lg mx-auto my-24 px-6 text-center">
     <div className="neu-flat-lg rounded-3xl p-10 border border-slate-800/80">
+      {/* Test-only: an e2e build plays it once with ?once=1 (other builds fold this to false). */}
+      <AppArt scene="state.notFound" size="state" once={import.meta.env.MODE === 'e2e' && new URLSearchParams(window.location.search).get('once') === '1'} />
       <div className="mx-auto mb-5 w-14 h-14 rounded-2xl neu-pressed-sm flex items-center justify-center text-lime-400">
         <Compass className="w-6 h-6" aria-hidden="true" />
       </div>
