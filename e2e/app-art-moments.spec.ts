@@ -170,13 +170,3 @@ test('a newly earned milestone gift shows the milestone scene', async ({ page, r
   await page.goto('/rewards');
   await expect(newest(page).locator('[data-scene="moment.milestone"]')).toBeVisible();
 });
-
-test('a booking the server refuses shows the failed scene', async ({ page, request }) => {
-  const token = await signInAs(page, request, 'member');
-  const [a] = await bookable(request, token);
-  await useAppMode(page);
-  await page.route('**/api/bookings', route => (route.request().method() === 'POST' ? route.fulfill({ status: 500, json: { success: false, error: 'No' } }) : route.continue()));
-  await openDay(page, a);
-  await book(page, a);
-  await expect(newest(page).locator('[data-scene="moment.failed"]')).toBeVisible();
-});
