@@ -154,10 +154,11 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({ currentTab, navigate, onCl
         onTouchCancel={onTouchEnd}
         className="app-drawer absolute inset-y-0 left-0 w-[calc(min(85vw,320px)_+_env(safe-area-inset-left))] overflow-y-auto overscroll-contain touch-pan-y bg-gym-950 rounded-r-3xl shadow-[12px_0_30px_rgba(0,0,0,0.3)] outline-none pt-[calc(env(safe-area-inset-top)_+_1rem)] pb-[calc(env(safe-area-inset-bottom)_+_1rem)] pl-[calc(env(safe-area-inset-left)_+_0.625rem)] pr-2.5"
       >
-        {/* The status bar is see-through: a strip of the drawer's colour stays under it, so scrolled rows never show behind the clock. */}
+        {/* The status bar is see-through: a strip of the drawer's colour stays under it, so scrolled rows never show behind the clock.
+            A sticky box sticks at the panel's padding edge, so it is pinned the panel's top padding higher, at the very top. */}
         <div
           aria-hidden="true"
-          className="app-drawer-statusbar sticky top-0 z-10 h-[env(safe-area-inset-top)] -mt-[calc(env(safe-area-inset-top)_+_1rem)] mb-4 -ml-[calc(env(safe-area-inset-left)_+_0.625rem)] -mr-2.5 bg-gym-950"
+          className="app-drawer-statusbar sticky -top-[calc(env(safe-area-inset-top)_+_1rem)] z-10 h-[env(safe-area-inset-top)] -mt-[calc(env(safe-area-inset-top)_+_1rem)] mb-4 -ml-[calc(env(safe-area-inset-left)_+_0.625rem)] -mr-2.5 bg-gym-950"
         />
         <div className="neu-flat rounded-2xl p-3 flex items-start gap-3">
           {signedIn ? (
