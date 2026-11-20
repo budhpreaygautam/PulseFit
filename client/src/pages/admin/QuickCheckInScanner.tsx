@@ -82,7 +82,7 @@ const OutcomePanel: React.FC<{ outcome: Outcome | null }> = ({ outcome }) => {
           <p className="flex items-center gap-2 text-lime-400 font-black uppercase tracking-wider text-sm">
             <CheckCircle2 className="w-6 h-6" aria-hidden="true" /> Access granted
           </p>
-          <AppArt scene="moment.checkedIn" size="moment" once className="w-14" />
+          <AppArt scene="moment.checkedIn" size="moment" once className="w-14 shrink-0" />
           <span className="text-xs text-slate-400">{formatTime(result.log.check_in_time)}</span>
         </div>
         {result.already_checked_in && (
@@ -101,7 +101,7 @@ const OutcomePanel: React.FC<{ outcome: Outcome | null }> = ({ outcome }) => {
           <p className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-black uppercase tracking-wider text-sm">
             <XCircle className="w-6 h-6" aria-hidden="true" /> Access denied · {outcome.reason}
           </p>
-          <AppArt scene="moment.failed" size="moment" once className="w-14" />
+          <AppArt scene="moment.failed" size="moment" once className="w-14 shrink-0" />
           <span className="text-xs text-slate-400">{formatTime(outcome.at)}</span>
         </div>
         <p className="text-sm font-semibold text-slate-200">{outcome.message}</p>
@@ -238,6 +238,8 @@ export const QuickCheckInScanner: React.FC = () => {
   const [code, setCode] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  // Each scan remounts the panel, so its cartoon plays again even when two results are alike.
+  const [scanNo, setScanNo] = useState(0);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [sessionLog, setSessionLog] = useState<Outcome[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -291,6 +293,7 @@ export const QuickCheckInScanner: React.FC = () => {
       setIsProcessing(false);
     }
     setOutcome(next);
+      setScanNo(n => n + 1);
     setSessionLog(log => [next, ...log].slice(0, 10));
     if (method === 'manual') {
       // Whatever the answer, the next scan starts in an empty box (a USB scanner types and presses
@@ -320,7 +323,7 @@ export const QuickCheckInScanner: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <SectionCard id="scan-heading" className="lg:col-span-7" title="Scan a pass" icon={<QrCode className="w-4 h-4 text-lime-400" aria-hidden="true" />}>
           <div aria-live="polite" aria-atomic="true">
-            <OutcomePanel outcome={outcome} />
+            <OutcomePanel key={scanNo} outcome={outcome} />
           </div>
           {/* Outside the live region: its buttons change as gifts go out, and must not re-announce the outcome. */}
           {outcome?.kind === 'granted' && !!outcome.result.gifts_to_collect?.length && <GiftsToCollect claims={outcome.result.gifts_to_collect} />}

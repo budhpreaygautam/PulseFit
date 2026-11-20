@@ -97,6 +97,53 @@ test('the front desk scan result shows the checked-in scene', async ({ page, req
   await expect(page.locator('[data-scene="moment.checkedIn"]')).toBeVisible();
 });
 
+test('a second scan of the same kind plays its scene again, and a denied scan shows the failed scene', async ({ page, request }, testInfo) => {
+  const m = await freshMember(request, `moment rescan ${testInfo.project.name}`);
+  await signInAs(page, request, 'admin');
+  await useAppMode(page);
+  await page.goto('/admin/check-in');
+  const box = page.getByLabel('Pass code, ID card number, member email or trial code');
+  const scan = (code: string) => box.fill(code).then(() => page.getByRole('button', { name: 'Check in', exact: true }).click());
+  await scan(m.email);
+  await expect(page.getByText('Access granted')).toBeVisible();
+  await page.waitForTimeout(1700);
+  await expect(page.locator('[data-scene="moment.checkedIn"]')).toHaveAttribute('data-state', 'still');
+  // The same kind again: a fresh scene that is not already at its still.
+  await scan(m.email);
+  await expect(page.locator('[data-scene="moment.checkedIn"]')).not.toHaveAttribute('data-state', 'still', { timeout: 500 });
+  await scan('NO-SUCH-CODE-000');
+  await expect(page.getByText(/Access denied|Check-in failed/)).toBeVisible();
+  await expect(page.locator('[data-scene="moment.failed"]')).toBeVisible();
+});
+
+test('the payment status page shows the paid and the failed scene', async ({ page, request }) => {
+  await signInAs(page, request, 'member');
+  const { user } = (await (await request.post('/api/auth/demo-login', { data: { role: 'member' } })).json()).data;
+  await useAppMode(page);
+  await page.route('**/api/payment/youpi/confirm', route => route.fulfill({ json: { success: true, data: { status: 'paid', user, message: 'Payment received. Your membership is active.' } } }));
+  await page.goto('/payment-status?order=ypo_E2Epaid1');
+  await expect(page.locator('[data-scene="moment.paid"]')).toBeVisible();
+  await page.unroute('**/api/payment/youpi/confirm');
+  await page.route('**/api/payment/youpi/confirm', route => route.fulfill({ json: { success: true, data: { status: 'failed', reason: 'declined' } } }));
+  await page.goto('/payment-status?order=ypo_E2Efail1');
+  await expect(page.locator('[data-scene="moment.failed"]')).toBeVisible();
+});
+
+test('a free-trial pass shows its scene instead of the ticket icon', async ({ page }) => {
+  await useAppMode(page);
+  await page.route('**/api/trials', route =>
+    route.fulfill({ json: { success: true, data: { id: 't1', code: 'TRIAL-E2E1', name: 'Test Guest', email: 'g@example.com', phone: '+919811012345', interest: 'Zumba & Cardio', valid_on: '2026-12-01', status: 'issued', created_at: '2026-11-20T00:00:00Z' } } }));
+  await page.goto('/');
+  await page.getByRole('main').getByRole('button', { name: 'Claim a free pass' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Full name').fill('Test Guest');
+  await dialog.getByLabel('Email').fill('g@example.com');
+  await dialog.getByLabel('Mobile number').fill('9811012345');
+  await dialog.locator('input[name="trial-date"]:not([disabled])').first().check({ force: true });
+  await dialog.getByRole('button', { name: 'Get my free pass' }).click();
+  await expect(dialog.locator('[data-scene="moment.saved"]')).toBeVisible();
+  await expect(dialog.getByText('TRIAL-E2E1')).toBeVisible();
+});
 test('on the website a toast keeps its icon and has no scene', async ({ page, request }) => {
   const token = await signInAs(page, request, 'member');
   const [a] = await bookable(request, token);

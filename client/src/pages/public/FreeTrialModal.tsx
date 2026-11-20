@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Check, Copy, Loader2, Mail, Phone, Sparkles, Ticket, User as UserIcon } from 'lucide-react';
 import { AppArt } from '../../components/app/AppArt.js';
+import { isAppMode } from '../../lib/appMode.js';
 import { Modal } from '../../components/common/Modal.js';
 import { FormField, issuesByField } from '../../components/public/FormField.js';
 import { emailError, nameError, normalizeIndianPhone, PHONE_HINT } from '../../components/public/validation.js';
@@ -136,7 +137,7 @@ export const FreeTrialModal: React.FC<FreeTrialModalProps> = ({ isOpen, onClose,
         <div className="space-y-5">
           <div className="p-6 rounded-3xl neu-flat border border-lime-500/40 text-center">
             <AppArt scene="moment.saved" size="moment" once className="mb-2" />
-            <Ticket className="w-8 h-8 text-lime-400 mx-auto" aria-hidden="true" />
+            {!isAppMode && <Ticket className="w-8 h-8 text-lime-400 mx-auto" aria-hidden="true" />}
             <p className="mt-2 text-xs font-bold uppercase tracking-wider text-slate-400">Pass for {pass.name}</p>
             <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
               <span className="px-4 py-3 rounded-2xl neu-pressed font-mono text-lg sm:text-2xl font-black text-lime-400 tracking-widest break-all">{pass.code}</span>

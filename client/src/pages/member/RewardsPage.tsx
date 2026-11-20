@@ -198,7 +198,7 @@ export const RewardsPage: React.FC = () => {
   };
 
   const saveSize = async (c: GiftClaim, size: GiftSize | undefined) => {
-    if (!size) return showToast('Choose a size first.', 'warning', undefined, 'failed');
+    if (!size) return showToast('Choose a size first.', 'warning', undefined, 'info');
     setSavingSize(c.id);
     try {
       const saved = await api.updateClaim(c.id, { size });
