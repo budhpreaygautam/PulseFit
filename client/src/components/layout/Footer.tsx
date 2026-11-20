@@ -3,10 +3,11 @@ import { Clock, Dumbbell, Mail, MapPin, Phone, Smartphone } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
 import { homeTabFor } from '../../routes.js';
-import { gymToday } from '../../lib/format.js';
+import { formatPhone, gymToday } from '../../lib/format.js';
 import { User } from '../../types/index.js';
 import { TabLink } from '../public/TabLink.js';
-import { GYM_ADDRESS, GYM_EMAIL, GYM_NAME, GYM_PHONE_DISPLAY, GYM_PHONE_TEL, HOURS_DAYS, HOURS_TIME } from '../public/gymInfo.js';
+import { SocialLinks } from '../public/ContactLinks.js';
+import { GYM_ADDRESS, GYM_NAME, HOURS_DAYS, HOURS_TIME } from '../public/gymInfo.js';
 
 const EXPLORE = [
   { tab: 'workout', label: 'Strength floor' },
@@ -44,35 +45,38 @@ const accountLinksFor = (user: User | null) =>
 export const footerLinks = (user: User | null) => [...EXPLORE, ...accountLinksFor(user), ...LEGAL];
 
 /** The gym's address, phone, email and hours: in the footer, and in the app's menu drawer. */
-export const VisitUs: React.FC = () => (
-  <address className="not-italic space-y-3 text-xs">
-    <div className="flex items-start gap-2.5">
-      <MapPin className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
-      <span className="text-slate-300">{GYM_ADDRESS}</span>
-    </div>
-    <div className="flex items-center gap-2.5">
-      <Phone className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" />
-      <a href={`tel:${GYM_PHONE_TEL}`} className={`text-slate-300 ${linkClass}`}>
-        {GYM_PHONE_DISPLAY}
-      </a>
-    </div>
-    <div className="flex items-center gap-2.5">
-      <Mail className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" />
-      <a href={`mailto:${GYM_EMAIL}`} className={`text-slate-300 ${linkClass}`}>
-        {GYM_EMAIL}
-      </a>
-    </div>
-    <div className="flex items-start gap-2.5">
-      <Clock className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
-      <div>
-        <div className="text-slate-300">
-          {HOURS_DAYS}: <span className="text-slate-200 font-bold">{HOURS_TIME}</span>
-        </div>
-        <div className="text-rose-400 font-semibold">Sunday: closed</div>
+export const VisitUs: React.FC = () => {
+  const { phone, email } = useAppConfig().config.gym.contact;
+  return (
+    <address className="not-italic space-y-3 text-xs">
+      <div className="flex items-start gap-2.5">
+        <MapPin className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
+        <span className="text-slate-300">{GYM_ADDRESS}</span>
       </div>
-    </div>
-  </address>
-);
+      <div className="flex items-center gap-2.5">
+        <Phone className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" />
+        <a href={`tel:${phone}`} className={`text-slate-300 ${linkClass}`}>
+          {formatPhone(phone)}
+        </a>
+      </div>
+      <div className="flex items-center gap-2.5">
+        <Mail className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" />
+        <a href={`mailto:${email}`} className={`text-slate-300 ${linkClass}`}>
+          {email}
+        </a>
+      </div>
+      <div className="flex items-start gap-2.5">
+        <Clock className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
+        <div>
+          <div className="text-slate-300">
+            {HOURS_DAYS}: <span className="text-slate-200 font-bold">{HOURS_TIME}</span>
+          </div>
+          <div className="text-rose-400 font-semibold">Sunday: closed</div>
+        </div>
+      </div>
+    </address>
+  );
+};
 
 export const Footer: React.FC<{ setCurrentTab: (tab: string) => void }> = ({ setCurrentTab }) => {
   const { user } = useAuth();
@@ -104,6 +108,7 @@ export const Footer: React.FC<{ setCurrentTab: (tab: string) => void }> = ({ set
                 Get the Android app
               </a>
             )}
+            <SocialLinks />
           </div>
 
           <nav aria-label="Explore" className="space-y-3">

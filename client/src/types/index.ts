@@ -38,10 +38,24 @@ export interface AppConfig {
   demoMode: boolean;
   googleClientId: string | null;
   payments: { enabled: boolean; provider: PaymentProvider | null; keyId: string | null };
-  /** classesPerWeek: classes on the weekly timetable (the home page's count); absent until /api/config answers. */
-  gym: { name: string; timezone: string; currency: string; hours: OpeningHours; classesPerWeek?: number };
+  /**
+   * classesPerWeek: classes on the weekly timetable (the home page's count); absent until /api/config answers.
+   * contact: the details admins keep; website: the site's public address ('' when the server has none).
+   */
+  gym: { name: string; timezone: string; currency: string; hours: OpeningHours; classesPerWeek?: number; contact: GymContact; website: string };
   /** The Android app the website offers for download (an APK on this server), or null when there is none. */
   androidApp: AndroidAppDownload | null;
+}
+
+/** The gym's public contact details (Admin › Plans & rewards › Gym contact). Phones are +91 and 10 digits; '' = not given. */
+export interface GymContact {
+  phone: string;
+  whatsapp: string;
+  email: string;
+  instagram: string;
+  facebook: string;
+  youtube: string;
+  x: string;
 }
 
 export interface AndroidAppDownload {

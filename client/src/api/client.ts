@@ -24,6 +24,7 @@ import {
   GiftInput,
   GiftSize,
   GymClass,
+  GymContact,
   IdCardDeactivationReason,
   IdCardOverview,
   IdCardStatus,
@@ -372,6 +373,10 @@ export const api = {
   getClaims: (params: { status?: ClaimStatus; user_id?: string; search?: string } = {}) => get<GiftClaim[]>(`/rewards/claims${qs(params)}`),
   getRewardSettings: () => get<RewardSettings>('/rewards/settings'),
   updateRewardSettings: (payload: RewardSettingsInput) => putWithMessage<RewardSettings>('/rewards/settings', payload),
+
+  // --- Gym contact details (admin); everyone reads them from getConfig ---
+  getGymContact: () => get<GymContact>('/gym/contact'),
+  updateGymContact: (payload: GymContact) => putWithMessage<GymContact>('/gym/contact', payload),
 
   // --- Sales and coupon codes (admin) ---
   getOffers: () => get<Offer[]>('/offers'),

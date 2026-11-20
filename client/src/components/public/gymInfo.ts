@@ -5,7 +5,7 @@ import { GYM_TIMEZONE } from '../../lib/format.js';
 
 export const GYM_NAME = 'PulseFit Athletics';
 export const GYM_ADDRESS = 'Plot 42, Sector 29, near Cyber Hub, Gurugram, Haryana 122002';
-export const GYM_PHONE_DISPLAY = '+91 98110 78573';
+// The phone and email admins can change (GET /api/config › gym.contact); these are only what shows until it answers.
 export const GYM_PHONE_TEL = '+919811078573';
 export const GYM_EMAIL = 'contact@pulsefit.in';
 

@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock, Loader2, XCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
+import { useAppConfig } from '../../context/ConfigContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { api, errorMessage, isApiError } from '../../api/client.js';
-import { GYM_EMAIL, GYM_PHONE_DISPLAY } from '../../components/public/gymInfo.js';
 import { homeTabFor } from '../../routes.js';
+import { formatPhone } from '../../lib/format.js';
 
 // Where a YouPI (UPI) payment comes back to (/payment-status?order=ypo_…), and where the app waits
 // while the member pays in the phone's browser. It asks the server every few seconds; the server
@@ -36,6 +37,7 @@ interface PaymentStatusPageProps {
 export const PaymentStatusPage: React.FC<PaymentStatusPageProps> = ({ onOpenAuthModal }) => {
   const { params, navigate } = useNavigation();
   const { user, isInitializing, updateUser, triggerCelebration } = useAuth();
+  const { phone, email } = useAppConfig().config.gym.contact;
   const orderId = params.get('order') || '';
   const validOrder = ORDER_ID.test(orderId);
   const [view, setView] = useState<View>({ kind: 'waiting' });
@@ -106,7 +108,7 @@ export const PaymentStatusPage: React.FC<PaymentStatusPageProps> = ({ onOpenAuth
 
   const contact = (
     <p className="text-xs text-slate-400">
-      Questions? Call the front desk on {GYM_PHONE_DISPLAY} or write to {GYM_EMAIL}, quoting order{' '}
+      Questions? Call the front desk on {formatPhone(phone)} or write to {email}, quoting order{' '}
       <span className="font-mono text-slate-300">{orderId || '—'}</span> and the UPI reference (UTR) from your UPI app.
     </p>
   );

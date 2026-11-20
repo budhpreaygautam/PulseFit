@@ -5,6 +5,7 @@ import { Modal } from '../common/Modal.js';
 import { MyIdCard } from '../../types/index.js';
 import { api } from '../../api/client.js';
 import { useToast } from '../../context/ToastContext.js';
+import { useAppConfig } from '../../context/ConfigContext.js';
 import { useTheme } from '../../context/ThemeContext.js';
 import { STATUS_LABELS, formatDate, tierLabel } from '../../lib/format.js';
 import { saveFile } from '../../lib/native.js';
@@ -37,6 +38,7 @@ const prefersReducedMotion = () => typeof window !== 'undefined' && !!window.mat
 export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user, forOther = false, card = null }) => {
   const { showToast } = useToast();
   const { isDark } = useTheme();
+  const { phone, email } = useAppConfig().config.gym.contact;
   const theme = isDark ? 'dark' : 'light';
   const [faces, setFaces] = useState<IdCardFaces | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -96,13 +98,13 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ isOpen, onClose, user,
       if (!code) throw new Error('This card has no code to show.');
       const qrDataUrl = await QRCode.toDataURL(code, { width: 552, margin: 1, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } });
       const drawnCard = shownNumber && shownStatus ? { card_number: shownNumber, status: shownStatus } : null;
-      const drawn = await renderIdCard({ user, planName: tierLabel(user.membership_tier, plans), qrDataUrl, theme, card: drawnCard });
+      const drawn = await renderIdCard({ user, planName: tierLabel(user.membership_tier, plans), qrDataUrl, theme, card: drawnCard, contact: { phone, email } });
       if (!cancelled) setFaces(drawn);
     })().catch(err => !cancelled && setError(err instanceof Error ? err.message : 'The card could not be drawn.'));
     return () => {
       cancelled = true;
     };
-  }, [isOpen, user, theme, isAsking, shownNumber, shownStatus]);
+  }, [isOpen, user, theme, isAsking, shownNumber, shownStatus, phone, email]);
 
   if (!user) return null;
 

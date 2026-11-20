@@ -310,6 +310,17 @@ export interface RewardSettings {
   launched_at?: string;
 }
 
+/** The gym's public contact details, edited in Admin. Phones are +91 and 10 digits; '' = not given (hidden). */
+export interface GymContact {
+  phone: string;
+  whatsapp: string;
+  email: string;
+  instagram: string;
+  facebook: string;
+  youtube: string;
+  x: string;
+}
+
 export interface Offer {
   id: string;
   title: string;

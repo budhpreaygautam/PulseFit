@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { BadgePercent, Gift, Info, PackageCheck, SlidersHorizontal, Tag } from 'lucide-react';
+import { BadgePercent, Gift, Info, PackageCheck, Phone, SlidersHorizontal, Tag } from 'lucide-react';
 import { MembershipPlan } from '../../types/index.js';
 import { api, errorMessage } from '../../api/client.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
@@ -9,17 +9,19 @@ import { GiftCataloguePanel } from '../../components/admin/rewards/GiftCatalogue
 import { PickupsPanel } from '../../components/admin/rewards/PickupsPanel.js';
 import { OffersPanel } from '../../components/admin/rewards/OffersPanel.js';
 import { RulesPanel } from '../../components/admin/rewards/RulesPanel.js';
+import { GymContactPanel } from '../../components/admin/GymContactPanel.js';
 import { useToast } from '../../context/ToastContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 
-type Section = 'plans' | 'offers' | 'gifts' | 'pickups' | 'rules';
+type Section = 'plans' | 'offers' | 'gifts' | 'pickups' | 'rules' | 'contact';
 
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'plans', label: 'Plans', icon: <Tag className="w-4 h-4" aria-hidden="true" /> },
   { id: 'offers', label: 'Offers & coupons', icon: <BadgePercent className="w-4 h-4" aria-hidden="true" /> },
   { id: 'gifts', label: 'Gift catalogue', icon: <Gift className="w-4 h-4" aria-hidden="true" /> },
   { id: 'pickups', label: 'Pickups', icon: <PackageCheck className="w-4 h-4" aria-hidden="true" /> },
-  { id: 'rules', label: 'Rules', icon: <SlidersHorizontal className="w-4 h-4" aria-hidden="true" /> }
+  { id: 'rules', label: 'Rules', icon: <SlidersHorizontal className="w-4 h-4" aria-hidden="true" /> },
+  { id: 'contact', label: 'Gym contact', icon: <Phone className="w-4 h-4" aria-hidden="true" /> }
 ];
 
 const PlansPanel: React.FC = () => {
@@ -97,7 +99,7 @@ export const PlanManagement: React.FC = () => {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
-      <PageHeader eyebrow="Admin" title="Plans & rewards" description="The plans behind the pricing page and checkout, their sales and coupon codes, the gifts members earn and the rules that give them, and the gifts waiting at the front desk." />
+      <PageHeader eyebrow="Admin" title="Plans & rewards" description="The plans behind the pricing page and checkout, their sales and coupon codes, the gifts members earn and the rules that give them, the gifts waiting at the front desk, and the gym's contact details." />
       <AdminNav />
 
       <div role="tablist" aria-label="Plans and rewards sections" className="flex gap-1 p-1.5 rounded-2xl neu-pressed-sm overflow-x-auto">
@@ -128,6 +130,7 @@ export const PlanManagement: React.FC = () => {
         {section === 'gifts' && <GiftCataloguePanel />}
         {section === 'pickups' && <PickupsPanel />}
         {section === 'rules' && <RulesPanel />}
+        {section === 'contact' && <GymContactPanel />}
       </div>
     </div>
   );

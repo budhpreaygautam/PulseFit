@@ -6,6 +6,7 @@ import ts from 'typescript';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import config from '../src/config.js';
 import { CLOSES_AT, OPENS_AT } from '../src/lib/hours.js';
+import { defaultGymContact } from '../src/lib/gymContact.js';
 import { GYM, NOT_FOUND_DESCRIPTION, PAGES, PUBLIC_API_PATHS, TITLE_SUFFIX, escapeHtml, jsonForScript, renderIndexHtml } from '../src/lib/seo.js';
 import { api, db, resetDb } from './helpers.js';
 
@@ -161,8 +162,9 @@ describe('server copy of the client pages and gym facts', () => {
     const info = clientModule('components/public/gymInfo.ts');
     expect(GYM.name).toBe(info.GYM_NAME);
     expect(`${GYM.streetAddress}, ${GYM.addressLocality}, ${GYM.addressRegion} ${GYM.postalCode}`).toBe(info.GYM_ADDRESS);
-    expect(GYM.telephone).toBe(info.GYM_PHONE_TEL);
-    expect(GYM.email).toBe(info.GYM_EMAIL);
+    // The contact setting starts from the client's fallback values.
+    expect(defaultGymContact().phone).toBe(info.GYM_PHONE_TEL);
+    expect(defaultGymContact().email).toBe(info.GYM_EMAIL);
     expect(Number(OPENS_AT.slice(0, 2))).toBe(info.OPEN_HOUR);
     expect(Number(CLOSES_AT.slice(0, 2))).toBe(info.CLOSE_HOUR);
   });
@@ -455,8 +457,8 @@ describe('JSON-LD', () => {
       '@id': `${SITE}/#gym`,
       name: 'PulseFit Athletics',
       url: `${SITE}/`,
-      telephone: GYM.telephone,
-      email: GYM.email,
+      telephone: '+919811078573',
+      email: 'contact@pulsefit.in',
       address: {
         '@type': 'PostalAddress',
         streetAddress: 'Plot 42, Sector 29, near Cyber Hub',
@@ -486,6 +488,16 @@ describe('JSON-LD', () => {
     expect(gym.hasOfferCatalog).toBeUndefined();
     expect(site).toMatchObject({ url: `${SITE}/`, publisher: { '@id': org['@id'] } });
     expect(page).toMatchObject({ url: `${SITE}/`, name: 'Strength & Zumba gym in Gurugram · PulseFit Athletics' });
+  });
+
+  it('takes the phone, email and social pages from the gym contact setting', async () => {
+    const instagram = 'https://www.instagram.com/pulsefit.gurugram';
+    const youtube = 'https://youtube.com/@pulsefit';
+    db.gym_contact = { ...defaultGymContact(), phone: '+911244567890', email: 'desk@pulsefit.example', instagram, youtube };
+    const data = jsonLd((await api().get('/')).text);
+    for (const node of [nodesOf(data, 'ExerciseGym')[0], nodesOf(data, 'Organization')[0]]) {
+      expect(node).toMatchObject({ telephone: '+911244567890', email: 'desk@pulsefit.example', sameAs: [instagram, youtube] });
+    }
   });
 
   it('puts no plan, class or coach details in any page, the ones that need an account included', async () => {

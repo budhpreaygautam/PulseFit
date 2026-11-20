@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext.js';
 import { useAppConfig } from '../context/ConfigContext.js';
 import { useNavigation } from '../context/NavigationContext.js';
 import { api, ApiError, errorMessage } from '../api/client.js';
-import { GYM_EMAIL, GYM_PHONE_DISPLAY } from '../components/public/gymInfo.js';
+import { formatPhone } from '../lib/format.js';
 import { isNativeApp } from '../lib/native.js';
 import { BillingCycle, PaidTier, Payment, User } from '../types/index.js';
 
@@ -98,6 +98,7 @@ export const useCheckout = () => {
               const data = err instanceof ApiError ? (err.data as { user?: User; message?: string } | undefined) : undefined;
               const current = data?.user;
               const paymentRef = `payment id ${response.razorpay_payment_id}`;
+              const desk = `${formatPhone(config.gym.contact.phone)} or ${config.gym.contact.email}`;
               // The webhook may have activated the order first; that is still a success, and the
               // server still says what that activation did (for example, cancelled bookings).
               if (code === 'ALREADY_PROCESSED' && current) {
@@ -107,12 +108,12 @@ export const useCheckout = () => {
                 // A wrong amount or currency, or a sale or coupon that no longer applies: this order can never activate a membership.
                 setError(
                   'This payment could not be applied: Razorpay reported a different amount, or the sale or coupon on this order no longer applies, so nothing was activated on your membership. ' +
-                    `If money was taken, contact the front desk at ${GYM_PHONE_DISPLAY} or ${GYM_EMAIL} with your ${paymentRef}. ` +
+                    `If money was taken, contact the front desk at ${desk} with your ${paymentRef}. ` +
                     'Under our refund policy we then activate the plan you paid for or refund the money in full.'
                 );
               } else if (code === 'ORDER_NOT_FOUND' || code === 'ORDER_NOT_YOURS') {
                 // No webhook will activate this order for this account either.
-                setError(`${errorMessage(err)} Nothing was activated. If money was taken, contact the front desk at ${GYM_PHONE_DISPLAY} or ${GYM_EMAIL} with your ${paymentRef}.`);
+                setError(`${errorMessage(err)} Nothing was activated. If money was taken, contact the front desk at ${desk} with your ${paymentRef}.`);
               } else {
                 // A lost connection or an unconfirmed signature: Razorpay's webhook can still activate the order.
                 setError(`${errorMessage(err)} If money was taken, your membership will be activated automatically or by the front desk.`);

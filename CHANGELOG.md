@@ -4,6 +4,17 @@ All notable changes to PulseFit. Versions follow [Semantic Versioning](https://s
 
 ## [Unreleased]
 
+### Added
+
+- **Gym contact details in Admin.** Plans & rewards › Gym contact holds the gym's phone, WhatsApp number, email and
+  Instagram, Facebook, YouTube and X links (`GET/PUT /api/gym/contact`, admins only). The server checks each one (an
+  Indian mobile or landline number, stored as `+91` and 10 digits; an email address; an `https://` page on that
+  network's own site) and serves them with `GET /api/config`, together with the site's public address, so the website
+  and the apps pick a change up without a release. The footer, policies, Contact page, payment messages, payment
+  status page, ID cards, the page structured data and the enquiry emails use them. They start with today's details
+  and no links, so nothing changes until an admin edits them. The website footer shows an icon for each link set,
+  and Contact a "WhatsApp us" button when a WhatsApp number is set.
+
 ### Changed
 
 - **The Android app shows the website's pages in an app frame.** Inside the Android and iOS apps everyone gets the

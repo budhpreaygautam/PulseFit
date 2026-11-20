@@ -1,6 +1,6 @@
-import { IdCardDeactivationReason, IssuedIdCard, User } from '../../types/index.js';
-import { formatDate, formatDay } from '../../lib/format.js';
-import { GYM_ADDRESS, GYM_EMAIL, GYM_NAME, GYM_PHONE_DISPLAY, HOURS_DAYS, HOURS_TIME } from '../public/gymInfo.js';
+import { GymContact, IdCardDeactivationReason, IssuedIdCard, User } from '../../types/index.js';
+import { formatDate, formatDay, formatPhone } from '../../lib/format.js';
+import { GYM_ADDRESS, GYM_NAME, HOURS_DAYS, HOURS_TIME } from '../public/gymInfo.js';
 import { defaultAvatar } from '../member/avatarImage.js';
 
 // The ID card is a vertical badge, like a company employee card, drawn on canvas at real card size
@@ -134,6 +134,8 @@ export interface IdCardDetails {
   theme: 'light' | 'dark';
   /** The issued card: its number goes under the QR code, and a deactivated one is stamped. */
   card?: PhysicalCard | null;
+  /** The gym's phone and email for the back (GET /api/config › gym.contact). */
+  contact: Pick<GymContact, 'phone' | 'email'>;
 }
 
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -571,7 +573,7 @@ async function drawFront({ user, planName, theme, card }: IdCardDetails, withPho
   return exportOrNull(canvas);
 }
 
-async function drawBack({ user, qrDataUrl, theme, card }: IdCardDetails): Promise<string> {
+async function drawBack({ user, qrDataUrl, theme, card, contact }: IdCardDetails): Promise<string> {
   const p = theme === 'light' ? LIGHT : DARK;
   const role = roleStyleOf(user.role);
   const accent = theme === 'light' ? role.accentLight : role.accentDark;
@@ -646,7 +648,7 @@ async function drawBack({ user, qrDataUrl, theme, card }: IdCardDetails): Promis
   };
   row('OPENING HOURS', `${HOURS_DAYS}, ${HOURS_TIME} · Sunday closed`);
   row('ADDRESS', GYM_ADDRESS);
-  row('CONTACT', `${GYM_PHONE_DISPLAY} · ${GYM_EMAIL}`);
+  row('CONTACT', `${formatPhone(contact.phone)} · ${contact.email}`);
 
   ctx.textAlign = 'center';
   ctx.font = `600 14px ${SANS}`;

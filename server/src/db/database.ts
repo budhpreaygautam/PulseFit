@@ -24,9 +24,11 @@ import {
   PointsEntry,
   RewardSettings,
   Offer,
-  Coupon
+  Coupon,
+  GymContact
 } from '../types/index.js';
 import { defaultGifts, defaultRewardSettings } from './rewardDefaults.js';
+import { defaultGymContact } from '../lib/gymContact.js';
 
 export interface DatabaseSchema {
   users: User[];
@@ -52,6 +54,7 @@ export interface DatabaseSchema {
   reward_settings: RewardSettings;
   offers: Offer[];
   coupons: Coupon[];
+  gym_contact: GymContact;
 }
 
 const emptySchema = (): DatabaseSchema => ({
@@ -78,7 +81,9 @@ const emptySchema = (): DatabaseSchema => ({
   points_ledger: [],
   reward_settings: defaultRewardSettings(),
   offers: [],
-  coupons: []
+  coupons: [],
+  // Likewise a file from before the contact setting: the details the website showed until then.
+  gym_contact: defaultGymContact()
 });
 
 const DEFAULT_PLAN_CATEGORIES: Record<string, MembershipPlan['categories']> = {
@@ -286,6 +291,9 @@ class GymDatabase {
 
   get coupons() { return this.data.coupons; }
   set coupons(val: Coupon[]) { this.data.coupons = val; this.save(); }
+
+  get gym_contact() { return this.data.gym_contact; }
+  set gym_contact(val: GymContact) { this.data.gym_contact = val; this.save(); }
 }
 
 export const db = new GymDatabase(config.dbPath);

@@ -93,7 +93,7 @@ Read from `membership_plans[].categories` (empty = all). Prices live only in the
 ## Runtime config — owner: platform
 
 ### `GET /config` (public)
-`{ demoMode: boolean, googleClientId: string | null, payments: { enabled: boolean, provider: 'razorpay' | 'youpi' | null, keyId: string | null (Razorpay only) }, gym: { name, timezone, currency, hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: boolean }, classesPerWeek: number }, androidApp: { url: '/downloads/pulsefit.apk', version?: string, versionCode?: number, size: number } | null }`.
+`{ demoMode: boolean, googleClientId: string | null, payments: { enabled: boolean, provider: 'razorpay' | 'youpi' | null, keyId: string | null (Razorpay only) }, gym: { name, timezone, currency, hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: boolean }, classesPerWeek: number, contact: GymContact, website: string }, androidApp: { url: '/downloads/pulsefit.apk', version?: string, versionCode?: number, size: number } | null }`.
 The client hides the demo persona switcher, "Continue with Google" and checkout when they are off.
 `hours` is the gym's opening hours in gym time (`closedWeekdays`: 0 = Sunday). `classesPerWeek` is the number of classes
 on the weekly timetable, the home page's "Classes a week" (guests get only the next 4 sessions from `GET /classes`).
@@ -104,6 +104,31 @@ while the gym is closed.
 1 to 2,100,000,000); `null` while there is none. Android browsers then show a "Get the PulseFit app" bar, and the footer a
 "Get the Android app" link (neither inside the app). Inside the Android app (from 1.1.0), a `versionCode` higher than the
 installed app's opens "Update available" once per app start; "Update now" opens the APK in the phone's browser.
+`contact` is the gym's public contact details (below), as admins last saved them; the website and the apps show them
+(footer, policies, Contact, payment messages, ID cards) and hide the WhatsApp button and each social icon while its
+value is `''`. `website` is the site's public address (`PUBLIC_URL`, else the first `CLIENT_ORIGIN`; `''` when neither
+is set), for the apps' "Visit our website", which opens it in the phone's browser.
+
+### `GET /gym/contact` (admin), `PUT /gym/contact` (admin)
+`GET` answers `GymContact`. `PUT` takes the whole object (strict; `whatsapp` and the links default to `''`) and answers
+the stored `GymContact` with `message: 'Gym contact details saved.'`; 400 `VALIDATION_ERROR` naming the field
+(nothing is stored), 401 / 403 for anyone but an admin.
+
+```ts
+GymContact = { phone, whatsapp /* '' = none */, email, instagram, facebook, youtube, x /* '' = none */ }
+```
+
+- `phone` (required) and `whatsapp`: an Indian mobile or landline number, spaces, hyphens and brackets allowed, with or
+  without `+91`, `91` or a leading `0` (`098110 12345`, `0124 456 7890`), stored as `+91` and its 10 digits
+  (`+919811012345`; the first digit 1–9).
+- `email`: an email address, trimmed and stored in lower case.
+- Links: an `https://` address of a page (not just the home page) on that network's own site, with or without `www.`:
+  `instagram` on instagram.com, `facebook` on facebook.com or fb.com, `youtube` on youtube.com or youtu.be, `x` on x.com
+  or twitter.com. No `http:`, `javascript:` or `data:` links, other hosts, ports or user names. At most 300 characters.
+- A new database, and one from before the setting, starts with the details the website showed before:
+  `{ phone: '+919811078573', email: 'contact@pulsefit.in' }`, no WhatsApp number and no links.
+- The page `<head>` structured data (`GET /<any page>`) takes `telephone` and `email` from it, and lists the links
+  set in `sameAs`; the enquiry confirmation email signs off with `phone`.
 
 ### `GET /health`
 `{ status: 'ok', timestamp }`. Answers without the app header (Railway and `deploy/install-release.sh` call it).
@@ -146,7 +171,8 @@ the client is not served, or neither `PUBLIC_URL` nor `CLIENT_ORIGIN` is set.
 replaced in place, and at the `<!--app-head-->` marker: `link rel="canonical"` and `og:url`
 (`PUBLIC_URL` + the page's path, no query string) on indexable pages, `meta robots noindex, nofollow` on the
 others, and a JSON-LD `@graph` (Organization, WebSite, ExerciseGym with address, phone, email, opening hours
-and the monthly price range the home page shows, WebPage; no plan, class or coach details on any page). `/`,
+and the monthly price range the home page shows, WebPage; phone, email and the social links as `sameAs` from
+`GET /gym/contact`; no plan, class or coach details on any page). `/`,
 `/strength` and `/zumba` also preload their hero photo, and a demo deployment adds `meta name="pulsefit-demo-mode"`. Addresses
 are matched like the client's `tabForPath` (trailing slashes ignored). An unknown address answers **404**
 with the same app (it shows "Page not found") and `noindex`. `Cache-Control: no-cache`; hashed files under

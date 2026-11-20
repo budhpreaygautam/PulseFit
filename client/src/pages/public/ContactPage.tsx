@@ -3,8 +3,11 @@ import { CheckCircle2, Loader2, Mail, MessageSquare, Phone, Send, User as UserIc
 import { FormField, issuesByField } from '../../components/public/FormField.js';
 import { TabLink } from '../../components/public/TabLink.js';
 import { emailError, nameError, normalizeIndianPhone, PHONE_HINT } from '../../components/public/validation.js';
-import { CATEGORIES, GYM_PHONE_DISPLAY, GYM_PHONE_TEL, HOURS_SUMMARY } from '../../components/public/gymInfo.js';
+import { CATEGORIES, HOURS_SUMMARY } from '../../components/public/gymInfo.js';
+import { WhatsAppButton } from '../../components/public/ContactLinks.js';
+import { useAppConfig } from '../../context/ConfigContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
+import { formatPhone } from '../../lib/format.js';
 import { api, errorMessage, isApiError } from '../../api/client.js';
 import { Enquiry } from '../../types/index.js';
 
@@ -18,6 +21,7 @@ const inputClass = 'w-full px-3.5 py-2.5 text-sm text-slate-100 placeholder-slat
 
 export const ContactPage: React.FC = () => {
   const { navigate } = useNavigation();
+  const { phone: gymPhone } = useAppConfig().config.gym.contact;
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -65,7 +69,7 @@ export const ContactPage: React.FC = () => {
       setSentTo(normalizedPhone);
     } catch (err) {
       if (isApiError(err) && err.code === 'RATE_LIMITED') {
-        setFormError(`Too many enquiries from this connection. Please call us on ${GYM_PHONE_DISPLAY}.`);
+        setFormError(`Too many enquiries from this connection. Please call us on ${formatPhone(gymPhone)}.`);
       } else if (isApiError(err) && err.code === 'VALIDATION_ERROR' && Object.keys(issuesByField(err.data)).length > 0) {
         setFieldErrors(issuesByField(err.data) as Partial<Record<Field, string>>);
       } else {
@@ -86,11 +90,12 @@ export const ContactPage: React.FC = () => {
         <p className="text-sm text-slate-400">Questions about memberships, classes or timings? Leave your details and our front desk will call you back.</p>
         <p className="text-xs text-slate-500">
           Prefer to call?{' '}
-          <a href={`tel:${GYM_PHONE_TEL}`} className="text-lime-400 underline">
-            {GYM_PHONE_DISPLAY}
+          <a href={`tel:${gymPhone}`} className="text-lime-400 underline">
+            {formatPhone(gymPhone)}
           </a>{' '}
           · {HOURS_SUMMARY}
         </p>
+        <WhatsAppButton />
       </header>
 
       <div className="mt-8">

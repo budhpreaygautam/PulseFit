@@ -2,8 +2,9 @@ import React from 'react';
 import { FileText } from 'lucide-react';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { TabLink } from '../../components/public/TabLink.js';
-import { GYM_ADDRESS, GYM_EMAIL, GYM_NAME, GYM_PHONE_DISPLAY, GYM_PHONE_TEL, HOURS_SUMMARY } from '../../components/public/gymInfo.js';
-import { formatDate } from '../../lib/format.js';
+import { GYM_ADDRESS, GYM_NAME, HOURS_SUMMARY } from '../../components/public/gymInfo.js';
+import { useAppConfig } from '../../context/ConfigContext.js';
+import { formatDate, formatPhone } from '../../lib/format.js';
 
 type Kind = 'privacy' | 'terms' | 'refunds';
 
@@ -12,18 +13,21 @@ interface Section {
   body: React.ReactNode;
 }
 
-const Contact: React.FC = () => (
-  <>
-    the front desk at {GYM_ADDRESS} ({HOURS_SUMMARY}), by phone on{' '}
-    <a href={`tel:${GYM_PHONE_TEL}`} className="text-lime-400 underline">
-      {GYM_PHONE_DISPLAY}
-    </a>
-    , or by email at{' '}
-    <a href={`mailto:${GYM_EMAIL}`} className="text-lime-400 underline">
-      {GYM_EMAIL}
-    </a>
-  </>
-);
+const Contact: React.FC = () => {
+  const { phone, email } = useAppConfig().config.gym.contact;
+  return (
+    <>
+      the front desk at {GYM_ADDRESS} ({HOURS_SUMMARY}), by phone on{' '}
+      <a href={`tel:${phone}`} className="text-lime-400 underline">
+        {formatPhone(phone)}
+      </a>
+      , or by email at{' '}
+      <a href={`mailto:${email}`} className="text-lime-400 underline">
+        {email}
+      </a>
+    </>
+  );
+};
 
 const PRIVACY: Section[] = [
   {

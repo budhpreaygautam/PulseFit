@@ -71,7 +71,7 @@ function confirmation(e: Enquiry): Mail {
     `Thank you for contacting ${GYM.name}. Our front desk will call you back during opening hours, at the time you asked for where we can.`,
     'To add anything, just reply to this email.',
     'If you did not contact us, you can ignore this email.',
-    `${GYM.name}\n${GYM.streetAddress}, ${GYM.addressLocality}\n${GYM.telephone}`
+    `${GYM.name}\n${GYM.streetAddress}, ${GYM.addressLocality}\n${db.gym_contact.phone}`
   ];
   return {
     to: e.email,

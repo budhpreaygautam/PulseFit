@@ -7,6 +7,9 @@ export const GYM_TIMEZONE = 'Asia/Kolkata';
 
 const inr = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 
+/** '+91 98110 78573' for a stored '+919811078573'; landlines are grouped the same way. */
+export const formatPhone = (phone: string) => phone.replace(/^\+91(\d{5})(\d{5})$/, '+91 $1 $2');
+
 /** ₹1,499 (Indian digit grouping: ₹1,00,000) */
 export function formatINR(amount: number): string {
   return inr.format(amount);

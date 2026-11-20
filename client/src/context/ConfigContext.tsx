@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { AppConfig } from '../types/index.js';
 import { abortableGet } from '../lib/abortableGet.js';
+import { GYM_EMAIL, GYM_PHONE_TEL } from '../components/public/gymInfo.js';
 
 // What this deployment offers (demo personas, Google sign-in, online payments), read from
 // GET /api/config. Until it arrives, everything optional is treated as off. A request that fails,
@@ -18,7 +19,9 @@ const DEFAULT_CONFIG: AppConfig = {
     name: 'PulseFit Athletics',
     timezone: 'Asia/Kolkata',
     currency: 'INR',
-    hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: true }
+    hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: true },
+    contact: { phone: GYM_PHONE_TEL, whatsapp: '', email: GYM_EMAIL, instagram: '', facebook: '', youtube: '', x: '' },
+    website: ''
   },
   androidApp: null
 };
@@ -69,7 +72,8 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (done) return;
         done = true;
         detach();
-        setState({ config, isConfigLoaded: true });
+        // An older server sends no contact details or website: keep the defaults for those.
+        setState({ config: { ...config, gym: { ...DEFAULT_CONFIG.gym, ...config.gym } }, isConfigLoaded: true });
       } catch {
         // A try replaced by a newer one is not a failure of its own.
         if (done || current !== attempt) return;
