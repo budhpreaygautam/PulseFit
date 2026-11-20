@@ -328,7 +328,7 @@ export const MemberManagement: React.FC = () => {
         onSaved={(saved, notice) => {
           setEditing(null);
           // Say what else the edit did (a freeze or a plan change cancels bookings), not just "updated".
-          if (notice) showToast(notice, sideEffectTone(notice), `${saved.name} was updated`, 'saved');
+          if (notice) showToast(notice, sideEffectTone(notice), `${saved.name} was updated`, sideEffectTone(notice) === 'warning' ? 'cancelled' : 'saved');
           else showToast(`${saved.name} was updated.`, 'success', undefined, 'saved');
           load();
         }}

@@ -1,5 +1,5 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
-import { auth, freshMember, signInAs, test, useAppMode, useSession } from './helpers';
+import { auth, freshMember, signInAs, tabBar, test, useAppMode, useSession } from './helpers';
 
 // The app's result cartoons: every toast shows a scene for what the action did (app mode only), the
 // newest plays once and every toast ends on its still; the website keeps its icon.
@@ -156,17 +156,80 @@ test('on the website a toast keeps its icon and has no scene', async ({ page, re
   await expect(page.locator('[data-scene]')).toHaveCount(0);
 });
 
+/** The member's rewards answered with a newly earned milestone gift (the server grants them during a check-in). */
+const earnedGift = (page: Page, userId: string) =>
+  page.route('**/api/rewards/me', async route => {
+    const res = await route.fetch();
+    const body = await res.json();
+    const claim = { id: 'c1', user_id: userId, user_name: 'M', gift_id: 'g1', gift_name: 'Water bottle', source: 'milestone', source_ref: 'ms1', points_spent: 0, pickup_code: 'ABC123', status: 'ready', created_at: new Date().toISOString() };
+    await route.fulfill({ response: res, json: { ...body, data: { ...body.data, claims: [claim] } } });
+  });
+
 test('a newly earned milestone gift shows the milestone scene', async ({ page, request }, testInfo) => {
   const m = await freshMember(request, `moment milestone ${testInfo.project.name}`);
   await useSession(page, m.token);
   await useAppMode(page);
-  // The server grants milestone gifts during a check-in; here the member's list is answered with one.
-  await page.route('**/api/rewards/me', async route => {
-    const res = await route.fetch();
-    const body = await res.json();
-    const claim = { id: 'c1', user_id: m.id, user_name: 'M', gift_id: 'g1', gift_name: 'Water bottle', source: 'milestone', source_ref: 'ms1', points_spent: 0, pickup_code: 'ABC123', status: 'ready', created_at: new Date().toISOString() };
-    await route.fulfill({ response: res, json: { ...body, data: { ...body.data, claims: [claim] } } });
-  });
+  await earnedGift(page, m.id);
   await page.goto('/rewards');
   await expect(newest(page).locator('[data-scene="moment.milestone"]')).toBeVisible();
+});
+
+test('on the website a newly earned gift brings no toast', async ({ page, request }, testInfo) => {
+  const m = await freshMember(request, `web milestone ${testInfo.project.name}`);
+  await useSession(page, m.token);
+  await earnedGift(page, m.id);
+  await page.goto('/rewards');
+  // The gift is marked seen in the same step that would show the toast.
+  await expect.poll(() => page.evaluate(id => window.localStorage.getItem(`pulsefit_gifts_seen:${id}`), m.id)).not.toBeNull();
+  await page.waitForTimeout(500);
+  // Read once: a retrying toHaveCount(0) would also pass once a toast had faded (4.5 s).
+  expect(await page.locator('[data-toast-id]').count()).toBe(0);
+});
+
+test('an expired session shows the failed scene', async ({ page, request }, testInfo) => {
+  const m = await freshMember(request, `moment expired ${testInfo.project.name}`);
+  await useSession(page, m.token);
+  await useAppMode(page);
+  await page.goto('/schedule');
+  await expect(tabBar(page)).toBeVisible();
+  await page.route('**/api/**', route => route.fulfill({ status: 401, json: { success: false, error: 'Your session has expired. Please sign in again.', code: 'UNAUTHORIZED' } }));
+  await tabBar(page).getByRole('link', { name: 'Home', exact: true }).click();
+  const toast = page.locator('[data-toast-id]', { hasText: 'Your session has expired' });
+  await expect(toast.locator('[data-scene="moment.failed"]')).toBeVisible();
+});
+
+test('an admin edit that cancels bookings shows the cancelled scene, for a member and for a plan', async ({ page, request }, testInfo) => {
+  const label = `moment edit ${testInfo.project.name}`;
+  const m = await freshMember(request, label);
+  const plan = ((await (await request.get('/api/plans')).json()).data as { id: string; name: string; description: string }[])[0];
+  await signInAs(page, request, 'admin');
+  await useAppMode(page);
+  // The servers' answers say bookings were cancelled; really cancelling some needs booked classes.
+  await page.route(`**/api/members/${m.id}`, async route => {
+    if (route.request().method() !== 'PUT') return route.continue();
+    const res = await route.fetch();
+    await route.fulfill({ response: res, json: { ...(await res.json()), message: 'Member updated. 1 upcoming booking was cancelled.' } });
+  });
+  await page.route(`**/api/plans/${plan.id}`, route =>
+    route.request().method() !== 'PUT'
+      ? route.continue()
+      : route.fulfill({ json: { success: true, data: plan, message: 'Plan updated. 3 upcoming bookings were cancelled because the plan no longer covers those classes.' } })
+  );
+
+  await page.goto('/admin/members');
+  await page.locator('#member-search').fill(m.email);
+  await page.locator('#member-search').press('Enter');
+  await page.getByRole('button', { name: `Edit E2E ${label}` }).click();
+  const dialog = page.getByRole('dialog', { name: `Edit E2E ${label}` });
+  await dialog.locator('#edit-name').fill(`E2E ${label} renamed`);
+  await dialog.getByRole('button', { name: 'Save changes' }).click();
+  await expect(newest(page)).toContainText('1 upcoming booking was cancelled.');
+  await expect(newest(page).locator('[data-scene="moment.cancelled"]')).toBeVisible();
+
+  await page.goto('/admin/plans');
+  const editor = page.getByRole('form', { name: plan.name });
+  await editor.getByLabel('Description', { exact: true }).fill(`${plan.description} (edited)`);
+  await editor.getByRole('button', { name: `Save ${plan.name}` }).click();
+  await expect(newest(page)).toContainText('3 upcoming bookings were cancelled');
+  await expect(newest(page).locator('[data-scene="moment.cancelled"]')).toBeVisible();
 });

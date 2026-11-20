@@ -63,7 +63,7 @@ const PlansPanel: React.FC = () => {
               plan={plan}
               onSaved={(updated, notice) => {
                 // Say what else the save did (narrower categories cancel bookings), not just "saved".
-                if (notice) showToast(notice, sideEffectTone(notice), `${updated.name} was saved`, 'saved');
+                if (notice) showToast(notice, sideEffectTone(notice), `${updated.name} was saved`, sideEffectTone(notice) === 'warning' ? 'cancelled' : 'saved');
                 else showToast(`${updated.name} was saved.`, 'success', undefined, 'saved');
                 // Swap in the server's copy only; reloading every plan would wipe unsaved edits on the others.
                 setPlans(list => list?.map(p => (p.id === updated.id ? updated : p)) ?? null);

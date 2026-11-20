@@ -418,6 +418,7 @@ function MainAppContent() {
               body="Something went wrong while opening it. Check your connection, then reload the page to try again."
               action="Reload page"
               onAction={() => window.location.reload()}
+              scene="state.error"
             />
           }
         >

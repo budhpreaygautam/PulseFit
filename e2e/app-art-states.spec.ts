@@ -39,6 +39,16 @@ test.describe('app', () => {
     await expect(page.getByRole('alert').locator(scene('state.error'))).toBeVisible();
   });
 
+  test('a page that cannot be fetched shows the error scene', async ({ page, request }) => {
+    const m = await freshMember(request, 'Art page error');
+    await useSession(page, m.token);
+    await useAppMode(page);
+    await page.route('**/assets/MyBookingsPage-*.js', route => route.abort('connectionrefused'));
+    await page.goto('/bookings');
+    const panel = page.locator('section').filter({ has: page.getByRole('heading', { name: "This page didn't load" }) });
+    await expect(panel.locator(scene('state.error'))).toBeVisible();
+  });
+
   test('no connection shows the offline scene', async ({ page, request }) => {
     const m = await freshMember(request, 'Art offline');
     await useSession(page, m.token);

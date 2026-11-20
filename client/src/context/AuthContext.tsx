@@ -186,7 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // userRef is cleared here because the re-render that would clear it comes after them.
       if (userRef.current) {
         userRef.current = null;
-        showToast('Your session has expired. Please sign in again.', 'warning');
+        showToast('Your session has expired. Please sign in again.', 'warning', undefined, 'failed');
       }
       clearSession();
     };

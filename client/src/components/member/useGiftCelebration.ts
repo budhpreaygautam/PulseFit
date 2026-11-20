@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.js';
 import { useToast } from '../../context/ToastContext.js';
+import { isAppMode } from '../../lib/appMode.js';
 import { storage } from '../../lib/storage.js';
 import { GiftClaim } from '../../types/index.js';
 
@@ -22,8 +23,8 @@ export function useGiftCelebration(userId: string, claims: GiftClaim[] | null): 
     const isNew = seen ? newest > seen : earned.some(c => c.status === 'ready' || c.status === 'needs_size');
     if (isNew) {
       triggerCelebration();
-      // The scene shows in app mode only; the website keeps its toast icon.
-      showToast('A gift is waiting for you in Rewards.', 'success', 'You earned a gift', 'milestone');
+      // App only: the milestone scene's toast. The website keeps confetti alone (it does not change).
+      if (isAppMode) showToast('A gift is waiting for you in Rewards.', 'success', 'You earned a gift', 'milestone');
     }
     storage.set(key, newest);
   }, [userId, claims, triggerCelebration, showToast]);
