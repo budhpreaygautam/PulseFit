@@ -1,9 +1,9 @@
 import { expect } from '@playwright/test';
-import { auth, signInAs, test } from './helpers';
+import { appDrawer, auth, signInAs, test, useAppMode } from './helpers';
 
 // Admin › Plans & rewards › Gym contact: the phone, WhatsApp, email and social links the website
-// shows, changed by an admin without a release. The database is shared, so the test that changes
-// them puts the starting values back.
+// shows, changed by an admin without a release. The database is shared, so the tests that change
+// them put the starting values back.
 
 const DEFAULTS = { phone: '+919811078573', whatsapp: '', email: 'contact@pulsefit.in', instagram: '', facebook: '', youtube: '', x: '' };
 
@@ -25,7 +25,8 @@ test('an admin saves new contact details, and the website footer and Contact pag
     // A new page load reads the new details from /api/config.
     await page.goto('/contact');
     const footer = page.getByRole('contentinfo');
-    await expect(footer.getByRole('link', { name: '+91 12445 67890' })).toHaveAttribute('href', 'tel:+911244567890');
+    // A landline is not split inside its area code (124).
+    await expect(footer.getByRole('link', { name: '+91 1244567890' })).toHaveAttribute('href', 'tel:+911244567890');
     await expect(footer.getByRole('link', { name: 'desk@pulsefit.example' })).toHaveAttribute('href', 'mailto:desk@pulsefit.example');
     await expect(footer.getByText('+91 98110 78573')).toHaveCount(0);
     const instagram = footer.getByRole('link', { name: 'PulseFit on Instagram' });
@@ -34,13 +35,50 @@ test('an admin saves new contact details, and the website footer and Contact pag
     await expect(instagram).toHaveAttribute('rel', 'noopener noreferrer');
     // Empty links show no icon.
     await expect(footer.getByRole('link', { name: /^PulseFit on / })).toHaveCount(1);
+    // Visit us has the WhatsApp button too.
+    await expect(footer.getByRole('link', { name: 'WhatsApp us' })).toHaveAttribute('href', 'https://wa.me/919811055555');
 
     const main = page.getByRole('main');
-    await expect(main.getByRole('link', { name: '+91 12445 67890' })).toBeVisible();
+    await expect(main.getByRole('link', { name: '+91 1244567890' })).toBeVisible();
     await expect(main.getByRole('link', { name: 'WhatsApp us' })).toHaveAttribute('href', 'https://wa.me/919811055555');
+
+    // Opened again without reaching /api/config (an app started offline), it shows the details the
+    // server last sent, not the ones built into the app.
+    await page.route('**/api/config', route => route.abort());
+    await page.reload();
+    await expect(footer.getByRole('link', { name: '+91 1244567890' })).toHaveAttribute('href', 'tel:+911244567890');
+    await expect(footer.getByRole('link', { name: 'desk@pulsefit.example' })).toBeVisible();
+    await expect(footer.getByRole('link', { name: 'PulseFit on Instagram' })).toBeVisible();
   } finally {
     const reset = await request.put('/api/gym/contact', { headers: auth(token), data: DEFAULTS });
     expect(reset.ok(), await reset.text()).toBeTruthy();
+  }
+});
+
+test('in the app, the drawer ends with the social icons and "Visit our website", and its Visit us has WhatsApp', async ({ page, request }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile', 'app mode is the phone layout');
+  const login = await request.post('/api/auth/demo-login', { data: { role: 'admin' } });
+  const token = (await login.json()).data.token as string;
+  const setContact = async (data: typeof DEFAULTS) => {
+    const res = await request.put('/api/gym/contact', { headers: auth(token), data });
+    expect(res.ok(), await res.text()).toBeTruthy();
+  };
+  await setContact({ ...DEFAULTS, whatsapp: '98110 55555', instagram: 'https://www.instagram.com/pulsefit.e2e' });
+  try {
+    const website = (await (await request.get('/api/config')).json()).data.gym.website as string;
+    expect(website).toMatch(/^https?:\/\//);
+    await useAppMode(page);
+    await page.goto('/');
+    await page.getByRole('banner').getByRole('button', { name: 'Open menu' }).click();
+    const drawer = appDrawer(page);
+    await expect(drawer.getByRole('link', { name: 'PulseFit on Instagram' })).toHaveAttribute('href', 'https://www.instagram.com/pulsefit.e2e');
+    const visit = drawer.getByRole('link', { name: 'Visit our website' });
+    await expect(visit).toBeVisible();
+    await expect(visit).toHaveAttribute('href', website);
+    await expect(visit).toHaveAttribute('target', '_blank');
+    await expect(drawer.getByRole('link', { name: 'WhatsApp us' })).toHaveAttribute('href', 'https://wa.me/919811055555');
+  } finally {
+    await setContact(DEFAULTS);
   }
 });
 

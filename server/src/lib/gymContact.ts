@@ -18,7 +18,7 @@ export const defaultGymContact = (): GymContact => ({
   x: ''
 });
 
-/** Each network's own sites: a link must be on one of them (with or without www.). */
+/** Each network's own sites: a link must be on one of them or a subdomain (www., m. from a phone, web.). */
 export const SOCIAL_HOSTS = {
   instagram: ['instagram.com'],
   facebook: ['facebook.com', 'fb.com'],
@@ -43,5 +43,7 @@ export function isLinkOn(link: string, hosts: readonly string[]): boolean {
   } catch {
     return false;
   }
-  return url.protocol === 'https:' && !url.username && !url.password && !url.port && hosts.includes(url.hostname.replace(/^www\./, '')) && url.pathname.length > 1;
+  const host = url.hostname;
+  const onSite = hosts.some(site => host === site || host.endsWith(`.${site}`));
+  return url.protocol === 'https:' && !url.username && !url.password && !url.port && onSite && url.pathname.length > 1;
 }

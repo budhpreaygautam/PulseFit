@@ -51,6 +51,17 @@ describe('GET/PUT /gym/contact', () => {
     expect(res.body.data).toMatchObject({ phone: stored, whatsapp: stored });
   });
 
+  it.each([
+    ['facebook', 'https://m.facebook.com/pulsefit'],
+    ['facebook', 'https://web.facebook.com/pulsefit'],
+    ['youtube', 'https://m.youtube.com/@pulsefit'],
+    ['x', 'https://mobile.twitter.com/pulsefit']
+  ])('takes the %s link %s, as a phone browser shows it', async (field, link) => {
+    const res = await save({ ...valid, [field]: link });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(db.gym_contact[field as keyof typeof valid]).toBe(link);
+  });
+
   it('leaves WhatsApp and every link empty when they are left out or blank', async () => {
     const res = await save({ phone: '9811012345', email: 'desk@pulsefit.example', instagram: '  ' });
     expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -75,6 +86,7 @@ describe('GET/PUT /gym/contact', () => {
     ['instagram', 'https://user@instagram.com/pulsefit'],
     ['instagram', 'instagram.com/pulsefit'],
     ['facebook', 'https://m.facebook.com.example/pulsefit'],
+    ['facebook', 'https://notfacebook.com/pulsefit'],
     ['youtube', 'https://vimeo.com/pulsefit'],
     ['x', 'https://x.co/pulsefit']
   ])('refuses %s %j and stores nothing', async (field, value) => {

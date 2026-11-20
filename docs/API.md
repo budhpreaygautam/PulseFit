@@ -122,7 +122,8 @@ GymContact = { phone, whatsapp /* '' = none */, email, instagram, facebook, yout
   without `+91`, `91` or a leading `0` (`098110 12345`, `0124 456 7890`), stored as `+91` and its 10 digits
   (`+919811012345`; the first digit 1–9).
 - `email`: an email address, trimmed and stored in lower case.
-- Links: an `https://` address of a page (not just the home page) on that network's own site, with or without `www.`:
+- Links: an `https://` address of a page (not just the home page) on that network's own site or one of its subdomains
+  (`www.`, `m.` as a phone browser shows it):
   `instagram` on instagram.com, `facebook` on facebook.com or fb.com, `youtube` on youtube.com or youtu.be, `x` on x.com
   or twitter.com. No `http:`, `javascript:` or `data:` links, other hosts, ports or user names. At most 300 characters.
 - A new database, and one from before the setting, starts with the details the website showed before:

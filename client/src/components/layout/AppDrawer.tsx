@@ -8,6 +8,7 @@ import { useModalFocus } from '../common/Modal.js';
 import { MembershipStatusBadge } from '../member/MembershipStatusBadge.js';
 import { avatarOf } from '../member/avatarImage.js';
 import { TabLink } from '../public/TabLink.js';
+import { SocialLinks, VisitWebsiteLink } from '../public/ContactLinks.js';
 import { VisitUs, footerLinks } from './Footer.js';
 import type { NavItem } from './Navbar.js';
 
@@ -236,6 +237,11 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({ currentTab, navigate, onCl
             </nav>
           )}
           <VisitUs />
+          {/* The gym's social pages and the website, opened in the phone's browser; empty:hidden when neither is set. */}
+          <div className="flex flex-wrap items-center justify-between gap-3 empty:hidden">
+            <SocialLinks />
+            <VisitWebsiteLink className="text-xs" />
+          </div>
         </div>
       </div>
     </div>

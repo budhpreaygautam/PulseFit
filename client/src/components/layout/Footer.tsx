@@ -6,7 +6,7 @@ import { homeTabFor } from '../../routes.js';
 import { formatPhone, gymToday } from '../../lib/format.js';
 import { User } from '../../types/index.js';
 import { TabLink } from '../public/TabLink.js';
-import { SocialLinks } from '../public/ContactLinks.js';
+import { SocialLinks, WhatsAppButton } from '../public/ContactLinks.js';
 import { GYM_ADDRESS, GYM_NAME, HOURS_DAYS, HOURS_TIME } from '../public/gymInfo.js';
 
 const EXPLORE = [
@@ -44,7 +44,7 @@ const accountLinksFor = (user: User | null) =>
 /** Every page the footer links to, for the app's menu drawer (the app has no footer). */
 export const footerLinks = (user: User | null) => [...EXPLORE, ...accountLinksFor(user), ...LEGAL];
 
-/** The gym's address, phone, email and hours: in the footer, and in the app's menu drawer. */
+/** The gym's address, phone, email, WhatsApp and hours: in the footer, and in the app's menu drawer. */
 export const VisitUs: React.FC = () => {
   const { phone, email } = useAppConfig().config.gym.contact;
   return (
@@ -65,6 +65,7 @@ export const VisitUs: React.FC = () => {
           {email}
         </a>
       </div>
+      <WhatsAppButton />
       <div className="flex items-start gap-2.5">
         <Clock className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
         <div>
