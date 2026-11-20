@@ -8,9 +8,17 @@ import { CONTENT, type Kind, PolicySections } from './LegalPage.js';
 import { formatDate, formatPhone } from '../../lib/format.js';
 import { isNativeApp } from '../../lib/native.js';
 import { prefersReducedMotion } from '../../lib/appMotion.js';
+import type { ArtCredit } from '../../lib/appArt.js';
 
 const KINDS = Object.keys(CONTENT) as Kind[];
 const linkClass = 'text-lime-400 underline';
+// The Lottie Simple License (FL 9.13.21), shown whole because it asks that its terms travel with the files.
+const LOTTIE_LICENCE = [
+  'Copyright (c) 2021 Design Barn Inc.',
+  'Permission is hereby granted, free of charge, to any person obtaining a copy of the public animation files available for download at the LottieFiles site (\"Files\") to download, reproduce, modify, publish, distribute, publicly display, and publicly digitally perform such Files, including for commercial purposes, provided that any display, publication, performance, or distribution of Files must contain (and be subject to) the same terms and conditions of this license. Modifications to Files are deemed derivative works and must also be expressly distributed under the same terms and conditions of this license. You may not purport to impose any additional or different terms or conditions on, or apply any technical measures that restrict exercise of, the rights granted under this license. This license does not include the right to collect or compile Files from LottieFiles to replicate or develop a similar or competing service.',
+  'Use of Files without attributing the creator(s) of the Files is permitted under this license, though attribution is strongly encouraged. If attributions are included, such attributions should be visible to the end user.',
+  'FILES ARE PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. EXCEPT TO THE EXTENT REQUIRED BY APPLICABLE LAW, IN NO EVENT WILL THE CREATOR(S) OF FILES OR DESIGN BARN, INC. BE LIABLE ON ANY LEGAL THEORY FOR ANY SPECIAL, INCIDENTAL, CONSEQUENTIAL, PUNITIVE, OR EXEMPLARY DAMAGES ARISING OUT OF THIS LICENSE OR THE USE OF SUCH FILES.'
+];
 // Clear of the sticky app bar when a jump link scrolls a part to the top.
 const PART = 'scroll-mt-[calc(env(safe-area-inset-top)_+_4.5rem)] outline-none';
 
@@ -23,6 +31,7 @@ export const PoliciesPage: React.FC = () => {
   const { navigate } = useNavigation();
   const { phone, email } = useAppConfig().config.gym.contact;
   const [version, setVersion] = useState<string | null>(null);
+  const [credits, setCredits] = useState<ArtCredit[]>([]);
 
   // Only the installed app knows its version.
   useEffect(() => {
@@ -30,6 +39,11 @@ export const PoliciesPage: React.FC = () => {
     import('@capacitor/app')
       .then(({ App }) => App.getInfo())
       .then(info => setVersion(info.version), () => undefined);
+  }, []);
+
+  // The art module is loaded on demand, like the scenes.
+  useEffect(() => {
+    import('@app-art').then(m => setCredits(m.credits), () => undefined);
   }, []);
 
   // In place: a #fragment would reach the app's Back handling (a popstate) and jump to the top.
@@ -41,7 +55,9 @@ export const PoliciesPage: React.FC = () => {
     part.focus({ preventScroll: true });
   };
 
-  const parts = [...KINDS.map(kind => ({ id: `policy-${kind}`, title: CONTENT[kind].title })), { id: 'policy-account', title: 'Your account and data' }];
+  const parts = [...KINDS.map(kind => ({ id: `policy-${kind}`, title: CONTENT[kind].title })), { id: 'policy-account', title: 'Your account and data' }, { id: 'policy-credits', title: 'Credits' }];
+  const storyset = credits.some(c => c.licence === 'Storyset free licence');
+  const lottie = credits.some(c => c.licence === 'Lottie Simple License');
 
   return (
     <article className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-14">
@@ -125,6 +141,48 @@ export const PoliciesPage: React.FC = () => {
 
         {version && <p className="mt-8 text-xs text-slate-500">PulseFit app version {version}</p>}
       </section>
-    </article>
+
+      <section id="policy-credits" tabIndex={-1} aria-labelledby="policy-credits-title" className={`mt-12 ${PART}`}>
+        <h2 id="policy-credits-title" className="text-2xl font-black text-slate-100 font-heading">
+          Credits
+        </h2>
+        <div className="mt-4 space-y-3 text-sm text-slate-300 leading-relaxed">
+          {storyset && (
+            <p>
+              <a href="https://storyset.com" target="_blank" rel="noopener noreferrer" className={linkClass}>
+                Illustrations by Storyset
+              </a>
+            </p>
+          )}
+          {credits.length > 0 && (
+            <ul className="space-y-2">
+              {credits.map((credit, i) => (
+                <li key={i}>
+                  {credit.title} by {credit.creator} ({credit.licence}
+                  {/^https?:\/\//.test(credit.source) && (
+                    <>
+                      {', '}
+                      <a href={credit.source} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                        source
+                      </a>
+                    </>
+                  )}
+                  )
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {lottie && (
+          <>
+            <h3 className="mt-6 text-lg font-black text-slate-100 font-heading">Lottie Simple License</h3>
+            <div className="mt-3 space-y-3 text-xs text-slate-400 leading-relaxed">
+              {LOTTIE_LICENCE.map(p => (
+                <p key={p}>{p}</p>
+              ))}
+            </div>
+          </>
+        )}
+      </section>    </article>
   );
 };

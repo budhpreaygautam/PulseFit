@@ -20,7 +20,7 @@ test('Policies & terms holds the three policies with their dates, jump links to 
   await page.goto('/policies');
   await expect(page.getByRole('heading', { level: 1, name: 'Policies & terms' })).toBeVisible();
   await expectAppBar(page, 'Policies & terms');
-  const parts = ['Privacy policy', 'Terms of service', 'Refund & cancellation policy', 'Your account and data'];
+  const parts = ['Privacy policy', 'Terms of service', 'Refund & cancellation policy', 'Your account and data', 'Credits'];
   for (const name of parts) await expect(page.getByRole('heading', { level: 2, name, exact: true })).toHaveCount(1);
   // The website's own texts: a section of each.
   for (const name of ['What we collect and why', 'Class bookings', 'How refunds are paid']) await expect(page.getByRole('heading', { level: 3, name }).first()).toBeAttached();
@@ -201,3 +201,15 @@ for (const path of ['/policies', '/visit', '/offers']) {
     await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
   });
 }
+
+test('Policies & terms ends with Credits: Storyset, each animation, and the Lottie Simple License', async ({ page }) => {
+  await useAppMode(page);
+  await page.goto('/policies');
+  await page.getByRole('navigation', { name: 'On this page' }).getByRole('link', { name: 'Credits' }).click();
+  const credits = page.getByRole('region', { name: 'Credits' });
+  await expect(credits).toBeInViewport();
+  await expect(credits.getByRole('link', { name: 'Illustrations by Storyset' })).toHaveAttribute('href', 'https://storyset.com');
+  await expect(credits.getByText('Stand-in').first()).toBeVisible();
+  await expect(credits.getByText('Lottie Simple License').first()).toBeAttached();
+  await expect(credits.getByText(/Design Barn Inc\./)).toBeAttached();
+});
