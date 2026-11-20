@@ -293,7 +293,7 @@ export const QuickCheckInScanner: React.FC = () => {
       setIsProcessing(false);
     }
     setOutcome(next);
-      setScanNo(n => n + 1);
+    setScanNo(n => n + 1);
     setSessionLog(log => [next, ...log].slice(0, 10));
     if (method === 'manual') {
       // Whatever the answer, the next scan starts in an empty box (a USB scanner types and presses

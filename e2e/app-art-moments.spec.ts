@@ -109,8 +109,10 @@ test('a second scan of the same kind plays its scene again, and a denied scan sh
   await page.waitForTimeout(1700);
   await expect(page.locator('[data-scene="moment.checkedIn"]')).toHaveAttribute('data-state', 'still');
   // The same kind again: a fresh scene that is not already at its still.
+  const answered = page.waitForResponse(r => r.request().method() === 'POST' && /check-?in/.test(r.url()));
   await scan(m.email);
-  await expect(page.locator('[data-scene="moment.checkedIn"]')).not.toHaveAttribute('data-state', 'still', { timeout: 500 });
+  await answered;
+  await expect(page.locator('[data-scene="moment.checkedIn"]')).not.toHaveAttribute('data-state', 'still', { timeout: 1200 });
   await scan('NO-SUCH-CODE-000');
   await expect(page.getByText(/Access denied|Check-in failed/)).toBeVisible();
   await expect(page.locator('[data-scene="moment.failed"]')).toBeVisible();
@@ -144,6 +146,7 @@ test('a free-trial pass shows its scene instead of the ticket icon', async ({ pa
   await expect(dialog.locator('[data-scene="moment.saved"]')).toBeVisible();
   await expect(dialog.getByText('TRIAL-E2E1')).toBeVisible();
 });
+
 test('on the website a toast keeps its icon and has no scene', async ({ page, request }) => {
   const token = await signInAs(page, request, 'member');
   const [a] = await bookable(request, token);
