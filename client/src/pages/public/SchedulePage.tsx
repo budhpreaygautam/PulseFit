@@ -579,7 +579,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
                         onClick={() => selectDate(date)}
                         onKeyDown={e => onDayKeyDown(e, date)}
                         className={`relative w-full aspect-square max-h-11 mx-auto rounded-xl flex flex-col items-center justify-center gap-0.5 ${
-                          isSelected ? 'neu-pressed-sm border border-lime-500/60' : viewable ? 'neu-btn' : 'opacity-35 cursor-not-allowed'
+                          isSelected ? 'neu-pressed-sm border border-lime-500/60' : viewable ? 'neu-btn day-tile' : 'opacity-35 cursor-not-allowed'
                         }`}
                       >
                         <span

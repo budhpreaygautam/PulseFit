@@ -747,6 +747,12 @@ html.in-app .glass-dark {
 html.in-app .glass-toast {
   background-color: var(--gym-850);
 }
+/* The Timetable's calendar day tiles (SchedulePage.tsx) in the app: one tight shadow pair at rest instead
+   of two 12 px blurs. Thirty-five tiles 4 px apart overlap their blurs, about half of what it took to draw
+   the calendar. Hover and press keep their own shadows. */
+html.in-app .day-tile {
+  box-shadow: 3px 3px 6px var(--neu-shadow-dark), -3px -3px 6px var(--neu-shadow-light), inset 1px 1px 0 var(--neu-glass-highlight);
+}
 
 /* Page animations in the app (lib/appMotion.ts sets html[data-nav] for view transitions; the app bar
    and the tab bar, named app-header and app-tabbar, stay still). None with reduced motion. */
@@ -835,7 +841,7 @@ html:has(.app-tabbar) #main {
    meanwhile: hiding a card must not fade it out first, and a running transition would outrank the rise. */
 .card-pending {
   opacity: 0;
-  transform: translateY(16px);
+  transform: translateY(var(--rise-y, 16px));
   transition: none !important;
 }
 .card-rise {
@@ -845,8 +851,14 @@ html:has(.app-tabbar) #main {
 @keyframes card-rise {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(var(--rise-y, 16px));
   }
+}
+/* A card holding a select (the Timetable's filters) only fades in: while it moves, Chrome lays it out and
+   repaints it on every frame (traced: 17 layouts and 25 paints in one rise; none when it stays put). */
+.card-pending:has(select),
+.card-rise:has(select) {
+  --rise-y: 0px;
 }
 
 /* Tap feedback in the app (main.tsx adds .in-app to <html>): no grey flash on a tap, and buttons, links
