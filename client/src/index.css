@@ -1238,3 +1238,16 @@ body {
 .app-art[data-state='still'] * {
   animation-play-state: paused !important;
 }
+
+/* A page's scene strip (components/app/PageScene.tsx): centred, and gone on a short landscape screen. */
+.page-scene {
+  height: 112px;
+  display: flex;
+  justify-content: center;
+}
+.page-scene-compact,
+.page-scene-compact .app-art-page { height: 88px; }
+.page-scene .app-art-page { width: 100%; max-width: 320px; }
+@media (max-height: 559px) {
+  .page-scene { display: none; }
+}
