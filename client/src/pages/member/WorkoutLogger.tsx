@@ -7,6 +7,7 @@ import { useToast } from '../../context/ToastContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
+import { isAppMode } from '../../lib/appMode.js';
 import { useApiResource } from '../../components/member/useApiResource.js';
 import { WORKOUT_LIMITS as LIMITS, inRange } from '../../components/member/workoutLimits.js';
 import { addDays, formatDate, gymToday } from '../../lib/format.js';
@@ -554,7 +555,11 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
             )}
 
             {exercises.length === 0 ? (
-              <EmptyState title="No sets yet" body="Choose an exercise above and add your first set." />
+              isAppMode ? (
+                <EmptyState title="No sets yet" body="Choose an exercise above and add your first set." />
+              ) : (
+                <div className="neu-pressed-sm rounded-2xl p-8 text-center text-xs text-slate-400">No sets yet. Choose an exercise above and add your first set.</div>
+              )
             ) : (
               exercises.map(group => (
                 <div key={group.key} className="neu-flat rounded-2xl p-4 space-y-3">

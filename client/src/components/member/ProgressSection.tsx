@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { AppArt } from '../app/AppArt.js';
 import { emptyScene } from '../../lib/appArt.js';
+import { isAppMode } from '../../lib/appMode.js';
 import { TrendingUp } from 'lucide-react';
 import { WorkoutAnalytics } from '../../types/index.js';
 import { formatDate } from '../../lib/format.js';
@@ -103,7 +104,11 @@ export const ProgressSection: React.FC<ProgressSectionProps> = ({ analytics, onL
           <h3 className="text-xs font-bold text-slate-300">Personal records</h3>
           <p className="text-[11px] text-slate-500 mt-0.5 mb-3">Best estimated one-rep max per exercise (Epley formula), from working sets.</p>
           {records.length === 0 ? (
-            <div className="flex items-center gap-3"><AppArt scene={emptyScene('No weighted working sets yet')} size="state" className="w-24 shrink-0" /><p className="text-xs text-slate-400">No weighted working sets yet.</p></div>
+            isAppMode ? (
+              <div className="flex items-center gap-3"><AppArt scene={emptyScene('No weighted working sets yet')} size="state" className="w-24 shrink-0" /><p className="text-xs text-slate-400">No weighted working sets yet.</p></div>
+            ) : (
+              <p className="text-xs text-slate-400">No weighted working sets yet.</p>
+            )
           ) : (
             <div>
               <table className="neu-table w-full text-xs">

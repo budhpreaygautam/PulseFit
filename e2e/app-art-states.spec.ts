@@ -1,4 +1,4 @@
-﻿import { expect } from '@playwright/test';
+import { expect } from '@playwright/test';
 import { freshMember, test, useAppMode, useSession } from './helpers';
 
 // Loading, empty, error, offline, launch and refresh scenes (app mode only; the website keeps its icons).
@@ -48,16 +48,40 @@ test.describe('app', () => {
     await expect(page.locator(scene('state.offline'))).toBeVisible();
   });
 
-  test('the launch screen shows its scene, and the pull spinner holds the loading scene', async ({ page, request }) => {
+  test('the launch screen shows its scene', async ({ page, request }) => {
     const m = await freshMember(request, 'Art launch');
     await useSession(page, m.token);
     await useAppMode(page);
+    // The launch node is gone after 900 ms, so watch for it from the first frame.
+    await page.addInitScript(() => {
+      const w = window as unknown as { __sawLaunch?: boolean };
+      new MutationObserver(() => {
+        if (document.querySelector('.app-launch [data-scene^="state.launch"]')) w.__sawLaunch = true;
+      }).observe(document, { childList: true, subtree: true });
+    });
+    await page.goto('/bookings', { waitUntil: 'commit' });
+    await page.waitForFunction(() => (window as unknown as { __sawLaunch?: boolean }).__sawLaunch === true);
+  });
+
+  test('a pull at the top shows the loading scene in the spinner', async ({ page, request }) => {
+    const m = await freshMember(request, 'Art pull');
+    await useSession(page, m.token);
+    await useAppMode(page);
     await page.goto('/bookings');
-    await expect(page.locator(`.app-launch ${scene('state.launch')}`)).toBeAttached();
-    await expect(page.locator(`.pull-spinner ${scene('state.loading')}`)).toBeAttached();
+    await expect(page.locator('.app-launch')).toHaveCount(0);
+    await page.evaluate(() => {
+      const touch = (type: string, y: number) => {
+        const t = new Touch({ identifier: 1, target: document.body, clientX: 195, clientY: y });
+        document.body.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [t], changedTouches: [t] }));
+      };
+      touch('touchstart', 100);
+      touch('touchmove', 300);
+      touch('touchend', 300);
+    });
+    await expect(page.locator('.pull-spinner[data-refreshing]')).toBeAttached();
+    await expect(page.locator('.pull-spinner [data-scene^="state.loading"]')).toBeAttached();
   });
 });
-
 test('the website has none of these scenes', async ({ page, request }) => {
   const m = await freshMember(request, 'Art web');
   await useSession(page, m.token);

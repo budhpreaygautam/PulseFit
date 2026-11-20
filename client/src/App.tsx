@@ -1,6 +1,4 @@
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
-import { AppArt } from './components/app/AppArt.js';
-import type { SceneId } from './lib/appArt.js';
 import { AlertTriangle, Lock, RefreshCw, ShieldAlert, WifiOff } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
 import { ToastProvider, useToast } from './context/ToastContext.js';
@@ -12,10 +10,12 @@ import { Navbar } from './components/layout/Navbar.js';
 import { Footer } from './components/layout/Footer.js';
 import { AndroidAppBanner } from './components/layout/AndroidAppBanner.js';
 import { AppUpdatePrompt } from './components/app/AppUpdatePrompt.js';
+import { AppArt } from './components/app/AppArt.js';
 import { AppLaunch } from './components/app/AppLaunch.js';
 import { PullToRefresh } from './components/app/PullToRefresh.js';
 import { AppTabBar } from './components/app/AppTabBar.js';
 import { firstTab, tabsFor } from './components/app/tabs.js';
+import type { SceneId } from './lib/appArt.js';
 import { isAppMode } from './lib/appMode.js';
 import { PageScene } from './components/app/PageScene.js';
 import { revealCards } from './lib/appMotion.js';
@@ -86,7 +86,7 @@ const PULL_TO_REFRESH_TABS = new Set(['home', 'workout', 'zumba', 'guide', 'sche
 // and then jumping down when the page arrives (a layout shift).
 const PageLoader: React.FC = () => (
   <div className="flex items-start justify-center pt-32 min-h-screen" role="status" aria-live="polite">
-    <div className="w-10 h-10 rounded-full border-4 border-lime-500/30 border-t-lime-400 animate-spin" aria-hidden="true" />
+    {isAppMode ? <AppArt scene="state.loading" size="state" /> : <div className="w-10 h-10 rounded-full border-4 border-lime-500/30 border-t-lime-400 animate-spin" aria-hidden="true" />}
     <span className="sr-only">Loading…</span>
   </div>
 );

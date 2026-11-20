@@ -1241,6 +1241,7 @@ body {
 
 /* The pull-to-refresh spinner holds the loading scene at 40 px. */
 .pull-spinner .app-art { width: 100%; height: 40px; }
+.pull-spinner .app-art[data-state='missing'] { height: 0; }
 
 /* A page's scene strip (components/app/PageScene.tsx): centred, and gone on a short landscape screen. */
 .page-scene {
