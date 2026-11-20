@@ -36,3 +36,7 @@ server/data/.dev-jwt-secret
 coverage/
 playwright-report/
 test-results/
+
+# Isolated working copies (git worktrees) and design-sample scratch
+.claude/worktrees/
+.superpowers/
