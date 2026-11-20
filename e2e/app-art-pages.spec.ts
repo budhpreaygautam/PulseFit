@@ -14,10 +14,11 @@ const routes = Array.from(routesText.matchAll(/tab: '([^']+)',\s*path: '([^']+)'
   path: m[2],
   access: m[3]
 }));
+if (routes.length !== (routesText.match(/tab: '/g) ?? []).length) throw new Error('routes.ts: a route entry did not parse');
 const pages: string[] = JSON.parse(fs.readFileSync('client/src/lib/app-art-ids.json', 'utf8')).pages;
 
 const persona = (access: string): Persona | null =>
-  access === 'public' ? null : access === "'auth'" || access.startsWith("['member") ? 'member' : access.includes("'trainer'") ? 'trainer' : 'admin';
+  access === "'public'" ? null : access === "'auth'" || access.startsWith("['member") ? 'member' : access.includes("'trainer'") ? 'trainer' : access.includes("'admin'") ? 'admin' : (() => { throw new Error('unrecognised access: ' + access); })();
 
 test('every route has a page scene id', () => {
   expect(routes.length).toBeGreaterThan(20);
@@ -34,8 +35,9 @@ test('every page shows its scene and keeps its heading above the tab bar', async
     await useAppMode(page);
     await page.goto(r.path);
     await expect(page.locator(`[data-scene="page.${r.tab}"]`), r.tab).toBeVisible();
-    const anchor = page.locator('main h1').first();
-    const target = (await anchor.count()) ? anchor : page.locator('main button').first();
+    await expect(page.locator('main h1, main button').first(), r.tab).toBeVisible();
+    const h1 = page.locator('main h1').first();
+    const target = (await h1.count()) ? h1 : page.locator('main button').first();
     await expect(target, r.tab).toBeVisible();
     const box = (await target.boundingBox())!;
     expect(box.y + box.height, `${r.tab} first content bottom`).toBeLessThanOrEqual(738);
