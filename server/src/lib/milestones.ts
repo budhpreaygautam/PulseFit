@@ -1,6 +1,6 @@
 import db from '../db/database.js';
-import { gymToday, toGymDate } from './dates.js';
-import { previousOpenDay } from './hours.js';
+import { addDays, gymToday, toGymDate } from './dates.js';
+import { isOpenDay, previousOpenDay } from './hours.js';
 import { runEndingOn } from './streak.js';
 import { grantGifts } from './gifts.js';
 import { earnsRewards, recordAward } from './points.js';
@@ -52,10 +52,20 @@ export function grantCrossedMilestones(user: User, before: MilestoneValues, afte
     );
 }
 
-/** The longest run anywhere in the days, by the rule of runEndingOn. */
+/**
+ * The longest run anywhere in the days, by the rule of runEndingOn, in one pass: oldest first, each
+ * day's run is one more than the run ending on the day before it (closed days without activity skipped).
+ */
 export function longestRun(days: Set<string>): number {
+  const run = new Map<string, number>();
   let longest = 0;
-  for (const d of days) longest = Math.max(longest, runEndingOn(days, d));
+  for (const d of [...days].sort()) {
+    let p = addDays(d, -1);
+    while (!days.has(p) && !isOpenDay(p)) p = addDays(p, -1);
+    const n = (run.get(p) ?? 0) + 1;
+    run.set(d, n);
+    if (n > longest) longest = n;
+  }
   return longest;
 }
 

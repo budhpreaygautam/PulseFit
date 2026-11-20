@@ -191,7 +191,7 @@ export const ClassesScreen: React.FC = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-heading font-extrabold text-[15px] break-words">{c.title}</p>
-                  <p className="text-[11px] mt-0.5 text-[color:var(--app-mu)] truncate">
+                  <p className="text-[11px] mt-0.5 text-[color:var(--app-mu)] break-words">
                     {c.start_time} · {c.trainer_name ?? 'Coach to be confirmed'}
                   </p>
                   {spots && (

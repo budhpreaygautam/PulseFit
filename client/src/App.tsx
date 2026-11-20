@@ -185,53 +185,9 @@ function MainAppContent() {
   }
 
   // A new page moves focus to its heading (or to <main>) and is announced, so keyboard and
-  // screen-reader users know the link worked. Not on first load, and not over an open dialog.
+  // screen-reader users know the link worked (the effect is below, keyed on the screen shown).
   const mainRef = useRef<HTMLElement>(null);
   const [announcement, setAnnouncement] = useState('');
-  const lastTab = useRef(tab);
-  useEffect(() => {
-    if (lastTab.current === tab) return;
-    lastTab.current = tab;
-    setAnnouncement(routeForTab(tab)?.title ?? 'Page not found');
-    const main = mainRef.current;
-    if (!main) return;
-
-    // The new page's heading. While a page that loads on demand is on its way, React keeps the
-    // previous page in the DOM but hidden (display: none), so only a heading on screen counts.
-    const shownHeading = (): HTMLElement | undefined =>
-      Array.from(main.querySelectorAll<HTMLElement>('h1')).find(h => h.getClientRects().length > 0);
-    // True when focus is settled: on the heading, or left alone because a dialog is open.
-    const focusHeading = (): boolean => {
-      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return true;
-      const heading = shownHeading();
-      if (!heading) return false;
-      if (!heading.hasAttribute('tabindex')) heading.setAttribute('tabindex', '-1');
-      heading.focus({ preventScroll: true });
-      return true;
-    };
-    // Signed-in pages load on demand: until the heading arrives, focus waits on <main>, and moves
-    // to the heading when it shows up (unless the user has moved on by then). React shows content
-    // it had hidden by changing its style, so attribute changes count as well as new elements.
-    let observer: MutationObserver | undefined;
-    const frame = requestAnimationFrame(() => {
-      if (focusHeading()) return;
-      main.focus({ preventScroll: true });
-      observer = new MutationObserver(() => {
-        if (document.activeElement !== main) observer?.disconnect();
-        else if (shownHeading()) {
-          observer?.disconnect();
-          focusHeading();
-        }
-      });
-      observer.observe(main, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'hidden', 'class'] });
-    });
-    const giveUp = setTimeout(() => observer?.disconnect(), 5_000);
-    return () => {
-      cancelAnimationFrame(frame);
-      clearTimeout(giveUp);
-      observer?.disconnect();
-    };
-  }, [tab]);
 
   const route = routeForTab(tab);
   const showOfflinePanel = Boolean(route && route.access !== 'public' && isInitializing && isServerUnreachable);
@@ -274,6 +230,59 @@ function MainAppContent() {
   // Any other page (Contact us, a link) is shown in the guest shell, whose Explore tab then opens the public home.
   if (appShell === 'guest' && tab !== 'home' && !exploring) setExploring(true);
   const showWelcome = appShell === 'guest' && tab === 'home' && !exploring;
+
+  // The screen shown: in the app a screen can change under the same tab (a Me row, Back to a tab's own
+  // screen, Explore first, a guest signing in on Contact). Not on first load, which in the app is the
+  // first screen after the saved session is restored, and not over an open dialog.
+  const screenKey = appShell === 'starting' || appShell === 'offline' ? null : [appShell, showWelcome, tab, appScreen(tab)].join('|');
+  const lastScreen = useRef(screenKey);
+  useEffect(() => {
+    if (screenKey === null || lastScreen.current === screenKey) return;
+    const first = lastScreen.current === null;
+    lastScreen.current = screenKey;
+    if (first) return;
+    setAnnouncement(routeForTab(tab)?.title ?? 'Page not found');
+    const main = mainRef.current;
+    if (!main) return;
+
+    // The new page's heading. While a page that loads on demand is on its way, React keeps the
+    // previous page in the DOM but hidden (display: none), so only a heading on screen counts.
+    const shownHeading = (): HTMLElement | undefined =>
+      Array.from(main.querySelectorAll<HTMLElement>('h1')).find(h => h.getClientRects().length > 0);
+    // True when focus is settled: on the heading, or left alone because a dialog is open.
+    const focusHeading = (): boolean => {
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return true;
+      const heading = shownHeading();
+      if (!heading) return false;
+      if (!heading.hasAttribute('tabindex')) heading.setAttribute('tabindex', '-1');
+      heading.focus({ preventScroll: true });
+      return true;
+    };
+    // Signed-in pages load on demand: until the heading arrives, focus waits on <main>, and moves
+    // to the heading when it shows up (unless the user has moved on by then). React shows content
+    // it had hidden by changing its style, so attribute changes count as well as new elements.
+    let observer: MutationObserver | undefined;
+    const frame = requestAnimationFrame(() => {
+      if (focusHeading()) return;
+      main.focus({ preventScroll: true });
+      observer = new MutationObserver(() => {
+        if (document.activeElement !== main) observer?.disconnect();
+        else if (shownHeading()) {
+          observer?.disconnect();
+          focusHeading();
+        }
+      });
+      observer.observe(main, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'hidden', 'class'] });
+    });
+    const giveUp = setTimeout(() => observer?.disconnect(), 5_000);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(giveUp);
+      observer?.disconnect();
+    };
+    // tab is part of screenKey.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screenKey]);
 
   // Such a page opened by its address (or back/forward, or a session that ended there) shows "Please
   // sign in" below, never the page, and opens the sign-in dialog for it straight away.

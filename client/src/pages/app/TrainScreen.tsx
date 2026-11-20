@@ -86,6 +86,7 @@ export const TrainScreen: React.FC = () => {
 
   const totalSets = draft.exercises.reduce((sum, e) => sum + e.sets.length, 0);
   const hasSets = totalSets > 0;
+  const draftDay = gymToday(new Date(draft.startedAt));
 
   useEffect(() => {
     if (analytics.data) setRecords(analytics.data.personalRecords);
@@ -115,20 +116,32 @@ export const TrainScreen: React.FC = () => {
     setChosen('');
   };
 
-  const addSet = (exerciseId: string, set: { weight_kg: number; reps: number }) =>
+  const addSet = (exerciseId: string, set: { weight_kg: number; reps: number }) => {
+    // Today's sets would be logged on the draft's earlier day, timed across the days between.
+    if (hasSets && draftDay !== gymToday()) {
+      showToast(`Finish your ${formatDate(draftDay, { day: 'numeric', month: 'short' })} workout first.`, 'info');
+      return;
+    }
     update({
       ...draft,
       startedAt: hasSets ? draft.startedAt : Date.now(),
       lastSetAt: Date.now(),
       exercises: draft.exercises.map(e => (e.exercise_id === exerciseId ? { ...e, sets: [...e.sets, set] } : e))
     });
+  };
 
   // As on the full logger, an exercise goes with its last set.
-  const removeSet = (exerciseId: string, index: number) =>
+  const removeSet = (exerciseId: string, index: number) => {
     update({
       ...draft,
       exercises: draft.exercises.map(e => (e.exercise_id === exerciseId ? { ...e, sets: e.sets.filter((_, i) => i !== index) } : e)).filter(e => e.sets.length > 0)
     });
+    // A removed chip took focus with it: keep it in the card (its Add set), or at the picker once the card is gone.
+    requestAnimationFrame(() => {
+      if (document.activeElement !== document.body) return;
+      (document.querySelector<HTMLElement>(`[data-add-set="${CSS.escape(exerciseId)}"]:not(:disabled)`) ?? document.getElementById('train-exercise'))?.focus();
+    });
+  };
 
   const finish = async () => {
     const before = records;
@@ -160,7 +173,6 @@ export const TrainScreen: React.FC = () => {
   const week = analytics.data ? weekVolumes(analytics.data.volumeTimeline, gymToday()) : null;
   const weekMax = week ? Math.max(...week.days) : 0;
   const todayIndex = (weekdayOf(gymToday()) + 6) % 7;
-  const draftDay = gymToday(new Date(draft.startedAt));
   const savedLabel = saved && `Saved · nice work${saved.prs > 0 ? `, ${saved.prs} PR${saved.prs === 1 ? '' : 's'}` : ''}`;
   const inDraft = new Set(draft.exercises.map(e => e.exercise_id));
   const rise = riseOrder();
@@ -179,7 +191,12 @@ export const TrainScreen: React.FC = () => {
       </div>
 
       {week ? (
-        <div role="img" aria-label={`Volume this week: ${kg(week.days.reduce((sum, v) => sum + v, 0))} kg`} className="app-rise app-glass rounded-[22px] p-4" style={rise()}>
+        <div
+          role="img"
+          aria-label={`Volume this week: ${kg(week.days.reduce((sum, v) => sum + v, 0))} kg${week.changePct === null ? '' : `, ${week.changePct >= 0 ? 'up' : 'down'} ${Math.abs(week.changePct)}% on last week`}`}
+          className="app-rise app-glass rounded-[22px] p-4"
+          style={rise()}
+        >
           <div className="flex justify-between text-[11px] font-bold mb-2.5 text-[color:var(--app-mu)]">
             <span>Volume this week</span>
             {week.changePct !== null && (
@@ -281,6 +298,7 @@ export const TrainScreen: React.FC = () => {
             </div>
             <button
               type="button"
+              data-add-set={e.exercise_id}
               disabled={weight === null || reps === null || full}
               onClick={() => addSet(e.exercise_id, { weight_kg: weight!, reps: reps! })}
               className="app-press mt-3 w-full min-h-[44px] rounded-xl border border-[rgba(132,204,22,0.4)] text-[11px] font-extrabold flex items-center justify-center gap-1.5 text-[color:var(--app-lime)] disabled:opacity-50"

@@ -100,13 +100,15 @@ export const MeScreen: React.FC = () => {
     refreshUser();
   }, [refreshUser]);
 
-  // Home's Rewards card opens Me at the Rewards section: scroll there once everything above it has loaded.
+  // Home's Rewards card opens Me at the Rewards section: scroll there once everything above it has loaded,
+  // and move focus there once App has put it on this screen's heading.
   const settled = [plans, payments, rewards, store].every(r => r.data || r.error);
   const scrolled = useRef(false);
   useEffect(() => {
     if (!settled || scrolled.current || params.get('section') !== 'rewards') return;
     scrolled.current = true;
     document.getElementById('me-rewards')?.scrollIntoView({ block: 'start' });
+    requestAnimationFrame(() => document.getElementById('me-rewards-heading')?.focus({ preventScroll: true }));
   }, [settled, params]);
 
   if (!user) return null;
@@ -202,7 +204,7 @@ export const MeScreen: React.FC = () => {
       ) : !plans.data ? (
         <ShimmerList rows={3} label="Loading plans" className="app-rise" style={rise()} />
       ) : (
-        <ul aria-label="Plans" className="app-rise flex flex-col gap-3" style={rise()}>
+        <ul aria-label="Plans" className="app-rise flex flex-col gap-4" style={rise()}>
           {plans.data.map(p => {
             const isMine = p.tier === user.membership_tier;
             const isCurrent = isMine && (status === 'active' || status === 'frozen');
@@ -278,7 +280,7 @@ export const MeScreen: React.FC = () => {
       )}
 
       <section id="me-rewards" aria-labelledby="me-rewards-heading" style={rise()} className="app-rise flex flex-col gap-3 scroll-mt-[calc(env(safe-area-inset-top)+8px)]">
-        <h2 id="me-rewards-heading" className={sectionTitle}>
+        <h2 id="me-rewards-heading" tabIndex={-1} className={`${sectionTitle} outline-none`}>
           Rewards
         </h2>
         {!myRewards && rewards.error ? (

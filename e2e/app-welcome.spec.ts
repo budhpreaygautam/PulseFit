@@ -18,6 +18,8 @@ test('the first launch shows three slides, then the panel; the next launch opens
   await expect(page.getByRole('heading', { level: 2, name: 'Strength floor' })).toBeVisible();
   await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Zumba studio' })).toBeInViewport();
+  // Focus stays on Next, so the new slide is announced.
+  await expect(page.locator('[aria-live="polite"]').filter({ hasText: 'Slide 2 of 3: Zumba studio' })).toHaveCount(1);
   await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Rewards & gifts' })).toBeInViewport();
   await page.getByRole('button', { name: 'Get started' }).click();

@@ -20,6 +20,7 @@ test('Home shows the Rewards card with the balance and a ready gift, and it open
   await expect(page).toHaveURL(/\/profile\?section=rewards$/);
   const section = page.getByRole('region', { name: 'Rewards' });
   await expect(section).toBeInViewport();
+  await expect(section.getByRole('heading', { name: 'Rewards' })).toBeFocused();   // the next swipe or Tab goes on from there
   await expect(section.getByText(`Pickup code ${claim.pickup_code}`)).toBeVisible();
   await expect(section.getByText(rewards.referral_code)).toBeVisible();
   await expect(section.getByRole('button', { name: 'Share' })).toBeVisible();

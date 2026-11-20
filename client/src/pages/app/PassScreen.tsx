@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.js';
 import { api } from '../../api/client.js';
 import { ErrorState } from '../../components/common/States.js';
@@ -17,11 +17,22 @@ const METHOD_LABELS: Record<string, string> = { qr: 'QR scan', manual: 'Front de
  * and their latest check-ins. The QR is the fixed pass code the desk scans, so nothing counts down.
  */
 export const PassScreen: React.FC = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { qrDataUrl, qrError } = usePassQr(user?.qr_code_token, true);
   const [isPassOpen, setIsPassOpen] = useState(false);
   const plans = useApiResource(() => api.getPlans());
   const attendance = useApiResource(() => api.getMyAttendance());
+
+  // As on Home and Me, the status is the server's now (expiry, a desk renewal), also when the app comes
+  // back from the background still on this tab.
+  useEffect(() => {
+    refreshUser();
+    const onShow = () => {
+      if (document.visibilityState === 'visible') refreshUser();
+    };
+    document.addEventListener('visibilitychange', onShow);
+    return () => document.removeEventListener('visibilitychange', onShow);
+  }, [refreshUser]);
 
   if (!user) return null;
 
@@ -30,18 +41,19 @@ export const PassScreen: React.FC = () => {
       <h1 className="self-start font-heading font-black text-[26px]">Entry pass</h1>
 
       <div className="app-rise app-glass w-full rounded-[28px] p-6 flex flex-col items-center gap-4" style={{ '--i': 0 } as React.CSSProperties}>
-        <div className="p-3.5 bg-white rounded-[18px] w-[196px] h-[196px] flex items-center justify-center">
+        {/* The code's own 2-module margin is the white border: about the handoff's 168 px code in 14 px of white. */}
+        <div className="bg-white rounded-[18px] w-[196px] h-[196px] flex items-center justify-center">
           {qrDataUrl ? (
             <img
               src={qrDataUrl}
               alt={`QR code for pass ${user.qr_code_token}`}
-              width={168}
-              height={168}
-              className="w-[168px] h-[168px]"
+              width={196}
+              height={196}
+              className="w-[196px] h-[196px] rounded-[18px]"
               style={{ imageRendering: 'pixelated' }}
             />
           ) : qrError ? (
-            <div role="alert" className="text-center text-xs text-slate-700 space-y-2">
+            <div role="alert" className="p-3.5 text-center text-xs text-slate-700 space-y-2">
               <p>{qrError}</p>
               <code className="block font-mono font-bold break-all select-all">{user.qr_code_token}</code>
             </div>

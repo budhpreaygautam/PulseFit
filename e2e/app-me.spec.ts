@@ -39,6 +39,7 @@ test('plans mark the current one, and Switch opens Memberships for that plan', a
   const other = plans.find(p => p.tier !== me.membership_tier)!;
   await page.goto('/profile');
   const list = page.getByRole('list', { name: 'Plans' });
+  await expect(list).toHaveCSS('row-gap', '16px');   // the Me column's gap in the handoff
   await expect(list.getByRole('listitem').filter({ hasText: current.name })).toContainText('CURRENT');
   await list.getByRole('button', { name: `Switch to ${other.name}` }).click();
   await expect(page).toHaveURL(new RegExp(`/pricing\\?plan=${other.tier}$`));
@@ -74,6 +75,15 @@ test('links with a query open the full page in the shell, never the tab screen',
   const exercises: { id: string }[] = (await (await request.get('/api/exercises', { headers: auth(token) })).json()).data;
   await page.goto(`/log-workout?exercise=${exercises[0].id}`);
   await expect(page.getByRole('heading', { level: 1, name: 'Log a workout' })).toBeVisible();
+});
+
+test('Sign out is the lighter red in dark mode (4.5:1 on the dark glass) and the darker one in light', async ({ page, request }) => {
+  await useAppMode(page, { theme: 'dark' }); await signInAs(page, request, 'member');
+  await page.goto('/profile');
+  const signOut = page.getByRole('button', { name: 'Sign out' });
+  await expect(signOut).toHaveCSS('color', 'rgb(248, 113, 113)');
+  await page.getByRole('switch', { name: 'Dark mode' }).click();
+  await expect(signOut).toHaveCSS('color', 'rgb(190, 18, 60)');
 });
 
 test('Dark mode switches the theme, and Sign out clears the Train draft', async ({ page, request }) => {

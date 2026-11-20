@@ -27,7 +27,7 @@ export const AppShell: React.FC<{ tabs: AppTab[]; onSignIn?: () => void; childre
       {/* Behind the phone's status bar, as on the website. */}
       <div aria-hidden="true" className="fixed inset-x-0 top-0 z-50 h-[env(safe-area-inset-top)] glass-bar" />
       {!atTabRoot && (
-        <header className="sticky top-[env(safe-area-inset-top)] z-[45] h-12 glass-bar border-b border-slate-800/60 flex items-center gap-1 pl-1 pr-5">
+        <header className="sticky top-[env(safe-area-inset-top)] z-[45] h-12 glass-bar border-b border-slate-800/60 flex items-center gap-1 pl-[max(4px,env(safe-area-inset-left))] pr-[max(20px,env(safe-area-inset-right))]">
           <button
             type="button"
             onClick={goBack}

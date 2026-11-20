@@ -115,6 +115,56 @@ test('a draft left from an earlier day is saved on that day, timed to its last s
   expect(me.streak_days ?? 0).toBe(0);   // a back-dated workout does not count for today
 });
 
+test('a draft from an earlier day takes no new sets: it is finished on its own day first', async ({ page, request }, testInfo) => {
+  const m = await freshMember(request, `train old draft add ${testInfo.project.name}`);
+  const exercise = (await (await request.get('/api/exercises', { headers: auth(m.token) })).json()).data[0];
+  const startedAt = Date.now() - 3 * 86_400_000;
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(startedAt);
+  const draft = { title: '', startedAt, lastSetAt: startedAt + 40 * 60_000, exercises: [{ exercise_id: exercise.id, exercise_name: exercise.name, sets: [{ weight_kg: 60, reps: 8 }] }] };
+  await page.addInitScript(([key, value]) => window.localStorage.setItem(key, value), [`pulsefit_train_draft:${m.id}`, JSON.stringify(draft)]);
+  await useAppMode(page); await useSession(page, m.token);
+  await page.goto('/log-workout');
+  const card = page.getByRole('region', { name: exercise.name, exact: true });
+  await card.getByRole('button', { name: 'Add set (repeat last)' }).click();
+  const shortDay = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${day}T00:00:00Z`));
+  await expect(page.getByText(`Finish your ${shortDay} workout first.`).first()).toBeVisible();
+  await expect(card.getByText('1 set', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Finish workout' }).click();
+  await expect(page.getByRole('button', { name: /^Saved · nice work/ })).toBeVisible();
+  const workouts = (await (await request.get('/api/workouts', { headers: auth(m.token) })).json()).data;
+  expect(workouts).toMatchObject([{ date: day, duration_minutes: 40 }]);
+  expect(workouts[0].sets).toHaveLength(1);
+});
+
+test('removing the last set keeps focus in its card, and removing the only set moves it to the exercise picker', async ({ page, request }, testInfo) => {
+  await openTrain(page, request, `train focus ${testInfo.project.name}`);
+  const name = await addExercise(page);
+  const card = page.getByRole('region', { name, exact: true });
+  await addSet(page, name, '40', '10');
+  await card.getByRole('button', { name: 'Add set (repeat last)' }).click();
+  await card.getByRole('button', { name: `Remove set 2 of ${name}` }).focus();
+  await page.keyboard.press('Enter');
+  await expect(card.getByRole('button', { name: 'Add set (repeat last)' })).toBeFocused();
+  await card.getByRole('button', { name: `Remove set 1 of ${name}` }).focus();
+  await page.keyboard.press('Enter');
+  await expect(card).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Exercise' })).toBeFocused();
+});
+
+test("the volume chart's name says the change on last week", async ({ page, request }, testInfo) => {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+  const weekAgo = new Date(`${today}T00:00:00Z`);
+  weekAgo.setUTCDate(weekAgo.getUTCDate() - 7);
+  await page.route('**/api/workouts/analytics', async route => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.data.volumeTimeline = [{ date: weekAgo.toISOString().slice(0, 10), volumeKg: 800, durationMinutes: 40, title: 'Push' }, { date: today, volumeKg: 1000, durationMinutes: 40, title: 'Push' }];
+    await route.fulfill({ response, json: body });
+  });
+  await openTrain(page, request, `train change ${testInfo.project.name}`);
+  await expect(page.getByRole('img', { name: 'Volume this week: 1,000 kg, up 25% on last week', exact: true })).toBeVisible();
+});
+
 test('Train opens in the handoff order: a 70 px volume chart, the logger and Finish, then the floor clock and progress', async ({ page, request }) => {
   await useAppMode(page); await signInAs(page, request, 'member');
   await page.goto('/log-workout');

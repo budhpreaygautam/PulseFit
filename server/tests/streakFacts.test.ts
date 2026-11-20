@@ -36,6 +36,19 @@ it('longest_streak_days is the longest run, stepping over Sundays', async () => 
   expect((await me(m.email)).longest_streak_days).toBe(7);   // Mon 2 – Mon 9 over the closed Sun 8; Tue 10 missed
 });
 
+it('longest_streak_days stays exact over years of unbroken days', async () => {
+  const m = addMember();
+  // Monday to Saturday for over three years from Mon 3 Jan 2022, missing only Wed 14 Jun 2023.
+  const runs = [0, 0];
+  for (let d = new Date('2022-01-03T00:00:00Z'); d < new Date('2025-04-01T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)) {
+    const day = d.toISOString().slice(0, 10);
+    if (d.getUTCDay() === 0 || day === '2023-06-14') continue;
+    runs[day < '2023-06-14' ? 0 : 1]++;
+    db.attendance_logs.push({ user_id: m.id, check_in_time: `${day}T04:00:00Z` } as never);
+  }
+  expect((await me(m.email)).longest_streak_days).toBe(Math.max(...runs));
+});
+
 it('a member with no history gets 0 and 0, and other answers do not carry the numbers', async () => {
   const m = addMember();
   expect(await me(m.email)).toMatchObject({ active_days_this_week: 0, longest_streak_days: 0 });

@@ -33,6 +33,21 @@ test('tab switches cross-fade, sub-screens slide in and Back slides out', async 
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(page).toHaveURL(/\/profile$/);
   expect(await navKind(page)).toBe('pop');
+  // The URL changes before the transition swaps the screen: wait for Me's own screen (no title bar).
+  await expect(page.getByRole('button', { name: 'Back' })).toHaveCount(0);
+  // Android Back from one tab's screen to another cross-fades, as the tab tap did.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/schedule$/);
+  expect(await navKind(page)).toBe('tab');
+});
+
+test('switching sections inside a page does not slide the screen in again', async ({ page, request }) => {
+  await countTransitions(page); await useAppMode(page); await signInAs(page, request, 'member');
+  await page.goto('/profile?tab=details');
+  await expect(page.getByRole('tab', { name: 'Profile' })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'Invoices & billing' }).click();
+  await expect(page).toHaveURL(/\/profile\?tab=billing$/);
+  expect(await transitions(page)).toBe(0);
 });
 
 test('without startViewTransition pages switch instantly and nothing breaks', async ({ page, request }) => {

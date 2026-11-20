@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NOT_FOUND_TAB, routeForTab, tabForPath } from '../routes.js';
 import { applyPageHead } from '../lib/seo.js';
 import { hasSavedSession } from '../lib/authToken.js';
@@ -17,7 +17,7 @@ interface NavigationContextType {
   tab: string;
   /** Query string of the current URL, e.g. ?date=2026-10-12 on a roster. */
   params: URLSearchParams;
-  /** On the app's own screens the change animates (lib/appMotion.ts) unless `instant`. */
+  /** On the app's own screens the change animates (lib/appMotion.ts) unless `instant` or `replace`. */
   navigate: (tab: string, params?: Record<string, string>, options?: { replace?: boolean; instant?: boolean }) => void;
   /** Counts the links to a page that needs an account that a guest has followed; App opens the sign-in dialog. */
   signInRequests: number;
@@ -34,9 +34,13 @@ function readLocation(): Location {
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [location, setLocation] = useState<Location>(readLocation);
   const [signInRequests, setSignInRequests] = useState(0);
+  // The page Back (or Forward) leaves: from a tab's own screen it cross-fades as a tab tap does, from a sub-screen it slides out.
+  const current = useRef(location);
+  current.current = location;
 
   useEffect(() => {
-    const onPopState = () => withViewTransition('pop', () => setLocation(readLocation()));
+    const onPopState = () =>
+      withViewTransition(navKindFor(current.current.tab, current.current.params) === 'tab' ? 'tab' : 'pop', () => setLocation(readLocation()));
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
@@ -66,8 +70,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       window.scrollTo({ top: 0 });
     };
     // Signing out is instant: a transition renders its page change later, so the old (gated) page
-    // would first render signed out and open the sign-in dialog.
-    if (options?.instant) go();
+    // would first render signed out and open the sign-in dialog. A replace (a redirect, a section of
+    // the same page) opens no new screen, so nothing slides in.
+    if (options?.instant || options?.replace) go();
     else withViewTransition(navKindFor(route?.tab ?? '', search), go);
   }, []);
 

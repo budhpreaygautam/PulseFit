@@ -110,6 +110,20 @@ test('full and started classes cannot be booked', async ({ page, request }, test
   await expect(cards.nth(1).getByRole('button', { name: 'Started' })).toBeDisabled();
 });
 
+test('a long coach name wraps instead of being cut off', async ({ page, request }, testInfo) => {
+  await page.route(/\/api\/classes\?/, async route => {
+    const response = await route.fetch();
+    const body = await response.json();
+    for (const c of body.data) c.trainer_name = 'Coach Vikram Rathore-Venkataraman';
+    await route.fulfill({ response, json: body });
+  });
+  await openClasses(page, request, `classes coach ${testInfo.project.name}`);
+  const lines = page.getByText(/^\d{2}:\d{2} · Coach Vikram Rathore-Venkataraman$/);
+  await expect(lines.first()).toBeVisible();
+  const cut = await lines.evaluateAll(els => els.filter(el => el.scrollWidth > el.clientWidth).map(el => el.textContent));
+  expect(cut).toEqual([]);
+});
+
 test("a frozen member who taps Book sees the server's reason", async ({ page, request }, testInfo) => {
   const m = await freshMember(request, `classes frozen ${testInfo.project.name}`);
   expect((await request.post('/api/membership/freeze', { headers: auth(m.token) })).ok()).toBeTruthy();

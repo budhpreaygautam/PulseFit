@@ -149,7 +149,8 @@ describe('server copy of the client pages and gym facts', () => {
     const { ROUTES } = clientModule('routes.ts');
     expect(ROUTES.length).toBeGreaterThan(0);
     expect(PAGES.map(({ heroImage: _hero, ...page }) => page)).toEqual(
-      ROUTES.map((r: any) => ({ path: r.path, title: r.searchTitle ?? r.title, description: r.description, indexable: r.indexable }))
+      // App-only: the website serves /pass as its 404.
+      ROUTES.filter((r: any) => r.tab !== 'pass').map((r: any) => ({ path: r.path, title: r.searchTitle ?? r.title, description: r.description, indexable: r.indexable }))
     );
     // Only public pages may be indexed; the service pages need an account.
     for (const r of ROUTES) if (r.indexable) expect(r.access, r.path).toBe('public');
@@ -357,7 +358,8 @@ describe('page head in the served index.html', () => {
   });
 
   it('answers an unknown address with 404 and noindex, still rendering the app', async () => {
-    for (const url of ['/this-page-does-not-exist', '/Pricing', '/index.html']) {
+    // /pass is the app's Pass tab only: the website serves it as its 404.
+    for (const url of ['/this-page-does-not-exist', '/Pricing', '/index.html', '/pass']) {
       const res = await api().get(url);
       expect(res.status, url).toBe(404);
       expect(res.text, url).toContain('<title>Page not found · PulseFit Athletics</title>');

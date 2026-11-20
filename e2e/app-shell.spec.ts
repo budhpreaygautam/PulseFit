@@ -90,6 +90,80 @@ test('on a notched phone the title bar stays below the status bar and the tab ba
   expect(bar.height).toBe(58 + 24);
 });
 
+test('in landscape the shell keeps clear of the side nav bar and cutout', async ({ page, request }) => {
+  await useAppMode(page);   // sets the viewport first, so the inset override below is not reset by it
+  const cdp = (await page.context().newCDPSession(page)) as unknown as { send(method: string, params: object): Promise<unknown> };
+  const emulated = await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { left: 48, right: 32 } }).then(() => true, () => false);
+  await signInAs(page, request, 'member');
+  await page.goto('/rewards');
+  const titleBar = page.locator('header', { has: page.getByRole('button', { name: 'Back' }) });
+  if (!emulated) {
+    // This Chromium cannot override the insets: check the rule that uses them instead.
+    await expect(titleBar).toHaveClass(/pl-\[max\(4px,env\(safe-area-inset-left\)\)\]/);
+    return;
+  }
+  expect((await page.getByRole('button', { name: 'Back' }).boundingBox())!.x).toBe(48);
+  const links = tabBar(page).getByRole('link');
+  expect((await links.first().boundingBox())!.x).toBe(48);
+  const last = (await links.last().boundingBox())!;
+  expect(last.x + last.width).toBe(390 - 32);
+  await page.goto('/profile');
+  expect((await page.locator('.app-screen > *').first().boundingBox())!.x).toBe(20 + 48);
+});
+
+test('a screen swapped under the same tab moves focus to its heading', async ({ page, request }) => {
+  await useAppMode(page); await signInAs(page, request, 'member');
+  await page.goto('/profile');
+  await page.getByRole('link', { name: 'Personal details & avatar' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/profile\?tab=details$/);
+  await expect(page.getByRole('heading', { level: 1 })).toBeFocused();
+  await page.getByRole('button', { name: 'Back' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/profile$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Profile' })).toBeFocused();
+});
+
+test('a guest who explores, or signs in on Contact, has focus on the new screen', async ({ page, request }) => {
+  const email = `app-focus-${Date.now().toString(36)}@example.com`;
+  const reg = await request.post('/api/auth/register', { data: { name: 'Focus Lane', email, password: 'Contact2026x', gender: 'female' } });
+  expect(reg.status(), await reg.text()).toBe(201);
+  await useAppMode(page); await page.goto('/');
+  await page.getByRole('button', { name: 'Skip' }).click();
+  await page.getByRole('button', { name: 'Explore first' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { level: 1, name: LANDING_H1 })).toBeFocused();
+  await tabBar(page).getByRole('link', { name: 'Contact' }).click();
+  // Signing in with a password keeps the page; the tab bar's Sign in button it came from is gone.
+  await tabBar(page).getByRole('button', { name: 'Sign in' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Sign in to PulseFit' });
+  await dialog.getByLabel('Email address', { exact: true }).fill(email);
+  await dialog.getByLabel('Password', { exact: true }).fill('Contact2026x');
+  await dialog.locator('button[type="submit"]').click();
+  await expect(tabBar(page).getByRole('link', { name: 'Home' })).toBeVisible();
+  await expect(page).toHaveURL(/\/contact$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Contact us' })).toBeFocused();
+});
+
+test('keyboard focus never lands under the tab bar', async ({ page, request }) => {
+  await useAppMode(page); await signInAs(page, request, 'member');
+  await page.goto('/profile');
+  await page.waitForLoadState('networkidle');
+  const covered: string[] = [];
+  for (let i = 0; i < 45; i++) {
+    await page.keyboard.press('Tab');
+    const under = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el || el === document.body || el.closest('.app-tabbar')) return null;
+      const r = el.getBoundingClientRect();
+      const bar = document.querySelector('.app-tabbar')!.getBoundingClientRect();
+      return r.height > 1 && r.bottom > bar.top + 1 ? el.getAttribute('aria-label') ?? el.textContent?.trim() ?? el.tagName : null;
+    });
+    if (under) covered.push(under);
+  }
+  expect(covered).toEqual([]);
+});
+
 test('opening the app offline says so, and Try again lands on Home once the server answers', async ({ page, request }) => {
   await page.route('**/api/auth/me', route => route.abort());
   await useAppMode(page); await signInAs(page, request, 'member');

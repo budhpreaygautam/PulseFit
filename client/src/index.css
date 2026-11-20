@@ -85,7 +85,7 @@
   --app-lime: #a3e635;
   --app-amber-tx: #f59e0b;
   --app-cyan-tx: #06b6d4;
-  --app-red-tx: #ef4444;
+  --app-red-tx: #f87171;   /* #ef4444 is under 4.5:1 on the dark glass */
   --app-pink-tx: #ec4899;
   --app-sheen: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02) 45%, rgba(255, 255, 255, 0));
   --app-glows: radial-gradient(220px 220px at 15% 12%, rgba(132, 204, 22, 0.28), transparent 70%),
@@ -780,9 +780,10 @@ html .neu-icon-btn.neu-icon-btn-danger.neu-icon-btn-danger:hover:not(:disabled) 
 .app-content {
   padding-bottom: calc(58px + env(safe-area-inset-bottom));
 }
-/* The root of every app screen (the website pages in the shell keep their own padding). */
+/* The root of every app screen (the website pages in the shell keep their own padding). The sides
+   keep clear of a landscape phone's side nav bar and camera cutout. */
 .app-screen {
-  padding: 8px 20px 24px;
+  padding: 8px calc(20px + env(safe-area-inset-right)) 24px calc(20px + env(safe-area-inset-left));
   color: var(--app-tx);
 }
 /* Every control on an app screen is at least a 44×44 tap target, the website cards and dialogs there
@@ -795,20 +796,34 @@ html .neu-icon-btn.neu-icon-btn-danger.neu-icon-btn-danger:hover:not(:disabled) 
 .app-shimmer {
   background-color: var(--neu-inset-bg);
 }
+/* Focus (a Tab, a field the keyboard opens for) scrolls a control clear of the fixed tab bar, not under it. */
 html:has(.app-tabbar) {
   scrollbar-width: none;
+  scroll-padding-bottom: calc(58px + env(safe-area-inset-bottom));
 }
 html:has(.app-tabbar)::-webkit-scrollbar {
   display: none;
 }
-/* Cards: frosted glass over the glows, raised like neu-flat. */
-.app-glass {
+/* Cards: frosted glass over the glows, raised like neu-flat. The website's cards on an app screen
+   (Train's floor clock and progress) get the same glass, radius, padding and section title. */
+.app-glass,
+.app-screen section.neu-flat {
   background-color: var(--app-card);
   background-image: var(--app-sheen);
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
   box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.14), inset 0 0 0 1px var(--app-bd), 7px 7px 16px var(--neu-shadow-dark),
     -6px -6px 14px var(--neu-shadow-light);
+}
+.app-screen section.neu-flat {
+  background-color: var(--app-card) !important;
+  border: 0;
+  border-radius: 22px;
+  padding: 16px;
+}
+.app-screen section.neu-flat h2 {
+  font-size: 15px;
+  font-weight: 800;
 }
 .app-inset {
   background-color: var(--neu-inset-bg);
@@ -820,9 +835,10 @@ html:has(.app-tabbar)::-webkit-scrollbar {
   box-shadow: 0 0 25px -5px rgba(132, 204, 22, 0.45);
   border: none;
 }
-/* 7px + the 1px border: the bar is 58px (8px above 50px tabs) plus the home-indicator inset. */
+/* 7px + the 1px border: the bar is 58px (8px above 50px tabs) plus the home-indicator inset; the sides
+   clear a landscape phone's side nav bar and cutout. */
 .app-tabbar {
-  padding: 7px 8px env(safe-area-inset-bottom);
+  padding: 7px max(8px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(8px, env(safe-area-inset-left));
   background-color: var(--app-bar);
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(14px);

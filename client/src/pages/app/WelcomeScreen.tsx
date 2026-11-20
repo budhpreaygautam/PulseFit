@@ -71,6 +71,8 @@ export const WelcomeScreen: React.FC<{
                 </div>
               ))}
             </div>
+            {/* Next keeps focus, so the slide it brings is announced. */}
+            <p className="sr-only" aria-live="polite">{`Slide ${slide + 1} of ${SLIDES.length}: ${SLIDES[slide].title}`}</p>
             <div aria-hidden="true" className="flex justify-center gap-1.5 my-6">
               {SLIDES.map((s, i) => (
                 <span key={s.title} className={`h-2 rounded-full transition-all duration-200 ${i === slide ? 'w-6 bg-[#84cc16]' : 'w-2 bg-[color:var(--app-mu2)]'}`} />

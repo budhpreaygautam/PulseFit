@@ -46,3 +46,19 @@ test('every tab screen keeps the 20 px gutter', async ({ page, request }) => {
     expect((await page.locator('.app-screen > *').first().boundingBox())!.x).toBe(20);
   }
 });
+
+test("Train's floor clock and progress are the handoff's glass cards, like the rest of the tab", async ({ page, request }) => {
+  await useAppMode(page, { theme: 'dark' }); await signInAs(page, request, 'member');
+  await page.goto('/log-workout');
+  for (const name of ['Floor time', 'My progress']) {
+    const heading = page.getByRole('heading', { level: 2, name });
+    await expect(heading).toBeVisible();
+    await expect(heading).toHaveCSS('font-size', '15px');
+    await expect(heading).toHaveCSS('font-weight', '800');
+    const card = page.locator('section', { has: heading });
+    await expect(card).toHaveCSS('background-color', 'rgba(30, 41, 59, 0.5)');
+    await expect(card).toHaveCSS('backdrop-filter', 'blur(16px) saturate(1.6)');
+    await expect(card).toHaveCSS('border-radius', '22px');
+    await expect(card).toHaveCSS('padding', '16px');
+  }
+});
