@@ -129,7 +129,7 @@ export const TwoStepPanel: React.FC = () => {
       setRecoveryCodes(data.recovery_codes);
       setCode('');
       setStage('codes');
-      if (message) showToast(message, 'success');
+      if (message) showToast(message, 'success', undefined, 'saved');
     });
 
   const turnOff = () =>
@@ -139,7 +139,7 @@ export const TwoStepPanel: React.FC = () => {
       const { data, message } = await api.disableMfa({ code: code.trim(), password: needsPassword ? password : undefined });
       updateUser(data);
       reset();
-      showToast(message || 'Two-step sign-in is off.', 'success');
+      showToast(message || 'Two-step sign-in is off.', 'success', undefined, 'saved');
     });
 
   const newCodes = () =>

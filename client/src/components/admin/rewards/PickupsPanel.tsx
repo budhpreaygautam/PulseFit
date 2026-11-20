@@ -57,7 +57,7 @@ export const PickupsPanel: React.FC = () => {
     setBusy(c.id);
     try {
       const done = await api.updateClaim(c.id, { status: 'handed_over', ...(size ? { size } : {}) });
-      showToast(`${c.gift_name}${done.size ? ` (${done.size})` : ''} handed over to ${c.user_name}.`, 'success');
+      showToast(`${c.gift_name}${done.size ? ` (${done.size})` : ''} handed over to ${c.user_name}.`, 'success', undefined, 'giftCollected');
     } catch (err) {
       showToast(errorMessage(err), 'error', 'The gift was not handed over');
     } finally {
@@ -71,7 +71,7 @@ export const PickupsPanel: React.FC = () => {
     try {
       await api.updateClaim(toCancel.id, { status: 'cancelled', ...(reason.trim() ? { reason: reason.trim() } : {}) });
       const refund = toCancel.source === 'store' ? ` ${toCancel.points_spent.toLocaleString('en-IN')} points went back to ${toCancel.user_name}.` : '';
-      showToast(`The ${toCancel.gift_name} claim was cancelled.${refund}`, 'success');
+      showToast(`The ${toCancel.gift_name} claim was cancelled.${refund}`, 'success', undefined, 'cancelled');
     } catch (err) {
       showToast(errorMessage(err), 'error', 'The claim was not cancelled');
     }

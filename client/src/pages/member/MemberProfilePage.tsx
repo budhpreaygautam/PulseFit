@@ -95,14 +95,14 @@ const ProfileDetails: React.FC<{ user: User; onOpenPass: () => void; onOpenIdCar
     if (trimmedPhone !== (user.phone ?? '')) changes.phone = trimmedPhone;
     if (gender && gender !== user.gender) changes.gender = gender;
     if (Object.keys(changes).length === 0) {
-      showToast('Nothing has changed.', 'info');
+      showToast('Nothing has changed.', 'info', undefined, 'info');
       return;
     }
 
     setIsSaving(true);
     try {
       updateUser(await api.updateProfile(changes));
-      showToast('Your profile was updated.', 'success');
+      showToast('Your profile was updated.', 'success', undefined, 'saved');
     } catch (err) {
       const issues = issuesOf(err);
       setErrors({
@@ -119,7 +119,7 @@ const ProfileDetails: React.FC<{ user: User; onOpenPass: () => void; onOpenIdCar
   const copyPass = async () => {
     if (await copyText(user.qr_code_token)) {
       setCopied(true);
-      showToast('Pass code copied.', 'success');
+      showToast('Pass code copied.', 'success', undefined, 'shared');
     } else {
       showToast('Your browser blocked copying. Select the code and copy it by hand.', 'error');
     }
@@ -396,7 +396,7 @@ const PasswordPanel: React.FC = () => {
       setCurrent('');
       setNext('');
       setConfirmValue('');
-      showToast('Password changed. Other devices have been signed out.', 'success');
+      showToast('Password changed. Other devices have been signed out.', 'success', undefined, 'saved');
     } catch (err) {
       if (isApiError(err) && err.code === 'WRONG_PASSWORD') {
         setErrors({ current: err.message });
@@ -538,7 +538,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
       const avatar = await resizeAvatar(file);
       updateUser(await api.updateProfile({ avatar_url: avatar }));
       setIsAvatarOpen(false);
-      showToast('Your photo was updated.', 'success');
+      showToast('Your photo was updated.', 'success', undefined, 'saved');
     } catch (err) {
       setPhotoError(err instanceof Error ? err.message : 'Your photo could not be uploaded.');
     } finally {
@@ -553,7 +553,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
     try {
       updateUser(await api.updateProfile({ avatar_url: src }));
       setIsAvatarOpen(false);
-      showToast('Your avatar was updated.', 'success');
+      showToast('Your avatar was updated.', 'success', undefined, 'saved');
     } catch (err) {
       setPhotoError(err instanceof Error ? err.message : 'Your avatar could not be saved.');
     } finally {

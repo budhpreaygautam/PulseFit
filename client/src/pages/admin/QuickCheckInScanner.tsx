@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Camera, CheckCircle2, Clock, Gift, Loader2, QrCode, RefreshCw, XCircle } from 'lucide-react';
 import { AttendanceLog, CheckInDenial, CheckInMember, CheckInResult, GiftClaim, GiftSize, TrialPass } from '../../types/index.js';
+import { AppArt } from '../../components/app/AppArt.js';
 import { ApiError, api, errorMessage } from '../../api/client.js';
 import { Badge } from '../../components/common/Badge.js';
 import { GiftImage } from '../../components/common/GiftImage.js';
@@ -81,6 +82,7 @@ const OutcomePanel: React.FC<{ outcome: Outcome | null }> = ({ outcome }) => {
           <p className="flex items-center gap-2 text-lime-400 font-black uppercase tracking-wider text-sm">
             <CheckCircle2 className="w-6 h-6" aria-hidden="true" /> Access granted
           </p>
+          <AppArt scene="moment.checkedIn" size="moment" once className="w-14" />
           <span className="text-xs text-slate-400">{formatTime(result.log.check_in_time)}</span>
         </div>
         {result.already_checked_in && (
@@ -99,6 +101,7 @@ const OutcomePanel: React.FC<{ outcome: Outcome | null }> = ({ outcome }) => {
           <p className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-black uppercase tracking-wider text-sm">
             <XCircle className="w-6 h-6" aria-hidden="true" /> Access denied · {outcome.reason}
           </p>
+          <AppArt scene="moment.failed" size="moment" once className="w-14" />
           <span className="text-xs text-slate-400">{formatTime(outcome.at)}</span>
         </div>
         <p className="text-sm font-semibold text-slate-200">{outcome.message}</p>
@@ -114,6 +117,7 @@ const OutcomePanel: React.FC<{ outcome: Outcome | null }> = ({ outcome }) => {
       <p className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-black uppercase tracking-wider text-sm">
         <XCircle className="w-6 h-6" aria-hidden="true" /> Check-in failed
       </p>
+      <AppArt scene="moment.failed" size="moment" once className="w-14" />
       <p className="text-sm font-semibold text-slate-200">{outcome.message}</p>
       <p className="text-xs text-slate-400">
         Nothing was recorded. Try again. Code entered: <span className="font-mono break-all">{outcome.code}</span>
@@ -141,7 +145,7 @@ const GiftsToCollect: React.FC<{ claims: GiftClaim[] }> = ({ claims }) => {
     try {
       const done = await api.updateClaim(c.id, { status: 'handed_over', ...(c.status === 'needs_size' ? { size: sizeOf[c.id] } : {}) });
       setHanded(h => ({ ...h, [c.id]: done }));
-      showToast(`${c.gift_name}${done.size ? ` (${done.size})` : ''} handed over to ${c.user_name}.`, 'success');
+      showToast(`${c.gift_name}${done.size ? ` (${done.size})` : ''} handed over to ${c.user_name}.`, 'success', undefined, 'giftCollected');
     } catch (err) {
       showToast(errorMessage(err), 'error', 'The gift was not handed over');
     } finally {

@@ -134,7 +134,7 @@ export const DigitalQrPassModal: React.FC<DigitalQrPassModalProps> = ({ isOpen, 
   const handleCopy = async () => {
     if (await copyText(user.qr_code_token)) {
       setCopied(true);
-      showToast('Pass code copied.', 'success');
+      showToast('Pass code copied.', 'success', undefined, 'shared');
     } else {
       showToast('Your browser blocked copying. Select the code and copy it by hand.', 'error');
     }

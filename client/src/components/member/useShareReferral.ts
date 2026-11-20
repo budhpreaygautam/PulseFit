@@ -13,8 +13,8 @@ export function useShareReferral(): (code: string) => Promise<void> {
   return useCallback(
     async (code: string) => {
       const result = await shareText(`Join me at ${GYM_NAME}: use my code ${code} when you sign up. ${siteAddress()}`.trim());
-      if (result === 'copied') showToast('The invitation was copied. Paste it into a message to a friend.', 'success');
-      else if (result === 'failed') showToast(`Sharing is not available here. Your code is ${code}.`, 'warning');
+      if (result === 'copied') showToast('The invitation was copied. Paste it into a message to a friend.', 'success', undefined, 'shared');
+      else if (result === 'failed') showToast(`Sharing is not available here. Your code is ${code}.`, 'warning', undefined, 'failed');
     },
     [showToast]
   );

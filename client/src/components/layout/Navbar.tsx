@@ -217,7 +217,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
     setSwitchingTo(role);
     try {
       const next = await demoLogin(role);
-      showToast(`Signed in as the demo ${DEMO_PERSONAS.find(p => p.role === role)?.label.toLowerCase()}.`, 'success');
+      showToast(`Signed in as the demo ${DEMO_PERSONAS.find(p => p.role === role)?.label.toLowerCase()}.`, 'success', undefined, 'signedIn');
       navigate(homeTabFor(next.role), undefined, { instant: true });
     } catch (err) {
       showToast(errorMessage(err), 'error');
@@ -230,7 +230,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
     logout();
     setIsMobileMenuOpen(false);
     navigate('home', undefined, { instant: true });
-    showToast('You have signed out.', 'info');
+    showToast('You have signed out.', 'info', undefined, 'signedOut');
   };
 
   const roleLinks = user ? ROLE_LINKS[user.role] : [];

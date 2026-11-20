@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock, Loader2, XCircle } from 'lucide-react';
+import { AppArt } from '../../components/app/AppArt.js';
+import { isAppMode } from '../../lib/appMode.js';
+import type { MomentKind } from '../../lib/appArt.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
@@ -127,6 +130,7 @@ export const PaymentStatusPage: React.FC<PaymentStatusPageProps> = ({ onOpenAuth
   );
 
   let icon: React.ReactNode;
+  let moment: MomentKind | undefined;
   let title: string;
   let body: React.ReactNode;
 
@@ -156,6 +160,7 @@ export const PaymentStatusPage: React.FC<PaymentStatusPageProps> = ({ onOpenAuth
       </>
     );
   } else if (view.kind === 'paid') {
+    moment = 'paid';
     icon = <CheckCircle2 className="w-5 h-5 text-lime-400" aria-hidden="true" />;
     title = 'Payment received';
     body = (
@@ -167,6 +172,7 @@ export const PaymentStatusPage: React.FC<PaymentStatusPageProps> = ({ onOpenAuth
       </>
     );
   } else if (view.kind === 'failed') {
+    moment = 'failed';
     icon = <XCircle className="w-5 h-5 text-rose-400" aria-hidden="true" />;
     title = 'No payment was received';
     body = (
@@ -183,6 +189,7 @@ export const PaymentStatusPage: React.FC<PaymentStatusPageProps> = ({ onOpenAuth
       </>
     );
   } else if (view.kind === 'refused') {
+    moment = 'failed';
     icon = <XCircle className="w-5 h-5 text-rose-400" aria-hidden="true" />;
     title = 'This payment could not be applied';
     body = (
@@ -225,7 +232,9 @@ export const PaymentStatusPage: React.FC<PaymentStatusPageProps> = ({ onOpenAuth
   return (
     <section className="max-w-md mx-auto my-20 px-6">
       <div className="neu-flat-lg rounded-3xl p-8 border border-slate-800/80">
-        <div className="mb-5 w-12 h-12 rounded-2xl neu-pressed-sm flex items-center justify-center">{icon}</div>
+        <div className={`mb-5 rounded-2xl neu-pressed-sm flex items-center justify-center ${isAppMode && moment ? 'w-14 h-14' : 'w-12 h-12'}`}>
+          {isAppMode && moment ? <AppArt scene={`moment.${moment}`} size="moment" once className="w-full" /> : icon}
+        </div>
         <h1 className="text-2xl font-black text-slate-100 font-heading">{title}</h1>
         <div className="mt-4 space-y-4">{body}</div>
       </div>

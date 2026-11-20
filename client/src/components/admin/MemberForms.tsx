@@ -145,7 +145,7 @@ export const CreateMemberModal: React.FC<CreateMemberModalProps> = ({ isOpen, on
       onCreated(res.member, res.tempPassword);
       if (res.payment) {
         const gifts = res.gifts?.length ? ` Joining gifts: ${res.gifts.map(g => g.gift_name).join(', ')}.` : '';
-        showToast(`${formatINR(res.payment.amount_inr)} recorded for ${res.payment.plan_name}.${gifts}`, 'success');
+        showToast(`${formatINR(res.payment.amount_inr)} recorded for ${res.payment.plan_name}.${gifts}`, 'success', undefined, 'paid');
       }
     } catch (err) {
       if (err instanceof ApiError && err.code === 'EMAIL_TAKEN') setErrors({ email: err.message });

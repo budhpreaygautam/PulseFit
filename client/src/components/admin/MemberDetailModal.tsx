@@ -70,7 +70,7 @@ const RewardsSection: React.FC<{ member: MemberDetail; onChange: (rewards: Membe
       const { data, message } = await api.adjustPoints(member.id, { points, note: adjust.note.trim() });
       onChange({ ...rewards, balance: data.balance, recent_points: [data.entry, ...rewards.recent_points].slice(0, 20) });
       setAdjust({ points: '', note: '' });
-      showToast(message ?? 'The points were adjusted.', 'success');
+      showToast(message ?? 'The points were adjusted.', 'success', undefined, 'saved');
     } catch (err) {
       // POINTS_NEGATIVE: taking away more than the member has.
       const { fieldErrors, formError } = formErrorsFrom(err, ['points', 'note']);
@@ -92,7 +92,7 @@ const RewardsSection: React.FC<{ member: MemberDetail; onChange: (rewards: Membe
       const { referred_by } = await api.attachReferrer(member.id, code.trim());
       onChange({ ...rewards, referred_by });
       setCode('');
-      showToast(`${referred_by.name} is now ${member.name}’s referrer and earns points when ${member.name} first pays for a plan.`, 'success');
+      showToast(`${referred_by.name} is now ${member.name}’s referrer and earns points when ${member.name} first pays for a plan.`, 'success', undefined, 'saved');
     } catch (err) {
       const { fieldErrors, formError } = formErrorsFrom(err, ['referral_code']);
       setCodeError(fieldErrors.referral_code ?? formError ?? undefined);

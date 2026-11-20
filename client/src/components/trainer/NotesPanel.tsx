@@ -136,7 +136,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({ clients, trainerId, curr
     setIsSaving(true);
     try {
       await api.createTrainerNote({ member_id: form.member_id, category: form.category, note: text, visible_to_member: form.visible_to_member });
-      showToast(`Note saved for ${nameOf(form.member_id)}.`, 'success');
+      showToast(`Note saved for ${nameOf(form.member_id)}.`, 'success', undefined, 'shared');
       // Private is the default: a shared note is a choice made for each note, never carried over.
       setForm(f => ({ ...f, note: '', visible_to_member: false }));
       load();
@@ -153,7 +153,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({ clients, trainerId, curr
     if (!deleting) return;
     try {
       await api.deleteTrainerNote(deleting.id);
-      showToast('Note deleted.', 'success');
+      showToast('Note deleted.', 'success', undefined, 'deleted');
       // The last note about an earlier client leaves nothing to show under their name.
       const { id, member_id } = deleting;
       const isEarlier = !clients.some(c => c.user_id === member_id);

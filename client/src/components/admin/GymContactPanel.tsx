@@ -45,7 +45,7 @@ export const GymContactPanel: React.FC = () => {
       // The server checks every field and sends back the phones in its one stored form.
       const { data, message } = await api.updateGymContact(form);
       setForm(data);
-      showToast(message ?? 'Gym contact details saved.', 'success');
+      showToast(message ?? 'Gym contact details saved.', 'success', undefined, 'saved');
     } catch (err) {
       const { fieldErrors, formError } = formErrorsFrom(err, KEYS);
       setErrors(fieldErrors);

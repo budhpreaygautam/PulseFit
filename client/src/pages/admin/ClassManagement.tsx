@@ -67,7 +67,7 @@ export const ClassManagement: React.FC = () => {
   const reportSideEffects = (text?: string) => {
     if (!text) return;
     const tone = sideEffectTone(text);
-    showToast(text, tone, tone === 'warning' ? 'Bookings cancelled' : undefined);
+    showToast(text, tone, tone === 'warning' ? 'Bookings cancelled' : undefined, tone === 'warning' ? 'cancelled' : 'saved');
   };
 
   const [classTarget, setClassTarget] = useState<ClassOccurrence | 'new' | null>(null);

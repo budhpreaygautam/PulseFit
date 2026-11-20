@@ -32,15 +32,15 @@ export const FreezeDialog: React.FC<{ action: 'freeze' | 'unfreeze' | null; onCl
       if (confirm === 'freeze') {
         const { data: next, message } = await api.freezeMembership();
         updateUser(next);
-        showToast(message || 'Your membership is frozen. Unfreeze it whenever you are ready to train again.', 'success');
+        showToast(message || 'Your membership is frozen. Unfreeze it whenever you are ready to train again.', 'success', undefined, 'frozen');
       } else {
         const { data: next, message } = await api.unfreezeMembership();
         updateUser(next);
-        showToast(message || `Welcome back. Your membership now runs until ${formatDate(next.membership_expiry)}.`, 'success');
+        showToast(message || `Welcome back. Your membership now runs until ${formatDate(next.membership_expiry)}.`, 'success', undefined, 'frozen');
       }
     } catch (err) {
       if (isApiError(err) && (err.code === 'NOT_ACTIVE' || err.code === 'NOT_FROZEN')) {
-        showToast(err.message, 'warning');
+        showToast(err.message, 'warning', undefined, 'failed');
         refreshUser();
       } else {
         showToast(isApiError(err) ? err.message : 'Your membership could not be changed.', 'error');

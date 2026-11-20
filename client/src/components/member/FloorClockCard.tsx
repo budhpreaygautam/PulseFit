@@ -148,7 +148,7 @@ export const FloorClockCard: React.FC<FloorClockCardProps> = ({ user, stats, pla
     setFormError(null);
     try {
       const session = await api.clockIn(category, notes.trim() || undefined);
-      showToast(`Clocked in to the ${session.category} floor.`, 'success');
+      showToast(`Clocked in to the ${session.category} floor.`, 'success', undefined, 'clockedIn');
       setNotes('');
       await stats.reload();
     } catch (err) {
@@ -163,7 +163,7 @@ export const FloorClockCard: React.FC<FloorClockCardProps> = ({ user, stats, pla
     setFormError(null);
     try {
       const session = await api.clockOut(notes.trim() || undefined);
-      showToast(`Clocked out after ${session.duration_minutes} min on the ${session.category} floor.`, 'success', 'Session saved');
+      showToast(`Clocked out after ${session.duration_minutes} min on the ${session.category} floor.`, 'success', 'Session saved', 'clockedOut');
       setNotes('');
       await stats.reload();
       onSessionChange();

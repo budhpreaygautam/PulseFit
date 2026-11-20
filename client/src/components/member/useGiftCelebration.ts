@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.js';
+import { useToast } from '../../context/ToastContext.js';
+import { isAppMode } from '../../lib/appMode.js';
 import { storage } from '../../lib/storage.js';
 import { GiftClaim } from '../../types/index.js';
 
@@ -10,6 +12,7 @@ import { GiftClaim } from '../../types/index.js';
  */
 export function useGiftCelebration(userId: string, claims: GiftClaim[] | null): void {
   const { triggerCelebration } = useAuth();
+  const { showToast } = useToast();
   useEffect(() => {
     if (!claims) return;
     const earned = claims.filter(c => c.source !== 'store');
@@ -18,7 +21,11 @@ export function useGiftCelebration(userId: string, claims: GiftClaim[] | null): 
     const seen = storage.get(key);
     const newest = earned.reduce((max, c) => (c.created_at > max ? c.created_at : max), earned[0].created_at);
     const isNew = seen ? newest > seen : earned.some(c => c.status === 'ready' || c.status === 'needs_size');
-    if (isNew) triggerCelebration();
+    if (isNew) {
+      triggerCelebration();
+      // The app adds a cartoon to the confetti.
+      if (isAppMode) showToast('A new gift is waiting for you under Rewards.', 'success', 'Gift earned', 'milestone');
+    }
     storage.set(key, newest);
-  }, [userId, claims, triggerCelebration]);
+  }, [userId, claims, triggerCelebration, showToast]);
 }

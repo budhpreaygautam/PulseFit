@@ -489,7 +489,7 @@ export const OffersPanel: React.FC = () => {
         onClose={() => setSale(null)}
         onSaved={message => {
           setSale(null);
-          showToast(message, 'success');
+          showToast(message, 'success', undefined, 'saved');
           offers.reload();
         }}
       />
@@ -498,7 +498,7 @@ export const OffersPanel: React.FC = () => {
         onClose={() => setCoupon(null)}
         onSaved={message => {
           setCoupon(null);
-          showToast(message, 'success');
+          showToast(message, 'success', undefined, 'saved');
           coupons.reload();
         }}
       />

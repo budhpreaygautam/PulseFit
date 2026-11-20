@@ -132,11 +132,11 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenFreeTrialModal }
         // The server's message says everything the payment did, including class bookings a plan change
         // cancelled. It opens with the toast's own title, so that part is not said twice.
         if (message) {
-          showToast(message.replace(/^Payment received\.\s*/, '') || message, 'success', 'Payment received');
+          showToast(message.replace(/^Payment received\.\s*/, '') || message, 'success', 'Payment received', 'paid');
           return;
         }
         const until = payment?.period_end ?? updated.membership_expiry;
-        showToast(`${plan.name} is paid${until ? `. Your membership now runs until ${formatDate(until)}` : ''}.`, 'success', 'Payment received');
+        showToast(`${plan.name} is paid${until ? `. Your membership now runs until ${formatDate(until)}` : ''}.`, 'success', 'Payment received', 'paid');
       }
     });
   };

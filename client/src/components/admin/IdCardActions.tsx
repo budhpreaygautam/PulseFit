@@ -120,14 +120,14 @@ export const IdCardActionDialog: React.FC<IdCardActionDialogProps> = ({ action, 
         result = await api.reactivateIdCard(action.card.id, withNote);
         fallback = `Card ${action.card.card_number} works again.`;
       }
-      showToast(result.message || fallback, 'success');
+      showToast(result.message || fallback, 'success', undefined, 'saved');
       onClose();
       onChanged(action);
     } catch (err) {
       // Someone else changed the card first (another admin, another tab), or the person or card is
       // gone: say what the server found, and show the cards as they are now.
       if (err instanceof ApiError && (err.status === 409 || err.status === 404)) {
-        showToast(err.message, 'warning', NOT_DONE[action.kind]);
+        showToast(err.message, 'warning', NOT_DONE[action.kind], 'failed');
         onClose();
         onChanged(action);
       } else {

@@ -93,7 +93,7 @@ const RestTimer: React.FC = () => {
   useEffect(() => {
     if (endsAt !== null && timeLeft === 0) {
       setEndsAt(null);
-      showToast('Rest is over. Time for your next set.', 'success', 'Rest timer');
+      showToast('Rest is over. Time for your next set.', 'success', 'Rest timer', 'info');
     }
   }, [endsAt, timeLeft, showToast]);
 
@@ -334,7 +334,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
       const workout = await api.createWorkout(payload);
       setSaved(workout);
       resetForm();
-      showToast(`"${workout.title}" saved.`, 'success', 'Workout logged');
+      showToast(`"${workout.title}" saved.`, 'success', 'Workout logged', 'workoutLogged');
       history.reload();
       refreshUser();
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -354,7 +354,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
     if (!toDelete) return;
     try {
       await api.deleteWorkout(toDelete.id);
-      showToast('Workout deleted.', 'info');
+      showToast('Workout deleted.', 'info', undefined, 'deleted');
       if (saved?.id === toDelete.id) setSaved(null);
     } catch (err) {
       showToast(isApiError(err) ? err.message : 'The workout could not be deleted.', 'error');

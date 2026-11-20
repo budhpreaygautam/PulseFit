@@ -102,7 +102,7 @@ export const MemberManagement: React.FC = () => {
     if (!deleting) return;
     try {
       await api.deleteMember(deleting.id);
-      showToast(`${deleting.name} was removed.`, 'success');
+      showToast(`${deleting.name} was removed.`, 'success', undefined, 'deleted');
     } catch (err) {
       const title = err instanceof ApiError && (err.code === 'CANNOT_DELETE_SELF' || err.code === 'LAST_ADMIN') ? 'Not allowed' : 'Could not remove';
       showToast(errorMessage(err), 'error', title);
@@ -124,7 +124,7 @@ export const MemberManagement: React.FC = () => {
     if (!mfaResetting) return;
     try {
       const { message } = await api.adminResetMfa(mfaResetting.id);
-      showToast(message || `Two-step sign-in is off for ${mfaResetting.name}.`, 'success');
+      showToast(message || `Two-step sign-in is off for ${mfaResetting.name}.`, 'success', undefined, 'saved');
     } catch (err) {
       showToast(errorMessage(err), 'error', 'Could not turn off two-step sign-in');
     }
@@ -328,8 +328,8 @@ export const MemberManagement: React.FC = () => {
         onSaved={(saved, notice) => {
           setEditing(null);
           // Say what else the edit did (a freeze or a plan change cancels bookings), not just "updated".
-          if (notice) showToast(notice, sideEffectTone(notice), `${saved.name} was updated`);
-          else showToast(`${saved.name} was updated.`, 'success');
+          if (notice) showToast(notice, sideEffectTone(notice), `${saved.name} was updated`, 'saved');
+          else showToast(`${saved.name} was updated.`, 'success', undefined, 'saved');
           load();
         }}
       />

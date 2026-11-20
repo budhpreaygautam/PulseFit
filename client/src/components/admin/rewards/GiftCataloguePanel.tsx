@@ -320,7 +320,7 @@ export const GiftCataloguePanel: React.FC = () => {
     if (!toDelete) return;
     try {
       await api.deleteGift(toDelete.id);
-      showToast(`${toDelete.name} was deleted.`, 'success');
+      showToast(`${toDelete.name} was deleted.`, 'success', undefined, 'deleted');
     } catch (err) {
       // GIFT_IN_USE: a rule names it or members claimed it; the message says to deactivate it instead.
       showToast(errorMessage(err), 'error', `${toDelete.name} was not deleted`);
@@ -405,7 +405,7 @@ export const GiftCataloguePanel: React.FC = () => {
         onClose={() => setTarget(null)}
         onSaved={message => {
           setTarget(null);
-          showToast(message, 'success');
+          showToast(message, 'success', undefined, 'saved');
           gifts.reload();
         }}
       />

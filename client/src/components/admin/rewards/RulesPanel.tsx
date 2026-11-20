@@ -94,7 +94,7 @@ export const RulesPanel: React.FC = () => {
     try {
       const { data, message } = await api.updateRewardSettings(payload);
       setForm(toForm(data));
-      showToast(message ?? 'Reward rules saved.', 'success');
+      showToast(message ?? 'Reward rules saved.', 'success', undefined, 'saved');
     } catch (err) {
       const { fieldErrors, formError } = formErrorsFrom(err, FIELDS);
       setErrors(fieldErrors);

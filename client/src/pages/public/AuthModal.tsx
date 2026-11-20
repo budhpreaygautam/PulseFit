@@ -118,15 +118,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
    */
   const finishSignIn = (user: User, greeting: string, askGender = false) => {
     const pending = takePendingPage();
+    const moment = greeting.startsWith('Welcome to') ? 'signedUp' : 'signedIn';
     onClose();
     if (pending) {
-      showToast(greeting, 'success');
+      showToast(greeting, 'success', undefined, moment);
       navigate(pending.tab, pending.params, { instant: true });
     } else if (askGender) {
-      showToast('Choose your gender under Personal details to pick your profile picture.', 'info', greeting);
+      showToast('Choose your gender under Personal details to pick your profile picture.', 'info', greeting, moment);
       navigate('profile', undefined, { instant: true });
     } else {
-      showToast(greeting, 'success');
+      showToast(greeting, 'success', undefined, moment);
     }
     return user;
   };
@@ -182,11 +183,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           return;
         }
         const { user, message } = await verifyMfa(mfaToken!, mfaCode.trim());
-        if (message) showToast(message, 'warning');
+        if (message) showToast(message, 'warning', undefined, 'info');
         if (pendingMessage) {
           // Google linking removed the old password; send them where they can set a new one.
           onClose();
-          showToast(pendingMessage, 'warning', 'Google account linked');
+          showToast(pendingMessage, 'warning', 'Google account linked', 'info');
           navigate('profile', undefined, { instant: true });
         } else {
           finishSignIn(user, `Welcome back, ${user.name.split(' ')[0]}!`);
@@ -225,7 +226,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       } else if (result.message) {
         // Linking removed the old password; send them where they can set a new one.
         onClose();
-        showToast(result.message, 'warning', 'Google account linked');
+        showToast(result.message, 'warning', 'Google account linked', 'info');
         navigate('profile', undefined, { instant: true });
       } else {
         const user = result.user!;
@@ -250,7 +251,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       const user = await demoLogin(role);
       const pending = takePendingPage();
       onClose();
-      showToast(`Signed in as the demo ${DEMO_PERSONAS.find(p => p.role === role)?.label.toLowerCase()}.`, 'success');
+      showToast(`Signed in as the demo ${DEMO_PERSONAS.find(p => p.role === role)?.label.toLowerCase()}.`, 'success', undefined, 'signedIn');
       if (pending) navigate(pending.tab, pending.params, { instant: true });
       else navigate(homeTabFor(user.role), undefined, { instant: true });
     } catch (err) {

@@ -89,12 +89,12 @@ export const CancelBookingDialog: React.FC<CancelBookingDialogProps> = ({ bookin
     if (!booking) return;
     try {
       await api.cancelBooking(booking.id);
-      showToast(`Your spot in ${booking.class_title || 'the class'} was released.`, 'success', 'Booking cancelled');
+      showToast(`Your spot in ${booking.class_title || 'the class'} was released.`, 'success', 'Booking cancelled', 'cancelled');
     } catch (err) {
       if (isApiError(err) && err.code === 'ALREADY_CANCELLED') {
-        showToast('This booking was already cancelled.', 'info');
+        showToast('This booking was already cancelled.', 'info', undefined, 'info');
       } else if (isApiError(err) && err.code === 'CLASS_STARTED') {
-        showToast('This class has already started, so the booking can no longer be cancelled.', 'warning');
+        showToast('This class has already started, so the booking can no longer be cancelled.', 'warning', undefined, 'failed');
       } else {
         showToast(isApiError(err) ? err.message : 'The booking could not be cancelled. Please try again.', 'error');
         return;

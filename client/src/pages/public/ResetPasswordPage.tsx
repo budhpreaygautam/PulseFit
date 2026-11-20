@@ -48,11 +48,11 @@ export const ResetPasswordPage: React.FC = () => {
     try {
       const result = await resetPassword(token, password);
       if (result.user) {
-        showToast('Your password has been changed and you are signed in.', 'success');
+        showToast('Your password has been changed and you are signed in.', 'success', undefined, 'saved');
         navigate(homeTabFor(result.user.role), undefined, { replace: true });
       } else {
         // Two-step sign-in is on: the new password plus a code from the app.
-        showToast('Your password has been changed. Sign in with it and a code from your authenticator app.', 'success');
+        showToast('Your password has been changed. Sign in with it and a code from your authenticator app.', 'success', undefined, 'saved');
         navigate('home', undefined, { replace: true });
       }
     } catch (err) {

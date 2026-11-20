@@ -277,7 +277,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
     const code = isApiError(err) ? err.code : undefined;
     switch (code) {
       case 'ALREADY_BOOKED':
-        showToast(`You're already booked into ${c.title}.`, 'info');
+        showToast(`You're already booked into ${c.title}.`, 'info', undefined, 'info');
         return null;
       case 'PLAN_EXCLUDES_CATEGORY': {
         const all = await loadPlans();
@@ -327,7 +327,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
 
   const handleBook = async (c: ClassOccurrence) => {
     if (!user) {
-      showToast('Sign in to book a class.', 'info');
+      showToast('Sign in to book a class.', 'info', undefined, 'info');
       onOpenAuthModal('login');
       return;
     }
@@ -339,7 +339,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
       const booking = await api.createBooking({ class_id: c.id, booking_date: c.occurrence_date });
       // Show it as booked right away; the refresh below brings the server's own numbers.
       setJustBooked(prev => ({ ...prev, [key]: booking.id }));
-      showToast(`${c.title}, ${formatDate(c.occurrence_date)} at ${formatClock(c.start_time)}.`, 'success', 'Class booked');
+      showToast(`${c.title}, ${formatDate(c.occurrence_date)} at ${formatClock(c.start_time)}.`, 'success', 'Class booked', 'booked');
     } catch (err) {
       setIssue(c, await explainBookingError(c, err));
     } finally {
@@ -361,7 +361,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
       setIssue(c, null);
       // Keep the dialog busy until the card shows the spot as free again.
       await classesState.reload();
-      showToast(`Your booking for ${c.title} on ${formatDate(c.occurrence_date)} is cancelled.`, 'info', 'Booking cancelled');
+      showToast(`Your booking for ${c.title} on ${formatDate(c.occurrence_date)} is cancelled.`, 'info', 'Booking cancelled', 'cancelled');
     } catch (err) {
       const code = isApiError(err) ? err.code : undefined;
       setIssue(c, {

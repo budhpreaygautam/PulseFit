@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { CheckCircle2, AlertCircle, Info, X, AlertTriangle } from 'lucide-react';
+import { AppArt } from '../components/app/AppArt.js';
+import { isAppMode } from '../lib/appMode.js';
+import { momentFor, type MomentKind } from '../lib/appArt.js';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -8,13 +11,15 @@ export interface Toast {
   title?: string;
   message: string;
   type: ToastType;
+  /** What the action did; the app shows its cartoon in place of the icon. */
+  moment: MomentKind;
   /** How long it stays on screen, in ms, not counting time paused. */
   duration: number;
 }
 
 interface ToastContextType {
   toasts: Toast[];
-  showToast: (message: string, type?: ToastType, title?: string) => void;
+  showToast: (message: string, type?: ToastType, title?: string, moment?: MomentKind) => void;
   removeToast: (id: string) => void;
 }
 
@@ -31,9 +36,10 @@ function durationFor(type: ToastType, text: string): number {
   return Math.min(Math.max(4_500, readingTime), 10_000);
 }
 
-const ToastCard: React.FC<{ toast: Toast; paused: boolean; onDismiss: (id: string, byKeyboard?: boolean) => void }> = ({
+const ToastCard: React.FC<{ toast: Toast; paused: boolean; isNewest: boolean; onDismiss: (id: string, byKeyboard?: boolean) => void }> = ({
   toast: t,
   paused,
+  isNewest,
   onDismiss
 }) => {
   const remaining = useRef(t.duration);
@@ -60,11 +66,12 @@ const ToastCard: React.FC<{ toast: Toast; paused: boolean; onDismiss: (id: strin
       data-toast-id={t.id}
       className="glass-toast pointer-events-none flex items-start gap-3 py-3 pl-5 pr-2.5 sm:py-3.5 sm:pr-3"
     >
-      <div className="toast-icon shrink-0 w-9 h-9 flex items-center justify-center">
-        {t.type === 'success' && <CheckCircle2 className="w-5 h-5" aria-hidden="true" />}
-        {t.type === 'error' && <AlertCircle className="w-5 h-5" aria-hidden="true" />}
-        {t.type === 'warning' && <AlertTriangle className="w-5 h-5" aria-hidden="true" />}
-        {t.type === 'info' && <Info className="w-5 h-5" aria-hidden="true" />}
+      <div className={`toast-icon shrink-0 flex items-center justify-center ${isAppMode ? 'w-14 h-14' : 'w-9 h-9'}`}>
+        {isAppMode && <AppArt scene={`moment.${t.moment}`} size="moment" once playing={isNewest} className="w-full" />}
+        {!isAppMode && t.type === 'success' && <CheckCircle2 className="w-5 h-5" aria-hidden="true" />}
+        {!isAppMode && t.type === 'error' && <AlertCircle className="w-5 h-5" aria-hidden="true" />}
+        {!isAppMode && t.type === 'warning' && <AlertTriangle className="w-5 h-5" aria-hidden="true" />}
+        {!isAppMode && t.type === 'info' && <Info className="w-5 h-5" aria-hidden="true" />}
       </div>
 
       <div className="flex-1 min-w-0 self-center text-sm">
@@ -140,10 +147,10 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // the same message twice in a row is still read out.
   const [announcement, setAnnouncement] = useState<{ id: string; text: string } | null>(null);
 
-  const showToast = useCallback((message: string, type: ToastType = 'info', title?: string) => {
+  const showToast = useCallback((message: string, type: ToastType = 'info', title?: string, moment?: MomentKind) => {
     const id = `toast_${Date.now()}_${Math.random()}`;
     const duration = durationFor(type, title ? `${title} ${message}` : message);
-    setToasts(prev => [...prev, { id, message, type, title, duration }]);
+    setToasts(prev => [...prev, { id, message, type, title, moment: momentFor(type, moment), duration }]);
     if (type !== 'error') setAnnouncement({ id, text: title ? `${title}. ${message}` : message });
   }, []);
 
@@ -218,8 +225,8 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsFocusWithin(false);
         }}
       >
-        {toasts.map(t => (
-          <ToastCard key={t.id} toast={t} paused={paused} onDismiss={dismissToast} />
+        {toasts.map((t, i) => (
+          <ToastCard key={t.id} toast={t} paused={paused} isNewest={i === toasts.length - 1} onDismiss={dismissToast} />
         ))}
       </div>
       <div id="toast-announcer" className="sr-only" aria-live="polite">

@@ -179,7 +179,7 @@ export const RewardsPage: React.FC = () => {
     try {
       const made = await api.claimGift({ gift_id: toClaim.gift.id, ...(toClaim.size ? { size: toClaim.size } : {}) });
       triggerCelebration();
-      showToast(`Show code ${made.pickup_code} at the front desk to collect it.`, 'success', `${toClaim.gift.name} is yours`);
+      showToast(`Show code ${made.pickup_code} at the front desk to collect it.`, 'success', `${toClaim.gift.name} is yours`, 'giftClaimed');
     } catch (err) {
       showToast(errorMessage(err), 'error', 'The gift was not claimed');
     }
@@ -190,7 +190,7 @@ export const RewardsPage: React.FC = () => {
     if (!toCancel) return;
     try {
       await api.updateClaim(toCancel.id, { status: 'cancelled' });
-      showToast(`${points(toCancel.points_spent)} went back to your balance.`, 'success', `${toCancel.gift_name} claim cancelled`);
+      showToast(`${points(toCancel.points_spent)} went back to your balance.`, 'success', `${toCancel.gift_name} claim cancelled`, 'cancelled');
     } catch (err) {
       showToast(errorMessage(err), 'error', 'The claim was not cancelled');
     }
@@ -198,13 +198,15 @@ export const RewardsPage: React.FC = () => {
   };
 
   const saveSize = async (c: GiftClaim, size: GiftSize | undefined) => {
-    if (!size) return showToast('Choose a size first.', 'warning');
+    if (!size) return showToast('Choose a size first.', 'warning', undefined, 'failed');
     setSavingSize(c.id);
     try {
       const saved = await api.updateClaim(c.id, { size });
       showToast(
         saved.status === 'ready' ? `Your ${c.gift_name} (${size}) is ready to collect.` : `${size} is out of stock. Your ${c.gift_name} will be ready when the gym restocks.`,
-        saved.status === 'ready' ? 'success' : 'info'
+        saved.status === 'ready' ? 'success' : 'info',
+        undefined,
+        saved.status === 'ready' ? 'saved' : 'info'
       );
     } catch (err) {
       showToast(errorMessage(err), 'error', 'The size was not saved');
