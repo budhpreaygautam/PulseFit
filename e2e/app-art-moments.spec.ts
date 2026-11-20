@@ -155,3 +155,28 @@ test('on the website a toast keeps its icon and has no scene', async ({ page, re
   await expect(newest(page).locator('.toast-icon svg')).toBeVisible();
   await expect(page.locator('[data-scene]')).toHaveCount(0);
 });
+
+test('a newly earned milestone gift shows the milestone scene', async ({ page, request }, testInfo) => {
+  const m = await freshMember(request, `moment milestone ${testInfo.project.name}`);
+  await useSession(page, m.token);
+  await useAppMode(page);
+  // The server grants milestone gifts during a check-in; here the member's list is answered with one.
+  await page.route('**/api/rewards/me', async route => {
+    const res = await route.fetch();
+    const body = await res.json();
+    const claim = { id: 'c1', user_id: m.id, user_name: 'M', gift_id: 'g1', gift_name: 'Water bottle', source: 'milestone', source_ref: 'ms1', points_spent: 0, pickup_code: 'ABC123', status: 'ready', created_at: new Date().toISOString() };
+    await route.fulfill({ response: res, json: { ...body, data: { ...body.data, claims: [claim] } } });
+  });
+  await page.goto('/rewards');
+  await expect(newest(page).locator('[data-scene="moment.milestone"]')).toBeVisible();
+});
+
+test('a booking the server refuses shows the failed scene', async ({ page, request }) => {
+  const token = await signInAs(page, request, 'member');
+  const [a] = await bookable(request, token);
+  await useAppMode(page);
+  await page.route('**/api/bookings', route => (route.request().method() === 'POST' ? route.fulfill({ status: 500, json: { success: false, error: 'No' } }) : route.continue()));
+  await openDay(page, a);
+  await book(page, a);
+  await expect(newest(page).locator('[data-scene="moment.failed"]')).toBeVisible();
+});
