@@ -7,7 +7,7 @@ import { isNativeApp, shareText } from '../../lib/native.js';
 /** The site to send friends to: the app's own pages live at a local address, so it names the server. */
 const siteAddress = () => (isNativeApp ? API_BASE.replace(/\/api$/, '') : window.location.origin);
 
-/** Shares an invitation with the member's referral code (Rewards page and the app's Me), or copies it. */
+/** Shares an invitation with the member's referral code (Rewards page), or copies it. */
 export function useShareReferral(): (code: string) => Promise<void> {
   const { showToast } = useToast();
   return useCallback(

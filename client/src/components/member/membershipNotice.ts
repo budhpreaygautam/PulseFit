@@ -1,8 +1,6 @@
 import { User } from '../../types/index.js';
 import { formatDate, gymToday } from '../../lib/format.js';
 
-// Shared by the website dashboard and the app's Home.
-
 const EXPIRY_WARNING_DAYS = 7;
 
 export interface MembershipNotice {

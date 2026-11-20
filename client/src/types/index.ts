@@ -28,10 +28,6 @@ export interface User {
   created_at: string;
   streak_days?: number;
   last_active_date?: string | null;
-  /** Only in GET /auth/me: days this week (Mon–Sun, gym time) that count for the streak. */
-  active_days_this_week?: number;
-  /** Only in GET /auth/me: the member's longest streak, in days. */
-  longest_streak_days?: number;
   /** Two-step sign-in (authenticator app) is on. */
   mfa_enabled?: boolean;
   /** False for accounts created with Google that never set a password. */

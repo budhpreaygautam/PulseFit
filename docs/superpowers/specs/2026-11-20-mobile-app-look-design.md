@@ -1,5 +1,9 @@
 # Mobile app look and animations — design
 
+> **Replaced.** The owner chose to make the app the website instead: the app shell, tab bar, member
+> screens and welcome panel described here were removed. See
+> [The Android app shows the website](2026-11-20-app-is-the-website-design.md).
+
 Date: 2026-11-20 · Status: draft for the owner's approval
 
 ## Why

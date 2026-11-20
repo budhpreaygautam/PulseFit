@@ -71,26 +71,6 @@
   --neu-border-hover: rgba(132, 204, 22, 0.4);
   --neu-glass-edge: rgba(255, 255, 255, 0.07);
   --neu-glass-highlight: rgba(255, 255, 255, 0.07);
-
-  /* App mode (the handoff's phone app): its tokens not already above. Bg, inset, shadows and chips */
-  /* are --gym-950, --neu-inset-bg, --neu-shadow-*, --gym-800 and --gym-700. */
-  --app-card: rgba(30, 41, 59, 0.5);
-  --app-tx: #f1f5f9;
-  --app-tx2: #e2e8f0;
-  --app-tx3: #cbd5e1;
-  --app-mu: #94a3b8;
-  --app-mu2: #64748b;
-  --app-bd: rgba(255, 255, 255, 0.1);
-  --app-bar: rgba(20, 27, 39, 0.55);
-  --app-lime: #a3e635;
-  --app-amber-tx: #f59e0b;
-  --app-cyan-tx: #06b6d4;
-  --app-red-tx: #f87171;   /* #ef4444 is under 4.5:1 on the dark glass */
-  --app-pink-tx: #ec4899;
-  --app-sheen: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02) 45%, rgba(255, 255, 255, 0));
-  --app-glows: radial-gradient(220px 220px at 15% 12%, rgba(132, 204, 22, 0.28), transparent 70%),
-    radial-gradient(260px 260px at 95% 45%, rgba(6, 182, 212, 0.22), transparent 70%),
-    radial-gradient(240px 240px at 10% 88%, rgba(236, 72, 153, 0.18), transparent 70%);
 }
 
 .light {
@@ -118,25 +98,6 @@
   --neu-border-hover: rgba(132, 204, 22, 0.7);
   --neu-glass-edge: rgba(255, 255, 255, 0.85);
   --neu-glass-highlight: rgba(255, 255, 255, 0.95);
-
-  /* Small accent text uses the darker shades (4.5:1 on the light surfaces); fills keep the accents. */
-  --app-card: rgba(255, 255, 255, 0.5);
-  --app-tx: #0f172a;
-  --app-tx2: #1e293b;
-  --app-tx3: #334155;
-  --app-mu: #475569;
-  --app-mu2: #64748b;
-  --app-bd: rgba(255, 255, 255, 0.9);
-  --app-bar: rgba(255, 255, 255, 0.55);
-  --app-lime: #3f6212;
-  --app-amber-tx: #92400e;
-  --app-cyan-tx: #155e75;
-  --app-red-tx: #be123c;
-  --app-pink-tx: #9d174d;
-  --app-sheen: linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.1) 60%);
-  --app-glows: radial-gradient(220px 220px at 15% 12%, rgba(132, 204, 22, 0.35), transparent 70%),
-    radial-gradient(260px 260px at 95% 45%, rgba(6, 182, 212, 0.28), transparent 70%),
-    radial-gradient(240px 240px at 10% 88%, rgba(236, 72, 153, 0.2), transparent 70%);
 }
 
 /* ------------------------------------------------------------------ */
@@ -766,121 +727,19 @@ html .neu-icon-btn.neu-icon-btn-danger.neu-icon-btn-danger:hover:not(:disabled) 
   box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.1), 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
-/* App mode (components/app): the handoff's phone app. Only pages inside AppShell use these. */
-/* Behind everything: the page background with the handoff's three soft colour glows. */
-.app-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-color: var(--gym-950);
-  background-image: var(--app-glows);
-}
-/* The page scrolls clear of the tab bar. */
-.app-content {
-  padding-bottom: calc(58px + env(safe-area-inset-bottom));
-}
-/* The root of every app screen (the website pages in the shell keep their own padding). The sides
-   keep clear of a landscape phone's side nav bar and camera cutout. */
-.app-screen {
-  padding: 8px calc(20px + env(safe-area-inset-right)) 24px calc(20px + env(safe-area-inset-left));
-  color: var(--app-tx);
-}
-/* Every control on an app screen is at least a 44×44 tap target, the website cards and dialogs there
-   included. No specificity, so a control's own minimum (min-h-[48px]) still wins. */
-:where(.app-screen) :where(button, input, select) {
-  min-width: 44px;
-  min-height: 44px;
-}
-/* A list's placeholder rows while it loads (components/app/ui.tsx). */
-.app-shimmer {
-  background-color: var(--neu-inset-bg);
-}
-/* Focus (a Tab, a field the keyboard opens for) scrolls a control clear of the fixed tab bar, not under it. */
-html:has(.app-tabbar) {
-  scrollbar-width: none;
-  scroll-padding-bottom: calc(58px + env(safe-area-inset-bottom));
-}
-html:has(.app-tabbar)::-webkit-scrollbar {
-  display: none;
-}
-/* Cards: frosted glass over the glows, raised like neu-flat. The website's cards on an app screen
-   (Train's floor clock and progress) get the same glass, radius, padding and section title. */
-.app-glass,
-.app-screen section.neu-flat {
-  background-color: var(--app-card);
-  background-image: var(--app-sheen);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.14), inset 0 0 0 1px var(--app-bd), 7px 7px 16px var(--neu-shadow-dark),
-    -6px -6px 14px var(--neu-shadow-light);
-}
-.app-screen section.neu-flat {
-  background-color: var(--app-card) !important;
-  border: 0;
-  border-radius: 22px;
-  padding: 16px;
-}
-.app-screen section.neu-flat h2 {
-  font-size: 15px;
-  font-weight: 800;
-}
-.app-inset {
-  background-color: var(--neu-inset-bg);
-  box-shadow: inset 3px 3px 6px var(--neu-shadow-dark), inset -3px -3px 6px var(--neu-shadow-light);
-}
-.app-lime-btn {
-  background: linear-gradient(135deg, #a3e635, #84cc16);
-  color: #090c10;
-  box-shadow: 0 0 25px -5px rgba(132, 204, 22, 0.45);
-  border: none;
-}
-/* 7px + the 1px border: the bar is 58px (8px above 50px tabs) plus the home-indicator inset; the sides
-   clear a landscape phone's side nav bar and cutout. */
-.app-tabbar {
-  padding: 7px max(8px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(8px, env(safe-area-inset-left));
-  background-color: var(--app-bar);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-/* Inactive tabs: --app-mu, since the handoff's --mu2 is under 4.5:1 on the bar. */
-.app-tabbar a,
-.app-tabbar button {
-  color: var(--app-mu);
-}
-.app-tabbar a[aria-current='page'] {
-  color: var(--app-lime);
-}
-.app-glass,
-.app-inset,
-.app-lime-btn,
-.app-tabbar a,
-.app-tabbar button {
-  transition: all 0.2s ease;
-}
-/* Pressed in on touch (the shrink is motion, below; the inset shadow is not). */
-.app-press:active:not(:disabled) {
-  box-shadow: inset 3px 3px 6px var(--neu-shadow-dark), inset -3px -3px 6px var(--neu-shadow-light);
-}
-
-/* App motion (lib/appMotion.ts sets html[data-nav] for view transitions). None with reduced motion. */
-@property --app-ring {
-  syntax: '<percentage>';
-  inherits: false;
-  initial-value: 0%;
-}
+/* Page animations in the app (lib/appMotion.ts sets html[data-nav] for view transitions; the header,
+   named app-header, stays still). None with reduced motion. */
 /* Taps go through to the new page while a transition runs. */
 ::view-transition {
   pointer-events: none;
 }
+/* Toasts stay above the still header while a page slides. Named only meanwhile: a name all the time
+   would stop the blur behind their cards (ToastContext). */
+html:active-view-transition .toast-region {
+  view-transition-name: app-toasts;
+}
 @media (prefers-reduced-motion: no-preference) {
-  /* Tabs cross-fade; a sub-screen slides in over the page, and Back slides it out again. */
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
-    animation-duration: 200ms;
-    animation-timing-function: ease-out;
-  }
+  /* A new page slides in over the old one, and Back slides it out again. */
   html[data-nav='push']::view-transition-new(root) {
     animation: 280ms ease-out both app-slide-in;
   }
@@ -892,33 +751,6 @@ html:has(.app-tabbar)::-webkit-scrollbar {
     animation: 280ms ease-out both app-slide-out;
     z-index: 1;
   }
-  /* The tab bar stays put. */
-  .app-tabbar {
-    view-transition-name: app-tabbar;
-  }
-  /* A screen's cards rise in one after another (--i is the card's place, from riseOrder). */
-  .app-rise {
-    animation: app-rise 300ms ease-out both;
-    animation-delay: calc(min(var(--i, 0), 7) * 40ms);
-  }
-  .app-ring {
-    animation: app-ring 350ms ease-out both;
-  }
-  .app-fill-y {
-    transform-origin: bottom;
-    animation: app-fill-y 350ms ease-out both;
-  }
-  .app-press {
-    transition: transform 150ms ease-out, box-shadow 150ms ease-out;
-  }
-  .app-press:active:not(:disabled) {
-    transform: scale(0.97);
-  }
-  .app-shimmer {
-    background-image: linear-gradient(90deg, var(--neu-inset-bg) 25%, var(--gym-800) 50%, var(--neu-inset-bg) 75%);
-    background-size: 200% 100%;
-    animation: app-shimmer 1.2s linear infinite;
-  }
 }
 @keyframes app-slide-in {
   from {
@@ -928,30 +760,6 @@ html:has(.app-tabbar)::-webkit-scrollbar {
 @keyframes app-slide-out {
   to {
     transform: translateX(100%);
-  }
-}
-@keyframes app-rise {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-}
-@keyframes app-ring {
-  from {
-    --app-ring: 0%;
-  }
-}
-@keyframes app-fill-y {
-  from {
-    transform: scaleY(0);
-  }
-}
-@keyframes app-shimmer {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: -100% 0;
   }
 }
 

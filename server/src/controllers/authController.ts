@@ -274,7 +274,9 @@ export const logout = asyncHandler(async (_req: Request, res: Response) => {
   return ok(res, { signedOut: true });
 });
 
-// Only this answer carries the two streak-card numbers: they read the member's whole history.
+// Only this answer carries the two streak-card numbers: they read the member's whole history. They are
+// kept for the Home screen of installed 1.1.0 apps; drop them (with tests/streakFacts.test.ts and their
+// docs/API.md row) once those apps have updated.
 export const getMe = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const user = req.user!;
   const days = activityDays(user.id);

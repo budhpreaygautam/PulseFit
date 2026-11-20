@@ -2,7 +2,7 @@ import React from 'react';
 import { Clock, Dumbbell, Mail, MapPin, Phone, Smartphone } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
-import { isNativeApp } from '../../lib/native.js';
+import { isAppMode } from '../../lib/appMode.js';
 import { homeTabFor } from '../../routes.js';
 import { gymToday } from '../../lib/format.js';
 import { TabLink } from '../public/TabLink.js';
@@ -31,7 +31,7 @@ export const Footer: React.FC<{ setCurrentTab: (tab: string) => void }> = ({ set
   const { user } = useAuth();
   const { config } = useAppConfig();
   // The APK this server offers (GET /api/config); pointless inside the app itself.
-  const androidApp = isNativeApp ? null : config.androidApp;
+  const androidApp = isAppMode ? null : config.androidApp;
   const year = gymToday().slice(0, 4);
 
   const accountLinks = user

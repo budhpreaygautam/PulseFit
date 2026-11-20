@@ -17,7 +17,6 @@ import { avatarOf, PRESET_AVATARS, resizeAvatar } from '../../components/member/
 import { copyText } from '../../components/member/clipboard.js';
 import { TwoStepPanel } from '../../components/member/TwoStepPanel.js';
 import { formatDate, formatDateTime, formatINR, GENDER_OPTIONS, TIER_LABELS, tierLabel } from '../../lib/format.js';
-import { isAppMode } from '../../lib/appMode.js';
 
 interface MemberProfilePageProps {
   setCurrentTab: (tab: string) => void;
@@ -512,9 +511,8 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
 
   if (!user) return null;
 
-  // In the app a bare /profile is the Me tab, so this page keeps ?tab=details there.
   const selectTab = (id: TabId) => {
-    navigate('profile', id === 'details' && !isAppMode ? undefined : { tab: id }, { replace: true });
+    navigate('profile', id === 'details' ? undefined : { tab: id }, { replace: true });
   };
 
   const onTabKeyDown = (e: React.KeyboardEvent) => {

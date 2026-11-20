@@ -34,7 +34,7 @@ function staffPlanNote(user: User): string | null {
   return null;
 }
 
-export const NOT_ACTIVE_NOTE: Record<string, string> = {
+const NOT_ACTIVE_NOTE: Record<string, string> = {
   frozen: 'Your membership is frozen, so the front desk will not let this pass in until you unfreeze it.',
   expired: 'Your membership has expired, so the front desk will not let this pass in until you renew.',
   pending: 'You do not have an active plan yet, so the front desk will not let this pass in until you choose one.'
@@ -94,8 +94,8 @@ async function renderPassPng(user: User, qrDataUrl: string, gymName: string): Pr
   return new Promise((resolve, reject) => canvas.toBlob(b => (b ? resolve(b) : reject(new Error('The image could not be saved.'))), 'image/png'));
 }
 
-/** The pass's QR code as an image, drawn while `enabled` (this modal, and the app's Pass tab). */
-export function usePassQr(token: string | undefined, enabled: boolean): { qrDataUrl: string | null; qrError: string | null } {
+/** The pass's QR code as an image, drawn while `enabled` (the modal is open). */
+function usePassQr(token: string | undefined, enabled: boolean): { qrDataUrl: string | null; qrError: string | null } {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
 

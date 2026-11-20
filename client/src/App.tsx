@@ -9,10 +9,8 @@ import { canAccess, homeTabFor, routeForTab } from './routes.js';
 import { Navbar } from './components/layout/Navbar.js';
 import { Footer } from './components/layout/Footer.js';
 import { AndroidAppBanner } from './components/layout/AndroidAppBanner.js';
-import { AppShell } from './components/app/AppShell.js';
 import { AppUpdatePrompt } from './components/app/AppUpdatePrompt.js';
-import { GUEST_TABS, MEMBER_TABS, isTabRoot } from './components/app/tabs.js';
-import { isAppMode, isFirstLaunch } from './lib/appMode.js';
+import { isAppMode } from './lib/appMode.js';
 import { ErrorBoundary } from './components/common/ErrorBoundary.js';
 import { clearPendingPage, rememberPendingPage } from './components/public/pendingPage.js';
 
@@ -66,13 +64,6 @@ const QuickCheckInScanner = named(() => import('./pages/admin/QuickCheckInScanne
 const ClassManagement = named(() => import('./pages/admin/ClassManagement.js'), 'ClassManagement');
 const PlanManagement = named(() => import('./pages/admin/PlanManagement.js'), 'PlanManagement');
 const TrialLeads = named(() => import('./pages/admin/TrialLeads.js'), 'TrialLeads');
-// The app's own tab screens (app mode only, see appScreen below).
-const HomeScreen = named(() => import('./pages/app/HomeScreen.js'), 'HomeScreen');
-const PassScreen = named(() => import('./pages/app/PassScreen.js'), 'PassScreen');
-const ClassesScreen = named(() => import('./pages/app/ClassesScreen.js'), 'ClassesScreen');
-const TrainScreen = named(() => import('./pages/app/TrainScreen.js'), 'TrainScreen');
-const MeScreen = named(() => import('./pages/app/MeScreen.js'), 'MeScreen');
-const WelcomeScreen = named(() => import('./pages/app/WelcomeScreen.js'), 'WelcomeScreen');
 
 // At least a screen tall, so the footer stays below the fold while a page loads instead of showing
 // and then jumping down when the page arrives (a layout shift).
@@ -186,62 +177,13 @@ function MainAppContent() {
   }
 
   // A new page moves focus to its heading (or to <main>) and is announced, so keyboard and
-  // screen-reader users know the link worked (the effect is below, keyed on the screen shown).
+  // screen-reader users know the link worked. Not on first load, and not over an open dialog.
   const mainRef = useRef<HTMLElement>(null);
   const [announcement, setAnnouncement] = useState('');
-
-  const route = routeForTab(tab);
-  const showOfflinePanel = Boolean(route && route.access !== 'public' && isInitializing && isServerUnreachable);
-
-  // Inside the app, members get the app shell (tab bar, no website header or footer) and guests the
-  // welcome panel or a guest shell. Until the saved session is restored it is not known whose app it
-  // is, so the app shows a loader (or says it is offline) on every page meanwhile. Staff keep the
-  // website layout.
-  const appShell: 'member' | 'guest' | 'starting' | 'offline' | null = !isAppMode
-    ? null
-    : isInitializing
-      ? isServerUnreachable
-        ? 'offline'
-        : 'starting'
-      : !user
-        ? 'guest'
-        : user.role === 'member'
-          ? 'member'
-          : null;
-  // A member's app opens on Home, never on the landing page (at start, after Try again, after signing
-  // in); only a link to it with a query (?view=full) opens the landing page.
-  const redirectingHome = appShell === 'member' && tab === 'home' && params.toString() === '';
+  const lastTab = useRef(tab);
   useEffect(() => {
-    if (redirectingHome) navigate('member-dashboard', undefined, { replace: true });
-  }, [redirectingHome, navigate]);
-  // A member's tab opened without a query gets its app screen; with one (a deep link, ?view=full) it
-  // gets the website page inside the shell, so nothing the website offers is lost.
-  const appScreen = (id: string) => appShell === 'member' && isTabRoot(MEMBER_TABS, id, params);
-
-  // A signed-out app opens on the welcome panel (after the slides on its first launch). Explore first
-  // shows the public pages in the guest shell until the app restarts; signing in ends both.
-  const [exploring, setExploring] = useState(false);
-  const [slidesPending, setSlidesPending] = useState(isFirstLaunch);
-  const userId = user?.id;
-  useEffect(() => {
-    if (!userId) return;
-    setExploring(false);
-    setSlidesPending(false);
-  }, [userId]);
-  // Any other page (Contact us, a link) is shown in the guest shell, whose Explore tab then opens the public home.
-  if (appShell === 'guest' && tab !== 'home' && !exploring) setExploring(true);
-  const showWelcome = appShell === 'guest' && tab === 'home' && !exploring;
-
-  // The screen shown: in the app a screen can change under the same tab (a Me row, Back to a tab's own
-  // screen, Explore first, a guest signing in on Contact). Not on first load, which in the app is the
-  // first screen after the saved session is restored, and not over an open dialog.
-  const screenKey = appShell === 'starting' || appShell === 'offline' ? null : [appShell, showWelcome, tab, appScreen(tab)].join('|');
-  const lastScreen = useRef(screenKey);
-  useEffect(() => {
-    if (screenKey === null || lastScreen.current === screenKey) return;
-    const first = lastScreen.current === null;
-    lastScreen.current = screenKey;
-    if (first) return;
+    if (lastTab.current === tab) return;
+    lastTab.current = tab;
     setAnnouncement(routeForTab(tab)?.title ?? 'Page not found');
     const main = mainRef.current;
     if (!main) return;
@@ -281,9 +223,10 @@ function MainAppContent() {
       clearTimeout(giveUp);
       observer?.disconnect();
     };
-    // tab is part of screenKey.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screenKey]);
+  }, [tab]);
+
+  const route = routeForTab(tab);
+  const showOfflinePanel = Boolean(route && route.access !== 'public' && isInitializing && isServerUnreachable);
 
   // Such a page opened by its address (or back/forward, or a session that ended there) shows "Please
   // sign in" below, never the page, and opens the sign-in dialog for it straight away.
@@ -297,30 +240,7 @@ function MainAppContent() {
   }, [needsSignIn, tab]);
 
   let page: React.ReactNode;
-  if (appShell === 'offline') {
-    page = (
-      <AccessPanel
-        icon={<WifiOff className="w-6 h-6" aria-hidden="true" />}
-        title="Can't reach PulseFit right now"
-        body="You're still signed in. We'll keep trying and open PulseFit as soon as the connection is back."
-        action="Try again"
-        onAction={retrySessionRestore}
-      />
-    );
-  } else if (appShell === 'starting' || redirectingHome) {
-    page = <PageLoader />;
-  } else if (showWelcome) {
-    page = (
-      <WelcomeScreen
-        showSlides={slidesPending}
-        onSlidesDone={() => setSlidesPending(false)}
-        onSignIn={() => openAuthModal('login')}
-        onRegister={() => openAuthModal('register')}
-        onFreePass={openFreeTrialModal}
-        onExplore={() => setExploring(true)}
-      />
-    );
-  } else if (!route) {
+  if (!route) {
     page = <NotFoundPage setCurrentTab={setCurrentTab} />;
   } else if (showOfflinePanel) {
     page = (
@@ -369,7 +289,7 @@ function MainAppContent() {
       case 'guide':
         return <FitnessGuidePage setCurrentTab={setCurrentTab} />;
       case 'schedule':
-        return appScreen('schedule') ? <ClassesScreen /> : <SchedulePage onOpenAuthModal={openAuthModal} />;
+        return <SchedulePage onOpenAuthModal={openAuthModal} />;
       case 'pricing':
         return <PricingPage onOpenFreeTrialModal={openFreeTrialModal} />;
       case 'trainers':
@@ -387,18 +307,15 @@ function MainAppContent() {
       case 'refunds':
         return <LegalPage kind={id} />;
       case 'member-dashboard':
-        return appScreen('member-dashboard') ? <HomeScreen /> : <MemberDashboard setCurrentTab={setCurrentTab} />;
+        return <MemberDashboard setCurrentTab={setCurrentTab} />;
       case 'my-bookings':
         return <MyBookingsPage />;
       case 'workout-logger':
-        return appScreen('workout-logger') ? <TrainScreen /> : <WorkoutLogger setCurrentTab={setCurrentTab} />;
+        return <WorkoutLogger setCurrentTab={setCurrentTab} />;
       case 'rewards':
         return <RewardsPage />;
-      case 'pass':
-        // The website has no pass page.
-        return appScreen('pass') ? <PassScreen /> : <NotFoundPage setCurrentTab={setCurrentTab} />;
       case 'profile':
-        return appScreen('profile') ? <MeScreen /> : <MemberProfilePage setCurrentTab={setCurrentTab} />;
+        return <MemberProfilePage setCurrentTab={setCurrentTab} />;
       case 'trainer-dashboard':
         return <TrainerDashboard />;
       case 'admin-dashboard':
@@ -420,15 +337,20 @@ function MainAppContent() {
     }
   }
 
-  const skipLink = (
-    <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] neu-btn-lime px-4 py-2 rounded-lg text-sm font-bold">
-      Skip to content
-    </a>
-  );
+  // In the app the sides keep clear of a landscape phone's side nav bar and camera cutout (not on the
+  // website, where iOS Safari reports side insets too).
+  return (
+    <div
+      className={`min-h-screen flex flex-col overflow-x-clip pt-[env(safe-area-inset-top)] ${
+        isAppMode ? 'pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]' : ''
+      } bg-gym-950 text-slate-100`}
+    >
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] neu-btn-lime px-4 py-2 rounded-lg text-sm font-bold">
+        Skip to content
+      </a>
+      <Navbar currentTab={tab} setCurrentTab={setCurrentTab} onOpenAuthModal={openAuthModal} onOpenFreeTrialModal={openFreeTrialModal} />
 
-  const content = (
-    <>
-      {isServerUnreachable && !showOfflinePanel && appShell !== 'offline' && (
+      {isServerUnreachable && !showOfflinePanel && (
         <div role="status" className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2.5">
           <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <p className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-amber-300">
@@ -507,33 +429,8 @@ function MainAppContent() {
           </Suspense>
         </ErrorBoundary>
       )}
-    </>
-  );
 
-  // The welcome panel, like the loader while the app starts, is a full screen with no shell around it.
-  const shellTabs = appShell === 'member' ? MEMBER_TABS : appShell === 'guest' && !showWelcome ? GUEST_TABS : null;
-
-  // In the app the root has no background of its own: the app backdrop behind it shows through.
-  return (
-    <div className={`min-h-screen flex flex-col overflow-x-clip pt-[env(safe-area-inset-top)] ${isAppMode ? '' : 'bg-gym-950'} text-slate-100`}>
-      {shellTabs ? (
-        <AppShell tabs={shellTabs} onSignIn={() => openAuthModal('login')}>
-          {skipLink}
-          {content}
-        </AppShell>
-      ) : appShell ? (
-        <>
-          {skipLink}
-          {content}
-        </>
-      ) : (
-        <>
-          {skipLink}
-          <Navbar currentTab={tab} setCurrentTab={setCurrentTab} onOpenAuthModal={openAuthModal} onOpenFreeTrialModal={openFreeTrialModal} />
-          {content}
-          <Footer setCurrentTab={setCurrentTab} />
-        </>
-      )}
+      <Footer setCurrentTab={setCurrentTab} />
     </div>
   );
 }

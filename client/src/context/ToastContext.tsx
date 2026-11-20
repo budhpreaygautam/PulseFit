@@ -206,7 +206,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           below, so each toast is announced once. */}
       <div
         ref={regionRef}
-        className="fixed inset-x-0 top-0 z-[70] flex flex-col gap-2 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pointer-events-none sm:inset-x-auto sm:top-auto sm:right-5 sm:bottom-5 sm:w-[24rem] sm:gap-2.5 sm:px-0 sm:pt-0"
+        className="toast-region fixed inset-x-0 top-0 z-[70] flex flex-col gap-2 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pointer-events-none sm:inset-x-auto sm:top-auto sm:right-5 sm:bottom-5 sm:w-[24rem] sm:gap-2.5 sm:px-0 sm:pt-0"
         role="region"
         aria-label="Notifications"
         data-paused={paused || undefined}

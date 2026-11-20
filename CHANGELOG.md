@@ -2,6 +2,17 @@
 
 All notable changes to PulseFit. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- **The Android app is the website.** Inside the Android and iOS apps everyone gets the website as it looks on a phone:
+  it opens on the homepage, with the same header and menu, pages and footer. A new page slides in, Back slides it out,
+  and the header stays still; nothing moves when the phone asks for reduced motion. The bottom tab bar, the members'
+  Home, Classes, Pass, Train and Me screens and the guests' welcome screen are gone, and with them the app-only `/pass`
+  address; everything they offered is on the website's pages and menu (the entry pass is the header's QR button). The
+  website in a browser is unchanged.
+
 ## [2.4.0] — 2026-11-20
 
 The service pages now need an account and the fitness guide a plan, sign-up asks for gender to pick a default profile

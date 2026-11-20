@@ -1,4 +1,4 @@
-// Server limits for POST /workouts (docs/API.md), shared by the website's logger and the app's Train tab.
+// Server limits for POST /workouts (docs/API.md), used by the workout logger.
 export const WORKOUT_LIMITS = { title: 100, notes: 1000, duration: 300, weight: 500, reps: 100, rpe: 10, setsTotal: 100, setsPerExercise: 50, daysBack: 365 };
 
 /** Parse a decimal within [min, max]; null when blank or out of range. */

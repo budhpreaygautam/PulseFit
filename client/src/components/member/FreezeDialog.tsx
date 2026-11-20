@@ -5,7 +5,7 @@ import { api, isApiError } from '../../api/client.js';
 import { ConfirmDialog } from '../common/ConfirmDialog.js';
 import { formatDate } from '../../lib/format.js';
 
-/** Asks before freezing or unfreezing the signed-in member's membership, then does it (profile page and the app's Me). */
+/** Asks before freezing or unfreezing the signed-in member's membership, then does it (profile page). */
 export const FreezeDialog: React.FC<{ action: 'freeze' | 'unfreeze' | null; onClose: () => void }> = ({ action: confirm, onClose }) => {
   const { user, updateUser, refreshUser } = useAuth();
   const { showToast } = useToast();

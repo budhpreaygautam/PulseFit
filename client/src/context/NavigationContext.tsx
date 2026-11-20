@@ -1,9 +1,9 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { NOT_FOUND_TAB, routeForTab, tabForPath } from '../routes.js';
 import { applyPageHead } from '../lib/seo.js';
 import { hasSavedSession } from '../lib/authToken.js';
 import { rememberPendingPage } from '../components/public/pendingPage.js';
-import { navKindFor } from '../components/app/tabs.js';
 import { withViewTransition } from '../lib/appMotion.js';
 import { isAppMode } from '../lib/appMode.js';
 
@@ -17,7 +17,7 @@ interface NavigationContextType {
   tab: string;
   /** Query string of the current URL, e.g. ?date=2026-10-12 on a roster. */
   params: URLSearchParams;
-  /** On the app's own screens the change animates (lib/appMotion.ts) unless `instant` or `replace`. */
+  /** In the app a new page slides in (lib/appMotion.ts) unless `instant` or `replace`. */
   navigate: (tab: string, params?: Record<string, string>, options?: { replace?: boolean; instant?: boolean }) => void;
   /** Counts the links to a page that needs an account that a guest has followed; App opens the sign-in dialog. */
   signInRequests: number;
@@ -26,21 +26,23 @@ interface NavigationContextType {
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
 
 function readLocation(): Location {
-  const tab = tabForPath(window.location.pathname);
-  // The Pass tab is the app's alone: on the website /pass is a missing page, not one to sign in for.
-  return { tab: tab === 'pass' && !isAppMode ? NOT_FOUND_TAB : tab, params: new URLSearchParams(window.location.search) };
+  return { tab: tabForPath(window.location.pathname), params: new URLSearchParams(window.location.search) };
 }
 
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [location, setLocation] = useState<Location>(readLocation);
   const [signInRequests, setSignInRequests] = useState(0);
-  // The page Back (or Forward) leaves: from a tab's own screen it cross-fades as a tab tap does, from a sub-screen it slides out.
-  const current = useRef(location);
-  current.current = location;
 
   useEffect(() => {
-    const onPopState = () =>
-      withViewTransition(navKindFor(current.current.tab, current.current.params) === 'tab' ? 'tab' : 'pop', () => setLocation(readLocation()));
+    // In the app Back renders a frame later (in a view transition), after the browser would restore
+    // the scroll, so it would land on the page being left: the app keeps each page's scroll itself.
+    if (isAppMode) window.history.scrollRestoration = 'manual';
+    // Back (the Android button included) slides the page out, and the page comes back where it was left.
+    const onPopState = (e: PopStateEvent) =>
+      withViewTransition('pop', () => {
+        flushSync(() => setLocation(readLocation()));
+        if (isAppMode) window.scrollTo(0, e.state?.y ?? 0);
+      });
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
@@ -59,21 +61,27 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const search = params ? new URLSearchParams(params) : new URLSearchParams();
     const path = route ? route.path : '/';
     const url = search.toString() ? `${path}?${search}` : path;
+    const samePage = url === window.location.pathname + window.location.search;
     const go = () => {
-      // Entries pushed here are marked, so the app's Back button knows an earlier page of this session
-      // exists (after a reload or a deep link there is none); a replace keeps the entry's mark.
+      // The address is checked again here: in the app this runs a frame later, and a redirect (after
+      // signing in) or a second tap may have changed it meanwhile.
       if (url !== window.location.pathname + window.location.search) {
         if (options?.replace) window.history.replaceState(window.history.state, '', url);
-        else window.history.pushState({ inApp: true }, '', url);
+        else {
+          // The page being left keeps its scroll, for Back (above).
+          if (isAppMode) window.history.replaceState({ y: window.scrollY }, '');
+          window.history.pushState(null, '', url);
+        }
       }
       setLocation({ tab: route ? route.tab : NOT_FOUND_TAB, params: search });
       window.scrollTo({ top: 0 });
     };
-    // Signing out is instant: a transition renders its page change later, so the old (gated) page
-    // would first render signed out and open the sign-in dialog. A replace (a redirect, a section of
-    // the same page) opens no new screen, so nothing slides in.
-    if (options?.instant || options?.replace) go();
-    else withViewTransition(navKindFor(route?.tab ?? '', search), go);
+    // Signing in and out are instant: a transition renders its page change later, so the old page would
+    // first render for the new account (signed out, a gated page opens the sign-in dialog; signed in on
+    // the homepage, App redirects to the account's home first). A replace (a redirect, a section of
+    // the same page) or the page already open opens no new page, so nothing slides in.
+    if (options?.instant || options?.replace || samePage) go();
+    else withViewTransition('push', go);
   }, []);
 
   // Title, description, canonical address and robots/Open Graph tags follow the page.

@@ -198,16 +198,6 @@ export const ROUTES: RouteDef[] = [
     indexable: false,
     access: ['member']
   },
-  // The app's Pass tab (pages/app/PassScreen.tsx); the website has no pass page and shows its 404.
-  {
-    tab: 'pass',
-    path: '/pass',
-    title: 'Entry pass',
-    description:
-      'Your PulseFit Athletics entry pass: the QR code the front desk scans to check you in, with your member ID, your plan and its status.',
-    indexable: false,
-    access: ['member']
-  },
   {
     tab: 'profile',
     path: '/profile',

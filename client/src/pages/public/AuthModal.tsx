@@ -113,17 +113,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   /**
    * After any sign-in: the page a guest asked for (pricing with the plan they picked, the timetable…)
    * opens. Otherwise askGender sends them to My account to choose the gender that picks their
-   * default picture.
+   * default picture. Every page change after a sign-in is instant, so in the app it renders together
+   * with the new account and App's home redirect does not run first (NavigationContext).
    */
   const finishSignIn = (user: User, greeting: string, askGender = false) => {
     const pending = takePendingPage();
     onClose();
     if (pending) {
       showToast(greeting, 'success');
-      navigate(pending.tab, pending.params);
+      navigate(pending.tab, pending.params, { instant: true });
     } else if (askGender) {
       showToast('Choose your gender under Personal details to pick your profile picture.', 'info', greeting);
-      navigate('profile');
+      navigate('profile', undefined, { instant: true });
     } else {
       showToast(greeting, 'success');
     }
@@ -186,7 +187,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           // Google linking removed the old password; send them where they can set a new one.
           onClose();
           showToast(pendingMessage, 'warning', 'Google account linked');
-          navigate('profile');
+          navigate('profile', undefined, { instant: true });
         } else {
           finishSignIn(user, `Welcome back, ${user.name.split(' ')[0]}!`);
         }
@@ -225,7 +226,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         // Linking removed the old password; send them where they can set a new one.
         onClose();
         showToast(result.message, 'warning', 'Google account linked');
-        navigate('profile');
+        navigate('profile', undefined, { instant: true });
       } else {
         const user = result.user!;
         // Google sign-up has no gender question, so a new account is asked for it on My account.
@@ -250,8 +251,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       const pending = takePendingPage();
       onClose();
       showToast(`Signed in as the demo ${DEMO_PERSONAS.find(p => p.role === role)?.label.toLowerCase()}.`, 'success');
-      if (pending) navigate(pending.tab, pending.params);
-      else navigate(homeTabFor(user.role));
+      if (pending) navigate(pending.tab, pending.params, { instant: true });
+      else navigate(homeTabFor(user.role), undefined, { instant: true });
     } catch (err) {
       showError(err);
     } finally {

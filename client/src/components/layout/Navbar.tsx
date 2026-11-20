@@ -38,6 +38,7 @@ import { UserRole } from '../../types/index.js';
 import { TabLink } from '../public/TabLink.js';
 import { ErrorBoundary } from '../common/ErrorBoundary.js';
 import { avatarOf } from '../member/avatarImage.js';
+import { isAppMode } from '../../lib/appMode.js';
 
 // The QR pass (and the QR-code library it draws with) loads the first time a member opens it.
 // React remembers a load that failed, so a failure gets a fresh loader for the next try. (Chrome
@@ -212,7 +213,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
     try {
       const next = await demoLogin(role);
       showToast(`Signed in as the demo ${DEMO_PERSONAS.find(p => p.role === role)?.label.toLowerCase()}.`, 'success');
-      setCurrentTab(homeTabFor(next.role));
+      navigate(homeTabFor(next.role), undefined, { instant: true });
     } catch (err) {
       showToast(errorMessage(err), 'error');
     } finally {
@@ -278,10 +279,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
         </div>
       )}
 
-      {/* z-[45]: above the app download bar (z-40), so the open mobile menu is never under it. */}
+      {/* z-[45]: above the app download bar (z-40), so the open mobile menu is never under it. In the
+          app it has a view-transition name, so it stays still while the page slides (index.css). */}
       <header
         data-tips-dismissed={tipsDismissed ? '' : undefined}
-        className="sticky top-[env(safe-area-inset-top)] z-[45] glass-bar border-b border-slate-800/60 shadow-[0_4px_16px_var(--neu-shadow-dark)] transition-colors"
+        className={`sticky top-[env(safe-area-inset-top)] z-[45] glass-bar border-b border-slate-800/60 shadow-[0_4px_16px_var(--neu-shadow-dark)] transition-colors ${
+          isAppMode ? '[view-transition-name:app-header]' : ''
+        }`}
       >
         <div className={`${BAR_WIDTH} px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3`}>
           <TabLink

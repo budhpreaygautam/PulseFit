@@ -70,14 +70,14 @@ export function matchSystemBarsToTheme(theme: 'dark' | 'light'): void {
 }
 
 /**
- * Android back button: closes the open dialog (as Escape does), else goes back a page, else puts
+ * Android back button: closes the open dialog or menu (as Escape does), else goes back a page, else puts
  * the app in the background like other Android apps.
  */
 export async function handleAndroidBackButton(): Promise<void> {
   if (Capacitor.getPlatform() !== 'android') return;
   const { App } = await import('@capacitor/app');
   await App.addListener('backButton', ({ canGoBack }) => {
-    if (document.querySelector('[role="dialog"]')) {
+    if (document.querySelector('[role="dialog"], #mobile-menu')) {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     } else if (canGoBack) {
       window.history.back();
