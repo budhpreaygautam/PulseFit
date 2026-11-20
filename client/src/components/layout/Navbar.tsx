@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
 import {
   Activity,
   BadgeIndianRupee,
@@ -39,6 +40,8 @@ import { TabLink } from '../public/TabLink.js';
 import { ErrorBoundary } from '../common/ErrorBoundary.js';
 import { avatarOf } from '../member/avatarImage.js';
 import { isAppMode } from '../../lib/appMode.js';
+import { AppDrawer } from './AppDrawer.js';
+import { AppBar } from '../app/AppBar.js';
 
 // The QR pass (and the QR-code library it draws with) loads the first time a member opens it.
 // React remembers a load that failed, so a failure gets a fresh loader for the next try. (Chrome
@@ -54,7 +57,7 @@ interface NavbarProps {
 
 type DemoRole = 'member' | 'vip' | 'trainer' | 'admin';
 
-interface NavItem {
+export interface NavItem {
   tab: string;
   label: string;
   /** A shorter name for the header row, where the full one would wrap it at 1280 px; its tooltip and the menu keep `label`. */
@@ -187,7 +190,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
   useEffect(() => setIsMobileMenuOpen(false), [currentTab]);
 
   useEffect(() => {
-    if (!isMobileMenuOpen) return;
+    // The app's drawer closes itself on Escape, with its slide.
+    if (!isMobileMenuOpen || isAppMode) return;
     const onKeyDown = (e: KeyboardEvent) => e.key === 'Escape' && setIsMobileMenuOpen(false);
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
@@ -204,7 +208,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
   const showTips = () => setTipsDismissed(false);
 
   const go = (tab: string) => {
-    setIsMobileMenuOpen(false);
+    // Gone at once, so the app's page slide never starts from a screen with the menu drawer on it.
+    flushSync(() => setIsMobileMenuOpen(false));
     setCurrentTab(tab);
   };
 
@@ -230,6 +235,52 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
 
   const roleLinks = user ? ROLE_LINKS[user.role] : [];
   const activeDemoEmail = user?.email;
+
+  const qrButton = (
+    <button
+      type="button"
+      onClick={() => setIsQrModalOpen(true)}
+      aria-label="Show my QR entry pass"
+      className={
+        isAppMode
+          ? 'neu-icon-btn w-11 h-11 rounded-xl flex items-center justify-center text-slate-200'
+          : 'neu-btn flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold text-slate-200'
+      }
+    >
+      <QrCode className={isAppMode ? 'w-5 h-5 text-lime-400' : 'w-4 h-4 text-lime-400'} aria-hidden="true" />
+      {!isAppMode && <span className="hidden sm:inline">QR pass</span>}
+    </button>
+  );
+  const accountLink = user && (
+    <TabLink
+      tab="profile"
+      navigate={go}
+      isCurrent={currentTab === 'profile'}
+      aria-label={`My account (${user.name})`}
+      className={`flex items-center gap-2 pl-1.5 pr-1.5 sm:pr-3 py-1 rounded-xl transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime-500 ${
+        currentTab === 'profile' ? 'neu-pressed-sm border border-lime-500/30' : 'neu-btn'
+      }`}
+    >
+      <img src={avatarOf(user)} alt="" width={28} height={28} decoding="async" className="w-7 h-7 rounded-lg object-cover bg-slate-800" />
+      <span className="text-xs font-bold hidden sm:inline text-slate-200 max-w-[8rem] truncate">{user.name.split(' ')[0]}</span>
+    </TabLink>
+  );
+  const accountLoading = (
+    <div className="flex items-center gap-2" role="status">
+      <span className="w-24 h-8 rounded-xl neu-pressed-sm animate-pulse" aria-hidden="true" />
+      <span className="sr-only">{isServerUnreachable ? 'Reconnecting to PulseFit…' : 'Loading your account…'}</span>
+    </div>
+  );
+  const freePassButton = (
+    <button
+      type="button"
+      onClick={onOpenFreeTrialModal}
+      className="neu-btn-lime px-3 py-2 sm:px-4 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 whitespace-nowrap"
+    >
+      <Sparkles className="hidden sm:block w-3.5 h-3.5" aria-hidden="true" />
+      Free pass
+    </button>
+  );
 
   return (
     <>
@@ -279,171 +330,166 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
         </div>
       )}
 
-      {/* z-[45]: above the app download bar (z-40), so the open mobile menu is never under it. In the
-          app it has a view-transition name, so it stays still while the page slides (index.css). */}
-      <header
-        data-tips-dismissed={tipsDismissed ? '' : undefined}
-        className={`sticky top-[env(safe-area-inset-top)] z-[45] glass-bar border-b border-slate-800/60 shadow-[0_4px_16px_var(--neu-shadow-dark)] transition-colors ${
-          isAppMode ? '[view-transition-name:app-header]' : ''
-        }`}
-      >
-        <div className={`${BAR_WIDTH} px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3`}>
-          <TabLink
-            tab="home"
-            navigate={go}
-            className="flex items-center gap-2.5 group shrink-0 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime-500"
-            aria-label="PulseFit Athletics home"
-          >
-            <span className="w-10 h-10 rounded-2xl flex items-center justify-center neu-btn-lime group-hover:scale-105 transition-transform">
-              <Dumbbell className="w-5 h-5 stroke-[2.5]" aria-hidden="true" />
-            </span>
-            {/* Below 360px only the logo mark fits next to the buttons; the link keeps its aria-label. */}
-            <span className="text-left max-[359px]:hidden">
-              <span className="block text-lg font-black tracking-tight text-slate-100 font-heading leading-tight">
-                PULSE<span className="text-lime-400">FIT</span>
+      {/* The app has its own slim bar, menu drawer and bottom tabs instead of this header (AppBar). Coaches
+          and admins see their account link there; members their QR pass. */}
+      {isAppMode ? (
+        <AppBar menuOpen={isMobileMenuOpen} onOpenMenu={() => setIsMobileMenuOpen(true)}>
+          {isInitializing ? accountLoading : !user ? freePassButton : user.role === 'member' ? qrButton : accountLink}
+        </AppBar>
+      ) : (
+        /* z-[45]: above the app download bar (z-40), so the open mobile menu is never under it. */
+        <header
+          data-tips-dismissed={tipsDismissed ? '' : undefined}
+          className="sticky top-[env(safe-area-inset-top)] z-[45] glass-bar border-b border-slate-800/60 shadow-[0_4px_16px_var(--neu-shadow-dark)] transition-colors"
+        >
+          <div className={`${BAR_WIDTH} px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3`}>
+            <TabLink
+              tab="home"
+              navigate={go}
+              className="flex items-center gap-2.5 group shrink-0 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime-500"
+              aria-label="PulseFit Athletics home"
+            >
+              <span className="w-10 h-10 rounded-2xl flex items-center justify-center neu-btn-lime group-hover:scale-105 transition-transform">
+                <Dumbbell className="w-5 h-5 stroke-[2.5]" aria-hidden="true" />
               </span>
-              <span className="hidden md:block text-[10px] text-slate-400 font-medium leading-none">Sector 29 · Gurugram</span>
-            </span>
-          </TabLink>
+              {/* Below 360px only the logo mark fits next to the buttons; the link keeps its aria-label. */}
+              <span className="text-left max-[359px]:hidden">
+                <span className="block text-lg font-black tracking-tight text-slate-100 font-heading leading-tight">
+                  PULSE<span className="text-lime-400">FIT</span>
+                </span>
+                <span className="hidden md:block text-[10px] text-slate-400 font-medium leading-none">Sector 29 · Gurugram</span>
+              </span>
+            </TabLink>
 
-          <nav className="hidden xl:flex items-center gap-1.5" aria-label="Main">
-            {PUBLIC_LINKS.map(link => (
-              <BarLink key={link.tab} item={link} labelFrom="never" currentTab={currentTab} navigate={go} onShowTips={showTips} />
-            ))}
-          </nav>
+            <nav className="hidden xl:flex items-center gap-1.5" aria-label="Main">
+              {PUBLIC_LINKS.map(link => (
+                <BarLink key={link.tab} item={link} labelFrom="never" currentTab={currentTab} navigate={go} onShowTips={showTips} />
+              ))}
+            </nav>
 
-          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-            {isInitializing ? (
-              <div className="flex items-center gap-2" role="status">
-                <span className="w-24 h-8 rounded-xl neu-pressed-sm animate-pulse" aria-hidden="true" />
-                <span className="sr-only">{isServerUnreachable ? 'Reconnecting to PulseFit…' : 'Loading your account…'}</span>
-              </div>
-            ) : user ? (
-              <>
-                {user.role === 'member' && (
+            <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+              {isInitializing ? (
+                accountLoading
+              ) : user ? (
+                <>
+                  {user.role === 'member' && qrButton}
+                  {accountLink}
                   <button
                     type="button"
-                    onClick={() => setIsQrModalOpen(true)}
-                    aria-label="Show my QR entry pass"
-                    className="neu-btn flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold text-slate-200"
+                    onClick={handleLogout}
+                    aria-label="Sign out"
+                    title="Sign out"
+                    className="max-sm:!hidden neu-icon-btn p-2 text-slate-400 hover:text-rose-500"
                   >
-                    <QrCode className="w-4 h-4 text-lime-400" aria-hidden="true" />
-                    <span className="hidden sm:inline">QR pass</span>
+                    <LogOut className="w-4 h-4" aria-hidden="true" />
                   </button>
-                )}
-                <TabLink
-                  tab="profile"
-                  navigate={go}
-                  isCurrent={currentTab === 'profile'}
-                  aria-label={`My account (${user.name})`}
-                  className={`flex items-center gap-2 pl-1.5 pr-1.5 sm:pr-3 py-1 rounded-xl transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime-500 ${
-                    currentTab === 'profile' ? 'neu-pressed-sm border border-lime-500/30' : 'neu-btn'
-                  }`}
-                >
-                  <img src={avatarOf(user)} alt="" width={28} height={28} decoding="async" className="w-7 h-7 rounded-lg object-cover bg-slate-800" />
-                  <span className="text-xs font-bold hidden sm:inline text-slate-200 max-w-[8rem] truncate">{user.name.split(' ')[0]}</span>
-                </TabLink>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  aria-label="Sign out"
-                  title="Sign out"
-                  className="max-sm:!hidden neu-icon-btn p-2 text-slate-400 hover:text-rose-500"
-                >
-                  <LogOut className="w-4 h-4" aria-hidden="true" />
-                </button>
-              </>
-            ) : (
-              <>
-                <button type="button" onClick={() => onOpenAuthModal('login')} className="neu-btn px-3 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-200 whitespace-nowrap">
-                  Sign in
-                </button>
-                <button
-                  type="button"
-                  onClick={onOpenFreeTrialModal}
-                  className="neu-btn-lime px-3 py-2 sm:px-4 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 whitespace-nowrap"
-                >
-                  <Sparkles className="hidden sm:block w-3.5 h-3.5" aria-hidden="true" />
-                  Free pass
-                </button>
-              </>
-            )}
+                </>
+              ) : (
+                <>
+                  <button type="button" onClick={() => onOpenAuthModal('login')} className="neu-btn px-3 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-200 whitespace-nowrap">
+                    Sign in
+                  </button>
+                  {freePassButton}
+                </>
+              )}
 
-            {/* .neu-icon-btn sets its own display, so the wrapper hides it on phones (it lives in the menu there). */}
-            <span className="hidden sm:inline-flex">
+              {/* .neu-icon-btn sets its own display, so the wrapper hides it on phones (it lives in the menu there). */}
+              <span className="hidden sm:inline-flex">
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+                  title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+                  className="neu-icon-btn p-2 text-slate-200"
+                >
+                  {isDark ? <Sun className="w-4 h-4 text-amber-400" aria-hidden="true" /> : <Moon className="w-4 h-4" aria-hidden="true" />}
+                </button>
+              </span>
+
               <button
                 type="button"
-                onClick={toggleTheme}
-                aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
-                title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
-                className="neu-icon-btn p-2 text-slate-200"
+                onClick={() => setIsMobileMenuOpen(open => !open)}
+                aria-expanded={isMobileMenuOpen}
+                aria-controls="mobile-menu"
+                aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+                className={`${MENU_HIDDEN} neu-icon-btn p-2 text-slate-200`}
               >
-                {isDark ? <Sun className="w-4 h-4 text-amber-400" aria-hidden="true" /> : <Moon className="w-4 h-4" aria-hidden="true" />}
+                {isMobileMenuOpen ? <X className="w-5 h-5" aria-hidden="true" /> : <Menu className="w-5 h-5" aria-hidden="true" />}
               </button>
-            </span>
-
-            <button
-              type="button"
-              onClick={() => setIsMobileMenuOpen(open => !open)}
-              aria-expanded={isMobileMenuOpen}
-              aria-controls="mobile-menu"
-              aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
-              className={`${MENU_HIDDEN} neu-icon-btn p-2 text-slate-200`}
-            >
-              {isMobileMenuOpen ? <X className="w-5 h-5" aria-hidden="true" /> : <Menu className="w-5 h-5" aria-hidden="true" />}
-            </button>
+            </div>
           </div>
-        </div>
 
-        {user && !isInitializing && (
-          <div className="hidden md:block border-t border-slate-800/60">
-            <nav
-              className={`${BAR_WIDTH} px-4 sm:px-6 lg:px-8 py-2 flex flex-wrap items-center gap-1.5`}
-              aria-label={ROLE_SECTION_LABEL[user.role]}
-            >
-              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mr-2 shrink-0">{ROLE_SECTION_LABEL[user.role]}</span>
-              {roleLinks.map(link => (
-                <BarLink key={link.tab} item={link} labelFrom="xl" currentTab={currentTab} navigate={go} onShowTips={showTips} />
-              ))}
-            </nav>
-          </div>
-        )}
-
-        {isMobileMenuOpen && (
-          <div id="mobile-menu" className={`${MENU_HIDDEN} border-t border-slate-800/80 glass-bar px-4 py-4 shadow-2xl max-h-[80vh] overflow-y-auto`}>
-            <nav aria-label="Main" className="space-y-1.5">
-              <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 px-3 py-1 font-bold">Explore PulseFit</div>
-              {MENU_LINKS.map(link => (
-                <TabLink key={link.tab} tab={link.tab} navigate={go} isCurrent={currentTab === link.tab} className={mobileLinkClass(currentTab === link.tab)}>
-                  <link.icon className="w-4 h-4 text-lime-400" aria-hidden="true" />
-                  {link.label}
-                </TabLink>
-              ))}
-            </nav>
-
-            <button type="button" onClick={toggleTheme} className={`sm:hidden mt-4 ${mobileLinkClass(false)}`}>
-              {isDark ? <Sun className="w-4 h-4 text-amber-400" aria-hidden="true" /> : <Moon className="w-4 h-4" aria-hidden="true" />}
-              {isDark ? 'Switch to light theme' : 'Switch to dark theme'}
-            </button>
-
-            {user && !isInitializing && (
-              <nav aria-label={ROLE_SECTION_LABEL[user.role]} className="space-y-1.5 mt-4">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 px-3 py-1 font-bold">{ROLE_SECTION_LABEL[user.role]}</div>
+          {user && !isInitializing && (
+            <div className="hidden md:block border-t border-slate-800/60">
+              <nav
+                className={`${BAR_WIDTH} px-4 sm:px-6 lg:px-8 py-2 flex flex-wrap items-center gap-1.5`}
+                aria-label={ROLE_SECTION_LABEL[user.role]}
+              >
+                <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mr-2 shrink-0">{ROLE_SECTION_LABEL[user.role]}</span>
                 {roleLinks.map(link => (
+                  <BarLink key={link.tab} item={link} labelFrom="xl" currentTab={currentTab} navigate={go} onShowTips={showTips} />
+                ))}
+              </nav>
+            </div>
+          )}
+
+          {isMobileMenuOpen && (
+            <div id="mobile-menu" className={`${MENU_HIDDEN} border-t border-slate-800/80 glass-bar px-4 py-4 shadow-2xl max-h-[80vh] overflow-y-auto`}>
+              <nav aria-label="Main" className="space-y-1.5">
+                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 px-3 py-1 font-bold">Explore PulseFit</div>
+                {MENU_LINKS.map(link => (
                   <TabLink key={link.tab} tab={link.tab} navigate={go} isCurrent={currentTab === link.tab} className={mobileLinkClass(currentTab === link.tab)}>
                     <link.icon className="w-4 h-4 text-lime-400" aria-hidden="true" />
                     {link.label}
                   </TabLink>
                 ))}
-                <button type="button" onClick={handleLogout} className={mobileLinkClass(false)}>
-                  <LogOut className="w-4 h-4 text-rose-400" aria-hidden="true" />
-                  Sign out
-                </button>
               </nav>
-            )}
-          </div>
-        )}
-      </header>
+
+              <button type="button" onClick={toggleTheme} className={`sm:hidden mt-4 ${mobileLinkClass(false)}`}>
+                {isDark ? <Sun className="w-4 h-4 text-amber-400" aria-hidden="true" /> : <Moon className="w-4 h-4" aria-hidden="true" />}
+                {isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+              </button>
+
+              {user && !isInitializing && (
+                <nav aria-label={ROLE_SECTION_LABEL[user.role]} className="space-y-1.5 mt-4">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 px-3 py-1 font-bold">{ROLE_SECTION_LABEL[user.role]}</div>
+                  {roleLinks.map(link => (
+                    <TabLink key={link.tab} tab={link.tab} navigate={go} isCurrent={currentTab === link.tab} className={mobileLinkClass(currentTab === link.tab)}>
+                      <link.icon className="w-4 h-4 text-lime-400" aria-hidden="true" />
+                      {link.label}
+                    </TabLink>
+                  ))}
+                  <button type="button" onClick={handleLogout} className={mobileLinkClass(false)}>
+                    <LogOut className="w-4 h-4 text-rose-400" aria-hidden="true" />
+                    Sign out
+                  </button>
+                </nav>
+              )}
+            </div>
+          )}
+        </header>
+      )}
+
+      {/* Outside the app bar: its frosted glass would make it the drawer's frame instead of the screen. */}
+      {isAppMode && isMobileMenuOpen && (
+        <AppDrawer
+          currentTab={currentTab}
+          navigate={go}
+          onClose={() => setIsMobileMenuOpen(false)}
+          menuLinks={MENU_LINKS}
+          roleLinks={user && !isInitializing ? roleLinks : []}
+          roleLabel={user && !isInitializing ? ROLE_SECTION_LABEL[user.role] : undefined}
+          onSignIn={() => {
+            setIsMobileMenuOpen(false);
+            onOpenAuthModal('login');
+          }}
+          onJoin={() => {
+            setIsMobileMenuOpen(false);
+            onOpenAuthModal('register');
+          }}
+          onLogout={handleLogout}
+        />
+      )}
 
       {isQrModalOpen && (
         <ErrorBoundary

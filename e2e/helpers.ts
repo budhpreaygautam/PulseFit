@@ -66,6 +66,34 @@ export async function useAppMode(page: Page): Promise<void> {
   await page.addInitScript(() => window.localStorage.setItem('pulsefit_test_app_mode', '1'));
 }
 
+/** The app's bottom tabs, and its menu drawer (app mode). */
+export const tabBar = (page: Page) => page.getByRole('navigation', { name: 'Tabs' });
+export const appDrawer = (page: Page) => page.getByRole('dialog', { name: 'Menu' });
+
+/** Emulates a phone's safe-area insets; false when this Chromium cannot. Call after setting the viewport, which resets them. */
+export async function emulateInsets(page: Page, insets: Record<string, number>): Promise<boolean> {
+  const cdp = (await page.context().newCDPSession(page)) as unknown as { send(method: string, params: object): Promise<unknown> };
+  return cdp.send('Emulation.setSafeAreaInsetsOverride', { insets }).then(() => true, () => false);
+}
+
+type Point = { x: number; y: number };
+
+/**
+ * Drags one finger from `from` to `to` in `steps` touch moves (CDP touch events, as a phone sends them).
+ * With `release: false` the finger stays down; call the returned function to lift it.
+ */
+export async function touchDrag(page: Page, from: Point, to: Point, { steps = 8, release = true } = {}): Promise<() => Promise<void>> {
+  const cdp = await page.context().newCDPSession(page);
+  const touch = async (type: 'touchStart' | 'touchMove' | 'touchEnd', at?: Point) => {
+    await cdp.send('Input.dispatchTouchEvent', { type, touchPoints: at ? [at] : [] });
+  };
+  await touch('touchStart', from);
+  for (let i = 1; i <= steps; i++) await touch('touchMove', { x: from.x + ((to.x - from.x) * i) / steps, y: from.y + ((to.y - from.y) * i) / steps });
+  const lift = () => touch('touchEnd');
+  if (release) await lift();
+  return lift;
+}
+
 /** An APK to offer, as GET /api/config reports one (androidApp); the test server has none. */
 export const APP = { url: '/downloads/pulsefit.apk', version: '2.2.0', size: 24 * 1024 * 1024 };
 

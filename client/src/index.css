@@ -727,8 +727,8 @@ html .neu-icon-btn.neu-icon-btn-danger.neu-icon-btn-danger:hover:not(:disabled) 
   box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.1), 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
-/* Page animations in the app (lib/appMotion.ts sets html[data-nav] for view transitions; the header,
-   named app-header, stays still). None with reduced motion. */
+/* Page animations in the app (lib/appMotion.ts sets html[data-nav] for view transitions; the app bar
+   and the tab bar, named app-header and app-tabbar, stay still). None with reduced motion. */
 /* Taps go through to the new page while a transition runs. */
 ::view-transition {
   pointer-events: none;
@@ -751,6 +751,13 @@ html:active-view-transition .toast-region {
     animation: 280ms ease-out both app-slide-out;
     z-index: 1;
   }
+  /* Switching bottom tabs cross-fades quickly. */
+  html[data-nav='tab']::view-transition-old(root) {
+    animation: 150ms ease-out both app-fade-out;
+  }
+  html[data-nav='tab']::view-transition-new(root) {
+    animation: 150ms ease-out both app-fade-in;
+  }
 }
 @keyframes app-slide-in {
   from {
@@ -760,6 +767,119 @@ html:active-view-transition .toast-region {
 @keyframes app-slide-out {
   to {
     transform: translateX(100%);
+  }
+}
+
+/* The app's bottom tabs (AppTabBar.tsx): 62 px above the gesture bar, clear of a landscape phone's side
+   nav bar and cutout. The page, focus moving through it and the toasts on wider screens keep clear of it. */
+.app-tabbar {
+  height: calc(62px + env(safe-area-inset-bottom));
+  padding: 0 max(8px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(8px, env(safe-area-inset-left));
+  view-transition-name: app-tabbar;
+}
+html:has(.app-tabbar) {
+  scroll-padding-bottom: calc(62px + env(safe-area-inset-bottom));
+}
+html:has(.app-tabbar) #main {
+  padding-bottom: calc(62px + env(safe-area-inset-bottom));
+}
+@media (min-width: 640px) {
+  html:has(.app-tabbar) .toast-region {
+    bottom: calc(62px + 1.25rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* The app's menu drawer (AppDrawer.tsx) slides in over a fading scrim, on Material's decelerate curve.
+   Closing and swiping are animated from the code, from wherever the drawer is. */
+@media (prefers-reduced-motion: no-preference) {
+  .app-drawer {
+    animation: app-drawer-in 280ms cubic-bezier(0, 0, 0.2, 1);
+  }
+  .app-drawer-scrim {
+    animation: app-fade-in 280ms ease-out;
+  }
+}
+@keyframes app-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes app-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Cards rising into view in the app (revealCards in lib/appMotion.ts). Their own transitions are off
+   meanwhile: hiding a card must not fade it out first, and a running transition would outrank the rise. */
+.card-pending {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: none !important;
+}
+.card-rise {
+  animation: card-rise 300ms cubic-bezier(0.2, 0, 0, 1) var(--rise-delay, 0ms) backwards;
+  transition: none !important;
+}
+@keyframes card-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+/* Tap feedback in the app (main.tsx adds .in-app to <html>): no grey flash on a tap, and buttons, links
+   and tappable cards shrink a little while pressed (the neu-btn family already sinks in, above). The
+   WebView's own overscroll effect is off, so it never fights pull to refresh (PullToRefresh.tsx). */
+html.in-app {
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html.in-app :is(button, a[href], [role='button']):not(.neu-btn, .neu-btn-lime, .neu-btn-pink, .neu-btn-danger, .neu-icon-btn, :disabled, [aria-disabled='true']):active {
+    scale: 0.97;
+    transition: scale 120ms cubic-bezier(0.2, 0, 0, 1);
+  }
+  html.in-app :is(.neu-flat, .neu-card, .neu-flat-lg):is(button, a[href], [role='button']):not(:disabled, [aria-disabled='true']):active {
+    scale: 0.98;
+  }
+}
+
+/* The app's launch animation (AppLaunch.tsx): the logo springs in with a twist and the name rises after
+   it, then the whole screen fades into the page, all in 850 ms. With reduced motion only a short fade. */
+.app-launch {
+  animation: app-fade-out 250ms ease-in 600ms forwards;
+}
+.app-launch-logo {
+  animation: app-launch-pop 450ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+.app-launch-name {
+  animation: app-launch-rise 400ms cubic-bezier(0.34, 1.56, 0.64, 1) 100ms backwards;
+}
+@keyframes app-launch-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-18deg);
+  }
+}
+@keyframes app-launch-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes app-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-launch {
+    animation: app-fade-out 200ms ease-out forwards;
+  }
+  .app-launch-logo,
+  .app-launch-name {
+    animation: none;
   }
 }
 

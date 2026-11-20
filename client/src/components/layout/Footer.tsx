@@ -2,9 +2,9 @@ import React from 'react';
 import { Clock, Dumbbell, Mail, MapPin, Phone, Smartphone } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
-import { isAppMode } from '../../lib/appMode.js';
 import { homeTabFor } from '../../routes.js';
 import { gymToday } from '../../lib/format.js';
+import { User } from '../../types/index.js';
 import { TabLink } from '../public/TabLink.js';
 import { GYM_ADDRESS, GYM_EMAIL, GYM_NAME, GYM_PHONE_DISPLAY, GYM_PHONE_TEL, HOURS_DAYS, HOURS_TIME } from '../public/gymInfo.js';
 
@@ -27,14 +27,8 @@ const LEGAL = [
 
 const linkClass = 'hover:text-lime-400 transition-colors font-medium rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime-500';
 
-export const Footer: React.FC<{ setCurrentTab: (tab: string) => void }> = ({ setCurrentTab }) => {
-  const { user } = useAuth();
-  const { config } = useAppConfig();
-  // The APK this server offers (GET /api/config); pointless inside the app itself.
-  const androidApp = isAppMode ? null : config.androidApp;
-  const year = gymToday().slice(0, 4);
-
-  const accountLinks = user
+const accountLinksFor = (user: User | null) =>
+  user
     ? [
         { tab: homeTabFor(user.role), label: 'My dashboard' },
         ...(user.role === 'member' ? [{ tab: 'my-bookings', label: 'My bookings' }] : []),
@@ -45,6 +39,48 @@ export const Footer: React.FC<{ setCurrentTab: (tab: string) => void }> = ({ set
         { tab: 'pricing', label: 'Become a member' },
         { tab: 'schedule', label: 'Book a class' }
       ];
+
+/** Every page the footer links to, for the app's menu drawer (the app has no footer). */
+export const footerLinks = (user: User | null) => [...EXPLORE, ...accountLinksFor(user), ...LEGAL];
+
+/** The gym's address, phone, email and hours: in the footer, and in the app's menu drawer. */
+export const VisitUs: React.FC = () => (
+  <address className="not-italic space-y-3 text-xs">
+    <div className="flex items-start gap-2.5">
+      <MapPin className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
+      <span className="text-slate-300">{GYM_ADDRESS}</span>
+    </div>
+    <div className="flex items-center gap-2.5">
+      <Phone className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" />
+      <a href={`tel:${GYM_PHONE_TEL}`} className={`text-slate-300 ${linkClass}`}>
+        {GYM_PHONE_DISPLAY}
+      </a>
+    </div>
+    <div className="flex items-center gap-2.5">
+      <Mail className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" />
+      <a href={`mailto:${GYM_EMAIL}`} className={`text-slate-300 ${linkClass}`}>
+        {GYM_EMAIL}
+      </a>
+    </div>
+    <div className="flex items-start gap-2.5">
+      <Clock className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
+      <div>
+        <div className="text-slate-300">
+          {HOURS_DAYS}: <span className="text-slate-200 font-bold">{HOURS_TIME}</span>
+        </div>
+        <div className="text-rose-400 font-semibold">Sunday: closed</div>
+      </div>
+    </div>
+  </address>
+);
+
+export const Footer: React.FC<{ setCurrentTab: (tab: string) => void }> = ({ setCurrentTab }) => {
+  const { user } = useAuth();
+  const { config } = useAppConfig();
+  // The APK this server offers (GET /api/config).
+  const androidApp = config.androidApp;
+  const year = gymToday().slice(0, 4);
+  const accountLinks = accountLinksFor(user);
 
   return (
     <footer className="bg-gym-950 border-t border-slate-800/80 pt-14 pb-10 text-slate-400">
@@ -98,33 +134,7 @@ export const Footer: React.FC<{ setCurrentTab: (tab: string) => void }> = ({ set
 
           <div className="space-y-3 text-sm">
             <h2 className="text-xs font-black uppercase tracking-widest text-slate-200 font-mono">Visit us</h2>
-            <address className="not-italic space-y-3 text-xs">
-              <div className="flex items-start gap-2.5">
-                <MapPin className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
-                <span className="text-slate-300">{GYM_ADDRESS}</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <Phone className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" />
-                <a href={`tel:${GYM_PHONE_TEL}`} className={`text-slate-300 ${linkClass}`}>
-                  {GYM_PHONE_DISPLAY}
-                </a>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <Mail className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" />
-                <a href={`mailto:${GYM_EMAIL}`} className={`text-slate-300 ${linkClass}`}>
-                  {GYM_EMAIL}
-                </a>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <Clock className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
-                <div>
-                  <div className="text-slate-300">
-                    {HOURS_DAYS}: <span className="text-slate-200 font-bold">{HOURS_TIME}</span>
-                  </div>
-                  <div className="text-rose-400 font-semibold">Sunday: closed</div>
-                </div>
-              </div>
-            </address>
+            <VisitUs />
           </div>
         </div>
 

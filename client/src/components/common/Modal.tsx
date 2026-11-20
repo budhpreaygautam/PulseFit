@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
+import { isAppMode } from '../../lib/appMode.js';
 
 interface ModalProps {
   isOpen: boolean;
@@ -25,15 +26,15 @@ const maxWidthClasses = {
   '4xl': 'sm:max-w-4xl'
 };
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, description, children, maxWidth = 'lg' }) => {
-  const dialogRef = useRef<HTMLDivElement>(null);
+/**
+ * A modal dialog's focus management, for `ref` while `isOpen`: move focus into it, keep Tab inside it,
+ * call onClose on Escape, lock background scroll, and give focus back to whatever opened it. Modal and
+ * the app's menu drawer (AppDrawer) use it.
+ */
+export function useModalFocus(ref: React.RefObject<HTMLElement>, isOpen: boolean, onClose: () => void): void {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
-  const titleId = useId();
-  const descriptionId = useId();
 
-  // Focus management: move focus into the dialog, keep Tab inside it, close on Escape,
-  // lock background scroll, and give focus back to whatever opened the dialog.
   useEffect(() => {
     if (!isOpen) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -42,7 +43,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, descriptio
     const id = Symbol('dialog');
     openDialogs.push(id);
 
-    const dialog = dialogRef.current;
+    const dialog = ref.current;
     const first = dialog?.querySelector<HTMLElement>(FOCUSABLE);
     (first ?? dialog)?.focus();
 
@@ -72,9 +73,18 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, descriptio
       document.removeEventListener('keydown', onKeyDown);
       openDialogs.splice(openDialogs.indexOf(id), 1);
       document.body.style.overflow = previousOverflow;
-      previouslyFocused?.focus?.();
+      // The app's opener can be gone (the guests' Sign in tab, once signed in): focus the page instead.
+      if (previouslyFocused?.isConnected) previouslyFocused.focus?.();
+      else if (isAppMode) document.getElementById('main')?.focus({ preventScroll: true });
     };
-  }, [isOpen]);
+  }, [isOpen, ref]);
+}
+
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, description, children, maxWidth = 'lg' }) => {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+  useModalFocus(dialogRef, isOpen, onClose);
 
   if (!isOpen) return null;
 

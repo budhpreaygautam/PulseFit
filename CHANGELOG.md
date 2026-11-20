@@ -6,12 +6,24 @@ All notable changes to PulseFit. Versions follow [Semantic Versioning](https://s
 
 ### Changed
 
-- **The Android app is the website.** Inside the Android and iOS apps everyone gets the website as it looks on a phone:
-  it opens on the homepage, with the same header and menu, pages and footer. A new page slides in, Back slides it out,
-  and the header stays still; nothing moves when the phone asks for reduced motion. The bottom tab bar, the members'
-  Home, Classes, Pass, Train and Me screens and the guests' welcome screen are gone, and with them the app-only `/pass`
-  address; everything they offered is on the website's pages and menu (the entry pass is the header's QR button). The
-  website in a browser is unchanged.
+- **The Android app shows the website's pages in an app frame.** Inside the Android and iOS apps everyone gets the
+  website's own pages, opening on the homepage (coaches and admins on their first tab), in a frame of the app's own:
+  - a slim app bar instead of the website header: ☰ opens the menu on a tab's page and ← goes back on any other, next
+    to the page's title; on the right the QR pass for members, "Free pass" for guests and their account for staff;
+  - bottom tabs: Home, Classes, Pass and Me for members; Home, Contact and Sign in for guests; Today, Check-in, Classes
+    and Me for coaches; Dashboard, Members, Leads and Classes for admins, whose check-in is in the menu. Pass is a page
+    of the app (`/pass`) with the member's check-in QR code, plan and status and their ID card; on the website `/pass`
+    stays a missing page;
+  - a side drawer instead of the website menu: it slides in from the left with the account at the top, then the
+    menu's links, the theme switch, Sign out and the footer's other links (exercise library, privacy, terms, refunds,
+    the gym's address and phone). A swipe to the left, the dimmed page, Escape or Back closes it;
+  - no footer: everything it linked to is in the drawer or on Contact us.
+
+  A new page slides in and Back slides it out, switching tabs cross-fades, cards fade and rise in as they scroll into
+  view, buttons and links press in with a light vibration, the logo animates for a moment when the app starts, and
+  pulling down at the top of a page without a form reloads it. Nothing moves when the phone asks for reduced motion.
+  The app's own Home, Classes, Train and Me screens and the guests' welcome screen are gone: their pages are the
+  website's. The website in a browser is unchanged.
 
 ## [2.4.0] — 2026-11-20
 

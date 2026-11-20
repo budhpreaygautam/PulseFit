@@ -2,11 +2,15 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.js';
 import { ErrorBoundary } from './components/common/ErrorBoundary.js';
-import { handleAndroidBackButton } from './lib/native.js';
+import { handleAndroidBackButton, vibrateOnPress } from './lib/native.js';
 import { loadAuthToken } from './lib/authToken.js';
+import { isAppMode } from './lib/appMode.js';
 import './index.css';
 
 void handleAndroidBackButton();
+vibrateOnPress();
+// The app's tap feedback and overscroll rules hang off this class (index.css).
+if (isAppMode) document.documentElement.classList.add('in-app');
 
 // Pages have their own error panel (App.tsx). This catches the rest (header, footer, dialogs), so
 // a crash there still leaves a way back instead of an empty page.

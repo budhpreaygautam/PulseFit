@@ -70,19 +70,41 @@ export function matchSystemBarsToTheme(theme: 'dark' | 'light'): void {
 }
 
 /**
- * Android back button: closes the open dialog or menu (as Escape does), else goes back a page, else puts
+ * Android back button: closes the open dialog, the menu drawer among them (as Escape does), else goes
+ * back a page (or, on a page with no earlier one, to the first tab as the app bar's ← does), else puts
  * the app in the background like other Android apps.
  */
 export async function handleAndroidBackButton(): Promise<void> {
   if (Capacitor.getPlatform() !== 'android') return;
   const { App } = await import('@capacitor/app');
   await App.addListener('backButton', ({ canGoBack }) => {
-    if (document.querySelector('[role="dialog"], #mobile-menu')) {
+    if (document.querySelector('[role="dialog"]')) {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     } else if (canGoBack) {
       window.history.back();
     } else {
-      void App.minimizeApp();
+      // Only a tab's own page has no ← (AppBar), so Back leaves the app from there alone.
+      const back = document.querySelector<HTMLButtonElement>('header button[aria-label="Back"]');
+      if (back) back.click();
+      else void App.minimizeApp();
     }
   });
+}
+
+/**
+ * A light vibration when a button, link or tab is tapped, with the press-in of index.css, in the native
+ * app only (the plugin loads on the first tap). A failure is ignored: the tap still works.
+ */
+export function vibrateOnPress(): void {
+  if (!isNativeApp) return;
+  // A click, not pointerdown: a scroll, a swipe or a pull that starts on a link never buzzes. Capture
+  // sees clicks a handler stops; code's own .click() (Android Back on ←) is not a tap.
+  document.addEventListener(
+    'click',
+    e => {
+      if (!e.isTrusted || !(e.target instanceof Element) || !e.target.closest('button:not(:disabled), a[href], [role="button"]:not([aria-disabled="true"])')) return;
+      import('@capacitor/haptics').then(({ Haptics, ImpactStyle }) => Haptics.impact({ style: ImpactStyle.Light })).catch(() => undefined);
+    },
+    true
+  );
 }

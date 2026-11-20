@@ -1,5 +1,7 @@
 # The Android app shows the website — design (short)
 
+> **Partly replaced** by [the drawer, bottom tabs and app motion](2026-11-20-android-app-drawer-design.md): the app now has its own app bar, drawer and bottom tabs instead of the website header, menu and footer, coaches and admins start on their first tab, and /pass is back as the app's Pass page. The page animations and the app-only behaviour below stay.
+
 Approved in conversation on 2026-11-20.
 
 The owner said: "app not looks good, like web app need to open homepage and some services ux sholube

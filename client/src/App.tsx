@@ -10,7 +10,12 @@ import { Navbar } from './components/layout/Navbar.js';
 import { Footer } from './components/layout/Footer.js';
 import { AndroidAppBanner } from './components/layout/AndroidAppBanner.js';
 import { AppUpdatePrompt } from './components/app/AppUpdatePrompt.js';
+import { AppLaunch } from './components/app/AppLaunch.js';
+import { PullToRefresh } from './components/app/PullToRefresh.js';
+import { AppTabBar } from './components/app/AppTabBar.js';
+import { firstTab, tabsFor } from './components/app/tabs.js';
 import { isAppMode } from './lib/appMode.js';
+import { revealCards } from './lib/appMotion.js';
 import { ErrorBoundary } from './components/common/ErrorBoundary.js';
 import { clearPendingPage, rememberPendingPage } from './components/public/pendingPage.js';
 
@@ -56,6 +61,7 @@ const WorkoutLogger = named(() => import('./pages/member/WorkoutLogger.js'), 'Wo
 const ExerciseLibraryView = publicPage(() => import('./pages/member/ExerciseLibraryView.js'), 'ExerciseLibraryView');
 const MemberProfilePage = named(() => import('./pages/member/MemberProfilePage.js'), 'MemberProfilePage');
 const RewardsPage = named(() => import('./pages/member/RewardsPage.js'), 'RewardsPage');
+const PassPage = named(() => import('./pages/member/PassPage.js'), 'PassPage');
 const TrainerDashboard = named(() => import('./pages/trainer/TrainerDashboard.js'), 'TrainerDashboard');
 const AdminDashboard = named(() => import('./pages/admin/AdminDashboard.js'), 'AdminDashboard');
 const MemberManagement = named(() => import('./pages/admin/MemberManagement.js'), 'MemberManagement');
@@ -64,6 +70,10 @@ const QuickCheckInScanner = named(() => import('./pages/admin/QuickCheckInScanne
 const ClassManagement = named(() => import('./pages/admin/ClassManagement.js'), 'ClassManagement');
 const PlanManagement = named(() => import('./pages/admin/PlanManagement.js'), 'PlanManagement');
 const TrialLeads = named(() => import('./pages/admin/TrialLeads.js'), 'TrialLeads');
+
+// Pull to refresh in the app, only on pages without a form to fill in: refreshing remounts the page,
+// which would lose what someone typed; nor while a note or search on them holds text (PullToRefresh).
+const PULL_TO_REFRESH_TABS = new Set(['home', 'workout', 'zumba', 'guide', 'schedule', 'pricing', 'trainers', 'exercise-library', 'member-dashboard', 'my-bookings', 'rewards', 'pass']);
 
 // At least a screen tall, so the footer stays below the fold while a page loads instead of showing
 // and then jumping down when the page arrives (a layout shift).
@@ -95,7 +105,7 @@ const AccessPanel: React.FC<{ icon: React.ReactNode; title: string; body: string
 
 function MainAppContent() {
   const { tab, params, navigate, signInRequests } = useNavigation();
-  const { user, isInitializing, isServerUnreachable, retrySessionRestore } = useAuth();
+  const { user, isInitializing, isServerUnreachable, retrySessionRestore, refreshUser } = useAuth();
   const { showToast } = useToast();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -161,10 +171,14 @@ function MainAppContent() {
     if (isInitializing) return;
     if (!restoreSettled.current) {
       restoreSettled.current = true;
+      // The app starts coaches and admins on their first tab (their dashboard); a deep link keeps its page.
+      if (isAppMode && user && user.role !== 'member' && tab === 'home' && params.toString() === '') {
+        navigate(firstTab(tabsFor(user, false)), undefined, { replace: true });
+      }
       return;
     }
     if (user && !previous && tab === 'home') navigate(homeTabFor(user.role), undefined, { replace: true });
-  }, [user, isInitializing, tab, navigate]);
+  }, [user, isInitializing, tab, params, navigate]);
 
   // Pages load their data once, so the page is remounted whenever the signed-in account changes or
   // signs out: nothing from the previous account stays on screen. A guest signing in, or the saved
@@ -175,6 +189,13 @@ function MainAppContent() {
     if (lastUserId !== null) setAccountGeneration(g => g + 1);
     setLastUserId(user?.id ?? null);
   }
+
+  // Pull to refresh remounts the page the same way, so it loads its data again, and reloads the account.
+  const [refreshes, setRefreshes] = useState(0);
+  const refreshPage = useCallback(() => {
+    setRefreshes(n => n + 1);
+    return user ? refreshUser() : Promise.resolve();
+  }, [user, refreshUser]);
 
   // A new page moves focus to its heading (or to <main>) and is announced, so keyboard and
   // screen-reader users know the link worked. Not on first load, and not over an open dialog.
@@ -224,6 +245,9 @@ function MainAppContent() {
       observer?.disconnect();
     };
   }, [tab]);
+
+  // In the app, cards rise into view as the pages show them (lib/appMotion.ts).
+  useEffect(() => revealCards(mainRef.current!), []);
 
   const route = routeForTab(tab);
   const showOfflinePanel = Boolean(route && route.access !== 'public' && isInitializing && isServerUnreachable);
@@ -314,6 +338,8 @@ function MainAppContent() {
         return <WorkoutLogger setCurrentTab={setCurrentTab} />;
       case 'rewards':
         return <RewardsPage />;
+      case 'pass':
+        return <PassPage />;
       case 'profile':
         return <MemberProfilePage setCurrentTab={setCurrentTab} />;
       case 'trainer-dashboard':
@@ -368,7 +394,7 @@ function MainAppContent() {
         {/* A page that fails (one that loads on demand and could not be fetched, or a crash) shows
             this panel instead of emptying the whole app. Moving to another page tries again. */}
         <ErrorBoundary
-          resetKey={`${accountGeneration}:${tab}`}
+          resetKey={`${accountGeneration}:${refreshes}:${tab}`}
           fallback={
             <AccessPanel
               icon={<AlertTriangle className="w-6 h-6" aria-hidden="true" />}
@@ -379,11 +405,14 @@ function MainAppContent() {
             />
           }
         >
-          <Suspense key={accountGeneration} fallback={<PageLoader />}>
+          <Suspense key={`${accountGeneration}:${refreshes}`} fallback={<PageLoader />}>
             {page}
           </Suspense>
         </ErrorBoundary>
       </main>
+
+      {isAppMode && PULL_TO_REFRESH_TABS.has(tab) && <PullToRefresh onRefresh={refreshPage} />}
+      {isAppMode && <AppTabBar onSignIn={() => openAuthModal('login')} />}
 
       <div id="route-announcer" className="sr-only" aria-live="polite" aria-atomic="true">
         {announcement}
@@ -430,7 +459,8 @@ function MainAppContent() {
         </ErrorBoundary>
       )}
 
-      <Footer setCurrentTab={setCurrentTab} />
+      {/* No footer in the app: its links are in the menu drawer (AppDrawer) and the bottom tabs. */}
+      {!isAppMode && <Footer setCurrentTab={setCurrentTab} />}
     </div>
   );
 }
@@ -446,6 +476,7 @@ export default function App() {
               {/* After the app root: its spacer then adds to the end of the page and moves nothing. */}
               <AndroidAppBanner />
               <AppUpdatePrompt />
+              {isAppMode && <AppLaunch />}
             </NavigationProvider>
           </ThemeProvider>
         </AuthProvider>
