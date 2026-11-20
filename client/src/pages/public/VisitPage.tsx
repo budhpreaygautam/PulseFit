@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Clock, Mail, MapPin, Navigation, Phone } from 'lucide-react';
 import { useAppConfig } from '../../context/ConfigContext.js';
-import { GYM_ADDRESS, GYM_EMAIL, GYM_PHONE_DISPLAY, GYM_PHONE_TEL, weekdayOf } from '../../components/public/gymInfo.js';
-import { DAY_NAMES, formatClock, gymClockNow, gymToday } from '../../lib/format.js';
+import { SocialLinks, VisitWebsiteLink, WhatsAppButton } from '../../components/public/ContactLinks.js';
+import { GYM_ADDRESS, weekdayOf } from '../../components/public/gymInfo.js';
+import { DAY_NAMES, formatClock, formatPhone, gymClockNow, gymToday } from '../../lib/format.js';
 
 // Monday first, as the gym's week runs.
 const WEEK = [1, 2, 3, 4, 5, 6, 0];
@@ -11,11 +12,12 @@ const DIRECTIONS = `https://www.google.com/maps/dir/?api=1&destination=${encodeU
 
 /**
  * The app's Visit us page (the website has none): the address with directions in Google Maps, tap to
- * call or email, and the opening hours with whether the gym is open now, at gym time. No embedded map,
- * which would load Google's scripts and tracking.
+ * call, email or WhatsApp, the opening hours with whether the gym is open now, at gym time, and the
+ * gym's social pages and website. No embedded map, which would load Google's scripts and tracking.
  */
 export const VisitPage: React.FC = () => {
-  const { hours } = useAppConfig().config.gym;
+  const { hours, contact, website } = useAppConfig().config.gym;
+  const hasSocial = Boolean(contact.instagram || contact.facebook || contact.youtube || contact.x);
   // The page can stay open across opening or closing time, or overnight in the background.
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -49,14 +51,25 @@ export const VisitPage: React.FC = () => {
           <Navigation className="w-4 h-4" aria-hidden="true" /> Get directions
         </a>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <a href={`tel:${GYM_PHONE_TEL}`} className="neu-btn px-4 py-3 rounded-xl text-sm font-bold text-slate-200 flex items-center gap-3">
-            <Phone className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" /> {GYM_PHONE_DISPLAY}
+          <a href={`tel:${contact.phone}`} className="neu-btn px-4 py-3 rounded-xl text-sm font-bold text-slate-200 flex items-center gap-3">
+            <Phone className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" /> {formatPhone(contact.phone)}
           </a>
-          <a href={`mailto:${GYM_EMAIL}`} className="neu-btn px-4 py-3 rounded-xl text-sm font-bold text-slate-200 flex items-center gap-3 break-all">
-            <Mail className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" /> {GYM_EMAIL}
+          <a href={`mailto:${contact.email}`} className="neu-btn px-4 py-3 rounded-xl text-sm font-bold text-slate-200 flex items-center gap-3 break-all">
+            <Mail className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" /> {contact.email}
           </a>
+          <WhatsAppButton className="sm:col-span-2 justify-center py-3" />
         </div>
       </section>
+
+      {(hasSocial || website) && (
+        <section aria-labelledby="visit-follow" className="neu-flat rounded-3xl p-5 sm:p-6 space-y-4">
+          <h2 id="visit-follow" className="text-lg font-black text-slate-100 font-heading">
+            Follow us
+          </h2>
+          <SocialLinks />
+          <VisitWebsiteLink className="neu-btn w-full justify-center py-3 rounded-xl text-sm" />
+        </section>
+      )}
 
       <section aria-labelledby="visit-hours" className="neu-flat rounded-3xl p-5 sm:p-6 space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">

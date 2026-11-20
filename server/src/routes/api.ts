@@ -3,8 +3,10 @@ import config, { googleSignInEnabled, paymentProvider } from '../config.js';
 import db from '../db/database.js';
 import { notFoundHandler } from '../middleware/errorHandler.js';
 import { publicOpeningHours } from '../lib/hours.js';
-import { GYM } from '../lib/seo.js';
+import { GYM, siteUrl } from '../lib/seo.js';
 import { androidAppInfo } from '../lib/androidApp.js';
+import { getGymContact, updateGymContact } from '../controllers/gymContactController.js';
+import { authenticate, requireRole } from '../middleware/auth.js';
 import authRoutes from './auth.js';
 import paymentRoutes from './payments.js';
 import classRoutes from './classes.js';
@@ -29,12 +31,24 @@ router.get('/config', (_req, res) => {
       googleClientId: googleSignInEnabled() ? config.googleClientId : null,
       payments: { enabled: provider !== null, provider, keyId: provider === 'razorpay' ? config.razorpay.keyId : null },
       // classesPerWeek: the home page's count; guests are not sent the week's timetable to count.
-      gym: { name: GYM.name, timezone: config.gymTimezone, currency: 'INR', hours: publicOpeningHours(), classesPerWeek: db.classes.length },
+      // contact: the public contact details admins keep; website: the site's address, for the apps' "Visit our website".
+      gym: {
+        name: GYM.name,
+        timezone: config.gymTimezone,
+        currency: 'INR',
+        hours: publicOpeningHours(),
+        classesPerWeek: db.classes.length,
+        contact: db.gym_contact,
+        website: siteUrl()
+      },
       // The Android app the website offers for download, or null while there is none.
       androidApp: androidAppInfo()
     }
   });
 });
+
+router.get('/gym/contact', authenticate, requireRole(['admin']), getGymContact);
+router.put('/gym/contact', authenticate, requireRole(['admin']), updateGymContact);
 
 router.use(authRoutes);
 router.use(paymentRoutes);

@@ -1,12 +1,28 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { AppConfig } from '../types/index.js';
+import { AppConfig, GymContact } from '../types/index.js';
 import { abortableGet } from '../lib/abortableGet.js';
+import { storage } from '../lib/storage.js';
+import { GYM_EMAIL, GYM_PHONE_TEL } from '../components/public/gymInfo.js';
 
 // What this deployment offers (demo personas, Google sign-in, online payments), read from
 // GET /api/config. Until it arrives, everything optional is treated as off. A request that fails,
 // or hangs for 8 s (it is then called off), is retried with a growing delay, and straight away when
 // the browser comes back online or regains focus, so one network hiccup at page load does not
 // switch those features off for the whole visit.
+
+/** The contact details /api/config last sent, so an app opened offline after an admin change shows the new ones. */
+const CONTACT_KEY = 'pulsefit_gym_contact';
+
+function savedContact(): GymContact {
+  const contact: GymContact = { phone: GYM_PHONE_TEL, whatsapp: '', email: GYM_EMAIL, instagram: '', facebook: '', youtube: '', x: '' };
+  try {
+    const saved = JSON.parse(storage.get(CONTACT_KEY) ?? '{}') as Partial<Record<keyof GymContact, unknown>>;
+    for (const key of Object.keys(contact) as (keyof GymContact)[]) if (typeof saved[key] === 'string') contact[key] = saved[key];
+  } catch {
+    /* not JSON: the built-in details */
+  }
+  return contact;
+}
 
 const DEFAULT_CONFIG: AppConfig = {
   // A demo deployment says so in the page's HTML (server/src/lib/seo.ts), so the "Demo accounts" bar
@@ -18,7 +34,9 @@ const DEFAULT_CONFIG: AppConfig = {
     name: 'PulseFit Athletics',
     timezone: 'Asia/Kolkata',
     currency: 'INR',
-    hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: true }
+    hours: { opensAt: '06:00', closesAt: '22:00', closedWeekdays: [0], enforced: true },
+    contact: savedContact(),
+    website: ''
   },
   androidApp: null
 };
@@ -69,7 +87,10 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (done) return;
         done = true;
         detach();
-        setState({ config, isConfigLoaded: true });
+        // An older server sends no contact details or website: keep the defaults for those.
+        const gym = { ...DEFAULT_CONFIG.gym, ...config.gym };
+        storage.set(CONTACT_KEY, JSON.stringify(gym.contact));
+        setState({ config: { ...config, gym }, isConfigLoaded: true });
       } catch {
         // A try replaced by a newer one is not a failure of its own.
         if (done || current !== attempt) return;

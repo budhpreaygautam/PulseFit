@@ -86,7 +86,8 @@ for (const persona of ['guest', 'member', 'trainer', 'admin'] as const) {
       'Visit us'
     ]);
     await expect(drawer.getByRole('link', { name: /^Exercise(s| library)$/ })).toHaveAttribute('href', '/exercises');
-    await expect(drawer.getByRole('link').last()).toHaveText('Policies & terms');
+    // The last of the app's own pages; only the gym's social pages and website (other sites) may follow it.
+    await expect(drawer.locator('a[href^="/"]').last()).toHaveText('Policies & terms');
     for (const [name, path] of [['Offers & gifts', '/offers'], ['Visit us', '/visit'], ['Policies & terms', '/policies']]) {
       await expect(drawer.getByRole('link', { name, exact: true })).toHaveAttribute('href', path);
     }

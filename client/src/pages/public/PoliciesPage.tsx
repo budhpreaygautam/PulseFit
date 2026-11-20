@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Mail, MessageSquare, Phone, ShieldCheck } from 'lucide-react';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { TabLink } from '../../components/public/TabLink.js';
-import { GYM_EMAIL, GYM_NAME, GYM_PHONE_DISPLAY, GYM_PHONE_TEL } from '../../components/public/gymInfo.js';
+import { GYM_NAME } from '../../components/public/gymInfo.js';
+import { useAppConfig } from '../../context/ConfigContext.js';
 import { CONTENT, type Kind, PolicySections } from './LegalPage.js';
-import { formatDate } from '../../lib/format.js';
+import { formatDate, formatPhone } from '../../lib/format.js';
 import { isNativeApp } from '../../lib/native.js';
 import { prefersReducedMotion } from '../../lib/appMotion.js';
 
@@ -20,6 +21,7 @@ const PART = 'scroll-mt-[calc(env(safe-area-inset-top)_+_4.5rem)] outline-none';
  */
 export const PoliciesPage: React.FC = () => {
   const { navigate } = useNavigation();
+  const { phone, email } = useAppConfig().config.gym.contact;
   const [version, setVersion] = useState<string | null>(null);
 
   // Only the installed app knows its version.
@@ -105,13 +107,13 @@ export const PoliciesPage: React.FC = () => {
         <h3 className="mt-6 text-lg font-black text-slate-100 font-heading">Who to contact</h3>
         <ul className="mt-3 grid gap-2 text-sm">
           <li>
-            <a href={`tel:${GYM_PHONE_TEL}`} className="neu-btn flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-slate-200">
-              <Phone className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" /> {GYM_PHONE_DISPLAY}
+            <a href={`tel:${phone}`} className="neu-btn flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-slate-200">
+              <Phone className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" /> {formatPhone(phone)}
             </a>
           </li>
           <li>
-            <a href={`mailto:${GYM_EMAIL}`} className="neu-btn flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-slate-200 break-all">
-              <Mail className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" /> {GYM_EMAIL}
+            <a href={`mailto:${email}`} className="neu-btn flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-slate-200 break-all">
+              <Mail className="w-4 h-4 text-lime-400 shrink-0" aria-hidden="true" /> {email}
             </a>
           </li>
           <li>

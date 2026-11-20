@@ -8,6 +8,7 @@ import { useModalFocus } from '../common/Modal.js';
 import { MembershipStatusBadge } from '../member/MembershipStatusBadge.js';
 import { avatarOf } from '../member/avatarImage.js';
 import { TabLink } from '../public/TabLink.js';
+import { SocialLinks, VisitWebsiteLink } from '../public/ContactLinks.js';
 import type { NavItem } from './Navbar.js';
 
 interface AppDrawerProps {
@@ -231,6 +232,13 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({ currentTab, navigate, onCl
           </button>
         )}
         {menuLink(POLICIES)}
+
+        {/* One slim row at the very end (the owner's pick): the gym's social pages and the website, opened in the
+            phone's browser; empty:hidden when neither is set. */}
+        <div className="mt-3 mx-4 pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 empty:hidden">
+          <SocialLinks />
+          <VisitWebsiteLink className="text-xs" />
+        </div>
       </div>
     </div>
   );

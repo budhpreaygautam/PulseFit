@@ -11,7 +11,8 @@ import { CLOSED_WEEKDAYS, CLOSES_AT, OPENS_AT } from './hours.js';
 //
 // The pages and the gym's facts are copies of client/src/routes.ts and
 // client/src/components/public/gymInfo.ts (the server cannot import client code);
-// tests/seo.test.ts fails when they drift apart.
+// tests/seo.test.ts fails when they drift apart. The phone, email and social pages are the
+// gym contact setting admins edit (db.gym_contact).
 
 export interface PageMeta {
   path: string;
@@ -219,16 +220,14 @@ export const PAGES: readonly PageMeta[] = [
   }
 ];
 
-/** The gym's public facts (client/src/components/public/gymInfo.ts), split up for schema.org. */
+/** The gym's public facts (client/src/components/public/gymInfo.ts), split up for schema.org; contact details are in db.gym_contact. */
 export const GYM = {
   name: 'PulseFit Athletics',
   streetAddress: 'Plot 42, Sector 29, near Cyber Hub',
   addressLocality: 'Gurugram',
   addressRegion: 'Haryana',
   postalCode: '122002',
-  addressCountry: 'IN',
-  telephone: '+919811078573',
-  email: 'contact@pulsefit.in'
+  addressCountry: 'IN'
 } as const;
 
 /**
@@ -242,7 +241,7 @@ export const GYM_PROFILE: {
   imagePath: string;
   /** The entrance's coordinates, copied from the gym's Google Maps pin. */
   geo: { latitude: number; longitude: number } | null;
-  /** The gym's official profiles: Google Business Profile, Instagram, Facebook, YouTube… */
+  /** The gym's other official profiles, e.g. its Google Business Profile (the social pages come from db.gym_contact). */
   sameAs: string[];
 } = {
   logoPath: '',
@@ -365,15 +364,17 @@ export function structuredData(page: PageMeta): Record<string, unknown> {
   const at = (pagePath: string) => (base ? base + pagePath : undefined);
   const id = (fragment: string) => `${base}/#${fragment}`;
   const plans = plansByPrice();
-  const sameAs = GYM_PROFILE.sameAs.length ? { sameAs: GYM_PROFILE.sameAs } : {};
+  const { phone, email, instagram, facebook, youtube, x } = db.gym_contact;
+  const profiles = [...GYM_PROFILE.sameAs, instagram, facebook, youtube, x].filter(Boolean);
+  const sameAs = profiles.length ? { sameAs: profiles } : {};
 
   const organization = {
     '@type': 'Organization',
     '@id': id('organization'),
     name: GYM.name,
     url: at('/'),
-    email: GYM.email,
-    telephone: GYM.telephone,
+    email,
+    telephone: phone,
     ...(GYM_PROFILE.logoPath && base ? { logo: at(GYM_PROFILE.logoPath) } : {}),
     ...sameAs
   };
@@ -383,8 +384,8 @@ export function structuredData(page: PageMeta): Record<string, unknown> {
     '@id': id('gym'),
     name: GYM.name,
     url: at('/'),
-    telephone: GYM.telephone,
-    email: GYM.email,
+    telephone: phone,
+    email,
     address: {
       '@type': 'PostalAddress',
       streetAddress: GYM.streetAddress,
