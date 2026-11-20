@@ -1,8 +1,8 @@
 import { expect, type Page } from '@playwright/test';
 import { offerApp, signInAs, tabBar, test, useAppMode } from './helpers';
 
-// A signed-out app: three slides on the first launch, then the welcome panel (the services, Sign in,
-// Create account, a free pass, Contact us, Explore first). Exploring opens the Services screen in a guest shell.
+// A signed-out app: three slides on the first launch, then the welcome panel (Sign in, Create account,
+// a free pass, Contact us, Explore first). Exploring shows the public pages in a guest shell.
 
 test.beforeEach(({}, testInfo) => test.skip(testInfo.project.name !== 'mobile', 'app mode is the phone layout'));
 
@@ -61,13 +61,13 @@ test('Create account and Get a free pass open their forms; Contact us opens cont
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Contact us' }).click();
   await expect(page).toHaveURL(/\/contact$/);
-  await expect(tabBar(page).getByRole('link')).toHaveText(['Services', 'Contact']);
+  await expect(tabBar(page).getByRole('link')).toHaveText(['Explore', 'Contact']);
   await expect(tabBar(page).getByRole('button', { name: 'Sign in' })).toBeVisible();
   await expect(tabBar(page).getByRole('link', { name: 'Contact' })).toHaveAttribute('aria-current', 'page');
-  // Services is the Services screen now, not the welcome panel again.
-  await tabBar(page).getByRole('link', { name: 'Services' }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Services' })).toBeVisible();
-  await expect(tabBar(page).getByRole('link', { name: 'Services' })).toHaveAttribute('aria-current', 'page');
+  // Explore is the public home now, not the welcome panel again.
+  await tabBar(page).getByRole('link', { name: 'Explore' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: /YOUR GYM FOR/ })).toBeVisible();
+  await expect(tabBar(page)).toBeVisible();
 });
 
 test('on a phone with a home indicator the slides keep Next above it, without scrolling', async ({ page }) => {
@@ -84,15 +84,15 @@ test('on a phone with a home indicator the slides keep Next above it, without sc
   expect(next.y + next.height).toBeLessThanOrEqual(800 - 34);
 });
 
-test('Explore first opens the Services screen with guest tabs; gated services still ask to sign in; it is not remembered', async ({ page }) => {
+test('Explore first opens the public home with guest tabs; gated pages still ask to sign in; it is not remembered', async ({ page }) => {
   await openPanel(page);
   await page.getByRole('button', { name: 'Explore first' }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Services' })).toBeVisible();
-  await expect(tabBar(page).getByRole('link')).toHaveText(['Services', 'Contact']);
-  await page.getByRole('list', { name: 'Services' }).getByRole('link', { name: /^Strength floor/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: /YOUR GYM FOR/ })).toBeVisible();
+  await expect(tabBar(page).getByRole('link')).toHaveText(['Explore', 'Contact']);
+  // The landing page reaches the timetable (members only) through buttons, not links.
+  await page.getByRole('main').getByRole('button', { name: 'View the timetable' }).click();
   await expect(signInDialog(page)).toBeVisible();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole('heading', { level: 1, name: /^BUILD REAL STRENGTH/ })).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole('button', { name: 'Explore first' })).toBeVisible();
 });

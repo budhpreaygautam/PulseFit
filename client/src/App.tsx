@@ -73,7 +73,6 @@ const ClassesScreen = named(() => import('./pages/app/ClassesScreen.js'), 'Class
 const TrainScreen = named(() => import('./pages/app/TrainScreen.js'), 'TrainScreen');
 const MeScreen = named(() => import('./pages/app/MeScreen.js'), 'MeScreen');
 const WelcomeScreen = named(() => import('./pages/app/WelcomeScreen.js'), 'WelcomeScreen');
-const ServicesScreen = named(() => import('./pages/app/ServicesScreen.js'), 'ServicesScreen');
 
 // At least a screen tall, so the footer stays below the fold while a page loads instead of showing
 // and then jumping down when the page arrives (a layout shift).
@@ -220,7 +219,7 @@ function MainAppContent() {
   const appScreen = (id: string) => appShell === 'member' && isTabRoot(MEMBER_TABS, id, params);
 
   // A signed-out app opens on the welcome panel (after the slides on its first launch). Explore first
-  // opens the Services screen in the guest shell until the app restarts; signing in ends both.
+  // shows the public pages in the guest shell until the app restarts; signing in ends both.
   const [exploring, setExploring] = useState(false);
   const [slidesPending, setSlidesPending] = useState(isFirstLaunch);
   const userId = user?.id;
@@ -229,25 +228,21 @@ function MainAppContent() {
     setExploring(false);
     setSlidesPending(false);
   }, [userId]);
-  // Any other page (Contact us, a link) is shown in the guest shell, whose Services tab then opens the Services screen.
+  // Any other page (Contact us, a link) is shown in the guest shell, whose Explore tab then opens the public home.
   if (appShell === 'guest' && tab !== 'home' && !exploring) setExploring(true);
   const showWelcome = appShell === 'guest' && tab === 'home' && !exploring;
-  // The guests' Services tab shows the Services screen; the landing page is its full overview (?view=full).
-  const showServices = appShell === 'guest' && !showWelcome && tab === 'home' && isTabRoot(GUEST_TABS, 'home', params);
 
   // The screen shown: in the app a screen can change under the same tab (a Me row, Back to a tab's own
-  // screen, Explore first, the guests' full overview, a guest signing in on Contact). Not on first load,
-  // which in the app is the first screen after the saved session is restored, and not over an open dialog.
-  const screenKey =
-    appShell === 'starting' || appShell === 'offline' ? null : [appShell, showWelcome, tab, appScreen(tab), showServices].join('|');
+  // screen, Explore first, a guest signing in on Contact). Not on first load, which in the app is the
+  // first screen after the saved session is restored, and not over an open dialog.
+  const screenKey = appShell === 'starting' || appShell === 'offline' ? null : [appShell, showWelcome, tab, appScreen(tab)].join('|');
   const lastScreen = useRef(screenKey);
   useEffect(() => {
     if (screenKey === null || lastScreen.current === screenKey) return;
     const first = lastScreen.current === null;
     lastScreen.current = screenKey;
     if (first) return;
-    // The Services screen shares the home page's route, not its name.
-    setAnnouncement(showServices ? 'Services' : (routeForTab(tab)?.title ?? 'Page not found'));
+    setAnnouncement(routeForTab(tab)?.title ?? 'Page not found');
     const main = mainRef.current;
     if (!main) return;
 
@@ -286,7 +281,7 @@ function MainAppContent() {
       clearTimeout(giveUp);
       observer?.disconnect();
     };
-    // tab and showServices are part of screenKey.
+    // tab is part of screenKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenKey]);
 
@@ -366,11 +361,7 @@ function MainAppContent() {
   function renderPage(id: string): React.ReactNode {
     switch (id) {
       case 'home':
-        return showServices ? (
-          <ServicesScreen onFreePass={openFreeTrialModal} />
-        ) : (
-          <LandingPage setCurrentTab={setCurrentTab} onOpenFreeTrialModal={openFreeTrialModal} onOpenAuthModal={openAuthModal} />
-        );
+        return <LandingPage setCurrentTab={setCurrentTab} onOpenFreeTrialModal={openFreeTrialModal} onOpenAuthModal={openAuthModal} />;
       case 'workout':
         return <WorkoutPage setCurrentTab={setCurrentTab} onOpenFreeTrialModal={openFreeTrialModal} />;
       case 'zumba':
@@ -455,7 +446,7 @@ function MainAppContent() {
         {/* A page that fails (one that loads on demand and could not be fetched, or a crash) shows
             this panel instead of emptying the whole app. Moving to another page tries again. */}
         <ErrorBoundary
-          resetKey={`${accountGeneration}:${screenKey}`}
+          resetKey={`${accountGeneration}:${tab}`}
           fallback={
             <AccessPanel
               icon={<AlertTriangle className="w-6 h-6" aria-hidden="true" />}

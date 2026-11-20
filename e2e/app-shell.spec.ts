@@ -132,7 +132,7 @@ test('a guest who explores, or signs in on Contact, has focus on the new screen'
   await page.getByRole('button', { name: 'Skip' }).click();
   await page.getByRole('button', { name: 'Explore first' }).focus();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { level: 1, name: 'Services' })).toBeFocused();
+  await expect(page.getByRole('heading', { level: 1, name: LANDING_H1 })).toBeFocused();
   await tabBar(page).getByRole('link', { name: 'Contact' }).click();
   // Signing in with a password keeps the page; the tab bar's Sign in button it came from is gone.
   await tabBar(page).getByRole('button', { name: 'Sign in' }).click();

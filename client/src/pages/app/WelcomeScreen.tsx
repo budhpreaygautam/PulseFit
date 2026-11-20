@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Dumbbell, Sparkles } from 'lucide-react';
 import { useNavigation } from '../../context/NavigationContext.js';
-import { ServiceTiles } from '../../components/app/services.js';
 import { riseOrder } from '../../lib/appMotion.js';
 
 const SLIDES = [
@@ -14,8 +13,7 @@ const panelButton = 'app-press w-full min-h-[48px] rounded-2xl flex items-center
 
 /**
  * A signed-out app's first screen (App.tsx): three swipeable slides on the first launch, then the
- * panel with the gym's services and buttons to sign in, create an account, claim a free pass,
- * contact the gym or look around first (the Services screen).
+ * panel to sign in, create an account, claim a free pass, contact the gym or look around first.
  */
 export const WelcomeScreen: React.FC<{
   showSlides: boolean;
@@ -85,7 +83,7 @@ export const WelcomeScreen: React.FC<{
             </button>
           </>
         ) : (
-          <div className="flex-1 flex flex-col justify-center gap-6">
+          <div className="flex-1 flex flex-col justify-center gap-8">
             <div className="flex flex-col items-center gap-3 text-center">
               <span className="app-lime-btn w-16 h-16 rounded-[20px] flex items-center justify-center">
                 <Dumbbell className="w-8 h-8 stroke-[2.5]" aria-hidden="true" />
@@ -95,12 +93,6 @@ export const WelcomeScreen: React.FC<{
               </h1>
               <p className="text-[13px] text-[color:var(--app-mu)]">Sector 29 · Gurugram</p>
             </div>
-            <section aria-labelledby="welcome-services-heading" style={rise()} className="app-rise">
-              <h2 id="welcome-services-heading" className="text-[11px] font-bold uppercase tracking-[0.08em] mb-2.5 text-center text-[color:var(--app-mu)]">
-                What we offer
-              </h2>
-              <ServiceTiles />
-            </section>
             <div className="flex flex-col gap-3">
               <button type="button" onClick={onSignIn} aria-haspopup="dialog" style={rise()} className={`app-rise app-lime-btn font-extrabold ${panelButton}`}>
                 Sign in

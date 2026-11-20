@@ -1,5 +1,5 @@
 import type React from 'react';
-import { Calendar, Dumbbell, House, KeyRound, LayoutGrid, MessageCircle, QrCode, User } from 'lucide-react';
+import { Calendar, Dumbbell, House, KeyRound, MessageCircle, QrCode, User } from 'lucide-react';
 
 // The app's bottom tabs. No React components here, so the navigation context can import it.
 
@@ -16,12 +16,9 @@ export const MEMBER_TABS: AppTab[] = [
   { tab: 'profile', label: 'Me', icon: User }
 ];
 
-/**
- * A signed-out app once the guest chose Explore first (or opened Contact us) on the welcome panel.
- * Services is the home page's tab: its own screen is the Services screen, not the landing page.
- */
+/** A signed-out app once the guest chose Explore first (or opened Contact us) on the welcome panel. */
 export const GUEST_TABS: AppTab[] = [
-  { tab: 'home', label: 'Services', icon: LayoutGrid },
+  { tab: 'home', label: 'Explore', icon: House },
   { tab: 'contact', label: 'Contact', icon: MessageCircle },
   { action: 'sign-in', label: 'Sign in', icon: KeyRound }
 ];

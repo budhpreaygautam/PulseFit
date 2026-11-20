@@ -127,9 +127,6 @@ This release builds **screen set 1a (Member app)** only. Sets 1b (Coach), 1c (Fr
   (including right after Sign out) opens on the last panel without slides. "Explore first" opens the
   public home inside a guest shell (🏠 Explore · 💬 Contact · 🔑 Sign in) and is not remembered.
   Gated pages keep opening the sign-in pop-up.
-- **Since then:** the guest tabs are **Services · Contact · Sign in**, and "Explore first" opens an
-  app-style Services screen instead of the public home; the welcome screen also shows the services.
-  See [Services in the Android app](2026-11-20-app-services-design.md).
 
 ### Coaches and admins in the app (this release)
 
