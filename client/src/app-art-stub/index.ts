@@ -26,5 +26,6 @@ export async function loadLottie(): Promise<{
 
 export const credits: ArtCredit[] = [
   { ids: [], title: 'Stand-in', creator: 'PulseFit', source: 'none', licence: 'Storyset free licence' },
-  { ids: [], title: 'Stand-in', creator: 'PulseFit', source: 'none', licence: 'Lottie Simple License' }
+  { ids: [], title: 'Stand-in', creator: 'PulseFit', source: 'none', licence: 'Lottie Simple License' },
+  { ids: [], title: 'Stand-in mascot', creator: 'PulseFit', source: 'https://example.com/mascot', licence: 'AI Horde + FLUX.1 [schnell] (Apache-2.0)' }
 ];

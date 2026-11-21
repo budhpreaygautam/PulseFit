@@ -212,4 +212,5 @@ test('Policies & terms ends with Credits: Storyset, each animation, and the Lott
   await expect(credits.getByText('Stand-in').first()).toBeVisible();
   await expect(credits.getByText('Lottie Simple License').first()).toBeAttached();
   await expect(credits.getByText(/Design Barn Inc\./)).toBeAttached();
+  await expect(credits.getByText('Mascot pictures made with FLUX.1 [schnell] (Apache-2.0) via AI Horde', { exact: true })).toBeVisible();
 });

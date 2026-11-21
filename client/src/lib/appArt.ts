@@ -17,7 +17,7 @@ export interface ArtCredit {
   title: string;
   creator: string;
   source: string;
-  licence: 'Storyset free licence' | 'Lottie Simple License';
+  licence: 'Storyset free licence' | 'Lottie Simple License' | 'AI Horde + FLUX.1 [schnell] (Apache-2.0)';
 }
 
 export const PAGE_TABS: readonly string[] = ids.pages;

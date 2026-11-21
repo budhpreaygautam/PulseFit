@@ -13,6 +13,7 @@ import { PageScene } from '../../components/app/PageScene.js';
 
 const KINDS = Object.keys(CONTENT) as Kind[];
 const linkClass = 'text-lime-400 underline';
+const AI_LICENCE = 'AI Horde + FLUX.1 [schnell] (Apache-2.0)';
 // The Lottie Simple License (FL 9.13.21), shown whole because it asks that its terms travel with the files.
 const LOTTIE_LICENCE = [
   'Copyright (c) 2021 Design Barn Inc.',
@@ -156,6 +157,7 @@ export const PoliciesPage: React.FC = () => {
               </a>
             </p>
           )}
+          {credits.some(c => c.licence === AI_LICENCE) && <p>Mascot pictures made with FLUX.1 [schnell] (Apache-2.0) via AI Horde</p>}
           {credits.length > 0 && (
             <ul className="space-y-2">
               {credits.map((credit, i) => (

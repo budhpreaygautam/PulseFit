@@ -70,6 +70,12 @@ test('refuses Lottie with images or expressions', async () => {
   assert.equal(await problemsOf(lottie(easing)), '');
 });
 
+test('accepts the AI mascot licence and refuses an unknown one', async () => {
+  const withLicence = licence => s => (s.credits[0].licence = licence);
+  assert.equal(await problemsOf(withLicence('AI Horde + FLUX.1 [schnell] (Apache-2.0)')), '');
+  assert.match(await problemsOf(withLicence('Some other licence')), /incomplete credit/);
+});
+
 test('reports a credit for an unknown scene', async () => {
   assert.match(await problemsOf(s => s.credits[0].ids.push('page.nope')), /unknown scene page\.nope/);
 });

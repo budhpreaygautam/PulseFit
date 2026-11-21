@@ -10,7 +10,7 @@ const clientDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const MAX_SVG_BYTES = 120_000; // svg + css
 const MAX_LOTTIE_BYTES = 250_000;
 const UNSAFE_SVG = /<script|[\s/"']on\w+\s*=|<foreignObject|href\s*=\s*["']?\s*(https?:)?\/\/|url\(\s*["']?\s*(https?:)?\/\/|@import/i;
-const LICENCES = ['Storyset free licence', 'Lottie Simple License'];
+const LICENCES = ['Storyset free licence', 'Lottie Simple License', 'AI Horde + FLUX.1 [schnell] (Apache-2.0)'];
 
 const allIds = () => {
   const { pages, moments, states } = JSON.parse(fs.readFileSync(path.join(clientDir, 'src/lib/app-art-ids.json'), 'utf8'));
