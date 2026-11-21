@@ -309,7 +309,9 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            ref={el => (tabRefs.current[id] = el)}
+            ref={el => {
+              tabRefs.current[id] = el;
+            }}
             id={`tab-${id}`}
             type="button"
             role="tab"

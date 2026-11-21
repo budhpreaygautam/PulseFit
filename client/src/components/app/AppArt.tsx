@@ -88,7 +88,7 @@ export const AppArt: React.FC<AppArtProps> = props => (isAppMode ? <Art key={`${
 
 const Art: React.FC<AppArtProps> = ({ scene, size, once = false, playing = true, holdOnScroll = true, className = '' }) => {
   const host = useRef<HTMLDivElement>(null);
-  const lottie = useRef<{ player: Player; stillFrame: number }>();
+  const lottie = useRef<{ player: Player; stillFrame: number }>(undefined);
   const [marker, setMarker] = useState<string>();
   const [load, setLoad] = useState<'loading' | 'ready' | 'missing'>('loading');
   const [onScreen, setOnScreen] = useState(false);

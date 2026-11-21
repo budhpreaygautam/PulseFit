@@ -26,6 +26,9 @@ export default defineConfig({
   build: {
     // No source maps in production builds (web or the app bundle).
     sourcemap: false,
+    // Vite 8's default CSS minifier (Lightning CSS) keeps only -webkit-backdrop-filter where both are
+    // written, which Chrome ignores: the website lost its frosted glass and the app its no-blur rule.
+    cssMinify: 'esbuild',
     rollupOptions: {
       output: {
         // React changes far less often than the app, so it gets a chunk of its own that browsers

@@ -77,8 +77,10 @@ test.describe('app', () => {
       await route.continue();
     });
     await page.goto('/bookings');
-    await expect(page.locator(`#main ${scene('state.loading')}`)).toBeVisible();
-    await expect(page.locator('#main [data-scene]')).toHaveCount(1);
+    // React 19 keeps the session check's loader mounted while the page loads, hidden by Suspense.
+    const shown = page.locator('#main [data-scene]').filter({ visible: true });
+    await expect(shown).toHaveCount(1);
+    await expect(shown).toHaveAttribute('data-scene', /^state\.loading/);
   });
 
   test('the launch screen shows its scene', async ({ page, request }) => {

@@ -33,7 +33,7 @@ export const VolumeChart: React.FC<{ timeline: WorkoutAnalytics['volumeTimeline'
           const p = payload?.[0]?.payload as WorkoutAnalytics['volumeTimeline'][number] | undefined;
           return p ? `${p.title} · ${formatDate(p.date)}` : '';
         }}
-        formatter={(value: number) => [kg(value), 'Volume']}
+        formatter={value => [kg(Number(value)), 'Volume']}
       />
       <Area type="linear" dataKey="volumeKg" stroke={chart.mark} strokeWidth={2} fill="url(#volumeFill)" dot={{ r: 3, fill: chart.mark }} activeDot={{ r: 5 }} />
     </AreaChart>
@@ -46,7 +46,7 @@ export const MuscleChart: React.FC<{ muscles: WorkoutAnalytics['muscleDistributi
       <CartesianGrid stroke={chart.grid} horizontal={false} />
       <XAxis type="number" allowDecimals={false} tick={{ fill: chart.tick, fontSize: 11 }} tickLine={false} axisLine={false} />
       <YAxis type="category" dataKey="category" tick={{ fill: chart.tick, fontSize: 11 }} tickLine={false} axisLine={false} width={72} />
-      <Tooltip cursor={{ fill: chart.grid }} formatter={(value: number) => [`${value} sets`, 'Working sets']} />
+      <Tooltip cursor={{ fill: chart.grid }} formatter={value => [`${value} sets`, 'Working sets']} />
       <Bar dataKey="count" fill={chart.mark} radius={[0, 4, 4, 0]} maxBarSize={18} />
     </BarChart>
   </ResponsiveContainer>

@@ -31,7 +31,7 @@ const maxWidthClasses = {
  * call onClose on Escape, lock background scroll, and give focus back to whatever opened it. Modal and
  * the app's menu drawer (AppDrawer) use it.
  */
-export function useModalFocus(ref: React.RefObject<HTMLElement>, isOpen: boolean, onClose: () => void): void {
+export function useModalFocus(ref: React.RefObject<HTMLElement | null>, isOpen: boolean, onClose: () => void): void {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 

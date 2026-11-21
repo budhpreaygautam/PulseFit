@@ -205,7 +205,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
                   <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} vertical={false} />
                   <XAxis dataKey="day" stroke={colors.axis} tick={{ fill: colors.axis, fontSize: 12 }} />
                   <YAxis allowDecimals={false} stroke={colors.axis} tick={{ fill: colors.axis, fontSize: 12 }} />
-                  <Tooltip {...tooltipStyle} cursor={{ fill: colors.cursor }} formatter={(v: number) => [v, 'Check-ins']} />
+                  <Tooltip {...tooltipStyle} cursor={{ fill: colors.cursor }} formatter={v => [v, 'Check-ins']} />
                   <Bar dataKey="visits" fill={colors.bar} radius={[6, 6, 0, 0]} maxBarSize={40} />
                 </BarChart>
               </ResponsiveContainer>
@@ -231,7 +231,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
                       <Cell key={t.tier} fill={t.color} />
                     ))}
                   </Pie>
-                  <Tooltip {...tooltipStyle} formatter={(v: number) => [v, 'Active members']} />
+                  <Tooltip {...tooltipStyle} formatter={v => [v, 'Active members']} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -268,7 +268,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
                   <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} vertical={false} />
                   <XAxis dataKey="hour" stroke={colors.axis} tick={{ fill: colors.axis, fontSize: 11 }} interval="preserveStartEnd" minTickGap={16} />
                   <YAxis allowDecimals={false} stroke={colors.axis} tick={{ fill: colors.axis, fontSize: 12 }} />
-                  <Tooltip {...tooltipStyle} formatter={(v: number) => [v, 'Check-ins']} />
+                  <Tooltip {...tooltipStyle} formatter={v => [v, 'Check-ins']} />
                   <Line type="monotone" dataKey="checkIns" stroke={colors.line} strokeWidth={3} dot={{ r: 3, fill: colors.line }} activeDot={{ r: 6, fill: colors.bar }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -296,7 +296,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
                     tickFormatter={(v: number) => (v >= 1000 ? `₹${Math.round(v / 1000)}k` : `₹${v}`)}
                     width={48}
                   />
-                  <Tooltip {...tooltipStyle} cursor={{ fill: colors.cursor }} labelFormatter={monthLabel} formatter={(v: number) => [formatINR(v), 'Revenue']} />
+                  <Tooltip {...tooltipStyle} cursor={{ fill: colors.cursor }} labelFormatter={label => monthLabel(String(label))} formatter={v => [formatINR(Number(v)), 'Revenue']} />
                   <Bar dataKey="revenue" fill={colors.bar} radius={[6, 6, 0, 0]} maxBarSize={40} />
                 </BarChart>
               </ResponsiveContainer>

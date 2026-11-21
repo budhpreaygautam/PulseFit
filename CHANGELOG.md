@@ -4,10 +4,17 @@ All notable changes to PulseFit. Versions follow [Semantic Versioning](https://s
 
 ## [Unreleased]
 
-## [2.5.0] - unreleased
+### Changed
 
-Not released yet: the version is prepared, nothing is tagged, deployed or published. The Android app is 1.2.0
-(versionCode 3), so installed 1.1.0 apps offer the update once its APK and `pulsefit.json` are uploaded.
+- **Dependencies updated** (the open Dependabot pull requests): React 19, Vite 8 with `@vitejs/plugin-react` 6,
+  recharts 3, dotenv 18 and bcryptjs 3 (it ships its own types, so `@types/bcryptjs` is gone), plus minor updates to
+  Capacitor, lucide-react, Playwright, Vitest and others. CSS is still minified by esbuild: Vite 8's default minifier
+  drops the unprefixed `backdrop-filter`, which would have taken the website's frosted glass away in Chrome. The client
+  lists esbuild itself for that and for its art test. The Android app picks these up with its next release.
+
+## [2.5.0] — 2026-11-21
+
+The Android app is 1.2.0 (versionCode 3): installed 1.1.0 apps offer the update.
 
 ### Added
 
