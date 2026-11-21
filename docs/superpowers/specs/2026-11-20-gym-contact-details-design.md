@@ -35,6 +35,9 @@ owner must be able to put them in once, without a developer or a new app release
 
 - Non-goals: buying the domain or SIM, setting up the mailbox or Brevo (the owner does these), the
   gym's address.
+- *Changed by the owner on 2026-11-21:* "for social media icon build with default with related sical
+  media homepage url for now": until the owner enters their pages, each icon links to the network's
+  home page (instagram.com, facebook.com, youtube.com, x.com); clearing a link still hides its icon.
 - Anti-goals: guessed social links (they would send people to strangers' pages); a link that opens
   inside the app's WebView; details that need a new APK to change; a typo that breaks every call or
   email button (hence the checks).
