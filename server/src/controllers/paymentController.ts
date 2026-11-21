@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Razorpay from 'razorpay';
 import { z } from 'zod';
+import { sendPaymentReceipt } from '../lib/transactionalMail.js';
 import config, { paymentProvider, razorpayConfigured, youpiConfigured } from '../config.js';
 import db from '../db/database.js';
 import { hmacMatches } from '../lib/billing.js';
@@ -233,6 +234,7 @@ function activateOrder(orderId: string, paymentId: string, source: Payment['sour
   if (coupon_code) db.coupons = db.coupons.map(c => (c.code === coupon_code ? { ...c, uses: c.uses + 1 } : c));
   // Money has moved: make the activation durable before anyone is told it succeeded.
   db.saveSync();
+  sendPaymentReceipt(payment, updatedUser, { name: payment.plan_name });
 
   return { outcome: 'activated', payment, user: toSafeUser(updatedUser), cancelledBookings };
 }

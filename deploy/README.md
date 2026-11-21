@@ -18,7 +18,8 @@ PulseFit runs on Railway at <https://pulsefit.up.railway.app> (project `pulsefit
   PulseFit uses Brevo's HTTPS API. In Brevo, turn off IP blocking for API keys, because Railway's outbound address
   changes. The startup log says `enquiry email: on (Brevo)`; a failed send logs
   `✉️  Enquiry enq_…: the notification email failed (Brevo answered 401)`: 401 means the key or IP blocking, 400 means
-  the sender is not verified.
+  the sender is not verified. The same variables also turn on password-reset links, booking confirmations and payment
+  receipts (sent after the answer, never delaying or failing it; failures log the record id only).
 - **`railway.json`** is Railway's older settings format and keeps working until 2026-12-01; move it to their
   new format (`railway config migrate`) before then.
 

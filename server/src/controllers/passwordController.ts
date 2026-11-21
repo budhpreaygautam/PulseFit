@@ -3,11 +3,12 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import config from '../config.js';
+import config, { emailConfigured } from '../config.js';
 import db from '../db/database.js';
 import { AuthenticatedRequest, readCookie, SESSION_COOKIE } from '../middleware/auth.js';
 import { ApiError, asyncHandler, badRequest, forbidden, ok, parse, unauthorized } from '../lib/http.js';
 import { findUserByEmail, newId } from '../lib/users.js';
+import { sendResetLink } from '../lib/transactionalMail.js';
 import {
   BCRYPT_ROUNDS,
   DEMO_ACCOUNT_LOCKED_MESSAGE,
@@ -127,9 +128,9 @@ function resetOrigin(req: Request): { origin: string; fromRequest: boolean } {
 export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
   const { email } = parse(forgotPasswordSchema, req.body);
   // Depends only on the server mode, never on whether the account exists.
-  const message = config.isLocal ? FORGOT_MESSAGE : config.logResetLinks ? FORGOT_MESSAGE_STAFF : FORGOT_MESSAGE_DESK;
+  const message = config.isLocal || emailConfigured() ? FORGOT_MESSAGE : config.logResetLinks ? FORGOT_MESSAGE_STAFF : FORGOT_MESSAGE_DESK;
   // Without the response or the log, a link would reach nobody.
-  if (!config.isLocal && !config.logResetLinks) return ok(res, { message });
+  if (!config.isLocal && !config.logResetLinks && !emailConfigured()) return ok(res, { message });
   const user = findUserByEmail(email);
   if (!user) return ok(res, { message });
   // A shared demo account gets no link, and the same answer as anyone else.
@@ -161,6 +162,8 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
     const caution = fromRequest ? ' (address taken from the request; check it before handing it out)' : '';
     console.log(`🔑 Password reset link for account ${user.id} (valid 30 minutes)${caution}: ${resetUrl}`);
   }
+
+  sendResetLink(user, resetUrl);
 
   // Only local development returns the link itself; everywhere else it reaches people through staff.
   return ok(res, config.isLocal ? { message, resetUrl } : { message });

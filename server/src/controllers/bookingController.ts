@@ -10,6 +10,7 @@ import { recomputeStreak } from '../lib/streak.js';
 import { milestoneValues } from '../lib/milestones.js';
 import { onClassAttended } from '../lib/rewardEvents.js';
 import { newId } from '../lib/users.js';
+import { sendBookingConfirmation } from '../lib/transactionalMail.js';
 import {
   ATTENDANCE_OPENS_MINUTES,
   BOOKING_WINDOW_DAYS,
@@ -162,6 +163,7 @@ export const createBooking = asyncHandler<AuthenticatedRequest>((req, res: Respo
   };
   db.bookings = [...db.bookings, booking];
   ok(res, booking, 'Your spot is booked.', 201);
+  sendBookingConfirmation(booking, user, shown);
 });
 
 export const cancelBooking = asyncHandler<AuthenticatedRequest>((req, res: Response) => {
