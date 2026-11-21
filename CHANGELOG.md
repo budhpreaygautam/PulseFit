@@ -11,6 +11,9 @@ All notable changes to PulseFit. Versions follow [Semantic Versioning](https://s
   Capacitor, lucide-react, Playwright, Vitest and others. CSS is still minified by esbuild: Vite 8's default minifier
   drops the unprefixed `backdrop-filter`, which would have taken the website's frosted glass away in Chrome. The client
   lists esbuild itself for that and for its art test. The Android app picks these up with its next release.
+- **lottie-web 5.13.0** plays the app's cartoons (renderer fixes, none in a feature our scenes use; the same SVG
+  output). CI builds with the art stub, so it was checked with the real art: the cartoon e2e specs and the app on an
+  emulator. The iOS project's Capacitor Swift package now matches Capacitor 8.6.2.
 
 ## [2.5.0] — 2026-11-21
 
