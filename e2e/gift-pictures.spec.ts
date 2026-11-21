@@ -2,7 +2,8 @@ import { expect } from '@playwright/test';
 import { freshMember, test, useAppMode, useSession } from './helpers';
 
 // A gift whose image is a built-in picture path shows as a picture (website and app); every other gift
-// keeps its emoji. client/src/data/gift-pictures.json starts empty, so the store answer is rewritten here.
+// keeps its emoji. The store answer is rewritten here so the check does not depend on which pictures are listed
+// in client/src/data/gift-pictures.json; the free week has no picture, so it shows its emoji.
 
 for (const mode of ['website', 'app'] as const) {
   test(`the store shows a built-in picture as an image and the other gifts as emoji (${mode})`, async ({ page, request }, testInfo) => {
@@ -19,6 +20,6 @@ for (const mode of ['website', 'app'] as const) {
     const mug = page.getByRole('listitem').filter({ hasText: 'Coffee mug' });
     await expect(mug.locator('img[src="/gifts/mug.webp"]')).toHaveCount(1);
     await expect(mug.getByText('☕')).toHaveCount(0);
-    await expect(page.getByRole('listitem').filter({ hasText: 'Sticker pack' }).getByText('🏷️')).toBeVisible();
+    await expect(page.getByRole('listitem').filter({ hasText: 'Free week of membership' }).getByText('📅')).toBeVisible();
   });
 }

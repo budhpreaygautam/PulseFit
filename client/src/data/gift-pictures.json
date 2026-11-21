@@ -1,1 +1,25 @@
-{}
+{
+  "gift_cap": "/gifts/cap.webp",
+  "gift_duffel_bag": "/gifts/duffel-bag.webp",
+  "gift_foam_roller": "/gifts/foam-roller.webp",
+  "gift_gloves": "/gifts/gloves.webp",
+  "gift_guest_pass": "/gifts/guest-pass.webp",
+  "gift_hoodie": "/gifts/hoodie.webp",
+  "gift_keychain": "/gifts/keychain.webp",
+  "gift_knee_sleeves": "/gifts/knee-sleeves.webp",
+  "gift_lifting_straps": "/gifts/lifting-straps.webp",
+  "gift_mug": "/gifts/mug.webp",
+  "gift_pt_session": "/gifts/pt-session.webp",
+  "gift_resistance_bands": "/gifts/resistance-bands.webp",
+  "gift_sample_pack": "/gifts/sample-pack.webp",
+  "gift_shaker": "/gifts/shaker.webp",
+  "gift_skipping_rope": "/gifts/skipping-rope.webp",
+  "gift_sticker_pack": "/gifts/sticker-pack.webp",
+  "gift_sweatband": "/gifts/sweatband.webp",
+  "gift_tank_top": "/gifts/tank-top.webp",
+  "gift_towel": "/gifts/towel.webp",
+  "gift_tshirt": "/gifts/tshirt.webp",
+  "gift_water_bottle": "/gifts/water-bottle.webp",
+  "gift_wrist_wraps": "/gifts/wrist-wraps.webp",
+  "gift_yoga_mat": "/gifts/yoga-mat.webp"
+}

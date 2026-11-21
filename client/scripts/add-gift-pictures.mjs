@@ -37,7 +37,8 @@ function cutOut(input) {
   const rembg = process.env.REMBG ?? 'rembg';
   if (!rembg) return input;
   const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gift-cut-')), 'cut.png');
-  const r = spawnSync(rembg, ['i', input, out], { encoding: 'utf8' });
+  // birefnet-general (MIT): rembg's default model (BRIA RMBG-2.0) is non-commercial; this one keeps white and clear items whole.
+  const r = spawnSync(rembg, ['i', '-m', 'birefnet-general', input, out], { encoding: 'utf8' });
   if (r.status === 0 && fs.existsSync(out)) return out;
   console.warn(`No cut-out for ${path.basename(input)} (rembg not available); using it as it is.`);
   return input;
