@@ -25,7 +25,7 @@
     "@capacitor/ios": "^8.6.2",
     "@capacitor/share": "^8.0.3",
     "canvas-confetti": "^1.9.4",
-    "lottie-web": "5.12.2",
+    "lottie-web": "5.13.0",
     "lucide-react": "^1.77.0",
     "qrcode": "^1.5.4",
     "react": "^19.3.1",
