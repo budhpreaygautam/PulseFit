@@ -43,7 +43,7 @@ for (const persona of ['member', 'guest'] as const) {
     const offered = await drawer.locator('a[href]').evaluateAll(links => links.map(a => a.getAttribute('href')!));
     expect([...menu, ...APP_PAGES].filter(href => !offered.includes(href))).toEqual([]);
     // Exercise library is the one footer link the drawer keeps, as an ordinary row: nothing else in the app reaches it.
-    expect(offered.filter(href => footerOnly.includes(href) && href !== '/exercises')).toEqual([]);
+    expect(offered.filter(href => footerOnly.includes(href) && href !== '/exercises' && !/^https:\/\/(www\.)?(instagram|facebook|youtube|x)\.com\/$/.test(href))).toEqual([]);
     await expect(drawer.locator('address')).toHaveCount(0);
     await expect(drawer).not.toContainText('Sector 29');
     await expect(drawer.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');

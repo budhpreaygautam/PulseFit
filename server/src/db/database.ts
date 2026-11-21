@@ -28,7 +28,7 @@ import {
   GymContact
 } from '../types/index.js';
 import { defaultGifts, defaultRewardSettings, withDefaultPictures } from './rewardDefaults.js';
-import { defaultGymContact } from '../lib/gymContact.js';
+import { SOCIAL_HOMES, defaultGymContact } from '../lib/gymContact.js';
 
 export interface DatabaseSchema {
   users: User[];
@@ -55,6 +55,8 @@ export interface DatabaseSchema {
   offers: Offer[];
   coupons: Coupon[];
   gym_contact: GymContact;
+  /** Set once the empty social links have been given their home-page defaults; later empties are the admin's choice. */
+  social_links_defaulted?: boolean;
 }
 
 const emptySchema = (): DatabaseSchema => ({
@@ -105,8 +107,12 @@ export const isGeneratedAvatar = (url: string | undefined) => Boolean(url?.start
  * from before the gender question simply have none, which reads as "not given".
  */
 export function migrate(data: DatabaseSchema): DatabaseSchema {
+    const contact = data.gym_contact ?? defaultGymContact();
+  const links = data.social_links_defaulted ? {} : Object.fromEntries(Object.entries(SOCIAL_HOMES).map(([k, home]) => [k, contact[k as keyof typeof SOCIAL_HOMES] || home]));
   return {
     ...data,
+    gym_contact: { ...contact, ...links },
+    social_links_defaulted: true,
     membership_plans: data.membership_plans.map(p => (Array.isArray(p.categories) ? p : { ...p, categories: DEFAULT_PLAN_CATEGORIES[p.tier] ?? [] })),
     users: data.users.map(u => {
       const user = { ...u, membership_expiry: u.membership_expiry || null, ...(isGeneratedAvatar(u.avatar_url) ? { avatar_url: '' } : {}) };
@@ -136,7 +142,7 @@ class GymDatabase {
   constructor(filePath: string) {
     this.filePath = filePath;
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    this.data = this.load();
+    this.data = migrate(this.load()); // also for a first start: it marks the social links as defaulted
   }
 
   private load(): DatabaseSchema {

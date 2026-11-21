@@ -5,7 +5,7 @@ import { appDrawer, auth, signInAs, test, useAppMode } from './helpers';
 // shows, changed by an admin without a release. The database is shared, so the tests that change
 // them put the starting values back.
 
-const DEFAULTS = { phone: '+919811078573', whatsapp: '', email: 'contact@pulsefit.in', instagram: '', facebook: '', youtube: '', x: '' };
+const DEFAULTS = { phone: '+919811078573', whatsapp: '', email: 'contact@pulsefit.in', instagram: 'https://www.instagram.com/', facebook: 'https://www.facebook.com/', youtube: 'https://www.youtube.com/', x: 'https://x.com/' };
 
 test('an admin saves new contact details, and the website footer and Contact page show them', async ({ page, request }) => {
   const token = await signInAs(page, request, 'admin');
@@ -33,8 +33,9 @@ test('an admin saves new contact details, and the website footer and Contact pag
     await expect(instagram).toHaveAttribute('href', 'https://www.instagram.com/pulsefit.e2e');
     await expect(instagram).toHaveAttribute('target', '_blank');
     await expect(instagram).toHaveAttribute('rel', 'noopener noreferrer');
-    // Empty links show no icon.
-    await expect(footer.getByRole('link', { name: /^PulseFit on / })).toHaveCount(1);
+    // A cleared link shows no icon; the other two are still on their network's home page.
+    await expect(footer.getByRole('link', { name: 'PulseFit on YouTube' })).toHaveCount(0);
+    await expect(footer.getByRole('link', { name: /^PulseFit on / })).toHaveCount(3);
     // Visit us has the WhatsApp button too.
     await expect(footer.getByRole('link', { name: 'WhatsApp us' })).toHaveAttribute('href', 'https://wa.me/919811055555');
 
@@ -90,12 +91,26 @@ test('in the app, the drawer ends with the social icons and "Visit our website",
   }
 });
 
-test('without a WhatsApp number or links there is no WhatsApp button and no social icon', async ({ page }) => {
+test('by default the footer has the four social icons on the home pages, and no WhatsApp button', async ({ page }) => {
   await page.goto('/contact');
   const footer = page.getByRole('contentinfo');
   await expect(footer.getByRole('link', { name: '+91 98110 78573' })).toBeVisible();
-  await expect(footer.getByRole('link', { name: /^PulseFit on / })).toHaveCount(0);
+  await expect(footer.getByRole('link', { name: /^PulseFit on / })).toHaveCount(4);
+  for (const [network, href] of [['Instagram', 'https://www.instagram.com/'], ['Facebook', 'https://www.facebook.com/'], ['YouTube', 'https://www.youtube.com/'], ['X', 'https://x.com/']]) {
+    await expect(footer.getByRole('link', { name: `PulseFit on ${network}` })).toHaveAttribute('href', href);
+  }
   await expect(page.getByRole('link', { name: 'WhatsApp us' })).toHaveCount(0);
+});
+
+test('in the app, the drawer row and Visit us show the four social icons by default', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile', 'app mode is the phone layout');
+  await useAppMode(page);
+  await page.goto('/');
+  await page.getByRole('banner').getByRole('button', { name: 'Open menu' }).click();
+  const drawer = appDrawer(page);
+  await expect(drawer.getByRole('link', { name: /^PulseFit on / })).toHaveCount(4);
+  await drawer.getByRole('link', { name: 'Visit us', exact: true }).click();
+  await expect(page.locator('#main').getByRole('link', { name: /^PulseFit on / })).toHaveCount(4);
 });
 
 test('only admins can read or change the contact details', async ({ page, request }) => {

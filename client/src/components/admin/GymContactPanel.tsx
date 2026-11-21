@@ -7,7 +7,7 @@ import { ErrorState, LoadingState } from '../common/States.js';
 import { useApiResource } from '../member/useApiResource.js';
 import { FieldError, FormError, SectionCard, focusRing, formErrorsFrom, hintClass, inputClass, labelClass } from './ui.js';
 
-const HIDE_ICON = 'Leave empty to hide the icon.';
+const HIDE_ICON = "Shows the network's home page until you enter your page; clear it to hide the icon.";
 
 const FIELDS: { key: keyof GymContact; label: string; type: 'tel' | 'email' | 'url'; placeholder: string; hint: string }[] = [
   { key: 'phone', label: 'Phone', type: 'tel', placeholder: '+91 98110 12345', hint: 'An Indian mobile or landline. On the website, the app, ID cards and payment messages.' },

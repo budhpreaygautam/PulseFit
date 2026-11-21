@@ -365,7 +365,7 @@ export function structuredData(page: PageMeta): Record<string, unknown> {
   const id = (fragment: string) => `${base}/#${fragment}`;
   const plans = plansByPrice();
   const { phone, email, instagram, facebook, youtube, x } = db.gym_contact;
-  const profiles = [...GYM_PROFILE.sameAs, instagram, facebook, youtube, x].filter(Boolean);
+  const profiles = [...GYM_PROFILE.sameAs, instagram, facebook, youtube, x].filter(link => link && new URL(link).pathname.length > 1) // a bare home page names no profile;
   const sameAs = profiles.length ? { sameAs: profiles } : {};
 
   const organization = {

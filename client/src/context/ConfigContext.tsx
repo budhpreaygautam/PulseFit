@@ -14,7 +14,7 @@ import { GYM_EMAIL, GYM_PHONE_TEL } from '../components/public/gymInfo.js';
 const CONTACT_KEY = 'pulsefit_gym_contact';
 
 function savedContact(): GymContact {
-  const contact: GymContact = { phone: GYM_PHONE_TEL, whatsapp: '', email: GYM_EMAIL, instagram: '', facebook: '', youtube: '', x: '' };
+  const contact: GymContact = { phone: GYM_PHONE_TEL, whatsapp: '', email: GYM_EMAIL, instagram: 'https://www.instagram.com/', facebook: 'https://www.facebook.com/', youtube: 'https://www.youtube.com/', x: 'https://x.com/' };
   try {
     const saved = JSON.parse(storage.get(CONTACT_KEY) ?? '{}') as Partial<Record<keyof GymContact, unknown>>;
     for (const key of Object.keys(contact) as (keyof GymContact)[]) if (typeof saved[key] === 'string') contact[key] = saved[key];

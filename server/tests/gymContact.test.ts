@@ -19,16 +19,17 @@ const valid = {
   youtube: 'https://youtu.be/abc123',
   x: 'https://twitter.com/pulsefit'
 };
+const HOMES = { instagram: 'https://www.instagram.com/', facebook: 'https://www.facebook.com/', youtube: 'https://www.youtube.com/', x: 'https://x.com/' };
 const save = (body: object, who = admin()) => api().put('/api/gym/contact').set(who).send(body);
 const issuePaths = (res: { body: { data?: { issues?: { path: string }[] } } }) => res.body.data?.issues?.map(i => i.path);
 
 beforeEach(() => resetDb());
 
 describe('GET/PUT /gym/contact', () => {
-  it("starts with the details the website showed before, and no social links", async () => {
+  it("starts with the details the website showed before, and each network's home page", async () => {
     const res = await api().get('/api/gym/contact').set(admin());
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ phone: '+919811078573', whatsapp: '', email: 'contact@pulsefit.in', instagram: '', facebook: '', youtube: '', x: '' });
+    expect(res.body.data).toEqual({ phone: '+919811078573', whatsapp: '', email: 'contact@pulsefit.in', ...HOMES });
   });
 
   it('saves the details with the phones in one form and the email in lower case', async () => {
@@ -62,10 +63,20 @@ describe('GET/PUT /gym/contact', () => {
     expect(db.gym_contact[field as keyof typeof valid]).toBe(link);
   });
 
-  it('leaves WhatsApp and every link empty when they are left out or blank', async () => {
+  it('leaves WhatsApp and every link empty when they are left out or blank, so the icons hide', async () => {
     const res = await save({ phone: '9811012345', email: 'desk@pulsefit.example', instagram: '  ' });
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body.data).toEqual({ phone: '+919811012345', whatsapp: '', email: 'desk@pulsefit.example', instagram: '', facebook: '', youtube: '', x: '' });
+  });
+
+  it.each([
+    ['facebook', 'https://facebook.com/'],
+    ['youtube', 'https://youtube.com'],
+    ['x', 'https://twitter.com/']
+  ])('takes the home page %s %s', async (field, link) => {
+    const res = await save({ ...valid, [field]: link });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(db.gym_contact[field as keyof typeof valid]).toBe(link);
   });
 
   it.each([
@@ -82,7 +93,6 @@ describe('GET/PUT /gym/contact', () => {
     ['instagram', 'https://instagram.com.evil.example/pulsefit'],
     ['instagram', 'https://evilinstagram.com/pulsefit'],
     ['instagram', 'https://facebook.com/pulsefit'],
-    ['instagram', 'https://instagram.com/'],
     ['instagram', 'https://user@instagram.com/pulsefit'],
     ['instagram', 'instagram.com/pulsefit'],
     ['facebook', 'https://m.facebook.com.example/pulsefit'],
@@ -127,6 +137,16 @@ describe('GET /config', () => {
 });
 
 describe('a database from before the setting', () => {
+  it('gets the home-page links once where the links were empty, then keeps what an admin clears', async () => {
+    const older = db.snapshot();
+    db.restore({ ...older, social_links_defaulted: undefined, gym_contact: { ...defaultGymContact(), instagram: '', facebook: '', youtube: '', x: '', whatsapp: '98', phone: '+919811000000' } } as DatabaseSchema);
+    expect(db.gym_contact).toMatchObject({ ...HOMES, phone: '+919811000000' });
+    const res = await save({ ...valid, instagram: '' });
+    expect(res.status).toBe(200);
+    db.restore(db.snapshot());
+    expect(db.gym_contact.instagram).toBe('');
+  });
+
   it('gets the default contact details', () => {
     const { gym_contact: _none, ...legacy } = db.snapshot();
     db.restore(legacy as DatabaseSchema);

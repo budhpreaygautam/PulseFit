@@ -4,18 +4,23 @@ import { GymContact } from '../types/index.js';
 // served to the website and the apps with GET /config, and used in the structured data (seo.ts) and
 // the enquiry emails.
 
+/** Each network's home page. */
+export const SOCIAL_HOMES = {
+  instagram: 'https://www.instagram.com/',
+  facebook: 'https://www.facebook.com/',
+  youtube: 'https://www.youtube.com/',
+  x: 'https://x.com/'
+};
+
 /**
  * What the website showed before the setting existed (client/src/components/public/gymInfo.ts;
- * tests/seo.test.ts fails when they drift apart). Social links start empty: never guessed.
+ * tests/seo.test.ts fails when they drift apart). The social links start as each network's home page\n * (the owner's choice until the gym enters its own pages; an admin clears one to hide its icon).
  */
 export const defaultGymContact = (): GymContact => ({
   phone: '+919811078573',
   whatsapp: '',
   email: 'contact@pulsefit.in',
-  instagram: '',
-  facebook: '',
-  youtube: '',
-  x: ''
+  ...SOCIAL_HOMES
 });
 
 /** Each network's own sites: a link must be on one of them or a subdomain (www., m. from a phone, web.). */
@@ -35,7 +40,7 @@ export function indianPhone(value: string): string | null {
   return national ? `+91${national}` : null;
 }
 
-/** Whether a link is an https:// address of a page on one of these sites (not just the home page). */
+/** Whether a link is an https:// address on one of these sites (the home page included). */
 export function isLinkOn(link: string, hosts: readonly string[]): boolean {
   let url: URL;
   try {
@@ -45,5 +50,5 @@ export function isLinkOn(link: string, hosts: readonly string[]): boolean {
   }
   const host = url.hostname;
   const onSite = hosts.some(site => host === site || host.endsWith(`.${site}`));
-  return url.protocol === 'https:' && !url.username && !url.password && !url.port && onSite && url.pathname.length > 1;
+  return url.protocol === 'https:' && !url.username && !url.password && !url.port && onSite;
 }
