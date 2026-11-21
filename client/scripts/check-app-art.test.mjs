@@ -45,7 +45,17 @@ test('reports a missing scene', async () => {
 });
 
 test('refuses unsafe SVG', async () => {
-  for (const bad of ['<script>x</script>', '<circle onclick="x()"/>', '<foreignObject/>', '<image href="http://x/y.png"/>']) {
+  const unsafe = [
+    '<script>x</script>',
+    '<circle onclick="x()"/>',
+    '<g x="1"onload="x()"/>',
+    '<foreignObject/>',
+    '<image href="http://x/y.png"/>',
+    '<image href="//x/y.png"/>',
+    '<rect style="fill: url(https://x/y)"/>',
+    '<style>@import "x.css";</style>'
+  ];
+  for (const bad of unsafe) {
     const p = await problemsOf(s => (s.scenes['page.home'] = { kind: 'svg', svg: `<svg>${bad}</svg>`, css: '' }));
     assert.match(p, /page\.home/, bad);
   }
@@ -58,6 +68,10 @@ test('refuses Lottie with images or expressions', async () => {
   assert.equal(await problemsOf(lottie({ assets: [], layers: [] })), '');
   const easing = { assets: [], layers: [{ ks: { o: { a: 1, k: [{ i: { x: [0.8], y: [0.8] }, o: { x: [0.2], y: [0] }, t: 0, s: [0] }] } } }] };
   assert.equal(await problemsOf(lottie(easing)), '');
+});
+
+test('reports a credit for an unknown scene', async () => {
+  assert.match(await problemsOf(s => s.credits[0].ids.push('page.nope')), /unknown scene page\.nope/);
 });
 
 test('refuses a missing credit', async () => {

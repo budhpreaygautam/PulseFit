@@ -103,15 +103,32 @@ test('holds still while the page scrolls and moves again after', async ({ page }
       states: [...new Set(document.querySelector('[data-scene="page.contact"]')!.getAnimations({ subtree: true }).map(a => a.playState))]
     }));
 
-  // Small steps keep the strip on screen, so only the scroll holds it.
+  // Small steps keep the strip on screen, so only the scroll holds it. Each step waits for its own scroll,
+  // so the flag it reads is not one the step before left set.
+  const scrollY = () => page.evaluate(() => window.scrollY);
   await page.mouse.move(195, 500);
   for (let i = 0; i < 3; i++) {
+    const before = await scrollY();
     await page.mouse.wheel(0, 20);
+    await expect.poll(scrollY, { intervals: [20] }).toBeGreaterThan(before);
     await expect.poll(look, { intervals: [20] }).toEqual({ scrolling: true, states: ['paused'] });
   }
   await expect(scene).toHaveAttribute('data-state', 'playing');
-  await page.waitForTimeout(400);
-  expect(await look()).toEqual({ scrolling: false, states: ['running'] });
+  await expect.poll(look, { timeout: 2000 }).toEqual({ scrolling: false, states: ['running'] });
+});
+
+test('a once-only scene plays on through a scroll', async ({ page }) => {
+  await useAppMode(page);
+  await page.goto('/no-such-page?once=1');
+  await expect(art(page)).toHaveAttribute('data-state', 'playing');
+  expect(await running(page)).toBeGreaterThan(0);
+  // Read in the same task as the scroll: the page is marked as scrolling for 200 ms only.
+  const during = await art(page).evaluate(el => {
+    window.dispatchEvent(new Event('scroll'));
+    return { scrolling: 'scrolling' in document.documentElement.dataset, running: el.getAnimations({ subtree: true }).filter(a => a.playState === 'running').length };
+  });
+  expect(during.scrolling).toBe(true);
+  expect(during.running).toBeGreaterThan(0);
 });
 
 test('a scene that cannot load leaves no trace', async ({ page }) => {

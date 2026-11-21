@@ -120,7 +120,7 @@ export const PullToRefresh: React.FC<{ onRefresh: () => Promise<unknown> }> = ({
         data-refreshing={refreshing || undefined}
         className="pull-spinner fixed left-1/2 top-0 z-[44] -ml-5 w-10 h-10 rounded-full flex items-center justify-center bg-gym-900 border border-slate-800/80 shadow-lg pointer-events-none opacity-0"
       >
-        <AppArt scene="state.loading" size="state" playing={refreshing} className="pull-art" />
+        <AppArt scene="state.loading" size="state" playing={refreshing} holdOnScroll={false} className="pull-art" />
       </div>
       <div className="sr-only" role="status" aria-live="polite">
         {refreshing ? 'Refreshing' : ''}

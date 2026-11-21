@@ -43,6 +43,10 @@ const ToastCard: React.FC<{ toast: Toast; paused: boolean; isNewest: boolean; on
   onDismiss
 }) => {
   const remaining = useRef(t.duration);
+  // Its scene plays only while it is the newest toast and stays still for good once a newer one has come,
+  // even after that one goes: a once-only scene played late would be out of step with its message.
+  const [superseded, setSuperseded] = useState(!isNewest);
+  if (!isNewest && !superseded) setSuperseded(true);
 
   useEffect(() => {
     if (paused) return;
@@ -67,7 +71,7 @@ const ToastCard: React.FC<{ toast: Toast; paused: boolean; isNewest: boolean; on
       className="glass-toast pointer-events-none flex items-start gap-3 py-3 pl-5 pr-2.5 sm:py-3.5 sm:pr-3"
     >
       <div className={`toast-icon shrink-0 flex items-center justify-center ${isAppMode ? 'w-14 h-14' : 'w-9 h-9'}`}>
-        {isAppMode && <AppArt scene={`moment.${t.moment}`} size="moment" once playing={isNewest} className="w-full" />}
+        {isAppMode && <AppArt scene={`moment.${t.moment}`} size="moment" once playing={isNewest && !superseded} className="w-full" />}
         {!isAppMode && t.type === 'success' && <CheckCircle2 className="w-5 h-5" aria-hidden="true" />}
         {!isAppMode && t.type === 'error' && <AlertCircle className="w-5 h-5" aria-hidden="true" />}
         {!isAppMode && t.type === 'warning' && <AlertTriangle className="w-5 h-5" aria-hidden="true" />}

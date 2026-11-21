@@ -47,6 +47,8 @@ test.describe('app', () => {
     await page.goto('/bookings');
     const panel = page.locator('section').filter({ has: page.getByRole('heading', { name: "This page didn't load" }) });
     await expect(panel.locator(scene('state.error'))).toBeVisible();
+    // The panel's scene only, not the page's scene above it as well.
+    await expect(page.locator('#main [data-scene]')).toHaveCount(1);
   });
 
   test('no connection shows the offline scene', async ({ page, request }) => {
@@ -56,18 +58,40 @@ test.describe('app', () => {
     await page.route('**/api/**', route => route.abort('internetdisconnected'));
     await page.goto('/bookings');
     await expect(page.locator(scene('state.offline'))).toBeVisible();
+    await expect(page.locator('#main [data-scene]')).toHaveCount(1);
+  });
+
+  test('a guest on a member page sees one scene above "Please sign in"', async ({ page }) => {
+    await useAppMode(page);
+    await page.goto('/bookings');
+    await expect(page.locator('#main h1', { hasText: 'Please sign in' })).toBeVisible();
+    await expect(page.locator('#main [data-scene]')).toHaveCount(1);
+  });
+
+  test('the page loader shows only its own scene', async ({ page, request }) => {
+    const m = await freshMember(request, 'Art page loader');
+    await useSession(page, m.token);
+    await useAppMode(page);
+    await page.route('**/assets/MyBookingsPage-*.js', async route => {
+      await new Promise(r => setTimeout(r, 2000));
+      await route.continue();
+    });
+    await page.goto('/bookings');
+    await expect(page.locator(`#main ${scene('state.loading')}`)).toBeVisible();
+    await expect(page.locator('#main [data-scene]')).toHaveCount(1);
   });
 
   test('the launch screen shows its scene', async ({ page, request }) => {
     const m = await freshMember(request, 'Art launch');
     await useSession(page, m.token);
     await useAppMode(page);
-    // The launch node is gone after 900 ms, so watch for it from the first frame.
+    // The launch node is gone after 900 ms, so watch for it from the first frame, until its scene has loaded.
     await page.addInitScript(() => {
       const w = window as unknown as { __sawLaunch?: boolean };
+      const loaded = '.app-launch [data-scene^="state.launch"][data-state="playing"], .app-launch [data-scene^="state.launch"][data-state="still"]';
       new MutationObserver(() => {
-        if (document.querySelector('.app-launch [data-scene^="state.launch"]')) w.__sawLaunch = true;
-      }).observe(document, { childList: true, subtree: true });
+        if (document.querySelector(loaded)) w.__sawLaunch = true;
+      }).observe(document, { childList: true, subtree: true, attributes: true });
     });
     await page.goto('/bookings', { waitUntil: 'commit' });
     await page.waitForFunction(() => (window as unknown as { __sawLaunch?: boolean }).__sawLaunch === true);

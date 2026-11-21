@@ -75,6 +75,37 @@ test('two toasts in a row: both end on their still', async ({ page, request }) =
   await cancel(page, a);
 });
 
+test('dismissing the newest toast quickly does not replay the older one', async ({ page, request }) => {
+  const token = await signInAs(page, request, 'member');
+  const [a] = await bookable(request, token);
+  const made = await request.post('/api/bookings', { headers: auth(token), data: { class_id: a.id, booking_date: a.occurrence_date } });
+  expect(made.ok(), await made.text()).toBeTruthy();
+  await useAppMode(page);
+  await page.goto('/bookings');
+  await refuseCancel(page);
+  await cancel(page, a);
+  await expect(page.locator('[data-toast-id]')).toHaveCount(1);
+  await cancel(page, a);
+  await expect(page.locator('[data-toast-id]')).toHaveCount(2);
+  const older = page.locator('[data-toast-id]').first().locator('[data-scene]');
+  await expect(older).toHaveAttribute('data-state', 'still');
+  // Note any play of the older scene from here on.
+  await older.evaluate(el => {
+    const w = window as unknown as { __olderPlayed?: boolean };
+    w.__olderPlayed = false;
+    new MutationObserver(() => {
+      if (el.getAttribute('data-state') === 'playing') w.__olderPlayed = true;
+    }).observe(el, { attributes: true, attributeFilter: ['data-state'] });
+  });
+  await newest(page).getByRole('button', { name: 'Dismiss notification' }).click();
+  await expect(page.locator('[data-toast-id]')).toHaveCount(1);
+  await page.waitForTimeout(300);
+  await expect(older).toHaveAttribute('data-state', 'still');
+  expect(await page.evaluate(() => (window as unknown as { __olderPlayed?: boolean }).__olderPlayed)).toBe(false);
+  await page.unroute('**/api/bookings/*');
+  await cancel(page, a);
+});
+
 test('a member claiming a gift sees the gift scene', async ({ page, request }, testInfo) => {
   const m = await freshMember(request, `moment gift ${testInfo.project.name}`);
   await request.post(`/api/members/${m.id}/points`, { headers: auth(m.adminToken), data: { points: 300, note: 'e2e' } });
@@ -106,6 +137,8 @@ test('a second scan of the same kind plays its scene again, and a denied scan sh
   const scan = (code: string) => box.fill(code).then(() => page.getByRole('button', { name: 'Check in', exact: true }).click());
   await scan(m.email);
   await expect(page.getByText('Access granted')).toBeVisible();
+  // The result can open above the fold (the box keeps focus), and a scene off screen does not play.
+  await page.locator('[data-scene="moment.checkedIn"]').scrollIntoViewIfNeeded();
   await page.waitForTimeout(1700);
   await expect(page.locator('[data-scene="moment.checkedIn"]')).toHaveAttribute('data-state', 'still');
   // The same kind again: a fresh scene that is not already at its still.

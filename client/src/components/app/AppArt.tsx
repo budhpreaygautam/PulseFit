@@ -10,6 +10,8 @@ interface AppArtProps {
   once?: boolean;
   /** false holds the still. */
   playing?: boolean;
+  /** false: it moves on while the page scrolls (the pull-to-refresh spinner, which would look stuck). */
+  holdOnScroll?: boolean;
   className?: string;
 }
 
@@ -18,16 +20,17 @@ type Player = { goToAndStop(f: number, isFrame: boolean): void; play(): void; pa
 const ONCE_MS = 1500;
 const MODAL = '[role="dialog"][aria-modal="true"]';
 
-/** Playing Lottie scenes (not moments), told when a scroll starts (true) and when it has stopped (false). */
+/** Playing Lottie scenes that hold on a scroll, told when a scroll starts (true) and when it has stopped (false). */
 const scrollFollowers = new Set<(scrolling: boolean) => void>();
 let scrollWatched = false;
 let scrollEnd: number | undefined;
 const isScrolling = () => scrollEnd !== undefined;
 
 /**
- * Every scene but a moment holds still while anything scrolls, until 200 ms after the last scroll event:
- * a moving scene makes the WebView repaint its svg on every frame of the scroll. The svg scenes are
- * paused by html[data-scrolling] (index.css). One listener for the whole app, from the first scene on.
+ * A scene holds still while anything scrolls, until 200 ms after the last scroll event: a moving scene
+ * makes the WebView repaint its svg on every frame of the scroll. Not a once-only scene (its 1500 ms would
+ * run out held) nor the pull-to-refresh spinner. The svg scenes are paused by html[data-scrolling]
+ * (index.css). One listener for the whole app, from the first scene on.
  */
 function watchScroll() {
   if (scrollWatched) return;
@@ -73,9 +76,10 @@ function scopeCss(css: string, id: SceneId): string {
  * in front) and holds a still frame with reduced motion; a scene that cannot load collapses to nothing.
  * Nothing at all on the website.
  */
-export const AppArt: React.FC<AppArtProps> = props => (isAppMode ? <Art {...props} /> : null);
+// Keyed: another scene (or once) is a fresh Art, so a once-only scene gets its own 1500 ms.
+export const AppArt: React.FC<AppArtProps> = props => (isAppMode ? <Art key={`${props.scene} ${Boolean(props.once)}`} {...props} /> : null);
 
-const Art: React.FC<AppArtProps> = ({ scene, size, once = false, playing = true, className = '' }) => {
+const Art: React.FC<AppArtProps> = ({ scene, size, once = false, playing = true, holdOnScroll = true, className = '' }) => {
   const host = useRef<HTMLDivElement>(null);
   const lottie = useRef<{ player: Player; stillFrame: number }>();
   const [marker, setMarker] = useState<string>();
@@ -85,6 +89,7 @@ const Art: React.FC<AppArtProps> = ({ scene, size, once = false, playing = true,
   const [hidden, setHidden] = useState(() => document.hidden);
   const [done, setDone] = useState(false);
   const left = useRef(ONCE_MS);
+  const holds = holdOnScroll && !once;
 
   const state =
     load !== 'ready' ? load : prefersReducedMotion() || !playing || done ? 'still' : onScreen && !covered && !hidden ? 'playing' : 'paused';
@@ -158,12 +163,15 @@ const Art: React.FC<AppArtProps> = ({ scene, size, once = false, playing = true,
   }, [once, state]);
 
   // The svg scenes run on CSS (index.css pauses them); Lottie scenes are told. A still is the first frame
-  // of the svg's loops, or the Lottie scene's still frame. A moment (a toast, which does not scroll with the
-  // page) plays through a scroll, so a once-only one keeps its play time.
+  // of the svg's loops, or the Lottie scene's still frame. A scene that does not hold plays through a scroll.
   useEffect(() => {
     const anim = lottie.current;
-    if (state === 'playing' && anim && size !== 'moment') {
-      const follow = (scrolling: boolean) => (scrolling ? anim.player.pause() : anim.player.play());
+    if (state === 'playing' && anim && holds) {
+      const follow = (scrolling: boolean) => {
+        if (lottie.current !== anim) return; // destroyed with its scene
+        if (scrolling) anim.player.pause();
+        else anim.player.play();
+      };
       follow(isScrolling());
       scrollFollowers.add(follow);
       return () => void scrollFollowers.delete(follow);
@@ -174,7 +182,17 @@ const Art: React.FC<AppArtProps> = ({ scene, size, once = false, playing = true,
       if (anim) anim.player.goToAndStop(anim.stillFrame, true);
       else host.current?.getAnimations({ subtree: true }).forEach(a => (a.currentTime = 0));
     }
-  }, [state, size]);
+  }, [state, holds]);
 
-  return <div ref={host} className={`app-art app-art-${size} ${className}`} data-scene={scene} data-art={marker} data-state={state} aria-hidden="true" />;
+  return (
+    <div
+      ref={host}
+      className={['app-art', `app-art-${size}`, className].filter(Boolean).join(' ')}
+      data-scene={scene}
+      data-art={marker}
+      data-state={state}
+      data-hold={holds || undefined}
+      aria-hidden="true"
+    />
+  );
 };

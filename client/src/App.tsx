@@ -258,7 +258,9 @@ function MainAppContent() {
   useEffect(() => revealCards(mainRef.current!), []);
 
   const route = routeForTab(tab);
-  const showOfflinePanel = Boolean(route && route.access !== 'public' && isInitializing && isServerUnreachable);
+  // A page that needs an account waits for the saved session: the loader, or the offline panel.
+  const restoring = Boolean(route && route.access !== 'public' && isInitializing);
+  const showOfflinePanel = restoring && isServerUnreachable;
 
   // Such a page opened by its address (or back/forward, or a session that ended there) shows "Please
   // sign in" below, never the page, and opens the sign-in dialog for it straight away.
@@ -285,7 +287,7 @@ function MainAppContent() {
         scene="state.offline"
       />
     );
-  } else if (route.access !== 'public' && isInitializing) {
+  } else if (restoring) {
     page = <PageLoader />;
   } else if (needsSignIn) {
     page = (
@@ -406,9 +408,10 @@ function MainAppContent() {
       )}
 
       <main id="main" ref={mainRef} tabIndex={-1} className="flex-1 outline-none">
-        {isAppMode && <PageScene tab={tab} />}
         {/* A page that fails (one that loads on demand and could not be fetched, or a crash) shows
-            this panel instead of emptying the whole app. Moving to another page tries again. */}
+            this panel instead of emptying the whole app. Moving to another page tries again. The page's
+            scene goes with the page, so the loader and the offline and "didn't load" panels show only
+            their own scene; the panels with just an icon keep the page's scene. */}
         <ErrorBoundary
           resetKey={`${accountGeneration}:${refreshes}:${tab}`}
           fallback={
@@ -423,6 +426,7 @@ function MainAppContent() {
           }
         >
           <Suspense key={`${accountGeneration}:${refreshes}`} fallback={<PageLoader />}>
+            {isAppMode && !restoring && <PageScene tab={tab} />}
             {page}
           </Suspense>
         </ErrorBoundary>

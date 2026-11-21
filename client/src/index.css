@@ -1250,8 +1250,8 @@ body {
 .app-art[data-state='still'] * {
   animation-play-state: paused !important;
 }
-/* Held while the page scrolls (AppArt's watchScroll); a moment, in a toast, plays on. */
-html[data-scrolling] .app-art:not(.app-art-moment) * {
+/* Held while the page scrolls (AppArt's watchScroll); a once-only scene and the pull-to-refresh spinner play on. */
+html[data-scrolling] .app-art[data-hold] * {
   animation-play-state: paused !important;
 }
 
