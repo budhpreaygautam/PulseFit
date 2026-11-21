@@ -1250,8 +1250,9 @@ body {
 .app-art[data-state='still'] * {
   animation-play-state: paused !important;
 }
-/* Held while the page scrolls (AppArt's watchScroll); a once-only scene and the pull-to-refresh spinner play on. */
-html[data-scrolling] .app-art[data-hold] * {
+/* Held while the page scrolls (AppArt's watchScroll marks each holding scene); a once-only scene and the
+   pull-to-refresh spinner play on. Keyed on the scene, not on <html>: a change there would restyle the whole page. */
+.app-art[data-held] * {
   animation-play-state: paused !important;
 }
 

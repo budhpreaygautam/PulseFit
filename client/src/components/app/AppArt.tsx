@@ -29,22 +29,29 @@ const isScrolling = () => scrollEnd !== undefined;
 /**
  * A scene holds still while anything scrolls, until 200 ms after the last scroll event: a moving scene
  * makes the WebView repaint its svg on every frame of the scroll. Not a once-only scene (its 1500 ms would
- * run out held) nor the pull-to-refresh spinner. The svg scenes are paused by html[data-scrolling]
- * (index.css). One listener for the whole app, from the first scene on.
+ * run out held) nor the pull-to-refresh spinner. html[data-scrolling] marks the scroll; the svg scenes
+ * are paused by their own data-held (index.css): a style rule keyed on <html> would restyle the whole
+ * page at every start and stop (traced on the Timetable: 2,234 elements each time). One listener for
+ * the whole app, from the first scene on.
  */
 function watchScroll() {
   if (scrollWatched) return;
   scrollWatched = true;
   const root = document.documentElement;
+  // Only a playing scene: holding one already paused would restyle it for nothing.
+  const hold = (held: boolean) =>
+    document.querySelectorAll(held ? '.app-art[data-hold][data-state="playing"]' : '[data-held]').forEach(el => el.toggleAttribute('data-held', held));
   const onScroll = () => {
     if (scrollEnd === undefined) {
       root.dataset.scrolling = '';
+      hold(true);
       scrollFollowers.forEach(follow => follow(true));
     }
     window.clearTimeout(scrollEnd);
     scrollEnd = window.setTimeout(() => {
       scrollEnd = undefined;
       delete root.dataset.scrolling;
+      hold(false);
       scrollFollowers.forEach(follow => follow(false));
     }, 200);
   };
@@ -165,6 +172,8 @@ const Art: React.FC<AppArtProps> = ({ scene, size, once = false, playing = true,
   // The svg scenes run on CSS (index.css pauses them); Lottie scenes are told. A still is the first frame
   // of the svg's loops, or the Lottie scene's still frame. A scene that does not hold plays through a scroll.
   useEffect(() => {
+    // A scene that starts playing mid-scroll (it came into view, or loaded) is held at once, like the others.
+    if (state === 'playing' && holds && isScrolling()) host.current?.toggleAttribute('data-held', true);
     const anim = lottie.current;
     if (state === 'playing' && anim && holds) {
       const follow = (scrolling: boolean) => {
