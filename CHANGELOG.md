@@ -4,6 +4,11 @@ All notable changes to PulseFit. Versions follow [Semantic Versioning](https://s
 
 ## [Unreleased]
 
+## [2.5.0] - unreleased
+
+Not released yet: the version is prepared, nothing is tagged, deployed or published. The Android app is 1.2.0
+(versionCode 3), so installed 1.1.0 apps offer the update once its APK and `pulsefit.json` are uploaded.
+
 ### Added
 
 - **Gym contact details in Admin.** Plans & rewards › Gym contact holds the gym's phone, WhatsApp number, email and
@@ -18,7 +23,22 @@ All notable changes to PulseFit. Versions follow [Semantic Versioning](https://s
   `m.youtube.com`) are accepted. The website and the app keep the details they last received, so an app opened
   offline shows the current ones rather than those built into it. Landline numbers are shown as `+91 1244567890`.
 
+- **Emails from Brevo.** When email sending is configured, a forgot-password request for a known address emails the
+  reset link (an unknown address gets the same reply and no email), a booking emails its confirmation (class, date and
+  time) and a payment emails its receipt (plan, amount and reference). Mail is sent in the background: a slow or
+  failing sender never delays or fails the booking, payment or reset, and logs carry ids and error text only.
+  Without email configured nothing is sent and the reset reply is the desk message as before.
+- **Gift pictures.** Support for a picture on each default gift (`client/src/data/gift-pictures.json`); 23 of the 24
+  gifts have an AI-made picture on the white tile (the free week keeps its emoji), shown on the website and in the
+  app. A gift keeps its own emoji or upload if an admin changed it. `npm run gift:add` places new pictures; the
+  prompts and licence notes are in `docs/gift-pictures/`.
+- **Page cartoons inside the sections (Android app only).** Each page's scene sits beside its heading or inside a
+  fitting card instead of a strip above the page.
+
 ### Changed
+
+- **Social icons show by default.** The footer, the app drawer and Visit us link to each network's home page
+  (Instagram, Facebook, YouTube, X) until an admin enters the gym's own page; clearing a link hides its icon.
 
 - **The Android app shows the website's pages in an app frame.** Inside the Android and iOS apps everyone gets the
   website's own pages, opening on the homepage (coaches and admins on their first tab), in a frame of the app's own:
