@@ -10,6 +10,7 @@ import { claimsOf, createClaim, GIFT_SIZES, hasStock, promoteWaiting, returnStoc
 import { milestoneValues } from '../lib/milestones.js';
 import { ensureReferralCode, referrerFor, referrerLocked } from '../lib/referrals.js';
 import { validateImageDataUrl } from '../lib/imageValidation.js';
+import { isGiftPicture } from '../lib/giftPictures.js';
 import { newId } from '../lib/users.js';
 import { ClaimStatus, Gift, GiftClaim, GiftLevel, GiftSize, Milestone, RewardSettings } from '../types/index.js';
 
@@ -33,7 +34,7 @@ const adjustBody = z
   })
   .strict();
 
-// An emoji, or a photo checked like an avatar. Never an address: every member's browser would fetch it.
+// An emoji, a photo checked like an avatar, or one of the built-in pictures. Never another address: every member's browser would fetch it.
 const imageField = z
   .string()
   .min(1, 'Choose an emoji or upload a photo.')
@@ -42,6 +43,8 @@ const imageField = z
     if (v.startsWith('data:')) {
       const check = validateImageDataUrl(v);
       if (!check.ok) ctx.addIssue({ code: 'custom', message: check.error });
+    } else if (v.startsWith('/')) {
+      if (!isGiftPicture(v)) ctx.addIssue({ code: 'custom', message: 'That picture is not one of the built-in gift pictures.' });
     } else if (v.length > 8 || /[<>/:"']/.test(v)) {
       ctx.addIssue({ code: 'custom', message: 'Use an emoji, or upload a PNG, JPEG or WebP photo.' });
     }

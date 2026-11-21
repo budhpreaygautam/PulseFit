@@ -1,4 +1,5 @@
 import { Gift, GiftLevel, GiftSize, RewardSettings } from '../types/index.js';
+import { giftPictures } from '../lib/giftPictures.js';
 
 // The rewards a gym starts with, in production and demo alike; admins edit all of it. Ids are fixed
 // so milestones and joining bundles can name gifts. Items start with no stock (the gym enters its
@@ -35,8 +36,16 @@ const GIFTS: GiftSeed[] = [
   ['gift_guest_pass', 'Guest pass for a friend', '🎟️', 'premium', 1500, 'Bring a friend for one day of training.', 'service']
 ];
 
+const DEFAULT_EMOJI = new Map(GIFTS.map(([id, , image]) => [id, image]));
+
+/** Give each gift that has a built-in picture that picture, but only while it still shows its default emoji (an admin's own choice stays). */
+export function withDefaultPictures(gifts: Gift[]): Gift[] {
+  const pictures = giftPictures();
+  return gifts.map(g => (pictures[g.id] && g.image === DEFAULT_EMOJI.get(g.id) ? { ...g, image: pictures[g.id] } : g));
+}
+
 export function defaultGifts(createdAt = new Date().toISOString()): Gift[] {
-  return GIFTS.map(([id, name, image, level, points_cost, description, kind]) => ({
+  return withDefaultPictures(GIFTS.map(([id, name, image, level, points_cost, description, kind]) => ({
     id,
     name,
     description,
@@ -48,7 +57,7 @@ export function defaultGifts(createdAt = new Date().toISOString()): Gift[] {
     kind: kind === 'service' ? 'service' : 'item',
     active: true,
     created_at: createdAt
-  }));
+  })));
 }
 
 export function defaultRewardSettings(): RewardSettings {

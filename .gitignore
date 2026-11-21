@@ -43,3 +43,6 @@ test-results/
 
 # The app's cartoons are private: the owner keeps a backup (client/scripts/check-app-art.mjs)
 client/app-art/
+
+# Gift pictures waiting to be added with npm run gift:add
+gift-pictures-incoming/

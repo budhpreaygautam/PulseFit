@@ -15,6 +15,7 @@
     "build": "npm --prefix server run build && npm --prefix client run build",
     "start": "npm --prefix server start",
     "test:e2e": "playwright test",
+    "gift:add": "npm --prefix client run gift:add",
     "test:all": "npm test && npm run test:e2e",
     "create-admin": "npm --prefix server run create-admin --",
     "mobile:sync": "npm --prefix client run mobile:sync --",

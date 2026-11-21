@@ -19,6 +19,8 @@ COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY --from=build /app/server/dist ./dist
 COPY --from=build /app/client/dist /app/client/dist
+# The server checks gift pictures against the same list the website uses.
+COPY --from=build /app/client/src/data/gift-pictures.json /app/client/src/data/gift-pictures.json
 COPY deploy/docker-entrypoint.sh /usr/local/bin/pulsefit-entrypoint
 RUN sed -i 's/\r$//' /usr/local/bin/pulsefit-entrypoint && chmod 0755 /usr/local/bin/pulsefit-entrypoint
 EXPOSE 5004

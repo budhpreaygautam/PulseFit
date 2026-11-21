@@ -13,7 +13,8 @@
     "mobile:android": "cap open android",
     "mobile:ios": "cap open ios",
     "check:art": "node scripts/check-app-art.mjs",
-    "test:art": "node --test scripts/check-app-art.test.mjs"
+    "gift:add": "node scripts/add-gift-pictures.mjs",
+    "test:art": "node --test scripts/check-app-art.test.mjs scripts/add-gift-pictures.test.mjs"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.1",

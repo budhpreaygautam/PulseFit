@@ -27,7 +27,7 @@ import {
   Coupon,
   GymContact
 } from '../types/index.js';
-import { defaultGifts, defaultRewardSettings } from './rewardDefaults.js';
+import { defaultGifts, defaultRewardSettings, withDefaultPictures } from './rewardDefaults.js';
 import { defaultGymContact } from '../lib/gymContact.js';
 
 export interface DatabaseSchema {
@@ -116,7 +116,8 @@ export function migrate(data: DatabaseSchema): DatabaseSchema {
     }),
     trainers: data.trainers.map(t => (isGeneratedAvatar(t.avatar_url) ? { ...t, avatar_url: '' } : t)),
     classes: data.classes.map(({ booked_count: _derived, ...c }) => (isGeneratedAvatar(c.trainer_avatar) ? { ...c, trainer_avatar: '' } : c)),
-    time_sessions: data.time_sessions.map(s => (isGeneratedAvatar(s.user_avatar) ? { ...s, user_avatar: '' } : s))
+    time_sessions: data.time_sessions.map(s => (isGeneratedAvatar(s.user_avatar) ? { ...s, user_avatar: '' } : s)),
+    gifts: withDefaultPictures(data.gifts)
   };
 }
 

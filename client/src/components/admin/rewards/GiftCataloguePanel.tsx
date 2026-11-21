@@ -10,6 +10,7 @@ import { Modal } from '../../common/Modal.js';
 import { EmptyState, ErrorState, LoadingState } from '../../common/States.js';
 import { useApiResource } from '../../member/useApiResource.js';
 import { resizeAvatar } from '../../member/avatarImage.js';
+import pictures from '../../../data/gift-pictures.json';
 import { FieldError, FormError, SectionCard, focusRing, formErrorsFrom, hintClass, inputClass, labelClass } from '../ui.js';
 
 const LEVELS: { value: GiftLevel; label: string; band: string }[] = [
@@ -94,7 +95,8 @@ const GiftFormModal: React.FC<{ target: Gift | 'new' | null; onClose: () => void
 
   if (!target) return null;
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm(f => ({ ...f, [key]: value }));
-  const isPhoto = form.image.startsWith('data:');
+  const isPhoto = form.image.startsWith('data:') || form.image.startsWith('/gifts/');
+  const builtIn = Object.entries(pictures as Record<string, string>);
   const sized = form.kind === 'item' && form.has_sizes;
 
   const onPhotoChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -227,7 +229,17 @@ const GiftFormModal: React.FC<{ target: Gift | 'new' | null; onClose: () => void
               <ImagePlus className="w-3.5 h-3.5" aria-hidden="true" /> Upload a photo
             </button>
           </div>
-          <p className={hintClass}>An emoji, or a photo (shrunk to 256 px before it is saved).</p>
+          {builtIn.length > 0 && (
+            <select aria-label="Built-in picture" value={builtIn.some(([, path]) => path === form.image) ? form.image : ''} onChange={e => e.target.value && set('image', e.target.value)} className={`${inputClass} mt-2 sm:w-64`}>
+              <option value="">Pick a built-in picture</option>
+              {builtIn.map(([id, path]) => (
+                <option key={id} value={path}>
+                  {id.replace(/^gift_/, '').replace(/_/g, ' ')}
+                </option>
+              ))}
+            </select>
+          )}
+          <p className={hintClass}>An emoji, a built-in picture, or a photo (shrunk to 256 px before it is saved).</p>
           <FieldError id="gift-image-error" message={errors.image} />
         </div>
 
