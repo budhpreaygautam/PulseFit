@@ -199,6 +199,7 @@ export const IdCardManagement: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
       <PageHeader
+        scene="admin-id-cards"
         eyebrow="Admin"
         title="ID cards"
         description="The physical cards handed out at the desk. A deactivated card is refused at check-in straight away; the member's app pass keeps working."

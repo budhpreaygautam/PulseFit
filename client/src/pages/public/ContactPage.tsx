@@ -10,6 +10,7 @@ import { useNavigation } from '../../context/NavigationContext.js';
 import { formatPhone } from '../../lib/format.js';
 import { api, errorMessage, isApiError } from '../../api/client.js';
 import { Enquiry } from '../../types/index.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 const INTERESTS: Enquiry['interest'][] = [...CATEGORIES, 'All-Access', 'Not sure yet'];
 const CONTACT_TIMES: Enquiry['contact_time'][] = ['Any time', 'Morning', 'Afternoon', 'Evening'];
@@ -86,6 +87,7 @@ export const ContactPage: React.FC = () => {
         <div className="w-12 h-12 rounded-2xl neu-pressed-sm flex items-center justify-center text-lime-400">
           <MessageSquare className="w-5 h-5" aria-hidden="true" />
         </div>
+        <PageScene tab="contact" placement="beside" />
         <h1 className="text-3xl sm:text-4xl font-black text-slate-100 font-heading">Contact us</h1>
         <p className="text-sm text-slate-400">Questions about memberships, classes or timings? Leave your details and our front desk will call you back.</p>
         <p className="text-xs text-slate-500">

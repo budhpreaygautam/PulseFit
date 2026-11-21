@@ -10,6 +10,7 @@ import { EmptyState, ErrorState } from '../../components/common/States.js';
 import { GiftImage } from '../../components/common/GiftImage.js';
 import { endsIn, formatINR, tierLabel } from '../../lib/format.js';
 import type { Promotions, StoreGift } from '../../types/index.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 const SECTION = 'neu-flat rounded-3xl p-5 sm:p-6 space-y-4';
 const HEADING = 'text-lg font-black text-slate-100 font-heading flex items-center gap-2';
@@ -173,6 +174,8 @@ export const OffersPage: React.FC<{ onOpenAuthModal: (mode: 'login' | 'register'
             <h2 id="offers-joining" className={HEADING}>
               <Gift className={ICON} aria-hidden="true" /> Joining gifts
             </h2>
+            {/* Not over an empty card: its empty state has a scene of its own. */}
+            {promotions.data.joining_gifts.length > 0 && <PageScene tab="offers" placement="in-card" />}
             {promotions.data.joining_gifts.length === 0 ? (
               <EmptyState title="No joining gifts right now" body="Plans come without a welcome gift at the moment." />
             ) : (

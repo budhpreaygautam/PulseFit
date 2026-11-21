@@ -7,6 +7,7 @@ import { CardSkeletons } from '../../components/public/CardSkeletons.js';
 import { useApiData } from '../../components/public/useApiData.js';
 import { defaultAvatar } from '../../components/member/avatarImage.js';
 import { useNavigation } from '../../context/NavigationContext.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 interface TrainersPageProps {
   setCurrentTab: (tab: string) => void;
@@ -25,6 +26,8 @@ export const TrainersPage: React.FC<TrainersPageProps> = () => {
           The people who run every Workout & Strength and Zumba & Cardio class on the timetable.
         </p>
       </div>
+
+      <PageScene tab="trainers" placement="between-sections" />
 
       {isLoading ? (
         <CardSkeletons label="Loading coaches…" count={3} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" cardClassName="h-[34rem] sm:h-[36rem] rounded-3xl" />

@@ -174,6 +174,7 @@ export const ClassManagement: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
       <PageHeader
+        scene="admin-classes"
         eyebrow="Admin"
         title="Classes & coaches"
         description="The weekly timetable and the coaching team. Booking counts are for each class's next session."

@@ -10,6 +10,7 @@ import { HOURS_DAYS, HOURS_TIME } from '../../components/public/gymInfo.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { api } from '../../api/client.js';
 import { formatINR } from '../../lib/format.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 interface ZumbaPageProps {
   setCurrentTab: (tab: string) => void;
@@ -115,6 +116,7 @@ export const ZumbaPage: React.FC<ZumbaPageProps> = ({ onOpenFreeTrialModal }) =>
         </div>
       </section>
 
+      <PageScene tab="zumba" placement="between-sections" />
       <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8" aria-label="Zumba studio at a glance">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <StatTile value={classes.data ? String(classes.data.length) : null} isLoading={classes.isLoading} label="Zumba & Cardio classes a week" />

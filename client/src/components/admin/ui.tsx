@@ -3,6 +3,7 @@ import { Activity, CalendarDays, Gauge, IdCard, QrCode, Search, Tag, Users, User
 import { ApiError, errorMessage } from '../../api/client.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { avatarOf } from '../member/avatarImage.js';
+import { PageScene } from '../app/PageScene.js';
 import { Gender } from '../../types/index.js';
 
 // Building blocks shared by the admin and coach screens.
@@ -72,14 +73,17 @@ export function sideEffectsOf(message?: string): string | undefined {
 /** Toast type for a side-effect message: cancelled bookings or a member still locked out are a warning, anything else is news. */
 export const sideEffectTone = (text: string) => (/cancel|cannot/i.test(text) ? ('warning' as const) : ('info' as const));
 
-export const PageHeader: React.FC<{ eyebrow: string; title: string; description?: React.ReactNode; actions?: React.ReactNode }> = ({
+/** `scene`: the page's tab, whose scene (app only) sits beside the heading. */
+export const PageHeader: React.FC<{ eyebrow: string; title: string; description?: React.ReactNode; actions?: React.ReactNode; scene?: string }> = ({
   eyebrow,
   title,
   description,
-  actions
+  actions,
+  scene
 }) => (
   <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-800/80 pb-6">
     <div className="min-w-0">
+      {scene && <PageScene tab={scene} placement="beside" />}
       <p className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-400">{eyebrow}</p>
       <h1 className="text-3xl sm:text-4xl font-black text-slate-100 tracking-tight mt-1 font-heading">{title}</h1>
       {description && <p className="text-sm text-slate-400 mt-1 max-w-2xl">{description}</p>}

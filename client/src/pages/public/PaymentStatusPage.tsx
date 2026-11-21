@@ -9,6 +9,7 @@ import { useNavigation } from '../../context/NavigationContext.js';
 import { api, errorMessage, isApiError } from '../../api/client.js';
 import { homeTabFor } from '../../routes.js';
 import { formatPhone } from '../../lib/format.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 // Where a YouPI (UPI) payment comes back to (/payment-status?order=ypo_…), and where the app waits
 // while the member pays in the phone's browser. It asks the server every few seconds; the server
@@ -232,6 +233,8 @@ export const PaymentStatusPage: React.FC<PaymentStatusPageProps> = ({ onOpenAuth
   return (
     <section className="max-w-md mx-auto my-20 px-6">
       <div className="neu-flat-lg rounded-3xl p-8 border border-slate-800/80">
+        {/* One scene: a result's own moment replaces it. */}
+        {!moment && <PageScene tab="payment-status" placement="beside" />}
         <div className={`mb-5 rounded-2xl neu-pressed-sm flex items-center justify-center ${isAppMode && moment ? 'w-14 h-14' : 'w-12 h-12'}`}>
           {isAppMode && moment ? <AppArt scene={`moment.${moment}`} size="moment" once className="w-full" /> : icon}
         </div>

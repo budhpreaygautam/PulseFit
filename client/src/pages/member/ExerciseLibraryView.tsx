@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/common/St
 import { useApiResource } from '../../components/member/useApiResource.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 interface ExerciseLibraryViewProps {
   setCurrentTab: (tab: string) => void;
@@ -126,6 +127,7 @@ export const ExerciseLibraryView: React.FC<ExerciseLibraryViewProps> = ({ setCur
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6 sm:space-y-8">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
+          <PageScene tab="exercise-library" placement="beside" />
           <h1 className="text-3xl sm:text-4xl font-black text-slate-100 tracking-tight font-heading">Exercise library</h1>
           <p className="text-sm text-slate-400 mt-1 max-w-xl">How to perform each movement on our floor, and which muscles it works.</p>
         </div>

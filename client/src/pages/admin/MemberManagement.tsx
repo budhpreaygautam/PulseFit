@@ -183,6 +183,7 @@ export const MemberManagement: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
       <PageHeader
+        scene="admin-members"
         eyebrow="Admin"
         title="Members"
         description="Accounts, plans and access. Removing an account deletes its bookings, workouts and check-ins; payments are kept."

@@ -4,6 +4,7 @@ import { useAppConfig } from '../../context/ConfigContext.js';
 import { SocialLinks, VisitWebsiteLink, WhatsAppButton } from '../../components/public/ContactLinks.js';
 import { GYM_ADDRESS, weekdayOf } from '../../components/public/gymInfo.js';
 import { DAY_NAMES, formatClock, formatPhone, gymClockNow, gymToday } from '../../lib/format.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 // Monday first, as the gym's week runs.
 const WEEK = [1, 2, 3, 4, 5, 6, 0];
@@ -46,6 +47,7 @@ export const VisitPage: React.FC = () => {
         <address className="not-italic flex items-start gap-3 text-sm text-slate-200 font-semibold leading-relaxed">
           <MapPin className="w-5 h-5 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
           {GYM_ADDRESS}
+          <PageScene tab="visit" placement="beside" />
         </address>
         <a href={DIRECTIONS} className="neu-btn-lime w-full py-3 rounded-xl text-sm font-black flex items-center justify-center gap-2">
           <Navigation className="w-4 h-4" aria-hidden="true" /> Get directions

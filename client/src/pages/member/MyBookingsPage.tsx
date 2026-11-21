@@ -6,6 +6,7 @@ import { useNavigation } from '../../context/NavigationContext.js';
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/States.js';
 import { BookingCard, CancelBookingDialog } from '../../components/member/BookingCard.js';
 import { useApiResource } from '../../components/member/useApiResource.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 type Scope = 'upcoming' | 'past';
 
@@ -38,6 +39,7 @@ export const MyBookingsPage: React.FC = () => {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
       <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
+          <PageScene tab="my-bookings" placement="beside" />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-100 font-heading flex items-center gap-2">
             <CalendarDays className="w-7 h-7 text-lime-700 dark:text-lime-400" aria-hidden="true" /> My bookings
           </h1>

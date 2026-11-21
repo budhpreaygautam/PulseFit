@@ -14,6 +14,7 @@ import { useAuth } from '../../context/AuthContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { api } from '../../api/client.js';
 import { formatINR } from '../../lib/format.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 interface WorkoutPageProps {
   setCurrentTab: (tab: string) => void;
@@ -131,6 +132,7 @@ export const WorkoutPage: React.FC<WorkoutPageProps> = ({ setCurrentTab, onOpenF
         </div>
       </section>
 
+      <PageScene tab="workout" placement="between-sections" />
       <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8" aria-label="Strength floor at a glance">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <StatTile value={classes.data ? String(classes.data.length) : null} isLoading={classes.isLoading} label="Strength classes a week" />

@@ -7,6 +7,7 @@ import { errorMessage, isApiError } from '../../api/client.js';
 import { homeTabFor } from '../../routes.js';
 import { passwordError } from '../../components/public/validation.js';
 import { AuthModal } from './AuthModal.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 const PASSWORD_RULES = '8–72 characters, with at least one letter and one digit.';
 
@@ -76,6 +77,7 @@ export const ResetPasswordPage: React.FC = () => {
   return (
     <section className="max-w-md mx-auto my-20 px-6">
       <div className="neu-flat-lg rounded-3xl p-8 border border-slate-800/80">
+        <PageScene tab="reset-password" placement="beside" />
         <div className="mb-5 w-12 h-12 rounded-2xl neu-pressed-sm flex items-center justify-center text-lime-400">
           <KeyRound className="w-5 h-5" aria-hidden="true" />
         </div>

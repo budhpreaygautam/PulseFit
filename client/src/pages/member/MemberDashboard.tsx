@@ -17,6 +17,7 @@ import { useGiftCelebration } from '../../components/member/useGiftCelebration.j
 import { membershipNotice } from '../../components/member/membershipNotice.js';
 import { formatDate, formatDateTime, tierLabel } from '../../lib/format.js';
 import { avatarOf } from '../../components/member/avatarImage.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 interface MemberDashboardProps {
   setCurrentTab: (tab: string) => void;
@@ -99,6 +100,8 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ setCurrentTab 
           </button>
         </div>
       </section>
+
+      <PageScene tab="member-dashboard" placement="between-sections" />
 
       {notice && (
         <div

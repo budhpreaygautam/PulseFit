@@ -197,6 +197,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
         <AdminNav />
         <PageHeader
+          scene="trainer-dashboard"
           eyebrow="Admin · coach view"
           title="Coach dashboards"
           description="Choose a coach to see their classes, take attendance and read their notes. This is also how attendance is taken for coaches who have no login."
@@ -212,6 +213,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
         {isAdmin && <AdminNav />}
         <PageHeader
+          scene="trainer-dashboard"
           eyebrow={isAdmin ? 'Admin · coach view' : 'Coach'}
           title="Coach dashboard"
           actions={
@@ -261,6 +263,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ trainerId: t
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
       {isAdmin && <AdminNav />}
       <PageHeader
+        scene="trainer-dashboard"
         eyebrow={isAdmin ? 'Admin · coach view' : 'Coach'}
         title={isAdmin ? `${trainer.name}'s dashboard` : 'Coach dashboard'}
         actions={

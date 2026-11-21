@@ -8,6 +8,7 @@ import { PlanPrompt } from '../../components/public/PlanPrompt.js';
 import { useApiData } from '../../components/public/useApiData.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { FitnessGuide, GuideMeal } from '../../types/index.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 type GuideTab = 'workout-plans' | 'diet-charts' | 'supplements';
 
@@ -159,6 +160,8 @@ export const FitnessGuidePage: React.FC<FitnessGuidePageProps> = ({ setCurrentTa
           ))}
         </div>
       </div>
+
+      <PageScene tab="guide" placement="between-sections" />
 
       {/* 2. TAB 1: WORKOUT PLANS */}
       {activeCategory === 'workout-plans' && panel('workout-plans', ({ workout_plans: workoutPlans }) => (

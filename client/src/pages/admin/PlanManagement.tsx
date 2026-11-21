@@ -99,7 +99,7 @@ export const PlanManagement: React.FC = () => {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
-      <PageHeader eyebrow="Admin" title="Plans & rewards" description="The plans behind the pricing page and checkout, their sales and coupon codes, the gifts members earn and the rules that give them, the gifts waiting at the front desk, and the gym's contact details." />
+      <PageHeader scene="admin-plans" eyebrow="Admin" title="Plans & rewards" description="The plans behind the pricing page and checkout, their sales and coupon codes, the gifts members earn and the rules that give them, the gifts waiting at the front desk, and the gym's contact details." />
       <AdminNav />
 
       <div role="tablist" aria-label="Plans and rewards sections" className="flex gap-1 p-1.5 rounded-2xl neu-pressed-sm overflow-x-auto">

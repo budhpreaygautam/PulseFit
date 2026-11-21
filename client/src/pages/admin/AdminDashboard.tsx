@@ -52,6 +52,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setCurrentTab })
 
   const header = (
     <PageHeader
+      scene="admin-dashboard"
       eyebrow="Admin"
       title="Gym overview"
       description={data ? `Worked out from the gym's records at ${formatDateTime(data.generatedAt)}.` : 'Members, revenue, attendance and classes at a glance.'}

@@ -17,7 +17,6 @@ import { AppTabBar } from './components/app/AppTabBar.js';
 import { firstTab, tabsFor } from './components/app/tabs.js';
 import type { SceneId } from './lib/appArt.js';
 import { isAppMode } from './lib/appMode.js';
-import { PageScene } from './components/app/PageScene.js';
 import { revealCards } from './lib/appMotion.js';
 import { ErrorBoundary } from './components/common/ErrorBoundary.js';
 import { clearPendingPage, rememberPendingPage } from './components/public/pendingPage.js';
@@ -297,6 +296,7 @@ function MainAppContent() {
         body={`Sign in to open ${route.title.toLowerCase()}.`}
         action="Sign in"
         onAction={() => openAuthModal('login')}
+        scene={`page.${route.tab}`}
       />
     );
   } else if (!canAccess(route, user?.role ?? null)) {
@@ -307,6 +307,7 @@ function MainAppContent() {
         body={`${route.title} is only available to ${(route.access as string[]).join(' and ')} accounts.`}
         action="Go to my dashboard"
         onAction={() => navigate(homeTabFor(user!.role))}
+        scene={`page.${route.tab}`}
       />
     );
   } else {
@@ -409,9 +410,9 @@ function MainAppContent() {
 
       <main id="main" ref={mainRef} tabIndex={-1} className="flex-1 outline-none">
         {/* A page that fails (one that loads on demand and could not be fetched, or a crash) shows
-            this panel instead of emptying the whole app. Moving to another page tries again. The page's
-            scene goes with the page, so the loader and the offline and "didn't load" panels show only
-            their own scene; the panels with just an icon keep the page's scene. */}
+            this panel instead of emptying the whole app. Moving to another page tries again. Each page
+            places its own scene (components/app/PageScene.tsx); the sign-in and wrong-account panels
+            show the page's scene in place of their icon. */}
         <ErrorBoundary
           resetKey={`${accountGeneration}:${refreshes}:${tab}`}
           fallback={
@@ -426,7 +427,6 @@ function MainAppContent() {
           }
         >
           <Suspense key={`${accountGeneration}:${refreshes}`} fallback={<PageLoader />}>
-            {isAppMode && !restoring && <PageScene tab={tab} />}
             {page}
           </Suspense>
         </ErrorBoundary>

@@ -12,6 +12,7 @@ import { useApiResource } from '../../components/member/useApiResource.js';
 import { useGiftCelebration } from '../../components/member/useGiftCelebration.js';
 import { useShareReferral } from '../../components/member/useShareReferral.js';
 import { formatDateTime, formatDay } from '../../lib/format.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 const HISTORY_PAGE = 20;
 
@@ -231,6 +232,7 @@ export const RewardsPage: React.FC = () => {
           </p>
         </div>
         <div className="neu-pressed-sm rounded-2xl px-6 py-4 text-center shrink-0" aria-live="polite">
+          <PageScene tab="rewards" placement="in-card" />
           <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Your points</p>
           <p className="text-4xl font-black text-lime-700 dark:text-lime-400 font-heading">{data ? data.balance.toLocaleString('en-IN') : '—'}</p>
         </div>

@@ -17,6 +17,7 @@ import { avatarOf, PRESET_AVATARS, resizeAvatar } from '../../components/member/
 import { copyText } from '../../components/member/clipboard.js';
 import { TwoStepPanel } from '../../components/member/TwoStepPanel.js';
 import { formatDate, formatDateTime, formatINR, GENDER_OPTIONS, TIER_LABELS, tierLabel } from '../../lib/format.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 interface MemberProfilePageProps {
   setCurrentTab: (tab: string) => void;
@@ -616,6 +617,8 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({ setCurrent
           </button>
         </div>
       </section>
+
+      <PageScene tab="profile" placement="between-sections" />
 
       <div role="tablist" aria-label="Account sections" className="grid grid-cols-2 sm:flex gap-1 p-1.5 rounded-2xl neu-pressed-sm">
         {TABS.map(tab => (

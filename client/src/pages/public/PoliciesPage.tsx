@@ -9,6 +9,7 @@ import { formatDate, formatPhone } from '../../lib/format.js';
 import { isNativeApp } from '../../lib/native.js';
 import { prefersReducedMotion } from '../../lib/appMotion.js';
 import type { ArtCredit } from '../../lib/appArt.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 const KINDS = Object.keys(CONTENT) as Kind[];
 const linkClass = 'text-lime-400 underline';
@@ -65,6 +66,7 @@ export const PoliciesPage: React.FC = () => {
         <div className="w-12 h-12 rounded-2xl neu-pressed-sm flex items-center justify-center text-lime-400">
           <ShieldCheck className="w-5 h-5" aria-hidden="true" />
         </div>
+        <PageScene tab="policies" placement="beside" />
         <h1 className="text-3xl sm:text-4xl font-black text-slate-100 font-heading">Policies & terms</h1>
         <p className="text-sm text-slate-400">How {GYM_NAME} handles your data, the rules for the gym and your membership, and how refunds work.</p>
       </header>

@@ -126,6 +126,7 @@ export const TrialLeads: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
       <PageHeader
+        scene="admin-trials"
         eyebrow="Admin"
         title="Leads"
         description="Enquiries from the contact page and free-trial claims, newest first."

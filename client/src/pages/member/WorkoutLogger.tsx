@@ -11,6 +11,7 @@ import { isAppMode } from '../../lib/appMode.js';
 import { useApiResource } from '../../components/member/useApiResource.js';
 import { WORKOUT_LIMITS as LIMITS, inRange } from '../../components/member/workoutLimits.js';
 import { addDays, formatDate, gymToday } from '../../lib/format.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 interface WorkoutLoggerProps {
   setCurrentTab: (tab: string) => void;
@@ -370,6 +371,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ setCurrentTab }) =
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6 sm:space-y-8">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
+          <PageScene tab="workout-logger" placement="beside" />
           <h1 className="text-2xl sm:text-4xl font-black text-slate-100 tracking-tight font-heading">Log a workout</h1>
           <p className="text-sm text-slate-400 mt-1 max-w-xl">Record each set's weight, reps and effort. Volume counts working sets only (weight × reps).</p>
         </div>

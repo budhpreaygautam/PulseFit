@@ -15,6 +15,7 @@ import { useAuth } from '../../context/AuthContext.js';
 import { useAppConfig } from '../../context/ConfigContext.js';
 import { useNavigation } from '../../context/NavigationContext.js';
 import { endsIn, formatClock, formatDate, formatINR, formatTime, gymToday } from '../../lib/format.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 interface LandingPageProps {
   setCurrentTab: (tab: string) => void;
@@ -247,6 +248,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ setCurrentTab, onOpenF
           </div>
         </div>
       </section>
+
+      <PageScene tab="home" placement="between-sections" />
 
       {/* Floor right now: counts only */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" aria-labelledby="floor-heading">

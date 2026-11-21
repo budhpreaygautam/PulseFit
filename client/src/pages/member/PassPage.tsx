@@ -6,6 +6,7 @@ import { IdCardModal } from '../../components/qr/IdCardModal.js';
 import { cardNumber } from '../../components/qr/idCard.js';
 import { MembershipStatusBadge } from '../../components/member/MembershipStatusBadge.js';
 import { tierLabel } from '../../lib/format.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 /**
  * The app's Pass tab (the website has no such page): the member's check-in QR pass, the same code the
@@ -62,6 +63,9 @@ export const PassPage: React.FC = () => {
         <code className="font-mono text-sm font-bold text-slate-200 break-all select-all">{user.qr_code_token}</code>
         <p className="text-xs text-slate-400">Show this at the front desk to check in.</p>
       </section>
+
+      {/* Below the pass, so the QR code keeps its place on the first screen. */}
+      <PageScene tab="pass" placement="between-sections" />
 
       <button type="button" onClick={() => setIsIdCardOpen(true)} className="w-full neu-btn py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
         <IdCard className="w-4 h-4" aria-hidden="true" /> ID card

@@ -16,6 +16,7 @@ import { useToast } from '../../context/ToastContext.js';
 import { api, errorMessage, isApiError } from '../../api/client.js';
 import { addDays, DAY_NAMES, formatClock, formatDate, formatINR, gymToday, STATUS_LABELS } from '../../lib/format.js';
 import { ClassOccurrence, MembershipPlan } from '../../types/index.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 interface SchedulePageProps {
   onOpenAuthModal: (mode: 'login' | 'register') => void;
@@ -474,6 +475,7 @@ export const SchedulePage: React.FC<SchedulePageProps> = ({ onOpenAuthModal }) =
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-800/80 pb-6">
         <div>
+          <PageScene tab="schedule" placement="beside" />
           <Badge variant="lime">CLASS TIMETABLE</Badge>
           <h1 className="text-3xl sm:text-5xl font-black text-slate-100 tracking-tight mt-2 font-heading">BOOK A CLASS</h1>
           <p className="text-sm text-slate-400 mt-1 max-w-xl font-medium">

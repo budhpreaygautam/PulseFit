@@ -15,6 +15,7 @@ import { useCheckout } from '../../hooks/useCheckout.js';
 import { api } from '../../api/client.js';
 import { addDays, endsIn, formatDate, formatINR, gymToday, STATUS_LABELS } from '../../lib/format.js';
 import { BillingCycle, MembershipPlan, PaidTier, Quote, User } from '../../types/index.js';
+import { PageScene } from '../../components/app/PageScene.js';
 
 interface PricingPageProps {
   onOpenFreeTrialModal: () => void;
@@ -213,6 +214,8 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onOpenFreeTrialModal }
           </button>
         </div>
       </div>
+
+      <PageScene tab="pricing" placement="between-sections" />
 
       {user && user.membership_tier !== 'none' && (
         <div className="max-w-3xl mx-auto p-4 rounded-2xl neu-pressed-sm flex items-start gap-3 text-sm text-slate-300">
