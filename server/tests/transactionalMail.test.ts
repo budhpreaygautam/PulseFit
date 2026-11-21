@@ -35,14 +35,14 @@ beforeEach(() => {
   sent = [];
   sender = async mail => void sent.push(mail);
   setMailSenderForTests(mail => sender(mail));
-  Object.assign(config.mail, { brevoApiKey: 'test-key', from: 'desk@example.com' });
+  Object.assign(config.mail, { brevoApiKey: 'test-key', from: 'desk@example.com', inbox: 'desk@example.com' });
   Object.assign(config.razorpay, { keyId: 'rzp_test', keySecret: KEY_SECRET });
   setRazorpayClientForTests({ orders: { create: async p => ({ id: 'order_tx_1', amount: p.amount, currency: p.currency }) } });
 });
 afterEach(() => {
   setMailSenderForTests(null);
   setRazorpayClientForTests(null);
-  Object.assign(config.mail, { brevoApiKey: '', from: '' });
+  Object.assign(config.mail, { brevoApiKey: '', from: '', inbox: '' });
   Object.assign(config, { isLocal: original.isLocal, isProduction: original.isProduction, logResetLinks: original.logResetLinks, publicUrl: original.publicUrl });
   Object.assign(config.razorpay, original.razorpay);
   vi.useRealTimers();
@@ -57,9 +57,25 @@ describe('forgot password email', () => {
     const unknown = await forgot('ghost@example.com');
     expect(known.status).toBe(200);
     expect(known.body).toEqual(unknown.body);
-    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    await new Promise(r => setTimeout(r, 50));
+    expect(sent).toHaveLength(1);
     expect(sent[0].to).toBe(personas.basic);
+    expect(sent[0].replyTo).toBe('desk@example.com');
     expect(sent[0].text).toContain('https://gym.example/reset-password?token=');
+  });
+
+  it('sends nothing when there is no address to build the link on', async () => {
+    Object.assign(config, { publicUrl: '' });
+    const origins = config.corsOrigins.splice(0);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      expect((await forgot(personas.basic)).status).toBe(200);
+    } finally {
+      config.corsOrigins.push(...origins);
+    }
+    await new Promise(r => setTimeout(r, 50));
+    expect(sent).toHaveLength(0);
+    expect(error).toHaveBeenCalled();
   });
 
   it('sends nothing and gives the desk message when email is not set up', async () => {
@@ -78,6 +94,8 @@ describe('booking and payment emails', () => {
     expect(sent[0].to).toBe(personas.member);
     expect(sent[0].text).toContain('Core & Cardio Burn Session');
     expect(sent[0].text).toContain('2026');
+    expect(sent[0].text).toMatch(/Coach: .+/);
+    expect(sent[0].text).toContain('To cancel');
     expect(sent[0].text).toContain(db.classes.find(c => c.id === 'cls_zumba_thu')!.start_time);
   });
 

@@ -22,6 +22,7 @@ import {
 import { User } from '../types/index.js';
 
 const RESET_TTL_MS = 30 * 60_000;
+const FORGOT_MESSAGE_EMAIL = 'If an account exists for that email, we have emailed a password reset link. It is valid for 30 minutes.';
 const FORGOT_MESSAGE = 'If an account exists for that email, a password reset link has been created. It is valid for 30 minutes.';
 // Production has no email delivery: the link only reaches the server log, where staff can hand it out.
 const FORGOT_MESSAGE_STAFF =
@@ -128,7 +129,7 @@ function resetOrigin(req: Request): { origin: string; fromRequest: boolean } {
 export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
   const { email } = parse(forgotPasswordSchema, req.body);
   // Depends only on the server mode, never on whether the account exists.
-  const message = config.isLocal || emailConfigured() ? FORGOT_MESSAGE : config.logResetLinks ? FORGOT_MESSAGE_STAFF : FORGOT_MESSAGE_DESK;
+  const message = config.isLocal ? FORGOT_MESSAGE : emailConfigured() ? FORGOT_MESSAGE_EMAIL : config.logResetLinks ? FORGOT_MESSAGE_STAFF : FORGOT_MESSAGE_DESK;
   // Without the response or the log, a link would reach nobody.
   if (!config.isLocal && !config.logResetLinks && !emailConfigured()) return ok(res, { message });
   const user = findUserByEmail(email);
@@ -163,7 +164,9 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
     console.log(`🔑 Password reset link for account ${user.id} (valid 30 minutes)${caution}: ${resetUrl}`);
   }
 
-  sendResetLink(user, resetUrl);
+  // A link with no address would be relative or wrong; PUBLIC_URL is what email needs.
+  if (origin) sendResetLink(user, resetUrl);
+  else if (emailConfigured()) console.error(`✉️  Password reset for account ${user.id}: no email sent, PUBLIC_URL is not set`);
 
   // Only local development returns the link itself; everywhere else it reaches people through staff.
   return ok(res, config.isLocal ? { message, resetUrl } : { message });

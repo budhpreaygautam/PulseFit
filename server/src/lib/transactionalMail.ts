@@ -1,4 +1,4 @@
-import { emailConfigured } from '../config.js';
+import config, { emailConfigured } from '../config.js';
 import db from '../db/database.js';
 import { displayDate } from './dates.js';
 import { sendMail, type Mail } from './mailer.js';
@@ -9,7 +9,7 @@ import { Booking, MembershipPlan, Payment, User } from '../types/index.js';
 // sent unless email is set up. The log carries the record id and the reason only, never an address or a name.
 
 const paragraphs = (lines: string[]) => lines.map(p => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`).join('');
-const signOff = () => `${GYM.name}\n${db.gym_contact.phone}`;
+const signOff = () => `${GYM.name}\n${GYM.streetAddress}, ${GYM.addressLocality}\n${db.gym_contact.phone}`;
 
 function fire(kind: string, id: string, make: () => Mail): void {
   if (!emailConfigured()) return;
@@ -24,6 +24,7 @@ function fire(kind: string, id: string, make: () => Mail): void {
 
 const compose = (to: string, subject: string, lines: string[]): Mail => ({
   to,
+  replyTo: config.mail.inbox || undefined,
   subject: `${subject} · ${GYM.name}`,
   text: lines.join('\n\n'),
   html: paragraphs(lines)
@@ -40,11 +41,12 @@ export function sendResetLink(user: Pick<User, 'id' | 'email' | 'name'>, link: s
   );
 }
 
-export function sendBookingConfirmation(booking: Booking, user: Pick<User, 'email' | 'name'>, cls: { title: string; start_time: string; room?: string }): void {
+export function sendBookingConfirmation(booking: Booking, user: Pick<User, 'email' | 'name'>, cls: { title: string; start_time: string; room?: string; trainer_name?: string }): void {
   fire('Booking', booking.id, () =>
     compose(user.email, `Booked: ${cls.title}`, [
       `Hello ${user.name},`,
-      `Your spot is booked.\nClass: ${cls.title}\nDate: ${displayDate(booking.booking_date)}\nTime: ${cls.start_time}${cls.room ? `\nRoom: ${cls.room}` : ''}`,
+      `Your spot is booked.\nClass: ${cls.title}\nDate: ${displayDate(booking.booking_date)}\nTime: ${cls.start_time}${cls.room ? `\nRoom: ${cls.room}` : ''}${booking.trainer_name || cls.trainer_name ? `\nCoach: ${booking.trainer_name || cls.trainer_name}` : ''}`,
+      'To cancel, open My Bookings in the app and cancel before the class starts, or call the front desk.',
       signOff()
     ])
   );
