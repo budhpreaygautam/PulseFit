@@ -18,6 +18,37 @@ type Player = { goToAndStop(f: number, isFrame: boolean): void; play(): void; pa
 const ONCE_MS = 1500;
 const MODAL = '[role="dialog"][aria-modal="true"]';
 
+/** Playing Lottie scenes (not moments), told when a scroll starts (true) and when it has stopped (false). */
+const scrollFollowers = new Set<(scrolling: boolean) => void>();
+let scrollWatched = false;
+let scrollEnd: number | undefined;
+const isScrolling = () => scrollEnd !== undefined;
+
+/**
+ * Every scene but a moment holds still while anything scrolls, until 200 ms after the last scroll event:
+ * a moving scene makes the WebView repaint its svg on every frame of the scroll. The svg scenes are
+ * paused by html[data-scrolling] (index.css). One listener for the whole app, from the first scene on.
+ */
+function watchScroll() {
+  if (scrollWatched) return;
+  scrollWatched = true;
+  const root = document.documentElement;
+  const onScroll = () => {
+    if (scrollEnd === undefined) {
+      root.dataset.scrolling = '';
+      scrollFollowers.forEach(follow => follow(true));
+    }
+    window.clearTimeout(scrollEnd);
+    scrollEnd = window.setTimeout(() => {
+      scrollEnd = undefined;
+      delete root.dataset.scrolling;
+      scrollFollowers.forEach(follow => follow(false));
+    }, 200);
+  };
+  // Capture: scrolling inside a container counts too.
+  window.addEventListener('scroll', onScroll, { capture: true, passive: true });
+}
+
 /**
  * Scopes a scene's CSS to its own box: every rule applies only inside [data-scene="<id>"]. `:is()` keeps
  * selectors that start above the scene (`.light .x`, the theme overrides) working.
@@ -87,8 +118,9 @@ const Art: React.FC<AppArtProps> = ({ scene, size, once = false, playing = true,
   }, [scene, once]);
 
   // Paused off screen, under a dialog (re-checked as focus moves, and every 500 ms while one is open)
-  // and while the app is in the background.
+  // and while the app is in the background. Held still while the page scrolls (watchScroll).
   useEffect(() => {
+    watchScroll();
     const el = host.current!;
     const io = new IntersectionObserver(entries => setOnScreen(entries[entries.length - 1].isIntersecting));
     io.observe(el);
@@ -126,16 +158,23 @@ const Art: React.FC<AppArtProps> = ({ scene, size, once = false, playing = true,
   }, [once, state]);
 
   // The svg scenes run on CSS (index.css pauses them); Lottie scenes are told. A still is the first frame
-  // of the svg's loops, or the Lottie scene's still frame.
+  // of the svg's loops, or the Lottie scene's still frame. A moment (a toast, which does not scroll with the
+  // page) plays through a scroll, so a once-only one keeps its play time.
   useEffect(() => {
     const anim = lottie.current;
+    if (state === 'playing' && anim && size !== 'moment') {
+      const follow = (scrolling: boolean) => (scrolling ? anim.player.pause() : anim.player.play());
+      follow(isScrolling());
+      scrollFollowers.add(follow);
+      return () => void scrollFollowers.delete(follow);
+    }
     if (state === 'playing') anim?.player.play();
     else if (state === 'paused') anim?.player.pause();
     else if (state === 'still') {
       if (anim) anim.player.goToAndStop(anim.stillFrame, true);
       else host.current?.getAnimations({ subtree: true }).forEach(a => (a.currentTime = 0));
     }
-  }, [state]);
+  }, [state, size]);
 
   return <div ref={host} className={`app-art app-art-${size} ${className}`} data-scene={scene} data-art={marker} data-state={state} aria-hidden="true" />;
 };
