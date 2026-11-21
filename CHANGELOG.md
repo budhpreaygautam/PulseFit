@@ -28,10 +28,10 @@ Not released yet: the version is prepared, nothing is tagged, deployed or publis
   time) and a payment emails its receipt (plan, amount and reference). Mail is sent in the background: a slow or
   failing sender never delays or fails the booking, payment or reset, and logs carry ids and error text only.
   Without email configured nothing is sent and the reset reply is the desk message as before.
-- **Gift pictures.** Support for a picture on each default gift (`client/src/data/gift-pictures.json`); 23 of the 24
-  gifts have an AI-made picture on the white tile (the free week keeps its emoji), shown on the website and in the
-  app. A gift keeps its own emoji or upload if an admin changed it. `npm run gift:add` places new pictures; the
-  prompts and licence notes are in `docs/gift-pictures/`.
+- **Gift pictures.** Support for a picture on each default gift (`client/src/data/gift-pictures.json`); all 24
+  gifts have a picture the owner made with Google Gemini, on the white tile, shown on the website and in the app. A
+  gift keeps its own emoji or upload if an admin changed it. `npm run gift:add` places new pictures; the prompts and
+  licence notes are in `docs/gift-pictures/`.
 - **Page cartoons inside the sections (Android app only).** Each page's scene sits beside its heading or inside a
   fitting card instead of a strip above the page.
 
